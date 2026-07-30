@@ -1,0 +1,8 @@
+[package]
+name = "structure-preserving-edit-prototype"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+rowan = "0.16"

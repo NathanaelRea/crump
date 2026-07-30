@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crump variation workflow prototype</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0d100e; --panel:#161b17; --panel2:#202720; --line:#374038; --text:#e4eadf; --muted:#8f9c90; --lime:#b8e45d; --cyan:#67cdda; --amber:#ffbd63; --red:#ff776d; --mono:"IBM Plex Mono","Cascadia Mono","DejaVu Sans Mono",monospace; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font:14px/1.45 var(--mono); }
+    button { color:inherit; font:inherit; cursor:pointer; }
+    button:focus-visible { outline:2px solid var(--lime); outline-offset:2px; }
+    .top { height:52px; display:flex; align-items:center; gap:18px; padding:0 18px; background:#090c0a; border-bottom:1px solid var(--line); }
+    .brand { color:var(--lime); font-weight:900; letter-spacing:.16em; }
+    .play { color:var(--lime); }
+    .rev { margin-left:auto; color:var(--muted); }
+    .rev b { color:var(--cyan); }
+    .layout { display:grid; grid-template-columns:minmax(520px,1.45fr) minmax(340px,.75fr); gap:8px; padding:8px 8px 82px; min-height:calc(100vh - 52px); }
+    .main { min-width:0; display:grid; grid-template-rows:auto auto 1fr; gap:8px; }
+    .side { min-width:0; display:grid; align-content:start; gap:8px; }
+    .panel { border:1px solid var(--line); background:var(--panel); overflow:hidden; }
+    .title { min-height:35px; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 10px; border-bottom:1px solid var(--line); color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+    .title strong { color:var(--text); }
+    .request { display:flex; align-items:center; gap:10px; padding:12px; }
+    .prompt { flex:1; border:1px solid #61704f; background:#10150f; color:var(--text); padding:10px 12px; }
+    .go { border:1px solid var(--lime); background:#29371f; color:var(--lime); padding:10px 13px; }
+    .ruler { display:grid; grid-template-columns:74px repeat(8,1fr); color:var(--muted); font-size:11px; padding:8px 8px 0; }
+    .track { display:grid; grid-template-columns:74px 1fr; min-height:48px; border-top:1px solid #2a312b; }
+    .name { padding:13px 8px; color:var(--muted); }
+    .lane { display:grid; grid-template-columns:repeat(16,1fr); gap:2px; align-items:center; padding:6px 0; position:relative; }
+    .event { height:28px; border:1px solid #526342; background:#2b3822; color:#deefbd; padding:4px; text-align:left; overflow:hidden; white-space:nowrap; }
+    .event.changed { border-color:var(--amber); background:#49361c; color:#ffe0a6; }
+    .event.ghost { border-style:dashed; background:#1c2520; color:var(--cyan); }
+    .dots { display:flex; align-items:end; gap:4px; height:82px; padding:8px 12px; }
+    .dot { flex:1; min-width:5px; background:#435143; border-top:2px solid var(--lime); }
+    .dot.changed { background:#58421f; border-color:var(--amber); }
+    .legend { display:flex; gap:15px; padding:0 12px 10px; color:var(--muted); font-size:11px; }
+    .legend i { display:inline-block; width:9px; height:9px; margin-right:5px; background:var(--lime); }
+    .legend .changed { background:var(--amber); }
+    .proposal { padding:11px; }
+    .op { display:grid; grid-template-columns:24px 1fr auto; gap:8px; padding:9px 5px; border-bottom:1px solid #2a312b; }
+    .op:last-child { border:0; }
+    .check { color:var(--lime); }
+    .scope { color:var(--cyan); }
+    .why { color:var(--muted); font-size:12px; margin-top:3px; }
+    .pill { border:1px solid var(--line); border-radius:999px; padding:2px 8px; color:var(--muted); font-size:11px; }
+    .actions { display:flex; gap:7px; padding:10px; border-top:1px solid var(--line); }
+    .action { border:1px solid var(--line); background:#202720; padding:7px 10px; }
+    .action.primary { border-color:var(--lime); color:var(--lime); }
+    .action.active { border-color:var(--amber); color:var(--amber); }
+    pre { margin:0; padding:13px; overflow:auto; color:#cdd6c8; }
+    .ln { color:#59645b; }
+    .kw { color:var(--amber); }
+    .id { color:var(--cyan); }
+    .new { display:inline-block; width:100%; background:#324020; color:#effbd7; }
+    .dim { color:var(--muted); }
+    .rule { margin:10px; border:1px solid #5c6b52; background:#111611; }
+    .rule-row { display:grid; grid-template-columns:110px 1fr; border-bottom:1px solid #2b332c; }
+    .rule-row:last-child { border:0; }
+    .rule-row span { padding:8px; }
+    .rule-row span:first-child { color:var(--muted); border-right:1px solid #2b332c; }
+    .rule-row strong { color:var(--amber); }
+    .audit { padding:10px; color:var(--muted); }
+    .audit b { color:var(--text); }
+    .warning { margin:10px; padding:9px; border-left:3px solid var(--amber); background:#241f16; }
+    .switcher { position:fixed; z-index:10; left:50%; bottom:16px; transform:translateX(-50%); display:flex; align-items:center; gap:5px; padding:6px; border-radius:999px; background:#e4ecde; color:#111611; box-shadow:0 8px 32px #000b; }
+    .switcher button { border:0; border-radius:999px; background:transparent; padding:8px 12px; }
+    .switcher .current { min-width:220px; color:#f3f7ee; background:#172016; }
+    .verdict { padding:10px; color:var(--muted); border-top:1px solid var(--line); }
+    .verdict strong { color:var(--text); }
+    @media (max-width:850px) { .layout { display:block; } .main,.side { display:block; } .panel { margin-bottom:8px; } .switcher .current { min-width:150px; } }
+  </style>
+</head>
+<body>
+  <header class="top"><span class="brand">CRUMP</span><span class="play">&#9654; LOOPING 8 BARS</span><span>Bass + drums</span><span class="rev">ACTIVE <b>r184</b> &middot; PROPOSAL <b id="proposal-state">none</b></span></header>
+  <div id="app"></div>
+  <nav class="switcher" aria-label="Prototype variant switcher"><button id="prev">&larr;</button><button class="current" id="label"></button><button id="next">&rarr;</button></nav>
+  <script>
+    const names = { A:'UI proposal', B:'Editable rule', C:'Source led' };
+    let proposed = true;
+    let audition = false;
+
+    function promptPanel() {
+      return `<section class="panel"><div class="title"><strong>Variation partner</strong><span>bounded request</span></div><div class="request"><div class="prompt">Make the hats evolve over 8 bars. Keep every downbeat, get busier toward the end, and add a small filter lift in bar 8.</div><button class="go" data-propose>${proposed ? 'Rebuild' : 'Propose'}</button></div></section>`;
+    }
+
+    function timeline() {
+      return `<section class="panel"><div class="title"><strong>Evaluated phrase</strong><span>${audition ? 'auditioning proposal' : 'active revision'}</span></div><div class="ruler"><span></span>${[1,2,3,4,5,6,7,8].map(x=>`<span>${x}</span>`).join('')}</div>
+        <div class="track"><span class="name">KICK</span><div class="lane">${clips('kick',false)}</div></div>
+        <div class="track"><span class="name">HATS</span><div class="lane">${clips('hat',proposed)}</div></div>
+        <div class="track"><span class="name">BASS</span><div class="lane"><button class="event" style="grid-column:1/span 16">bass_loop x 8</button></div></div>
+        <div class="title"><strong>Hat density + filter outcome</strong><span>one of 4 seeded passes</span></div><div class="dots">${[32,45,40,52,49,60,54,64,58,67,63,72,68,77,74,82].map((h,i)=>`<i class="dot ${proposed && i>7?'changed':''}" style="height:${h}%"></i>`).join('')}</div><div class="legend"><span><i></i>active</span><span><i class="changed"></i>proposal effect</span><span>seed: reference / clip hats-a / pass 4</span></div>
+      </section>`;
+    }
+
+    function clips(kind, changed) {
+      return Array.from({length:16},(_,i)=>`<button class="event ${changed && [3,7,10,13,14,15].includes(i)?'changed':''} ${changed && [10,14] .includes(i)?'ghost':''}" style="grid-column:${i+1}">${kind==='kick'?(i%4===0?'K':''):(i%2?'h':'')}</button>`).join('');
+    }
+
+    function controls() {
+      return `<div class="actions"><button class="action ${audition?'active':''}" data-audition>${audition?'Stop A/B':'A/B audition'}</button><button class="action">Change request</button><button class="action primary">Approve as one undo step</button></div>`;
+    }
+
+    function operations() {
+      return `<div class="proposal"><div class="op"><span class="check">+</span><div><span class="scope">HATS / events</span><div>Keep beats 1.1 and 3.1 unconditional</div><div class="why">Protects the requested downbeats.</div></div><span class="pill">rule</span></div><div class="op"><span class="check">+</span><div><span class="scope">HATS / cycle 8 bars</span><div>Increase recurrence density from 55% to 82%</div><div class="why">Creates controlled development; deterministic for this clip and pass.</div></div><span class="pill">rule</span></div><div class="op"><span class="check">+</span><div><span class="scope">HAT FILTER / cutoff</span><div>Bar 8 ramp: 6.2 kHz &rarr; 9.4 kHz</div><div class="why">One explicit automation recipe; not flattened to points.</div></div><span class="pill">automation</span></div></div>`;
+    }
+
+    function source() {
+      return `<pre><span class="ln">31</span> <span class="kw">pattern</span> <span class="id">hats</span> = every(1/8, hit("closed_hat"))
+<span class="ln">32</span>
+<span class="new"><span class="ln">33</span> <span class="kw">rule</span> evolve_hats over 8.bar {</span>
+<span class="new"><span class="ln">34</span>   preserve beat(1), beat(3)</span>
+<span class="new"><span class="ln">35</span>   occurrence ramp(0.55, 0.82)</span>
+<span class="new"><span class="ln">36</span>   ratchet last(2.bar) by choice(1, 2)</span>
+<span class="new"><span class="ln">37</span> }</span>
+<span class="ln">38</span>
+<span class="new"><span class="ln">39</span> automate hats.filter.cutoff {</span>
+<span class="new"><span class="ln">40</span>   each 8.bar: hold(6.2.khz, 7.bar) >> ramp(9.4.khz, 1.bar)</span>
+<span class="new"><span class="ln">41</span> }</span></pre>`;
+    }
+
+    function commonMain() { return `<main class="main">${promptPanel()}${timeline()}</main>`; }
+
+    function renderA() {
+      return `<div class="layout">${commonMain()}<aside class="side"><section class="panel"><div class="title"><strong>Proposed musical operations</strong><span>source hidden by default</span></div>${operations()}${controls()}<div class="verdict"><strong>Contract A:</strong> the agent and TUI use typed commands. Exact source is available in the audit log, but routine users never edit it.</div></section><section class="panel"><div class="title"><strong>Safety + audit</strong></div><div class="audit"><b>Targets:</b> clip:hats-a, parameter:hat-filter/cutoff<br><b>Base:</b> r184 &middot; valid<br><b>Side effects:</b> none<br><b>Undo:</b> one transaction<br><b>Direct code knowledge required:</b> none</div></section></aside></div>`;
+    }
+
+    function renderB() {
+      return `<div class="layout">${commonMain()}<aside class="side"><section class="panel"><div class="title"><strong>Editable musical rule</strong><span>structured, not general code</span></div><div class="rule"><div class="rule-row"><span>Scope</span><span><strong>Hats</strong> over <strong>8 bars</strong></span></div><div class="rule-row"><span>Always keep</span><span>beats <strong>1</strong> and <strong>3</strong></span></div><div class="rule-row"><span>Density</span><span><strong>55%</strong> &rarr; <strong>82%</strong></span></div><div class="rule-row"><span>Final fill</span><span>last <strong>2 bars</strong>, ratchet x1-x2</span></div><div class="rule-row"><span>Filter lift</span><span>bar 8, <strong>6.2</strong> &rarr; <strong>9.4 kHz</strong></span></div><div class="rule-row"><span>Seed</span><span>stable per clip + pass</span></div></div>${controls()}<div class="verdict"><strong>Contract B:</strong> routine editing uses normal views; procedural behavior opens as a compact domain rule with generated source available one level deeper.</div></section><section class="panel"><div class="title"><strong>Compiled source impact</strong><span>inspect on demand</span></div><div class="audit">2 definitions added in <b>patterns.crump</b> &middot; 9 lines &middot; no unrelated text touched</div></section></aside></div>`;
+    }
+
+    function renderC() {
+      return `<div class="layout">${commonMain()}<aside class="side"><section class="panel"><div class="title"><strong>Agent source patch</strong><span>directly editable</span></div>${source()}${controls()}<div class="verdict"><strong>Contract C:</strong> source is the primary proposal and correction surface; timeline overlays explain its evaluated musical result.</div></section><section class="panel"><div class="title"><strong>Compiler explanation</strong></div><div class="warning">Line 35 affects 48 candidate hat events across the clip's eight-bar cycle. Six shown outcomes differ on the displayed pass; downbeats remain unconditional.</div></section></aside></div>`;
+    }
+
+    const renders={A:renderA,B:renderB,C:renderC};
+    function key(){const k=new URLSearchParams(location.search).get('variant')?.toUpperCase();return renders[k]?k:'A';}
+    function render(){const k=key();document.querySelector('#app').innerHTML=renders[k]();document.querySelector('#label').textContent=`${k} - ${names[k]}`;document.querySelector('#proposal-state').textContent=proposed?'r185 preview':'none';bind();}
+    function move(d){const ks=Object.keys(renders),n=ks[(ks.indexOf(key())+d+ks.length)%ks.length],u=new URL(location.href);u.searchParams.set('variant',n);history.replaceState({},'',u);render();}
+    function bind(){document.querySelectorAll('[data-propose]').forEach(x=>x.onclick=()=>{proposed=true;render();});document.querySelectorAll('[data-audition]').forEach(x=>x.onclick=()=>{audition=!audition;render();});}
+    document.querySelector('#prev').onclick=()=>move(-1);document.querySelector('#next').onclick=()=>move(1);document.querySelector('#label').onclick=()=>move(1);
+    addEventListener('keydown',e=>{if(['INPUT','TEXTAREA'].includes(e.target.tagName)||e.target.isContentEditable)return;if(e.key==='ArrowLeft')move(-1);if(e.key==='ArrowRight')move(1);});addEventListener('popstate',render);render();
+  </script>
+</body>
+</html>

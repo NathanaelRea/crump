@@ -1,0 +1,6 @@
+# ADR 0005: External Authoring Agent Boundary
+
+Status: Accepted
+Date: 2026-07-28
+
+Crump will be agent-ready without owning an AI assistant. External agents will edit normal project files and use stable `crump` CLI operations with machine-readable inspection, validation, checks, explicit publication, and rendering output. Publication validates the complete source state and records Agent origin and explanation whether or not the TUI is running; unpublished filesystem writes remain Candidate Revisions. MCP and harness-specific plugins are deferred unless that universal contract proves insufficient. Model selection, inference, and the conversation loop remain in a user-chosen harness running beside Crump; embedding its terminal or PTY is also deferred. Every core operation remains manually available without a model, paid service, paid asset, or hosted backend; a documented agent configuration is release evidence, not a guarantee of third-party pricing or availability. This keeps Crump free, local, and model-neutral while avoiding a second product's worth of provider and chat infrastructure; every Agent Change still enters the authoritative source through Crump's normal validation and reversible Project History.
