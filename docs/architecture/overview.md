@@ -1,59 +1,108 @@
 # Architecture Overview
 
-Status: First-release constraints accepted by the draft product contract; component seams proposed
+Status: First-release implementation present; external certification gates remain open
 
-## Fixed Constraints
+## Fixed constraints
 
-- The implementation language is Rust.
-- The first supported client is a Ratatui terminal application; [ADR 0007](../adr/0007-terminal-first-client-boundary.md) keeps the Project model, authoring operations, and engine independent of terminal rendering.
-- The engine runs locally and targets Linux for the first public release.
-- The small declarative language in [ADR 0010](../adr/0010-small-declarative-project-language.md) is authoritative and follows the structure-preserving edit contract in [ADR 0001](../adr/0001-structure-preserving-source-edits.md).
-- Parsing, validation, file access, logging, UI work, and visualization must not block the real-time audio path.
-- Invalid candidate revisions do not partially replace the active revision.
-- Under [ADR 0011](../adr/0011-first-release-graph-transition.md), a valid first-release topology change may fade and restart only the affected instrument; transport and unchanged Tracks continue.
-- Playback and offline rendering share deterministic musical semantics.
-- The audio callback performs only bounded, real-time-safe work over prebuilt state: no allocation or deallocation, blocking or contended synchronization, file or console I/O, parsing, graph construction, plugin scanning, or unbounded traversal.
-- Performance claims require measurements against named hardware, sample rates, quanta, and the Musical Sketch workload. Callback deadline utilization, xruns, publication latency, UI responsiveness, startup, and render throughput are release evidence.
-- Persistence and render outputs use failure-atomic publication. Interruption must leave either the complete prior result or the complete new result, never a mixed project or apparently successful partial artifact.
-- First-release graph structure, Parameter provenance, Active Revision, persistent [Project History](../adr/0009-persistent-project-history.md), and render status remain inspectable rather than hidden behind implementation state.
-- Composition and timeline behavior follows the First Public Release subset in [ADR 0003](../adr/0003-composition-and-timeline-semantics.md).
-- Graph and Parameter behavior follows the First Public Release subset in [ADR 0004](../adr/0004-routing-modulation-and-parameter-semantics.md).
-- The first-release reference platform uses the [native PipeWire Linux baseline](../adr/0002-native-pipewire-linux-baseline.md).
+- Rust is the implementation language.
+- Ratatui is the first client, while Project, authoring, persistence, engine, realtime, and render modules remain terminal-independent ([ADR 0007](../adr/0007-terminal-first-client-boundary.md)).
+- The Linux baseline is native PipeWire, not a JACK compatibility layer ([ADR 0002](../adr/0002-native-pipewire-linux-baseline.md)).
+- Readable declarative source is authoritative ([ADR 0010](../adr/0010-small-declarative-project-language.md)); Production Views make checked structure-preserving replacements ([ADR 0001](../adr/0001-structure-preserving-source-edits.md)).
+- Invalid Candidate Revisions never partially or implicitly replace Active audio.
+- Playback and offline rendering share compiled schedule and DSP semantics.
+- The process callback receives only fully built state and performs bounded work: no parsing, graph construction, allocation/deallocation by design, blocking locks, filesystem/console I/O, or UI work.
+- Persistence, restore, Module installation, and render publication are failure-atomic.
+- Active identity, diagnostics, graph/Parameters, History, transport, activity, safety levels, and render provenance remain inspectable.
+- First-release scope is the accepted composition, graph/Parameter, external-Agent, Production View, history, and transition slice in ADRs 0003–0011.
 
-## Provisional Responsibility Chain
+## Implemented responsibility chain
 
 ```text
-authoritative source
-        |
-        v
-parse -> validate -> compile -> candidate runtime snapshot
-                                  |
-                                  v
-                            safe publication
-                                  |
-                                  v
-                         active audio graph
+project.crump + imported modules
+              |
+              v
+  lossless syntax grouping (dsl/syntax)
+              |
+              v
+ recoverable typed parse (dsl/parser)
+              |
+              v
+whole-Project validation (validate)
+        |                  |
+        | invalid          | valid + explicit publication
+        v                  v
+ diagnostics      atomic History snapshot + Active pointer
+                           |
+                 +---------+----------+
+                 |                    |
+                 v                    v
+        schedule/graph compile    offline render
+                 |                    |
+                 v                    v
+       preallocated SongRuntime   float WAV + manifest
+                 |
+                 v
+        bounded PipeWire queue
+                 |
+                 v
+      process callback + telemetry
 ```
 
-Production Views read diagnostics and runtime telemetry and emit Structured Source Edits; the source editor emits direct text edits. External Authoring Agents edit the same files and use the file-and-CLI publication boundary in [ADR 0005](../adr/0005-external-authoring-agent-boundary.md). Offline rendering consumes the same validated musical and graph model as playback.
+The Candidate is current source bytes. The Active Revision is an exact committed snapshot. The two identities can intentionally differ while a musician inspects valid external work or repairs invalid source.
 
-## Design Discipline
+## Modules
 
-Use [the professional DAW research baseline](../research/professional-daw-baseline.md) as destination guidance, not an automatic First Public Release requirement. Adopt an invariant only when it supports the accepted blank-to-render workflow or a required safety, determinism, persistence, or recovery property.
+| Module | Responsibility |
+| --- | --- |
+| `time` | normalized rational musical time, meter, deterministic frame conversion |
+| `diagnostic` | serializable stable codes and exact source locations |
+| `model` | terminal-independent Project/Song/Instrument/Pattern/Track/graph domain |
+| `dsl` | full-fidelity ranges, block grouping, recoverable Project/Module parsing |
+| `validate` | IDs/references, physical domains, typed DAGs, bounds, Musical Sketch checks |
+| `project` | secure import resolution, exact source inventory and revision hashing |
+| `edit` | checked literal replacements, stale detection, staged atomic edit publication |
+| `history` | exclusive lock, append-only provenance, snapshots, diff, restore, recovery |
+| `engine::schedule` | deterministic Clip expansion, Event ordering, IDs, seeds, clipping |
+| `engine::graph` | topological native Node compilation and preallocated polyphonic voices |
+| `engine::drums` | deterministic sample-free kick/snare/hat/clap synthesis |
+| `engine` | shared SongRuntime, Track balance, voice stealing, telemetry, monitor safety |
+| `engine::render` | exact Active offline processing and atomic WAV/manifest bundle publication |
+| `realtime` | native PipeWire audio/MIDI streams, fixed queues, transitions, recovery telemetry |
+| `workspace` | Ratatui Production Views, keyboard commands, external-change observation |
+| `cli` | human and schema-versioned external-Agent command boundary |
 
-Prefer one deep, inspectable mechanism over parallel special cases. A new component, mode, state store, or runtime path must either complete the reference workflow or enforce a required correctness, real-time, recovery, compatibility, or observability property. Destination ambition cannot justify unused first-release complexity.
+## Deep seams
 
-## Unresolved Seams
+### Source and model
 
-The rewritten first-release planning map must resolve these implementation seams before decomposition is authoritative:
+`ProjectBundle` owns canonical root, sorted exact source bytes, byte-exact revision, recoverable model, and diagnostics. All clients use this one seam rather than reparsing ad hoc. Parser Nodes retain byte ranges for exact values and whole declarations; arbitrary source is never regenerated from the model.
 
-- Durable-ID syntax and reconciliation across source, compiled, and runtime revisions within the accepted identity semantics.
-- Parser technology, minimal grammar, and incremental parsing mechanics within [ADR 0001](../adr/0001-structure-preserving-source-edits.md) and [ADR 0010](../adr/0010-small-declarative-project-language.md).
-- Bounded graph compilation, publication, and retirement implementing the Affected Instrument Restart in [ADR 0011](../adr/0011-first-release-graph-transition.md).
-- Audio and control graph thread ownership implementing the First Public Release subset in [ADR 0004](../adr/0004-routing-modulation-and-parameter-semantics.md).
-- Atomic Project save, Instrument Module import, and persistent append-only Project History from [ADR 0009](../adr/0009-persistent-project-history.md).
-- Production View structure-preserving operations required by [ADR 0006](../adr/0006-production-views-lead-human-authorship.md).
-- PipeWire stereo output and transient MIDI Note Audition on the [reference platform](../adr/0002-native-pipewire-linux-baseline.md).
-- Lossless-master range, tail, failure, and deterministic comparison semantics shared by playback and rendering.
+### Checked authoring
 
-Accepted outcomes that are consequential and hard to reverse belong in `docs/adr/`; this overview should then link to them rather than duplicate their rationale.
+A structured operation resolves a durable domain ID, captures expected revision/range/literal, and produces a `CheckedReplacement`. The transaction rereads source under the Project lock, rejects stale or overlapping ranges, writes staged siblings, validates the complete result, and publishes one action-level History Entry. UI and CLI share these functions.
+
+### History and Active publication
+
+`HistoryStore` serializes all mutation with one project-local file lock. Content-addressed exact snapshots can be reused by multiple action entries. Atomic Active state replacement is provisional until the final committed marker is durable. Startup recovery rolls back a state pointer without that marker, discards uncommitted metadata, and repairs interrupted source transactions before returning a store.
+
+### Musical runtime
+
+`CompiledProject` normalizes Clips and graph topology off-thread. `SongRuntime` is the shared mutable semantic machine for monitoring and rendering. It owns fixed Track/voice/Node state and exposes frame/block processing plus transient audition. Offline mode fails on non-finite output; monitoring adds only an explicitly non-authoritative safety stage.
+
+### Native publication
+
+The controller compiles and provisionally transport-aligns a replacement runtime away from PipeWire. The callback realigns it to its exact current frame through an SPSC ring and performs a 10 ms equal-power transition at a block boundary. Unchanged Tracks retain state; affected Tracks restart at that frame. Retired runtime destruction is returned through another ring. This realizes [ADR 0011](../adr/0011-first-release-graph-transition.md) without restarting transport; exact cross-revision state migration remains deferred.
+
+### External Agents
+
+No model runtime is linked into Crump. Agents read source and use `inspect`, `validate`, checked `edit`, explicit `publish`, History, Module, and render commands through one JSON envelope ([ADR 0005](../adr/0005-external-authoring-agent-boundary.md)). Agent rationale becomes durable provenance; invalid work remains Candidate-only.
+
+## Determinism and failure boundaries
+
+Deterministic identity is semantic where ordering should not matter (Events, seeds, topological schedule) and byte-exact where authorship must remain reviewable (source revisions and snapshots). Rendering records Project/build/platform/frame identity and hashes both artifacts. The byte comparison promise is bounded to the declared build and Linux `amd64` reference environment.
+
+Every irreversible seam stages and fsyncs before an atomic rename or exchange. The intended observable states are complete old or complete new. Release qualification still needs comprehensive fault injection and named-hardware evidence; see [release evidence](../release-evidence.md).
+
+## Destination boundaries
+
+Professional DAW research guides later Validated Slices but does not expand the first release. Samples, recording, automation, advanced routing/mixer topology, plug-in hosting, native extensions, complete-track breadth, exact live state migration, and non-Linux clients remain deferred until human evaluation identifies the next real obstacle.

@@ -2,6 +2,10 @@
 
 Label: `wayfinder:map`
 
+## Current State
+
+This implementation-planning map has been overtaken by the implemented First Public Release slice. It is retained as local planning history, not as the release-readiness authority. Current machine evidence and the remaining external Agent-harness, named-hardware, MIDI, accessibility, clean-package/recovery, and independent-musician gates are tracked in `docs/release-evidence.md`; canonical product scope remains in `requirements/product-contract.md` and `docs/product/first-public-release.md`. Open child statuses below must not be interpreted as evidence that implementation has not begun.
+
 ## Destination
 
 An implementation-ready plan for the narrow First Public Release defined by `requirements/product-contract.md` and `docs/product/first-public-release.md`: a terminal-capable Beginner Musician starts from a Creative Brief, an external Authoring Agent creates a no-sample 30-60 second Musical Sketch and pitched polyphonic graph instrument, the musician inspects and changes it through Production Views and persistent Project History, and Crump saves, reopens, auditions, and deterministically renders it. An Experienced Producer independently validates transfer and musical credibility.
@@ -10,7 +14,7 @@ An implementation-ready plan for the narrow First Public Release defined by `req
 
 - Canonical product and release documents outrank this workspace-local map and every child issue.
 - This map supersedes the former 3-5 minute professional-DAW first-release plan. Historical tickets and research remain evidence, not current scope.
-- Implementation begins only after [Synthesize the Dependency-Ordered Implementation Backlog](issues/22-synthesize-implementation-backlog.md) resolves.
+- The dependency-ordered backlog synthesis was bypassed by the completed end-to-end implementation; issue 22 is historical and no longer blocks source work or release verification.
 - Every session reads `CONTEXT.md`, relevant tracked docs, and this map before claiming a ticket.
 - Research professional analogues only for a task exercised by the Musical Sketch or for a required safety, determinism, persistence, recovery, or support guarantee.
 - Prefer a thin `Creative Brief -> external file edit -> validation -> explicit Agent publication -> safe graph update -> Production View edit -> history restore -> save/reopen -> WAV render` tracer bullet.
@@ -28,7 +32,9 @@ An implementation-ready plan for the narrow First Public Release defined by `req
 - [Authoring-direction discovery](issues/08-prototype-authoring-balance.md) - Production Views lead human work; source remains durable and always available; external Agents use files plus machine-readable CLI publication.
 - Rust extensions, CLAP, waveform/sample editing, professional mixer breadth, Automation views, stems, and advanced MIDI capture/mapping are resolved as deferred rather than open first-release decisions.
 
-## Planning Frontier
+## Historical Planning Frontier
+
+These unresolved planning stubs are retained for provenance. Canonical documents and `docs/release-evidence.md` now own current decisions and open gates.
 
 - [09 - Validate the Progressive Authoring Workflow](issues/09-evaluate-authoring-with-musician.md): prototype Timeline, Event Grid, Faceplate, inspectable Graph View, history, and contextual explanations with the two target roles.
 - [10 - Freeze the Minimal DSL and Project-Source Contract](issues/10-freeze-dsl-contract.md): specify only syntax and types exercised by the Musical Sketch, graph instrument, Faceplate, Instrument Module, history identity, and render settings.
@@ -46,14 +52,12 @@ An implementation-ready plan for the narrow First Public Release defined by `req
 
 ## Remaining Fog
 
-- Concrete source syntax, parser, type checker, compiler representations, and durable-ID spelling.
-- Exact DSP algorithms, graph resource-bound declarations, voice allocation, and minimal-effect quality.
-- Production View layouts, command vocabulary, help, focus, and optional mouse interactions.
-- File layout and atomic persistence for append-only history and personal Instrument Modules.
-- CLI command names and JSON schemas for Agent inspection, checks, publication, diagnostics, and rendering.
-- Numerical real-time, interaction, startup, and render budgets plus named audio/MIDI hardware.
-- Exact Creative Brief, Sound Brief, Render Tail, test harness/model configuration, and evaluator procedures.
-- Test-suite and crate decomposition; these graduate into issue 22 only after their governing contracts resolve.
+- The documented external Authoring Agent harness/model integration run.
+- Named Ubuntu 26.04 audio/MIDI hardware, RTKit/quantum, endurance, xrun, and callback-utilization evidence.
+- Independent Beginner Musician and Experienced Producer evaluations, including the Human Listening Loop.
+- Accessibility review on the selected terminal/screen-reader baseline.
+- Clean-account `.deb` install/upgrade/remove and exhaustive persistence/render fault-injection evidence.
+- The post-release Validated Slice chosen from those human outcomes.
 
 ## Explicitly Deferred
 

@@ -1,0 +1,78 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install stable Rust toolchain
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup component add clippy rustfmt
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install --yes dpkg-dev libpipewire-0.3-dev libclang-dev pkg-config
+      - name: Formatting
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features --locked -- -D warnings
+      - name: Full test suite
+        run: cargo test --all-targets --all-features --locked
+      - name: Headless feature build
+        run: cargo check --all-targets --no-default-features --locked
+      - name: Minimum supported Rust
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal
+          CARGO_TARGET_DIR=target/msrv cargo +1.88.0 check --all-targets --all-features --locked
+      - name: Reference Project contract
+        run: |
+          cargo run --locked -- --project fixtures/reference validate --json
+          cargo run --locked -- --project fixtures/reference check --json
+      - name: Reference Project deterministic render
+        run: |
+          project=$(mktemp -d)
+          trap 'rm -rf "$project"' EXIT
+          cp fixtures/reference/project.crump "$project/project.crump"
+          cargo run --locked -- --project "$project" publish \
+            --origin system --actor ci --summary "CI reference publication" \
+            --explanation "Deterministic render contract"
+          cargo run --locked -- --project "$project" render --output first
+          cargo run --locked -- --project "$project" render --output second
+          cmp "$project/first/master.wav" "$project/second/master.wav"
+          cmp "$project/first/manifest.json" "$project/second/manifest.json"
+          sha256sum "$project/first/master.wav" "$project/first/manifest.json"
+      - name: Package contents
+        run: cargo package --locked
+      - name: Build and inspect Debian package
+        run: |
+          packaging/build-deb.sh dist
+          (cd dist && sha256sum --check crump_0.1.0_amd64.deb.sha256)
+          dpkg-deb --info dist/crump_0.1.0_amd64.deb
+          dpkg-deb --contents dist/crump_0.1.0_amd64.deb
+          mkdir package-root
+          dpkg-deb --extract dist/crump_0.1.0_amd64.deb package-root
+          test -f package-root/usr/share/doc/crump/docs/language.md
+          test -f package-root/usr/share/doc/crump/docs/cli-and-agents.md
+          test -f package-root/usr/share/doc/crump/docs/adr/0011-first-release-graph-transition.md
+          test -f package-root/usr/share/doc/crump/fixtures/reference/project.crump
+          test -f package-root/usr/share/doc/crump/skills/crump-authoring/SKILL.md
+          test -f package-root/usr/share/crump/skills/crump-authoring/SKILL.md
+          package-root/usr/bin/crump --version
+      - name: Upload Debian package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: crump-amd64-deb-ubuntu-24.04-best-effort
+          path: |
+            dist/crump_0.1.0_amd64.deb
+            dist/crump_0.1.0_amd64.deb.sha256
+          if-no-files-found: error

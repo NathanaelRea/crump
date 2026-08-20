@@ -65,7 +65,7 @@ Release approval requires linked evidence for all of these categories:
 | Optional mouse | Supported terminals may use pointing for selection and navigation, but every action remains keyboard-complete and no precision drag is required. |
 | Recovery | Fault-injected save, restart, device-loss, and render-interruption tests retain a complete known-good Project and never present partial output as successful. |
 
-The exact Reference Project fixture, budgets, and verification procedures remain required discovery in the product contract and the workspace-local implementation-planning map. Issue 25 freezes them only after the governing first-release contracts resolve.
+The frozen Reference Project is `fixtures/reference/project.crump`; the support environment and measurable budgets are recorded in the support contract, accepted ADRs, and release-evidence procedure. Executing the named-hardware, Agent-harness, accessibility, packaging/recovery, and independent-musician procedures remains an open release gate, not an unresolved implementation-scope decision.
 
 The Beginner Musician and Experienced Producer must be independent of Crump implementation and prior Reference Project authorship. Their outcomes are recorded separately; one cannot compensate for the other's failure.
 

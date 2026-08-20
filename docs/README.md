@@ -1,5 +1,17 @@
 # Crump Documentation
 
+## User and Operator Guides
+
+- [Production Workspace](workspace.md)
+- [Project Language 1](language.md)
+- [CLI and External Authoring Agents](cli-and-agents.md)
+- [Native Audio, Revision Transitions, and MIDI](audio-and-midi.md)
+- [Project History and Deterministic Rendering](history-and-rendering.md)
+- [First-Release Support Contract](support.md)
+- [First Public Release Evidence](release-evidence.md)
+
+The implementation is usable as a preview, but the named-hardware endurance, packaging, accessibility, and independent musician gates remain open. The evidence page is the source of truth for release readiness.
+
 ## Authority
 
 - `requirements/product-contract.md` defines the product promise, first-release scope, and explicit non-goals.
