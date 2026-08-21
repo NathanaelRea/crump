@@ -40,6 +40,7 @@ use crate::{
     history::{ChangeOrigin, HistoryError, HistoryStore, Publication},
     model::{AutomationInterpolation, ClipMode, DrumVoice, ParameterTarget, parse_pitch},
     project::{MAX_SOURCE_BYTES, ProjectBundle, instrument_library_dir, load_project},
+    project_picker::{ProjectSelection, select_project},
     realtime::{PipeWirePlayer, StreamStatus},
     time::parse_musical_time,
     validate::{check_musical_sketch, validate_instrument_module},
@@ -56,9 +57,11 @@ static MODULE_TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
     about = "A source-backed musical sketch instrument"
 )]
 pub struct Cli {
-    /// Project directory or `project.crump` path.
+    /// Project directory or `project.crump` path. Interactive startup searches when omitted.
     #[arg(long, global = true, default_value = ".")]
     project: PathBuf,
+    #[arg(skip)]
+    project_explicit: bool,
     /// Emit exactly one versioned JSON response on stdout.
     #[arg(long, global = true)]
     json: bool,
@@ -854,8 +857,12 @@ pub fn run() -> ExitCode {
 pub fn run_from(arguments: impl IntoIterator<Item = OsString>) -> ExitCode {
     let arguments = arguments.into_iter().collect::<Vec<_>>();
     let json_requested = arguments.iter().any(|argument| argument == "--json");
+    let project_explicit = project_option_is_present(&arguments);
     let cli = match Cli::try_parse_from(arguments) {
-        Ok(cli) => cli,
+        Ok(mut cli) => {
+            cli.project_explicit = project_explicit;
+            cli
+        }
         Err(error) => {
             let informational = matches!(
                 error.kind(),
@@ -899,6 +906,20 @@ pub fn run_from(arguments: impl IntoIterator<Item = OsString>) -> ExitCode {
             ExitCode::from(failure.exit_code)
         }
     }
+}
+
+fn project_option_is_present(arguments: &[OsString]) -> bool {
+    arguments
+        .iter()
+        .skip(1)
+        .take_while(|argument| *argument != "--")
+        .any(|argument| {
+            argument == "--project"
+                || argument
+                    .to_string_lossy()
+                    .strip_prefix("--project=")
+                    .is_some()
+        })
 }
 
 #[derive(Debug)]
@@ -1505,13 +1526,35 @@ fn command_workspace(cli: &Cli) -> Result<Success, Failure> {
             json!([]),
         ));
     }
-    crate::workspace::run(&cli.project)
+
+    let project = if workspace_needs_project_picker(cli) {
+        match select_project(&cli.project)
+            .map_err(|error| Failure::operational("workspace", "project_selection", error))?
+        {
+            ProjectSelection::Selected(project) => project,
+            ProjectSelection::Cancelled => {
+                return Ok(Success {
+                    command: "workspace",
+                    human: "Project selection cancelled".to_owned(),
+                    data: json!({ "closed": true, "opened": false }),
+                });
+            }
+        }
+    } else {
+        cli.project.clone()
+    };
+
+    crate::workspace::run(&project)
         .map_err(|error| Failure::operational("workspace", "workspace_error", error))?;
     Ok(Success {
         command: "workspace",
         human: "Production Workspace closed".to_owned(),
-        data: json!({ "closed": true }),
+        data: json!({ "closed": true, "opened": true, "project": project }),
     })
+}
+
+fn workspace_needs_project_picker(cli: &Cli) -> bool {
+    !cli.project_explicit && !cli.project.join(crate::project::PROJECT_FILE).is_file()
 }
 
 fn command_render(cli: &Cli, args: &RenderArgs) -> Result<Success, Failure> {
@@ -3726,5 +3769,40 @@ mod tests {
         );
         let project = document.project.unwrap();
         assert!(!crate::validate::validate_project(&project).has_errors());
+    }
+
+    #[test]
+    fn explicit_project_options_are_distinguished_from_the_default() {
+        assert!(!project_option_is_present(&[OsString::from("crump")]));
+        assert!(project_option_is_present(&[
+            OsString::from("crump"),
+            OsString::from("--project=fixtures/reference"),
+        ]));
+        assert!(project_option_is_present(&[
+            OsString::from("crump"),
+            OsString::from("workspace"),
+            OsString::from("--project"),
+            OsString::from("fixtures/reference"),
+        ]));
+    }
+
+    #[test]
+    fn implicit_workspace_startup_only_picks_when_the_root_source_is_absent() {
+        let directory = tempfile::tempdir().expect("temporary workspace root");
+        let mut cli = Cli::try_parse_from(["crump"]).expect("parse CLI");
+        cli.project = directory.path().to_path_buf();
+        assert!(workspace_needs_project_picker(&cli));
+
+        fs::write(
+            directory.path().join(crate::project::PROJECT_FILE),
+            "crump 1\n",
+        )
+        .expect("write root Project");
+        assert!(!workspace_needs_project_picker(&cli));
+
+        fs::remove_file(directory.path().join(crate::project::PROJECT_FILE))
+            .expect("remove root Project");
+        cli.project_explicit = true;
+        assert!(!workspace_needs_project_picker(&cli));
     }
 }

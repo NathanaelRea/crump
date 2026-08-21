@@ -75,6 +75,7 @@ The Candidate is current source bytes. The Active Revision is an exact committed
 | `engine::analysis` | streaming finalized-WAV peak, K-weighted loudness, DC, clipping, and non-finite analysis |
 | `engine::render` | exact Active offline processing, aligned Track/Group stem capture, finalized-file verification, and atomic multi-WAV/manifest publication |
 | `realtime` | native PipeWire audio/MIDI streams, fixed queues, transitions, recovery telemetry |
+| `project_picker` | interactive nested-Project discovery with `fzf` and numbered terminal selection |
 | `workspace` | Ratatui Production Views, keyboard commands, external-change observation |
 | `cli` | human and schema-versioned external-Agent command boundary |
 
