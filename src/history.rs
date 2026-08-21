@@ -14,11 +14,18 @@ use sha2::{Digest, Sha256};
 use similar::{ChangeTag, TextDiff};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
+#[cfg(test)]
+use crate::project::load_project_sources;
 use crate::{
     diagnostic::Diagnostic,
+    media::{
+        AssetInventory, AssetReadError, MAX_MEDIA_ASSET_BYTES, MAX_MEDIA_ASSETS,
+        MAX_PROJECT_MEDIA_BYTES, read_project_asset_bytes, read_regular_asset_bytes,
+        valid_asset_path, valid_sha256,
+    },
     project::{
         MAX_PROJECT_SOURCE_BYTES, MAX_SOURCE_BYTES, PROJECT_FILE, ProjectBundle, RevisionId,
-        hash_sources, load_project, load_project_sources,
+        hash_project_identity, load_project, load_project_sources_with_assets,
     },
 };
 
@@ -177,11 +184,19 @@ pub struct ActiveState {
     pub active_revision: RevisionId,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct SnapshotAsset {
+    sha256: String,
+    byte_len: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SourceSnapshot {
     schema_version: u32,
     revision: RevisionId,
     sources: BTreeMap<PathBuf, String>,
+    #[serde(default)]
+    assets: BTreeMap<PathBuf, SnapshotAsset>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,6 +205,8 @@ struct SourceTransaction {
     previous_active_entry: Option<String>,
     before: SourceSnapshot,
     after: SourceSnapshot,
+    #[serde(default)]
+    before_asset_files: Option<BTreeMap<PathBuf, SnapshotAsset>>,
 }
 
 /// Locked access to one Project's persistent history.
@@ -224,6 +241,10 @@ impl HistoryStore {
                 path: metadata.clone(),
                 source,
             }
+        })?;
+        fs::create_dir_all(metadata.join("history/assets")).map_err(|source| HistoryError::Io {
+            path: metadata.clone(),
+            source,
         })?;
         let lock_path = metadata.join("lock");
         let lock = OpenOptions::new()
@@ -275,7 +296,9 @@ impl HistoryStore {
             return Ok(None);
         };
         let snapshot = self.snapshot(&state.active_revision)?;
-        let bundle = load_project_sources(self.root.clone(), snapshot.sources);
+        let asset_bytes = self.snapshot_asset_bytes(&snapshot)?;
+        let bundle =
+            load_project_sources_with_assets(self.root.clone(), snapshot.sources, &asset_bytes);
         if bundle.revision != state.active_revision || bundle.diagnostics.has_errors() {
             return Err(HistoryError::Corrupt(format!(
                 "Active Revision {} no longer validates from its snapshot",
@@ -360,8 +383,13 @@ impl HistoryStore {
     ) -> Result<HistoryEntry, HistoryError> {
         let target = self.entry(target_id)?;
         let snapshot = self.snapshot(&target.revision)?;
+        let asset_bytes = self.snapshot_asset_bytes(&snapshot)?;
         let previous = load_project(&self.root).map_err(HistoryError::Project)?;
-        let target_bundle = load_project_sources(self.root.clone(), snapshot.sources.clone());
+        let target_bundle = load_project_sources_with_assets(
+            self.root.clone(),
+            snapshot.sources.clone(),
+            &asset_bytes,
+        );
         if target_bundle.revision != target.revision || target_bundle.diagnostics.has_errors() {
             return Err(HistoryError::Corrupt(format!(
                 "restore snapshot produced revision {}, expected {}",
@@ -374,9 +402,11 @@ impl HistoryStore {
             explanation: explanation.into(),
             restored_from: Some(target_id.to_owned()),
         };
-        self.begin_source_transaction(&previous, &target_bundle)?;
+        let previous_asset_files =
+            self.begin_source_transaction_with_assets(&previous, &target_bundle)?;
         let operation = (|| -> Result<HistoryEntry, HistoryError> {
             reconcile_source_set(&self.root, &snapshot.sources, &previous.sources)?;
+            reconcile_asset_set(&self.root, &snapshot.assets, &previous_asset_files, false)?;
             let restored = load_project(&self.root).map_err(HistoryError::Project)?;
             if restored.revision != target.revision || restored.diagnostics.has_errors() {
                 return Err(HistoryError::Corrupt(format!(
@@ -404,6 +434,7 @@ impl HistoryStore {
         bundle: &ProjectBundle,
         publication: Publication,
     ) -> Result<HistoryEntry, HistoryError> {
+        self.persist_asset_blobs(&bundle.assets)?;
         let previous_state = self.active_state()?;
         let previous_snapshot = match &previous_state {
             Some(state) => Some(self.snapshot(&state.active_revision)?),
@@ -413,13 +444,14 @@ impl HistoryStore {
             schema_version: HISTORY_SCHEMA,
             revision: bundle.revision.clone(),
             sources: bundle.sources.clone(),
+            assets: snapshot_assets(&bundle.assets),
         };
         let snapshot_path = self.snapshot_path(&bundle.revision);
         if snapshot_path.exists() {
             let existing = self.snapshot(&bundle.revision)?;
-            if existing.sources != snapshot.sources {
+            if existing.sources != snapshot.sources || existing.assets != snapshot.assets {
                 return Err(HistoryError::Corrupt(format!(
-                    "snapshot {} does not match its content-addressed source set",
+                    "snapshot {} does not match its content-addressed Project state",
                     bundle.revision
                 )));
             }
@@ -525,7 +557,131 @@ impl HistoryStore {
             )));
         }
         validate_snapshot_integrity(&snapshot)?;
+        self.snapshot_asset_bytes(&snapshot)?;
         Ok(snapshot)
+    }
+
+    fn asset_blob_path(&self, sha256: &str) -> PathBuf {
+        self.metadata.join("history/assets").join(sha256)
+    }
+
+    fn persist_asset_blob(
+        &self,
+        sha256: &str,
+        byte_len: u64,
+        bytes: &[u8],
+    ) -> Result<(), HistoryError> {
+        if bytes.len() as u64 != byte_len || hash_bytes(bytes) != sha256 {
+            return Err(HistoryError::Corrupt(format!(
+                "asset blob {sha256} does not match its exact-byte identity"
+            )));
+        }
+        let path = self.asset_blob_path(sha256);
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_file() => {
+                let existing = read_regular_file(&path)?;
+                if existing.len() as u64 != byte_len || hash_bytes(&existing) != sha256 {
+                    return Err(HistoryError::Corrupt(format!(
+                        "history asset blob {sha256} is corrupt"
+                    )));
+                }
+            }
+            Ok(_) => {
+                return Err(HistoryError::Corrupt(format!(
+                    "history asset blob {sha256} is not a regular file"
+                )));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                write_atomic(&path, bytes)?;
+            }
+            Err(source) => return Err(HistoryError::Io { path, source }),
+        }
+        Ok(())
+    }
+
+    fn persist_asset_blobs(&self, inventory: &AssetInventory) -> Result<(), HistoryError> {
+        for asset in inventory.iter() {
+            self.persist_asset_blob(asset.sha256(), asset.byte_len(), asset.bytes())?;
+        }
+        Ok(())
+    }
+
+    fn capture_before_asset_files(
+        &self,
+        before: &ProjectBundle,
+        after: &ProjectBundle,
+    ) -> Result<BTreeMap<PathBuf, SnapshotAsset>, HistoryError> {
+        let mut paths = before
+            .assets
+            .iter()
+            .chain(after.assets.iter())
+            .map(|asset| asset.path().to_path_buf())
+            .collect::<BTreeSet<_>>();
+        for project in [before.project.as_ref(), after.project.as_ref()]
+            .into_iter()
+            .flatten()
+        {
+            paths.extend(project.assets.iter().map(|asset| asset.path.clone()));
+        }
+
+        let mut captured = BTreeMap::new();
+        let mut captured_bytes = 0_u64;
+        for relative in paths {
+            let bytes = match read_project_asset_bytes(&self.root, &relative) {
+                Ok(bytes) => bytes,
+                Err(AssetReadError::Unreadable(error))
+                    if error.kind() == std::io::ErrorKind::NotFound =>
+                {
+                    continue;
+                }
+                Err(AssetReadError::Unreadable(source)) => {
+                    return Err(HistoryError::Io {
+                        path: self.root.join(&relative),
+                        source,
+                    });
+                }
+                Err(AssetReadError::Unsafe(message)) => {
+                    return Err(HistoryError::UnsupportedRestore(format!(
+                        "cannot journal media path `{}`: {message}",
+                        relative.display()
+                    )));
+                }
+                Err(AssetReadError::TooLarge) => {
+                    return Err(HistoryError::UnsupportedRestore(format!(
+                        "cannot journal media path `{}` because it exceeds the {MAX_MEDIA_ASSET_BYTES}-byte maximum",
+                        relative.display()
+                    )));
+                }
+            };
+            if captured.len() == MAX_MEDIA_ASSETS {
+                return Err(HistoryError::UnsupportedRestore(format!(
+                    "cannot journal more than {MAX_MEDIA_ASSETS} existing media files"
+                )));
+            }
+            let byte_len = bytes.len() as u64;
+            captured_bytes = captured_bytes.checked_add(byte_len).ok_or_else(|| {
+                HistoryError::UnsupportedRestore("transaction media byte count overflow".to_owned())
+            })?;
+            if captured_bytes > MAX_PROJECT_MEDIA_BYTES {
+                return Err(HistoryError::UnsupportedRestore(format!(
+                    "cannot journal more than {MAX_PROJECT_MEDIA_BYTES} media bytes"
+                )));
+            }
+            let identity = SnapshotAsset {
+                sha256: hash_bytes(&bytes),
+                byte_len,
+            };
+            self.persist_asset_blob(&identity.sha256, identity.byte_len, &bytes)?;
+            captured.insert(relative, identity);
+        }
+        Ok(captured)
+    }
+
+    fn snapshot_asset_bytes(
+        &self,
+        snapshot: &SourceSnapshot,
+    ) -> Result<BTreeMap<PathBuf, Vec<u8>>, HistoryError> {
+        read_snapshot_asset_bytes(&self.metadata, snapshot)
     }
 
     pub(crate) fn begin_source_transaction(
@@ -533,12 +689,24 @@ impl HistoryStore {
         before: &ProjectBundle,
         after: &ProjectBundle,
     ) -> Result<(), HistoryError> {
+        self.begin_source_transaction_with_assets(before, after)
+            .map(drop)
+    }
+
+    fn begin_source_transaction_with_assets(
+        &self,
+        before: &ProjectBundle,
+        after: &ProjectBundle,
+    ) -> Result<BTreeMap<PathBuf, SnapshotAsset>, HistoryError> {
         let path = self.metadata.join(SOURCE_TRANSACTION_FILE);
         if path.exists() {
             return Err(HistoryError::Corrupt(
                 "a prior source transaction was not recovered".to_owned(),
             ));
         }
+        self.persist_asset_blobs(&before.assets)?;
+        self.persist_asset_blobs(&after.assets)?;
+        let before_asset_files = self.capture_before_asset_files(before, after)?;
         let transaction = SourceTransaction {
             schema_version: HISTORY_SCHEMA,
             previous_active_entry: self.active_state()?.map(|state| state.active_entry),
@@ -546,14 +714,24 @@ impl HistoryStore {
                 schema_version: HISTORY_SCHEMA,
                 revision: before.revision.clone(),
                 sources: before.sources.clone(),
+                assets: snapshot_assets(&before.assets),
             },
             after: SourceSnapshot {
                 schema_version: HISTORY_SCHEMA,
                 revision: after.revision.clone(),
                 sources: after.sources.clone(),
+                assets: snapshot_assets(&after.assets),
             },
+            before_asset_files: Some(before_asset_files.clone()),
         };
-        write_json_atomic(&path, &transaction)
+        validate_transaction_snapshot(&self.metadata, &transaction.before, &before_asset_files)?;
+        validate_transaction_snapshot(
+            &self.metadata,
+            &transaction.after,
+            &transaction.after.assets,
+        )?;
+        write_json_atomic(&path, &transaction)?;
+        Ok(before_asset_files)
     }
 
     pub(crate) fn finish_source_transaction(&self) -> Result<(), HistoryError> {
@@ -563,12 +741,17 @@ impl HistoryStore {
     pub(crate) fn abort_source_transaction(&self) -> Result<(), HistoryError> {
         let path = self.metadata.join(SOURCE_TRANSACTION_FILE);
         let transaction: SourceTransaction = read_json(&path)?;
-        validate_source_snapshot(&self.root, &transaction.before)?;
+        let before_assets = transaction
+            .before_asset_files
+            .as_ref()
+            .unwrap_or(&transaction.before.assets);
+        validate_transaction_snapshot(&self.metadata, &transaction.before, before_assets)?;
         reconcile_interrupted_source_set(
             &self.root,
             &transaction.before.sources,
             &transaction.after.sources,
         )?;
+        reconcile_asset_set(&self.root, before_assets, &transaction.after.assets, true)?;
         self.clear_source_transaction()
     }
 
@@ -588,13 +771,28 @@ impl HistoryStore {
                 && Some(state.active_entry.as_str()) != transaction.previous_active_entry.as_deref()
                 && self.commit_path(&state.active_entry).exists()
         });
-        let (target, other) = if committed_after {
-            (&transaction.after, &transaction.before)
+        let before_assets = transaction
+            .before_asset_files
+            .as_ref()
+            .unwrap_or(&transaction.before.assets);
+        let (target, other, target_assets, other_assets) = if committed_after {
+            (
+                &transaction.after,
+                &transaction.before,
+                &transaction.after.assets,
+                before_assets,
+            )
         } else {
-            (&transaction.before, &transaction.after)
+            (
+                &transaction.before,
+                &transaction.after,
+                before_assets,
+                &transaction.after.assets,
+            )
         };
-        validate_source_snapshot(&self.root, target)?;
+        validate_transaction_snapshot(&self.metadata, target, target_assets)?;
         reconcile_interrupted_source_set(&self.root, &target.sources, &other.sources)?;
+        reconcile_asset_set(&self.root, target_assets, other_assets, true)?;
         self.clear_source_transaction()
     }
 
@@ -659,6 +857,7 @@ impl HistoryStore {
             self.metadata.join("history/entries"),
             self.metadata.join("history/snapshots"),
             self.metadata.join("history/committed"),
+            self.metadata.join("history/assets"),
         ] {
             for item in fs::read_dir(&directory).map_err(|source| HistoryError::Io {
                 path: directory.clone(),
@@ -809,6 +1008,100 @@ fn validate_entry_identity(entry: &HistoryEntry, expected_id: &str) -> Result<()
     Ok(())
 }
 
+fn read_regular_file(path: &Path) -> Result<Vec<u8>, HistoryError> {
+    match read_regular_asset_bytes(path) {
+        Ok(bytes) => Ok(bytes),
+        Err(AssetReadError::Unsafe(message)) => Err(HistoryError::Corrupt(format!(
+            "history asset blob `{}` is unsafe: {message}",
+            path.display()
+        ))),
+        Err(AssetReadError::TooLarge) => Err(HistoryError::Corrupt(format!(
+            "history asset blob `{}` exceeds the {MAX_MEDIA_ASSET_BYTES}-byte maximum",
+            path.display()
+        ))),
+        Err(AssetReadError::Unreadable(source)) => Err(HistoryError::Io {
+            path: path.to_path_buf(),
+            source,
+        }),
+    }
+}
+
+fn validate_asset_manifest(assets: &BTreeMap<PathBuf, SnapshotAsset>) -> Result<(), HistoryError> {
+    if assets.len() > MAX_MEDIA_ASSETS {
+        return Err(HistoryError::Corrupt(format!(
+            "asset manifest contains {} files; maximum is {MAX_MEDIA_ASSETS}",
+            assets.len()
+        )));
+    }
+    let mut total_bytes = 0_u64;
+    for (path, asset) in assets {
+        if !valid_asset_path(path) || !valid_sha256(&asset.sha256) {
+            return Err(HistoryError::Corrupt(format!(
+                "asset manifest contains invalid identity `{}`",
+                path.display()
+            )));
+        }
+        if asset.byte_len > MAX_MEDIA_ASSET_BYTES {
+            return Err(HistoryError::Corrupt(format!(
+                "asset manifest file `{}` exceeds the per-file size limit",
+                path.display()
+            )));
+        }
+        total_bytes = total_bytes
+            .checked_add(asset.byte_len)
+            .ok_or_else(|| HistoryError::Corrupt("asset byte count overflow".to_owned()))?;
+    }
+    if total_bytes > MAX_PROJECT_MEDIA_BYTES {
+        return Err(HistoryError::Corrupt(
+            "asset manifest exceeds the Project media size limit".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn read_asset_manifest_bytes(
+    metadata: &Path,
+    assets: &BTreeMap<PathBuf, SnapshotAsset>,
+) -> Result<BTreeMap<PathBuf, Vec<u8>>, HistoryError> {
+    validate_asset_manifest(assets)?;
+    let mut bytes = BTreeMap::new();
+    for (relative, asset) in assets {
+        let path = metadata.join("history/assets").join(&asset.sha256);
+        let content = read_regular_file(&path)?;
+        if content.len() as u64 != asset.byte_len || hash_bytes(&content) != asset.sha256 {
+            return Err(HistoryError::Corrupt(format!(
+                "history asset blob {} does not match `{}`",
+                asset.sha256,
+                relative.display()
+            )));
+        }
+        bytes.insert(relative.clone(), content);
+    }
+    Ok(bytes)
+}
+
+fn read_snapshot_asset_bytes(
+    metadata: &Path,
+    snapshot: &SourceSnapshot,
+) -> Result<BTreeMap<PathBuf, Vec<u8>>, HistoryError> {
+    read_asset_manifest_bytes(metadata, &snapshot.assets)
+}
+
+fn snapshot_assets(inventory: &AssetInventory) -> BTreeMap<PathBuf, SnapshotAsset> {
+    inventory
+        .iter()
+        .map(|asset| {
+            (
+                asset.path().to_path_buf(),
+                SnapshotAsset {
+                    sha256: asset.sha256().to_owned(),
+                    byte_len: asset.byte_len(),
+                },
+            )
+        })
+        .collect()
+}
+
 fn safe_source_path(path: &Path) -> bool {
     if path == Path::new(PROJECT_FILE) {
         return true;
@@ -861,7 +1154,42 @@ fn validate_snapshot_integrity(snapshot: &SourceSnapshot) -> Result<(), HistoryE
             "source snapshot exceeds the Project size limit".to_owned(),
         ));
     }
-    let actual = hash_sources(&snapshot.sources);
+    if snapshot.assets.len() > MAX_MEDIA_ASSETS {
+        return Err(HistoryError::Corrupt(format!(
+            "source snapshot declares {} media assets; maximum is {MAX_MEDIA_ASSETS}",
+            snapshot.assets.len()
+        )));
+    }
+    let mut media_bytes = 0_u64;
+    for (path, asset) in &snapshot.assets {
+        if !valid_asset_path(path) || !valid_sha256(&asset.sha256) {
+            return Err(HistoryError::Corrupt(format!(
+                "source snapshot contains invalid asset identity `{}`",
+                path.display()
+            )));
+        }
+        if asset.byte_len > MAX_MEDIA_ASSET_BYTES {
+            return Err(HistoryError::Corrupt(format!(
+                "snapshot asset `{}` exceeds the per-file size limit",
+                path.display()
+            )));
+        }
+        media_bytes = media_bytes
+            .checked_add(asset.byte_len)
+            .ok_or_else(|| HistoryError::Corrupt("asset byte count overflow".to_owned()))?;
+    }
+    if media_bytes > MAX_PROJECT_MEDIA_BYTES {
+        return Err(HistoryError::Corrupt(
+            "source snapshot exceeds the Project media size limit".to_owned(),
+        ));
+    }
+    let actual = hash_project_identity(
+        &snapshot.sources,
+        snapshot
+            .assets
+            .iter()
+            .map(|(path, asset)| (path.as_path(), asset.sha256.as_str(), asset.byte_len)),
+    );
     if actual != snapshot.revision {
         return Err(HistoryError::Corrupt(format!(
             "source snapshot identity mismatch: expected {}, found {actual}",
@@ -891,14 +1219,14 @@ fn committed_ids(metadata: &Path) -> Result<Vec<String>, HistoryError> {
 }
 
 fn summarize_changes(before: Option<&SourceSnapshot>, after: &SourceSnapshot) -> Vec<SourceChange> {
-    let empty = BTreeMap::new();
-    let before_sources = before.map_or(&empty, |snapshot| &snapshot.sources);
-    let paths: BTreeSet<_> = before_sources
+    let empty_sources = BTreeMap::new();
+    let before_sources = before.map_or(&empty_sources, |snapshot| &snapshot.sources);
+    let source_paths: BTreeSet<_> = before_sources
         .keys()
         .chain(after.sources.keys())
         .cloned()
         .collect();
-    paths
+    let mut changes = source_paths
         .into_iter()
         .filter_map(|path| {
             let before = before_sources.get(&path);
@@ -912,19 +1240,48 @@ fn summarize_changes(before: Option<&SourceSnapshot>, after: &SourceSnapshot) ->
                 (Some(_), Some(_)) => SourceChangeKind::Modified,
                 (None, None) => return None,
             };
-            let changed_lines = changed_line_count(
-                before.map(String::as_str).unwrap_or(""),
-                after.map(String::as_str).unwrap_or(""),
-            );
             Some(SourceChange {
                 path,
                 kind,
                 before_sha256: before.map(|source| hash_bytes(source.as_bytes())),
                 after_sha256: after.map(|source| hash_bytes(source.as_bytes())),
-                changed_lines,
+                changed_lines: changed_line_count(
+                    before.map(String::as_str).unwrap_or(""),
+                    after.map(String::as_str).unwrap_or(""),
+                ),
             })
         })
-        .collect()
+        .collect::<Vec<_>>();
+
+    let empty_assets = BTreeMap::new();
+    let before_assets = before.map_or(&empty_assets, |snapshot| &snapshot.assets);
+    let asset_paths: BTreeSet<_> = before_assets
+        .keys()
+        .chain(after.assets.keys())
+        .cloned()
+        .collect();
+    changes.extend(asset_paths.into_iter().filter_map(|path| {
+        let before = before_assets.get(&path);
+        let after = after.assets.get(&path);
+        if before == after {
+            return None;
+        }
+        let kind = match (before, after) {
+            (None, Some(_)) => SourceChangeKind::Added,
+            (Some(_), None) => SourceChangeKind::Removed,
+            (Some(_), Some(_)) => SourceChangeKind::Modified,
+            (None, None) => return None,
+        };
+        Some(SourceChange {
+            path,
+            kind,
+            before_sha256: before.map(|asset| asset.sha256.clone()),
+            after_sha256: after.map(|asset| asset.sha256.clone()),
+            changed_lines: 0,
+        })
+    }));
+    changes.sort_by(|left, right| left.path.cmp(&right.path));
+    changes
 }
 
 fn changed_line_count(before: &str, after: &str) -> usize {
@@ -935,8 +1292,8 @@ fn changed_line_count(before: &str, after: &str) -> usize {
 }
 
 fn diff_snapshots(before: Option<&SourceSnapshot>, after: &SourceSnapshot) -> String {
-    let empty = BTreeMap::new();
-    let before_sources = before.map_or(&empty, |snapshot| &snapshot.sources);
+    let empty_sources = BTreeMap::new();
+    let before_sources = before.map_or(&empty_sources, |snapshot| &snapshot.sources);
     let paths: BTreeSet<_> = before_sources
         .keys()
         .chain(after.sources.keys())
@@ -959,18 +1316,43 @@ fn diff_snapshots(before: Option<&SourceSnapshot>, after: &SourceSnapshot) -> St
                 .to_string(),
         );
     }
+
+    let empty_assets = BTreeMap::new();
+    let before_assets = before.map_or(&empty_assets, |snapshot| &snapshot.assets);
+    let asset_paths: BTreeSet<_> = before_assets
+        .keys()
+        .chain(after.assets.keys())
+        .cloned()
+        .collect();
+    for path in asset_paths {
+        let old = before_assets.get(&path);
+        let new = after.assets.get(&path);
+        if old == new {
+            continue;
+        }
+        let identity = |asset: Option<&SnapshotAsset>| {
+            asset.map_or_else(
+                || "absent".to_owned(),
+                |asset| format!("sha256 {} ({} bytes)", asset.sha256, asset.byte_len),
+            )
+        };
+        output.push_str(&format!(
+            "binary {}: {} -> {}\n",
+            path.display(),
+            identity(old),
+            identity(new)
+        ));
+    }
     output
 }
 
-fn validate_source_snapshot(root: &Path, snapshot: &SourceSnapshot) -> Result<(), HistoryError> {
+fn validate_transaction_snapshot(
+    metadata: &Path,
+    snapshot: &SourceSnapshot,
+    materialized_assets: &BTreeMap<PathBuf, SnapshotAsset>,
+) -> Result<(), HistoryError> {
     validate_snapshot_integrity(snapshot)?;
-    let bundle = load_project_sources(root.to_path_buf(), snapshot.sources.clone());
-    if bundle.revision != snapshot.revision || bundle.diagnostics.has_errors() {
-        return Err(HistoryError::Corrupt(format!(
-            "source transaction snapshot {} does not form a valid Project",
-            snapshot.revision
-        )));
-    }
+    read_asset_manifest_bytes(metadata, materialized_assets)?;
     Ok(())
 }
 
@@ -1019,6 +1401,96 @@ fn reconcile_interrupted_source_set(
     Ok(())
 }
 
+fn reconcile_asset_set(
+    root: &Path,
+    target: &BTreeMap<PathBuf, SnapshotAsset>,
+    other: &BTreeMap<PathBuf, SnapshotAsset>,
+    interrupted: bool,
+) -> Result<(), HistoryError> {
+    let paths: BTreeSet<_> = target.keys().chain(other.keys()).cloned().collect();
+    for relative in &paths {
+        if !valid_asset_path(relative) {
+            return Err(HistoryError::UnsupportedRestore(format!(
+                "cannot transactionally write media path `{}`",
+                relative.display()
+            )));
+        }
+    }
+    let metadata = root.join(METADATA_DIR);
+    for relative in paths {
+        let path = root.join(&relative);
+        ensure_transaction_parent(root, &path)?;
+        remove_atomic_temporary_files(&path)?;
+        let current = match read_project_asset_bytes(root, &relative) {
+            Ok(bytes) => Some(bytes),
+            Err(AssetReadError::Unreadable(error))
+                if error.kind() == std::io::ErrorKind::NotFound =>
+            {
+                None
+            }
+            Err(AssetReadError::Unreadable(source)) => {
+                return Err(HistoryError::Io {
+                    path: path.clone(),
+                    source,
+                });
+            }
+            Err(AssetReadError::Unsafe(message)) if interrupted => {
+                return Err(HistoryError::UnsupportedRestore(format!(
+                    "cannot recover media path `{}` safely: {message}",
+                    relative.display()
+                )));
+            }
+            Err(AssetReadError::TooLarge) if interrupted => {
+                return Err(HistoryError::UnsupportedRestore(format!(
+                    "cannot recover media path `{}` safely because it exceeds the {MAX_MEDIA_ASSET_BYTES}-byte maximum",
+                    relative.display()
+                )));
+            }
+            Err(AssetReadError::Unsafe(_) | AssetReadError::TooLarge) => Some(Vec::new()),
+        };
+        let target_bytes = target
+            .get(&relative)
+            .map(|asset| read_asset_blob(&metadata, asset))
+            .transpose()?;
+        let other_bytes = other
+            .get(&relative)
+            .map(|asset| read_asset_blob(&metadata, asset))
+            .transpose()?;
+        if interrupted
+            && (current.as_deref() == target_bytes.as_deref()
+                || current.as_deref() != other_bytes.as_deref())
+        {
+            continue;
+        }
+        match target_bytes {
+            Some(bytes) => write_atomic(&path, &bytes)?,
+            None if current.is_some() => {
+                fs::remove_file(&path).map_err(|source| HistoryError::Io {
+                    path: path.clone(),
+                    source,
+                })?;
+                if let Some(parent) = path.parent() {
+                    sync_directory(parent)?;
+                }
+            }
+            None => {}
+        }
+    }
+    Ok(())
+}
+
+fn read_asset_blob(metadata: &Path, asset: &SnapshotAsset) -> Result<Vec<u8>, HistoryError> {
+    let path = metadata.join("history/assets").join(&asset.sha256);
+    let bytes = read_regular_file(&path)?;
+    if bytes.len() as u64 != asset.byte_len || hash_bytes(&bytes) != asset.sha256 {
+        return Err(HistoryError::Corrupt(format!(
+            "history asset blob {} is corrupt",
+            asset.sha256
+        )));
+    }
+    Ok(bytes)
+}
+
 fn validate_transaction_paths(paths: &BTreeSet<PathBuf>) -> Result<(), HistoryError> {
     for relative in paths {
         if !safe_source_path(relative) {
@@ -1063,57 +1535,66 @@ fn reconcile_source_set(
     Ok(())
 }
 
-fn ensure_transaction_parent(root: &Path, path: &Path) -> Result<(), HistoryError> {
+pub(crate) fn validate_transaction_parent(root: &Path, path: &Path) -> Result<(), HistoryError> {
+    transaction_parent(root, path, false)
+}
+
+pub(crate) fn ensure_transaction_parent(root: &Path, path: &Path) -> Result<(), HistoryError> {
+    transaction_parent(root, path, true)
+}
+
+fn transaction_parent(root: &Path, path: &Path, create_missing: bool) -> Result<(), HistoryError> {
     let parent = path
         .parent()
         .ok_or_else(|| HistoryError::Corrupt(format!("path {} has no parent", path.display())))?;
-    let mut existing = parent;
-    loop {
-        match fs::symlink_metadata(existing) {
-            Ok(_) => break,
+    let relative_parent = parent.strip_prefix(root).map_err(|_| {
+        HistoryError::UnsupportedRestore(format!(
+            "transaction path `{}` is outside the Project",
+            path.display()
+        ))
+    })?;
+    let mut current = root.to_path_buf();
+    for component in relative_parent.components() {
+        let Component::Normal(component) = component else {
+            return Err(HistoryError::UnsupportedRestore(format!(
+                "transaction parent `{}` is not normalized",
+                parent.display()
+            )));
+        };
+        current.push(component);
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(HistoryError::UnsupportedRestore(format!(
+                    "transaction parent `{}` traverses a symbolic link",
+                    current.display()
+                )));
+            }
+            Ok(metadata) if metadata.is_dir() => {}
+            Ok(_) => {
+                return Err(HistoryError::UnsupportedRestore(format!(
+                    "transaction parent `{}` is not a directory",
+                    current.display()
+                )));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound && !create_missing => {
+                return Ok(());
+            }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                existing = existing.parent().ok_or_else(|| {
-                    HistoryError::UnsupportedRestore(format!(
-                        "source parent `{}` has no existing ancestor",
-                        parent.display()
-                    ))
+                fs::create_dir(&current).map_err(|source| HistoryError::Io {
+                    path: current.clone(),
+                    source,
                 })?;
+                if let Some(created_parent) = current.parent() {
+                    sync_directory(created_parent)?;
+                }
             }
             Err(source) => {
                 return Err(HistoryError::Io {
-                    path: existing.to_path_buf(),
+                    path: current.clone(),
                     source,
                 });
             }
         }
-    }
-    let canonical_root = fs::canonicalize(root).map_err(|source| HistoryError::Io {
-        path: root.to_path_buf(),
-        source,
-    })?;
-    let canonical_existing = fs::canonicalize(existing).map_err(|source| HistoryError::Io {
-        path: existing.to_path_buf(),
-        source,
-    })?;
-    if !canonical_existing.starts_with(&canonical_root) {
-        return Err(HistoryError::UnsupportedRestore(format!(
-            "source parent `{}` escapes the Project through a symbolic link",
-            parent.display()
-        )));
-    }
-    fs::create_dir_all(parent).map_err(|source| HistoryError::Io {
-        path: parent.to_path_buf(),
-        source,
-    })?;
-    let canonical_parent = fs::canonicalize(parent).map_err(|source| HistoryError::Io {
-        path: parent.to_path_buf(),
-        source,
-    })?;
-    if !canonical_parent.starts_with(&canonical_root) {
-        return Err(HistoryError::UnsupportedRestore(format!(
-            "source parent `{}` escapes the Project through a symbolic link",
-            parent.display()
-        )));
     }
     Ok(())
 }
@@ -1195,6 +1676,54 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), HistoryError
         })?;
         fs::rename(&temporary, path).map_err(|source| HistoryError::Io {
             path: path.to_path_buf(),
+            source,
+        })?;
+        sync_directory(parent)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
+
+/// Atomically creates one file without replacing an existing destination.
+pub(crate) fn write_new_atomic(path: &Path, bytes: &[u8]) -> Result<(), HistoryError> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| HistoryError::Corrupt(format!("path {} has no parent", path.display())))?;
+    fs::create_dir_all(parent).map_err(|source| HistoryError::Io {
+        path: parent.to_path_buf(),
+        source,
+    })?;
+    let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let filename = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("crump");
+    let temporary = parent.join(format!(".{filename}.tmp-{}-{counter}", std::process::id()));
+    let result = (|| {
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&temporary)
+            .map_err(|source| HistoryError::Io {
+                path: temporary.clone(),
+                source,
+            })?;
+        file.write_all(bytes).map_err(|source| HistoryError::Io {
+            path: temporary.clone(),
+            source,
+        })?;
+        file.sync_all().map_err(|source| HistoryError::Io {
+            path: temporary.clone(),
+            source,
+        })?;
+        fs::hard_link(&temporary, path).map_err(|source| HistoryError::Io {
+            path: path.to_path_buf(),
+            source,
+        })?;
+        fs::remove_file(&temporary).map_err(|source| HistoryError::Io {
+            path: temporary.clone(),
             source,
         })?;
         sync_directory(parent)
@@ -1308,6 +1837,43 @@ mod tests {
 
     use super::*;
 
+    fn write_test_wav(path: &Path, samples: &[i16]) -> Vec<u8> {
+        fs::create_dir_all(path.parent().expect("media parent")).expect("media directory");
+        let mut writer = hound::WavWriter::create(
+            path,
+            hound::WavSpec {
+                channels: 1,
+                sample_rate: 48_000,
+                bits_per_sample: 16,
+                sample_format: hound::SampleFormat::Int,
+            },
+        )
+        .expect("WAV writer");
+        for sample in samples {
+            writer.write_sample(*sample).expect("sample");
+        }
+        writer.finalize().expect("finalize");
+        fs::read(path).expect("WAV bytes")
+    }
+
+    fn source_with_asset(bytes: &[u8]) -> String {
+        SOURCE.replacen(
+            "  song {",
+            &format!(
+                "  asset voice \"Voice\" wav \"media/voice.wav\" sha256 \"{}\"\n  song {{",
+                hash_bytes(bytes)
+            ),
+            1,
+        )
+    }
+
+    fn bundle_with_asset(before: &ProjectBundle, bytes: &[u8]) -> ProjectBundle {
+        let mut sources = before.sources.clone();
+        sources.insert(PathBuf::from(PROJECT_FILE), source_with_asset(bytes));
+        let assets = BTreeMap::from([(PathBuf::from("media/voice.wav"), bytes.to_vec())]);
+        load_project_sources_with_assets(before.root.clone(), sources, &assets)
+    }
+
     const SOURCE: &str = r#"crump 1
 project "History" {
   id history
@@ -1334,6 +1900,170 @@ project "History" {
   }
 }
 "#;
+
+    #[test]
+    fn active_history_owns_and_restores_exact_media_bytes() {
+        let directory = tempdir().expect("Project root");
+        let wav = directory.path().join("media/voice.wav");
+        let first_bytes = write_test_wav(&wav, &[0, 100, -100]);
+        fs::write(
+            directory.path().join(PROJECT_FILE),
+            source_with_asset(&first_bytes),
+        )
+        .expect("source");
+        let first = load_project(directory.path()).expect("first Candidate");
+        assert!(!first.diagnostics.has_errors());
+        let store = HistoryStore::open(directory.path()).expect("History");
+        let first_entry = store
+            .publish(
+                &first,
+                Publication::new(ChangeOrigin::system("test"), "First media", "bootstrap"),
+            )
+            .expect("publish first");
+
+        let second_bytes = write_test_wav(&wav, &[0, 200, -200, 50]);
+        fs::write(
+            directory.path().join(PROJECT_FILE),
+            source_with_asset(&second_bytes),
+        )
+        .expect("source");
+        let second = load_project(directory.path()).expect("second Candidate");
+        let second_entry = store
+            .publish(
+                &second,
+                Publication::new(ChangeOrigin::human("test"), "Second media", "replace"),
+            )
+            .expect("publish second");
+        assert!(
+            second_entry
+                .changes
+                .iter()
+                .any(|change| change.path == Path::new("media/voice.wav")
+                    && change.kind == SourceChangeKind::Modified
+                    && change.changed_lines == 0)
+        );
+        let diff = store.diff(&second_entry.id).expect("binary diff");
+        assert!(diff.contains("binary media/voice.wav: sha256"));
+        assert!(diff.contains("bytes) -> sha256"));
+
+        fs::remove_file(&wav).expect("remove mutable Candidate media");
+        let active = store
+            .active_bundle()
+            .expect("Active bundle")
+            .expect("Active state");
+        assert_eq!(
+            active.assets.get("voice").expect("Active asset").bytes(),
+            second_bytes
+        );
+
+        store
+            .restore(
+                &first_entry.id,
+                ChangeOrigin::human("test"),
+                "Restore exact first media",
+            )
+            .expect("restore");
+        assert_eq!(fs::read(&wav).expect("restored WAV"), first_bytes);
+        let restored = store
+            .active_bundle()
+            .expect("restored bundle")
+            .expect("restored Active");
+        assert_eq!(
+            restored
+                .assets
+                .get("voice")
+                .expect("restored asset")
+                .bytes(),
+            first_bytes
+        );
+    }
+
+    #[test]
+    fn asset_mutation_after_load_is_a_stale_publication() {
+        let directory = tempdir().expect("Project root");
+        let wav = directory.path().join("media/voice.wav");
+        let original = write_test_wav(&wav, &[0, 100]);
+        fs::write(
+            directory.path().join(PROJECT_FILE),
+            source_with_asset(&original),
+        )
+        .expect("source");
+        let loaded = load_project(directory.path()).expect("Candidate");
+        let store = HistoryStore::open(directory.path()).expect("History");
+        write_test_wav(&wav, &[0, 200]);
+        assert!(matches!(
+            store.publish(
+                &loaded,
+                Publication::new(ChangeOrigin::human("test"), "Stale", "mutated media")
+            ),
+            Err(HistoryError::StaleCandidate { .. })
+        ));
+    }
+
+    #[test]
+    fn tampered_history_asset_blob_is_rejected() {
+        let directory = tempdir().expect("Project root");
+        let wav = directory.path().join("media/voice.wav");
+        let bytes = write_test_wav(&wav, &[0, 100]);
+        fs::write(
+            directory.path().join(PROJECT_FILE),
+            source_with_asset(&bytes),
+        )
+        .expect("source");
+        let loaded = load_project(directory.path()).expect("Candidate");
+        let digest = hash_bytes(&bytes);
+        let store = HistoryStore::open(directory.path()).expect("History");
+        store
+            .publish(
+                &loaded,
+                Publication::new(ChangeOrigin::system("test"), "Media", "bootstrap"),
+            )
+            .expect("publish");
+        fs::write(
+            directory.path().join(".crump/history/assets").join(digest),
+            b"tampered",
+        )
+        .expect("tamper blob");
+        assert!(matches!(
+            store.active_bundle(),
+            Err(HistoryError::Corrupt(_))
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn history_asset_blobs_must_be_owned_regular_files() {
+        use std::os::unix::fs::symlink;
+
+        let directory = tempdir().expect("Project root");
+        let wav = directory.path().join("media/voice.wav");
+        let bytes = write_test_wav(&wav, &[0, 100]);
+        fs::write(
+            directory.path().join(PROJECT_FILE),
+            source_with_asset(&bytes),
+        )
+        .expect("source");
+        let loaded = load_project(directory.path()).expect("Candidate");
+        let digest = hash_bytes(&bytes);
+        let store = HistoryStore::open(directory.path()).expect("History");
+        store
+            .publish(
+                &loaded,
+                Publication::new(ChangeOrigin::system("test"), "Media", "bootstrap"),
+            )
+            .expect("publish");
+        let blob = directory.path().join(".crump/history/assets").join(digest);
+        fs::remove_file(&blob).expect("remove owned blob");
+        let outside = tempdir().expect("outside history");
+        let external_blob = outside.path().join("blob");
+        fs::write(&external_blob, bytes).expect("external blob");
+        symlink(external_blob, blob).expect("blob symlink");
+
+        assert!(matches!(
+            store.active_bundle(),
+            Err(HistoryError::Corrupt(_))
+        ));
+    }
 
     #[test]
     fn publishes_lists_diffs_and_restores_exact_source() {
@@ -1401,6 +2131,205 @@ project "History" {
             )
             .unwrap_err();
         assert!(matches!(error, HistoryError::StaleCandidate { .. }));
+    }
+
+    #[test]
+    fn legacy_sample_free_snapshots_without_an_asset_manifest_still_load() {
+        let directory = tempdir().expect("Project root");
+        fs::write(directory.path().join(PROJECT_FILE), SOURCE).expect("Project source");
+        let bundle = load_project(directory.path()).expect("Candidate");
+        let revision = bundle.revision.clone();
+        let store = HistoryStore::open(directory.path()).expect("History");
+        store
+            .publish(
+                &bundle,
+                Publication::new(ChangeOrigin::system("test"), "Initial", "legacy fixture"),
+            )
+            .expect("publish");
+        drop(store);
+
+        let snapshot_path = directory
+            .path()
+            .join(METADATA_DIR)
+            .join("history/snapshots")
+            .join(format!("{revision}.json"));
+        let mut snapshot: serde_json::Value =
+            serde_json::from_slice(&fs::read(&snapshot_path).expect("snapshot"))
+                .expect("snapshot JSON");
+        snapshot
+            .as_object_mut()
+            .expect("snapshot object")
+            .remove("assets");
+        fs::write(
+            &snapshot_path,
+            serde_json::to_vec_pretty(&snapshot).expect("snapshot JSON"),
+        )
+        .expect("legacy snapshot");
+
+        let store = HistoryStore::open(directory.path()).expect("legacy History");
+        let active = store
+            .active_bundle()
+            .expect("Active bundle")
+            .expect("Active state");
+        assert_eq!(active.revision, revision);
+        assert!(active.assets.is_empty());
+    }
+
+    #[test]
+    fn startup_rolls_back_uncommitted_source_and_asset_bytes() {
+        let directory = tempdir().expect("Project root");
+        fs::write(directory.path().join(PROJECT_FILE), SOURCE).expect("Project source");
+        let external = tempdir().expect("external media");
+        let bytes = write_test_wav(&external.path().join("voice.wav"), &[0, 100, -100]);
+        let before = load_project(directory.path()).expect("before Candidate");
+        let after = bundle_with_asset(&before, &bytes);
+        assert!(!after.diagnostics.has_errors());
+        let store = HistoryStore::open(directory.path()).expect("History");
+        store
+            .publish(
+                &before,
+                Publication::new(ChangeOrigin::system("test"), "Initial", "bootstrap"),
+            )
+            .expect("publish before");
+        store
+            .begin_source_transaction(&before, &after)
+            .expect("begin transaction");
+        write_atomic(
+            &directory.path().join(PROJECT_FILE),
+            after
+                .sources
+                .get(Path::new(PROJECT_FILE))
+                .expect("after source")
+                .as_bytes(),
+        )
+        .expect("write source");
+        write_atomic(&directory.path().join("media/voice.wav"), &bytes).expect("write asset");
+        drop(store);
+
+        let _recovered = HistoryStore::open(directory.path()).expect("recover rollback");
+        assert_eq!(
+            fs::read_to_string(directory.path().join(PROJECT_FILE)).expect("source"),
+            SOURCE
+        );
+        assert!(!directory.path().join("media/voice.wav").exists());
+    }
+
+    #[test]
+    fn startup_can_roll_back_to_an_invalid_candidate_source() {
+        let directory = tempdir().expect("Project root");
+        let source_path = directory.path().join(PROJECT_FILE);
+        fs::write(&source_path, SOURCE).expect("Project source");
+        let valid = load_project(directory.path()).expect("valid Candidate");
+        let store = HistoryStore::open(directory.path()).expect("History");
+        store
+            .publish(
+                &valid,
+                Publication::new(ChangeOrigin::system("test"), "Initial", "bootstrap"),
+            )
+            .expect("publish");
+
+        let invalid_source = "crump 1\nproject \"unfinished";
+        fs::write(&source_path, invalid_source).expect("invalid Candidate source");
+        let invalid = load_project(directory.path()).expect("invalid Candidate bundle");
+        assert!(invalid.diagnostics.has_errors());
+        store
+            .begin_source_transaction(&invalid, &valid)
+            .expect("journal repair transaction");
+        drop(store);
+
+        let _recovered = HistoryStore::open(directory.path()).expect("recover invalid Candidate");
+        assert_eq!(
+            fs::read_to_string(&source_path).expect("Candidate source"),
+            invalid_source
+        );
+    }
+
+    #[test]
+    fn startup_rollback_preserves_invalid_media_bytes_touched_by_restore() {
+        let directory = tempdir().expect("Project root");
+        let wav = directory.path().join("media/voice.wav");
+        let valid_bytes = write_test_wav(&wav, &[0, 100]);
+        fs::write(
+            directory.path().join(PROJECT_FILE),
+            source_with_asset(&valid_bytes),
+        )
+        .expect("Project source");
+        let valid = load_project(directory.path()).expect("valid Candidate");
+        let store = HistoryStore::open(directory.path()).expect("History");
+        store
+            .publish(
+                &valid,
+                Publication::new(ChangeOrigin::system("test"), "Initial", "bootstrap"),
+            )
+            .expect("publish");
+        let active = store
+            .active_bundle()
+            .expect("Active bundle")
+            .expect("Active state");
+
+        let invalid_bytes = b"not a WAV, but still user-owned bytes";
+        fs::write(&wav, invalid_bytes).expect("invalid Candidate media");
+        let invalid = load_project(directory.path()).expect("invalid Candidate bundle");
+        assert!(invalid.diagnostics.has_errors());
+        store
+            .begin_source_transaction(&invalid, &active)
+            .expect("journal restore transaction");
+        write_atomic(&wav, &valid_bytes).expect("partial restore write");
+        drop(store);
+
+        let _recovered = HistoryStore::open(directory.path()).expect("recover invalid media");
+        assert_eq!(fs::read(&wav).expect("Candidate media"), invalid_bytes);
+    }
+
+    #[test]
+    fn startup_completes_committed_source_and_asset_bytes() {
+        let directory = tempdir().expect("Project root");
+        fs::write(directory.path().join(PROJECT_FILE), SOURCE).expect("Project source");
+        let external = tempdir().expect("external media");
+        let bytes = write_test_wav(&external.path().join("voice.wav"), &[0, 100, -100]);
+        let before = load_project(directory.path()).expect("before Candidate");
+        let after = bundle_with_asset(&before, &bytes);
+        let store = HistoryStore::open(directory.path()).expect("History");
+        store
+            .publish(
+                &before,
+                Publication::new(ChangeOrigin::system("test"), "Initial", "bootstrap"),
+            )
+            .expect("publish before");
+        store
+            .begin_source_transaction(&before, &after)
+            .expect("begin transaction");
+        write_atomic(
+            &directory.path().join(PROJECT_FILE),
+            after
+                .sources
+                .get(Path::new(PROJECT_FILE))
+                .expect("after source")
+                .as_bytes(),
+        )
+        .expect("write source");
+        write_atomic(&directory.path().join("media/voice.wav"), &bytes).expect("write asset");
+        store
+            .publish(
+                &after,
+                Publication::new(ChangeOrigin::human("test"), "Import", "commit media"),
+            )
+            .expect("publish after");
+        drop(store);
+
+        let recovered = HistoryStore::open(directory.path()).expect("recover commit");
+        assert_eq!(
+            fs::read(directory.path().join("media/voice.wav")).expect("asset"),
+            bytes
+        );
+        assert_eq!(
+            recovered
+                .active_bundle()
+                .expect("Active bundle")
+                .expect("Active state")
+                .revision,
+            after.revision
+        );
     }
 
     #[test]

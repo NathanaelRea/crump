@@ -1,23 +1,36 @@
 //! Deterministic stereo float-WAV rendering with failure-atomic bundle publication.
 
 use std::{
+    collections::BTreeSet,
     fs::{self, File},
-    io::{Read, Write},
+    io::{BufReader, BufWriter, Read, Write},
     path::{Component, Path, PathBuf},
+    str::FromStr,
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use rustix::fs::{renameat_with, RenameFlags};
+use rustix::fs::{RenameFlags, renameat_with};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::project::{ProjectBundle, RevisionId};
+use crate::{
+    model::{ChannelRef, TapPoint},
+    project::{ProjectBundle, RevisionId},
+};
 
-use super::{CompiledProject, EngineError, ProcessingMode};
+use super::{
+    CompiledProject, EngineError, FinalizedAudioAnalysis, ProcessingMode,
+    analysis::{ANALYSIS_SCHEMA, analyze_finalized_wav},
+    mix_graph::{ChannelRole, MAX_MIX_CHANNELS},
+};
 
-const RENDER_SCHEMA: u32 = 1;
+const RENDER_SCHEMA: u32 = 2;
 const WAV_FILE: &str = "master.wav";
 const MANIFEST_FILE: &str = "manifest.json";
+const MAX_RENDER_STEMS: usize = MAX_MIX_CHANNELS * 2;
+const MAX_RENDER_MANIFEST_BYTES: u64 = 1 << 20;
+const STEMS_PER_SPOOL: usize = 16;
+const RENDER_BLOCK_FRAMES: usize = 1_024;
 static RENDER_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Offline render publication settings.
@@ -27,6 +40,10 @@ pub struct RenderOptions {
     pub output: PathBuf,
     /// Atomically replace an existing complete bundle.
     pub replace: bool,
+    /// Selected aligned Track/Group channel taps.
+    pub stems: Vec<RenderStemRequest>,
+    #[cfg(test)]
+    fail_after_stem_spool: bool,
 }
 
 impl RenderOptions {
@@ -36,8 +53,90 @@ impl RenderOptions {
         Self {
             output: output.into(),
             replace: true,
+            stems: Vec::new(),
+            #[cfg(test)]
+            fail_after_stem_spool: false,
         }
     }
+}
+
+/// One selected Track/Group stem and explicit channel tap.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct RenderStemRequest {
+    /// Stable authored Track or Group identity.
+    pub owner: ChannelRef,
+    /// Capture before or after the owner's fader/panner/mute stage.
+    pub tap: TapPoint,
+}
+
+impl FromStr for RenderStemRequest {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let (owner, tap) = value.rsplit_once(':').ok_or_else(|| {
+            "stem must use OWNER:TAP, for example track/lead:post_fader".to_owned()
+        })?;
+        let owner = ChannelRef::from_str(owner).map_err(|error| error.to_string())?;
+        if !matches!(owner, ChannelRef::Track(_) | ChannelRef::Group(_)) {
+            return Err("stem owner must be track/ID or group/ID".to_owned());
+        }
+        let tap = TapPoint::from_str(tap).map_err(|error| error.to_string())?;
+        Ok(Self { owner, tap })
+    }
+}
+
+/// Explicit inclusion policy for one exported stem.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RenderStemProcessingPolicy {
+    /// Upstream main-route material reaching the owner is included.
+    pub includes_upstream_main_routing: bool,
+    /// Instrument post-sum and owner insert processing before the tap are included.
+    pub includes_owner_processing: bool,
+    /// Owner fader, panner, and Mute are included only for post-fader taps.
+    pub includes_owner_fader_panner_mute: bool,
+    /// Outgoing parallel Send branches are not folded into the owner stem.
+    pub includes_outgoing_sends: bool,
+    /// Downstream Group/Return processing is not included.
+    pub includes_downstream_processing: bool,
+    /// Master processing is not included.
+    pub includes_master_processing: bool,
+}
+
+/// Planned aligned stem artifact before Audio is written.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RenderStemPlan {
+    /// Stable authored Track or Group identity.
+    pub owner: ChannelRef,
+    /// Explicit owner-channel tap.
+    pub tap: TapPoint,
+    /// Safe deterministic bundle-relative WAV name.
+    pub file: String,
+    /// Zero padding needed to align this tap with Master output latency.
+    pub alignment_delay_frames: u32,
+    /// Exact capture and processing policy.
+    pub processing_policy: RenderStemProcessingPolicy,
+}
+
+/// One finalized, analyzed, and hashed stem artifact.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RenderStemManifest {
+    /// Planned owner, tap, filename, alignment, and processing policy.
+    #[serde(flatten)]
+    pub plan: RenderStemPlan,
+    /// PCM sample rate shared with Master.
+    pub sample_rate: u32,
+    /// Stereo channel count.
+    pub channels: u16,
+    /// Explicit stereo layout.
+    pub channel_layout: String,
+    /// IEEE stereo 32-bit float WAV.
+    pub sample_format: String,
+    /// Frame count shared exactly with Master.
+    pub frame_count: u64,
+    /// Analysis of the finalized stem WAV.
+    pub analysis: FinalizedAudioAnalysis,
+    /// SHA-256 of exact stem WAV bytes.
+    pub wav_sha256: String,
 }
 
 /// Deterministic machine-readable render manifest.
@@ -77,10 +176,15 @@ pub struct RenderManifest {
     pub frame_count: u64,
     /// Complete Render Range in seconds.
     pub duration_seconds: f64,
-    /// Maximum absolute authored output sample; no monitor limiter is applied.
+    /// Maximum absolute authored output sample; retained for manifest compatibility.
     pub peak: f32,
+    /// Delivery metrics computed by reopening the exact finalized WAV.
+    pub analysis: FinalizedAudioAnalysis,
     /// Hash of exact WAV bytes.
     pub wav_sha256: String,
+    /// Selected aligned Track/Group stem artifacts.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stems: Vec<RenderStemManifest>,
 }
 
 /// Published render artifact paths and manifest.
@@ -92,10 +196,239 @@ pub struct RenderResult {
     pub wav: PathBuf,
     /// Deterministic manifest path.
     pub manifest_path: PathBuf,
+    /// Selected stem WAV paths in manifest order.
+    pub stems: Vec<PathBuf>,
     /// Parsed manifest.
     pub manifest: RenderManifest,
     /// Hash of exact manifest bytes.
     pub manifest_sha256: String,
+}
+
+#[derive(Debug, Clone)]
+struct PreparedStem {
+    plan: RenderStemPlan,
+    channel_index: usize,
+}
+
+/// Resolves selected stem owners, taps, filenames, and Master alignment.
+pub fn plan_render_stems(
+    compiled: &CompiledProject,
+    requests: &[RenderStemRequest],
+) -> Result<Vec<RenderStemPlan>, EngineError> {
+    Ok(prepare_render_stems(compiled, requests)?
+        .into_iter()
+        .map(|stem| stem.plan)
+        .collect())
+}
+
+fn prepare_render_stems(
+    compiled: &CompiledProject,
+    requests: &[RenderStemRequest],
+) -> Result<Vec<PreparedStem>, EngineError> {
+    if requests.len() > MAX_RENDER_STEMS {
+        return Err(EngineError::Compile(format!(
+            "at most {MAX_RENDER_STEMS} stems may be selected"
+        )));
+    }
+    let inspection = compiled.mix_graph_inspection();
+    let master_latency = inspection
+        .channels
+        .iter()
+        .find(|channel| channel.role == ChannelRole::Master)
+        .ok_or_else(|| EngineError::Compile("compiled mix has no Master channel".to_owned()))?
+        .output_latency_frames;
+    let mut unique = BTreeSet::new();
+    for request in requests {
+        if !unique.insert(request.clone()) {
+            return Err(EngineError::Compile(format!(
+                "stem `{}` at `{}` was selected more than once",
+                request.owner,
+                tap_name(request.tap)
+            )));
+        }
+    }
+
+    unique
+        .into_iter()
+        .map(|request| {
+            let identity = request.owner.to_string();
+            let channel = inspection
+                .channels
+                .iter()
+                .find(|channel| channel.identity == identity)
+                .ok_or_else(|| {
+                    EngineError::Compile(format!("stem owner `{identity}` does not exist"))
+                })?;
+            let expected_role = match request.owner {
+                ChannelRef::Track(_) => ChannelRole::Track,
+                ChannelRef::Group(_) => ChannelRole::Group,
+                ChannelRef::Return(_) => {
+                    return Err(EngineError::Compile(
+                        "stem owner must be a Track or Group".to_owned(),
+                    ));
+                }
+            };
+            if channel.role != expected_role {
+                return Err(EngineError::Compile(format!(
+                    "stem owner `{identity}` has an inconsistent compiled role"
+                )));
+            }
+            let alignment_delay_frames = master_latency
+                .checked_sub(channel.output_latency_frames)
+                .ok_or_else(|| {
+                    EngineError::Compile(format!(
+                        "stem `{identity}` latency exceeds Master output latency"
+                    ))
+                })?;
+            let file = stem_file_name(&request.owner, request.tap)?;
+            Ok(PreparedStem {
+                channel_index: channel.index,
+                plan: RenderStemPlan {
+                    owner: request.owner,
+                    tap: request.tap,
+                    file,
+                    alignment_delay_frames,
+                    processing_policy: stem_processing_policy(request.tap),
+                },
+            })
+        })
+        .collect()
+}
+
+fn stem_file_name(owner: &ChannelRef, tap: TapPoint) -> Result<String, EngineError> {
+    match owner {
+        ChannelRef::Track(id) if !id.is_empty() => {
+            Ok(format!("stem-track-{id}-{}.wav", tap_name(tap)))
+        }
+        ChannelRef::Group(id) if !id.is_empty() => {
+            Ok(format!("stem-group-{id}-{}.wav", tap_name(tap)))
+        }
+        ChannelRef::Track(_) | ChannelRef::Group(_) => Err(EngineError::Compile(
+            "stem owner ID cannot be empty".to_owned(),
+        )),
+        ChannelRef::Return(_) => Err(EngineError::Compile(
+            "stem owner must be a Track or Group".to_owned(),
+        )),
+    }
+}
+
+const fn stem_processing_policy(tap: TapPoint) -> RenderStemProcessingPolicy {
+    RenderStemProcessingPolicy {
+        includes_upstream_main_routing: true,
+        includes_owner_processing: true,
+        includes_owner_fader_panner_mute: matches!(tap, TapPoint::PostFader),
+        includes_outgoing_sends: false,
+        includes_downstream_processing: false,
+        includes_master_processing: false,
+    }
+}
+
+const fn tap_name(tap: TapPoint) -> &'static str {
+    match tap {
+        TapPoint::PreFader => "pre_fader",
+        TapPoint::PostFader => "post_fader",
+    }
+}
+
+fn stem_spool_path(staging: &Path, index: usize) -> PathBuf {
+    staging.join(format!(".stem-spool-{index}.raw"))
+}
+
+fn encode_stem_frames(frames: &[[f32; 2]], encoded: &mut Vec<u8>) {
+    encoded.clear();
+    encoded.reserve(frames.len() * 2 * size_of::<f32>());
+    for frame in frames {
+        encoded.extend_from_slice(&frame[0].to_le_bytes());
+        encoded.extend_from_slice(&frame[1].to_le_bytes());
+    }
+}
+
+fn materialize_stem_spools(
+    staging: &Path,
+    prepared_stems: &[PreparedStem],
+    spool_paths: &[PathBuf],
+    specification: hound::WavSpec,
+    frame_count: u64,
+) -> Result<(), EngineError> {
+    let expected_spools = prepared_stems.len().div_ceil(STEMS_PER_SPOOL);
+    if spool_paths.len() != expected_spools {
+        return Err(EngineError::Compile(
+            "temporary stem spool set changed during render".to_owned(),
+        ));
+    }
+
+    let mut encoded = vec![0_u8; RENDER_BLOCK_FRAMES * 2 * size_of::<f32>()];
+    for (spool_index, spool_path) in spool_paths.iter().enumerate() {
+        let first_stem = spool_index * STEMS_PER_SPOOL;
+        let stems =
+            &prepared_stems[first_stem..(first_stem + STEMS_PER_SPOOL).min(prepared_stems.len())];
+        let mut reader = BufReader::new(File::open(spool_path)?);
+        let mut writers = stems
+            .iter()
+            .map(|stem| hound::WavWriter::create(staging.join(&stem.plan.file), specification))
+            .collect::<Result<Vec<_>, _>>()?;
+        let zero_frames = stems
+            .iter()
+            .map(|stem| u64::from(stem.plan.alignment_delay_frames).min(frame_count))
+            .collect::<Vec<_>>();
+        for (writer, zero_frames) in writers.iter_mut().zip(&zero_frames) {
+            for _ in 0..*zero_frames {
+                writer.write_sample(0.0_f32)?;
+                writer.write_sample(0.0_f32)?;
+            }
+        }
+
+        let mut block_start = 0_u64;
+        while block_start < frame_count {
+            let block_frames = (frame_count - block_start).min(RENDER_BLOCK_FRAMES as u64) as usize;
+            let encoded_bytes = block_frames * 2 * size_of::<f32>();
+            for (writer, zero_frames) in writers.iter_mut().zip(&zero_frames) {
+                reader.read_exact(&mut encoded[..encoded_bytes])?;
+                let source_frames = frame_count - *zero_frames;
+                for (offset, frame) in encoded[..encoded_bytes].chunks_exact(8).enumerate() {
+                    if block_start + offset as u64 >= source_frames {
+                        continue;
+                    }
+                    let left = f32::from_le_bytes([frame[0], frame[1], frame[2], frame[3]]);
+                    let right = f32::from_le_bytes([frame[4], frame[5], frame[6], frame[7]]);
+                    writer.write_sample(left)?;
+                    writer.write_sample(right)?;
+                }
+            }
+            block_start += block_frames as u64;
+        }
+        let mut trailing = [0_u8; 1];
+        if reader.read(&mut trailing)? != 0 {
+            return Err(EngineError::Compile(
+                "temporary stem spool contains data beyond the render range".to_owned(),
+            ));
+        }
+        for writer in writers {
+            writer.finalize()?;
+        }
+        for stem in stems {
+            File::open(staging.join(&stem.plan.file))?.sync_all()?;
+        }
+        drop(reader);
+        fs::remove_file(spool_path)?;
+    }
+    Ok(())
+}
+
+fn validate_finalized_analysis(
+    analysis: &FinalizedAudioAnalysis,
+    expected_frames: u64,
+) -> Result<(), EngineError> {
+    if let Some(frame) = analysis.first_non_finite_frame {
+        return Err(EngineError::NonFinite { frame });
+    }
+    if analysis.analyzed_frames != expected_frames {
+        return Err(EngineError::Compile(format!(
+            "finalized WAV contains {} frames; expected {expected_frames}",
+            analysis.analyzed_frames
+        )));
+    }
+    Ok(())
 }
 
 /// Renders a valid Active Revision into an atomic artifact bundle.
@@ -106,7 +439,7 @@ pub fn render_project(
     let project = bundle
         .publishable()
         .ok_or_else(|| EngineError::Validation(bundle.diagnostics.as_slice().to_vec()))?;
-    let compiled = CompiledProject::compile(project)?;
+    let compiled = CompiledProject::compile_with_assets(project, &bundle.assets)?;
     let destination = resolved_destination(&options.output)?;
     validate_render_destination(bundle, &destination)?;
     let parent = destination.parent().ok_or_else(|| {
@@ -142,13 +475,30 @@ pub fn render_project(
     }
     let staging = staging_path(&destination)?;
     fs::create_dir(&staging)?;
-    let result = render_staging(bundle, &compiled, &staging).and_then(|manifest| {
+    #[cfg(test)]
+    let fail_after_stem_spool = options.fail_after_stem_spool;
+    #[cfg(not(test))]
+    let fail_after_stem_spool = false;
+    let result = render_staging(
+        bundle,
+        &compiled,
+        &staging,
+        &options.stems,
+        fail_after_stem_spool,
+    )
+    .and_then(|manifest| {
         publish_directory(&staging, &destination, options.replace)?;
         let manifest_bytes = fs::read(destination.join(MANIFEST_FILE))?;
+        let stems = manifest
+            .stems
+            .iter()
+            .map(|stem| destination.join(&stem.plan.file))
+            .collect();
         Ok(RenderResult {
             output: destination.clone(),
             wav: destination.join(WAV_FILE),
             manifest_path: destination.join(MANIFEST_FILE),
+            stems,
             manifest,
             manifest_sha256: hash_bytes(&manifest_bytes),
         })
@@ -163,7 +513,10 @@ fn render_staging(
     bundle: &ProjectBundle,
     compiled: &CompiledProject,
     staging: &Path,
+    requests: &[RenderStemRequest],
+    fail_after_stem_spool: bool,
 ) -> Result<RenderManifest, EngineError> {
+    let prepared_stems = prepare_render_stems(compiled, requests)?;
     let wav_path = staging.join(WAV_FILE);
     let specification = hound::WavSpec {
         channels: 2,
@@ -172,18 +525,86 @@ fn render_staging(
         sample_format: hound::SampleFormat::Float,
     };
     let mut writer = hound::WavWriter::create(&wav_path, specification)?;
+    let stem_spool_paths = (0..prepared_stems.len().div_ceil(STEMS_PER_SPOOL))
+        .map(|index| stem_spool_path(staging, index))
+        .collect::<Vec<_>>();
+    let mut stem_spools = stem_spool_paths
+        .iter()
+        .map(|path| File::create(path).map(BufWriter::new))
+        .collect::<Result<Vec<_>, _>>()?;
     let mut runtime = compiled.runtime();
-    let mut block = vec![[0.0_f32, 0.0_f32]; 1_024];
+    let mut block = vec![[0.0_f32, 0.0_f32]; RENDER_BLOCK_FRAMES];
+    let mut stem_blocks = vec![vec![[0.0_f32, 0.0_f32]; block.len()]; prepared_stems.len()];
+    let mut encoded_stem = Vec::with_capacity(RENDER_BLOCK_FRAMES * 2 * size_of::<f32>());
     while !runtime.finished() {
-        let count = runtime.process_block(&mut block, ProcessingMode::Offline)?;
+        let mut count = 0_usize;
+        while count < block.len() && !runtime.finished() {
+            block[count] = runtime.process_frame(ProcessingMode::Offline)?;
+            for (prepared, stem_block) in prepared_stems.iter().zip(&mut stem_blocks) {
+                let sample = runtime
+                    .channel_tap_sample(prepared.channel_index, prepared.plan.tap)
+                    .ok_or_else(|| {
+                        EngineError::Compile(format!(
+                            "compiled stem `{}` has no runtime channel tap",
+                            prepared.plan.owner
+                        ))
+                    })?;
+                stem_block[count] = sample;
+            }
+            count += 1;
+        }
         for frame in &block[..count] {
             writer.write_sample(frame[0])?;
             writer.write_sample(frame[1])?;
         }
+        for (spool, stem_chunk) in stem_spools
+            .iter_mut()
+            .zip(stem_blocks.chunks(STEMS_PER_SPOOL))
+        {
+            for stem_block in stem_chunk {
+                encode_stem_frames(&stem_block[..count], &mut encoded_stem);
+                spool.write_all(&encoded_stem)?;
+            }
+        }
     }
     writer.finalize()?;
     File::open(&wav_path)?.sync_all()?;
+    for mut spool in stem_spools {
+        spool.flush()?;
+        spool.get_ref().sync_all()?;
+    }
+    if fail_after_stem_spool {
+        return Err(EngineError::Compile(
+            "injected failure after stem spool finalization".to_owned(),
+        ));
+    }
+    materialize_stem_spools(
+        staging,
+        &prepared_stems,
+        &stem_spool_paths,
+        specification,
+        compiled.total_frames(),
+    )?;
+    let analysis = analyze_finalized_wav(&wav_path)?;
+    validate_finalized_analysis(&analysis, compiled.total_frames())?;
+    let peak = analysis.sample_peak as f32;
     let wav_sha256 = hash_file(&wav_path)?;
+    let mut stems = Vec::with_capacity(prepared_stems.len());
+    for prepared in prepared_stems {
+        let path = staging.join(&prepared.plan.file);
+        let stem_analysis = analyze_finalized_wav(&path)?;
+        validate_finalized_analysis(&stem_analysis, compiled.total_frames())?;
+        stems.push(RenderStemManifest {
+            plan: prepared.plan,
+            sample_rate: compiled.sample_rate(),
+            channels: 2,
+            channel_layout: "stereo".to_owned(),
+            sample_format: "ieee_float_32_le".to_owned(),
+            frame_count: compiled.total_frames(),
+            analysis: stem_analysis,
+            wav_sha256: hash_file(&path)?,
+        });
+    }
     let executable_path = std::env::current_exe()?;
     let executable_sha256 = hash_file(&executable_path)?;
     let frame_count = compiled.total_frames();
@@ -220,8 +641,10 @@ fn render_staging(
         render_tail_frames: frame_count - arrangement_frames,
         frame_count,
         duration_seconds: frame_count as f64 / f64::from(compiled.sample_rate()),
-        peak: runtime.telemetry().peak,
+        peak,
+        analysis,
         wav_sha256,
+        stems,
     };
     let mut manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
     manifest_bytes.push(b'\n');
@@ -386,6 +809,66 @@ fn validate_render_destination(
 }
 
 fn validate_existing_render_bundle(destination: &Path) -> Result<(), EngineError> {
+    let manifest_path = destination.join(MANIFEST_FILE);
+    let manifest_metadata = match fs::symlink_metadata(&manifest_path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(unrecognized_render_bundle(destination));
+        }
+        Err(error) => return Err(error.into()),
+    };
+    if !manifest_metadata.file_type().is_file() {
+        return Err(unrecognized_render_bundle(destination));
+    }
+    if manifest_metadata.len() > MAX_RENDER_MANIFEST_BYTES {
+        return Err(invalid_render_bundle(format!(
+            "existing render manifest exceeds {MAX_RENDER_MANIFEST_BYTES} bytes"
+        )));
+    }
+    let mut manifest_bytes = Vec::new();
+    File::open(&manifest_path)?
+        .take(MAX_RENDER_MANIFEST_BYTES + 1)
+        .read_to_end(&mut manifest_bytes)?;
+    if manifest_bytes.len() as u64 > MAX_RENDER_MANIFEST_BYTES {
+        return Err(invalid_render_bundle(format!(
+            "existing render manifest exceeds {MAX_RENDER_MANIFEST_BYTES} bytes"
+        )));
+    }
+    let manifest: RenderManifest = serde_json::from_slice(&manifest_bytes)?;
+    if manifest.schema_version != RENDER_SCHEMA
+        || manifest.channels != 2
+        || manifest.sample_format != "ieee_float_32_le"
+        || manifest.stems.len() > MAX_RENDER_STEMS
+    {
+        return Err(invalid_render_bundle(
+            "existing render manifest has an unsupported format",
+        ));
+    }
+
+    let mut expected_names = vec![MANIFEST_FILE.to_owned(), WAV_FILE.to_owned()];
+    for stem in &manifest.stems {
+        if stem.plan.file != stem_file_name(&stem.plan.owner, stem.plan.tap)?
+            || stem.plan.processing_policy != stem_processing_policy(stem.plan.tap)
+            || stem.sample_rate != manifest.sample_rate
+            || stem.channels != manifest.channels
+            || stem.channel_layout != "stereo"
+            || stem.sample_format != manifest.sample_format
+            || stem.frame_count != manifest.frame_count
+            || !manifest_analysis_is_consistent(&stem.analysis, stem.frame_count)
+        {
+            return Err(invalid_render_bundle(
+                "existing stem metadata is inconsistent with its manifest",
+            ));
+        }
+        expected_names.push(stem.plan.file.clone());
+    }
+    expected_names.sort();
+    if expected_names.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(invalid_render_bundle(
+            "existing render manifest contains duplicate artifact names",
+        ));
+    }
+
     let mut names = fs::read_dir(destination)?
         .map(|entry| {
             entry.and_then(|entry| {
@@ -399,61 +882,170 @@ fn validate_existing_render_bundle(destination: &Path) -> Result<(), EngineError
         })
         .collect::<Result<Vec<_>, _>>()?;
     names.sort();
-    if names != [MANIFEST_FILE, WAV_FILE] {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            format!(
-                "refusing to replace {} because it is not an exact complete Crump render bundle",
-                destination.display()
-            ),
-        )
-        .into());
+    if names != expected_names {
+        return Err(unrecognized_render_bundle(destination));
     }
-    for name in [MANIFEST_FILE, WAV_FILE] {
-        let metadata = fs::symlink_metadata(destination.join(name))?;
-        if !metadata.file_type().is_file() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                format!("render bundle artifact `{name}` is not a regular file"),
-            )
-            .into());
+    for name in &expected_names {
+        if !fs::symlink_metadata(destination.join(name))?
+            .file_type()
+            .is_file()
+        {
+            return Err(invalid_render_bundle(format!(
+                "render bundle artifact `{name}` is not a regular file"
+            )));
         }
     }
-    let manifest_bytes = fs::read(destination.join(MANIFEST_FILE))?;
-    let manifest: RenderManifest = serde_json::from_slice(&manifest_bytes)?;
-    if manifest.schema_version != RENDER_SCHEMA
-        || manifest.channels != 2
-        || manifest.sample_format != "ieee_float_32_le"
+
+    let analysis = &manifest.analysis;
+    if !manifest_analysis_is_consistent(analysis, manifest.frame_count)
+        || analysis.sample_peak as f32 != manifest.peak
     {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "existing render manifest has an unsupported format",
-        )
-        .into());
+        return Err(invalid_render_bundle(
+            "existing render analysis is inconsistent with its manifest",
+        ));
     }
-    let wav_path = destination.join(WAV_FILE);
-    if hash_file(&wav_path)? != manifest.wav_sha256 {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "existing render WAV does not match its manifest hash",
-        )
-        .into());
-    }
-    let reader = hound::WavReader::open(&wav_path)?;
-    let specification = reader.spec();
-    if specification.channels != manifest.channels
-        || specification.sample_rate != manifest.sample_rate
-        || specification.bits_per_sample != 32
-        || specification.sample_format != hound::SampleFormat::Float
-        || u64::from(reader.duration()) != manifest.frame_count
-    {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "existing render WAV format or frame count does not match its manifest",
-        )
-        .into());
+    validate_existing_wav(
+        &destination.join(WAV_FILE),
+        &manifest.wav_sha256,
+        manifest.sample_rate,
+        manifest.channels,
+        manifest.frame_count,
+        analysis,
+    )?;
+    for stem in &manifest.stems {
+        validate_existing_wav(
+            &destination.join(&stem.plan.file),
+            &stem.wav_sha256,
+            stem.sample_rate,
+            stem.channels,
+            stem.frame_count,
+            &stem.analysis,
+        )?;
     }
     Ok(())
+}
+
+fn validate_existing_wav(
+    path: &Path,
+    expected_sha256: &str,
+    sample_rate: u32,
+    channels: u16,
+    frame_count: u64,
+    expected_analysis: &FinalizedAudioAnalysis,
+) -> Result<(), EngineError> {
+    if hash_file(path)? != expected_sha256 {
+        return Err(invalid_render_bundle(format!(
+            "existing render WAV `{}` does not match its manifest hash",
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("<unknown>")
+        )));
+    }
+    let reader = hound::WavReader::open(path)?;
+    let specification = reader.spec();
+    if specification.channels != channels
+        || specification.sample_rate != sample_rate
+        || specification.bits_per_sample != 32
+        || specification.sample_format != hound::SampleFormat::Float
+        || u64::from(reader.duration()) != frame_count
+    {
+        return Err(invalid_render_bundle(format!(
+            "existing render WAV `{}` format or frame count does not match its manifest",
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("<unknown>")
+        )));
+    }
+    let actual_analysis = analyze_finalized_wav(path)?;
+    if !finalized_analysis_matches(expected_analysis, &actual_analysis) {
+        return Err(invalid_render_bundle(format!(
+            "existing render WAV `{}` analysis does not describe its exact bytes",
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("<unknown>")
+        )));
+    }
+    Ok(())
+}
+
+fn finalized_analysis_matches(
+    expected: &FinalizedAudioAnalysis,
+    actual: &FinalizedAudioAnalysis,
+) -> bool {
+    expected.schema_version == actual.schema_version
+        && expected.analyzed_frames == actual.analyzed_frames
+        && close_analysis_value(expected.sample_peak, actual.sample_peak)
+        && close_optional_analysis_value(expected.sample_peak_dbfs, actual.sample_peak_dbfs)
+        && close_analysis_value(expected.true_peak, actual.true_peak)
+        && close_optional_analysis_value(expected.true_peak_dbtp, actual.true_peak_dbtp)
+        && expected.true_peak_oversampling_factor == actual.true_peak_oversampling_factor
+        && expected.true_peak_kernel == actual.true_peak_kernel
+        && expected.loudness_method == actual.loudness_method
+        && close_optional_analysis_value(expected.integrated_lufs, actual.integrated_lufs)
+        && close_optional_analysis_value(
+            expected.maximum_short_term_lufs,
+            actual.maximum_short_term_lufs,
+        )
+        && close_optional_analysis_value(expected.loudness_range_lu, actual.loudness_range_lu)
+        && expected
+            .dc_offset
+            .into_iter()
+            .zip(actual.dc_offset)
+            .all(|(expected, actual)| close_analysis_value(expected, actual))
+        && expected.clipped_sample_count == actual.clipped_sample_count
+        && expected.clipped_frame_count == actual.clipped_frame_count
+        && expected.non_finite_sample_count == actual.non_finite_sample_count
+        && expected.first_non_finite_frame == actual.first_non_finite_frame
+}
+
+fn close_optional_analysis_value(expected: Option<f64>, actual: Option<f64>) -> bool {
+    match (expected, actual) {
+        (Some(expected), Some(actual)) => close_analysis_value(expected, actual),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+fn close_analysis_value(expected: f64, actual: f64) -> bool {
+    let scale = expected.abs().max(actual.abs()).max(1.0);
+    (expected - actual).abs() <= f64::EPSILON * 16.0 * scale
+}
+
+fn manifest_analysis_is_consistent(analysis: &FinalizedAudioAnalysis, frame_count: u64) -> bool {
+    analysis.schema_version == ANALYSIS_SCHEMA
+        && analysis.analyzed_frames == frame_count
+        && analysis.sample_peak.is_finite()
+        && analysis.sample_peak >= 0.0
+        && analysis.true_peak.is_finite()
+        && analysis.true_peak >= 0.0
+        && analysis.dc_offset.into_iter().all(f64::is_finite)
+        && analysis
+            .sample_peak_dbfs
+            .into_iter()
+            .chain(analysis.true_peak_dbtp)
+            .chain(analysis.integrated_lufs)
+            .chain(analysis.maximum_short_term_lufs)
+            .chain(analysis.loudness_range_lu)
+            .all(f64::is_finite)
+        && analysis.clipped_frame_count <= frame_count
+        && analysis.clipped_sample_count <= frame_count.saturating_mul(2)
+        && analysis.non_finite_sample_count == 0
+        && analysis.first_non_finite_frame.is_none()
+}
+
+fn unrecognized_render_bundle(destination: &Path) -> EngineError {
+    std::io::Error::new(
+        std::io::ErrorKind::InvalidInput,
+        format!(
+            "refusing to replace {} because it is not an exact complete Crump render bundle",
+            destination.display()
+        ),
+    )
+    .into()
+}
+
+fn invalid_render_bundle(message: impl Into<String>) -> EngineError {
+    std::io::Error::new(std::io::ErrorKind::InvalidData, message.into()).into()
 }
 
 fn staging_path(destination: &Path) -> Result<PathBuf, std::io::Error> {
@@ -527,13 +1119,65 @@ fn hex_digest(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
+    use std::{collections::BTreeMap, fs};
 
     use tempfile::tempdir;
 
-    use crate::project::load_project;
+    use crate::{engine::schedule::MAX_RUNTIME_TRACKS, project::load_project};
 
     use super::*;
+
+    const MAX_STEM_GROUPS: usize = MAX_MIX_CHANNELS - MAX_RUNTIME_TRACKS - 1;
+
+    fn maximum_stem_source() -> String {
+        let mut source = r#"crump 1
+project "Maximum Stems" {
+  id maximum_stems
+  seed 42
+  sample_rate 48000
+  render_tail 0s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1/100beat
+    instrument drums "Drums" stock_drums {
+      polyphony 1
+      parameter tone "Tone" ratio 0 1 0.5 0.5
+      parameter punch "Punch" ratio 0 1 0.5 0.5
+      faceplate {
+        control tone "Tone" "Brightness" maps tone
+        control punch "Punch" "Impact" maps punch
+      }
+    }
+    pattern empty 1beat {
+    }
+"#
+        .to_owned();
+        for index in 0..MAX_RUNTIME_TRACKS {
+            source.push_str(&format!(
+                "    track t{index:02} \"Track {index}\" instrument drums level 0db pan 0 {{\n      output group/g{index:02}\n    }}\n"
+            ));
+        }
+        for index in 0..MAX_STEM_GROUPS {
+            source.push_str(&format!(
+                "    group g{index:02} \"Group {index}\" level 0db {{\n      output master\n    }}\n"
+            ));
+        }
+        source.push_str("    master level 0db {\n    }\n  }\n}\n");
+        source
+    }
+
+    fn directory_bytes(path: &Path) -> BTreeMap<String, Vec<u8>> {
+        fs::read_dir(path)
+            .expect("read bundle")
+            .map(|entry| {
+                let entry = entry.expect("bundle entry");
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let bytes = fs::read(entry.path()).expect("read bundle artifact");
+                (name, bytes)
+            })
+            .collect()
+    }
 
     #[test]
     fn replacement_is_complete_and_no_replace_preserves_the_old_bundle() {
@@ -546,6 +1190,12 @@ mod tests {
         let first = render_project(&bundle, &RenderOptions::new(&output)).unwrap();
         let first_wav = fs::read(&first.wav).unwrap();
         let first_manifest = fs::read(&first.manifest_path).unwrap();
+        assert_eq!(first.manifest.schema_version, 2);
+        let analysis = &first.manifest.analysis;
+        assert_eq!(analysis.analyzed_frames, first.manifest.frame_count);
+        assert_eq!(analysis.non_finite_sample_count, 0);
+        assert_eq!(analysis.sample_peak as f32, first.manifest.peak);
+        assert!(analysis.integrated_lufs.is_some());
 
         let mut no_replace = RenderOptions::new(&output);
         no_replace.replace = false;
@@ -561,10 +1211,345 @@ mod tests {
             first.manifest.project_revision
         );
         assert_ne!(fs::read(replaced.wav).unwrap(), first_wav);
-        assert!(fs::read_dir(directory.path())
-            .unwrap()
-            .filter_map(Result::ok)
-            .all(|entry| !entry.file_name().to_string_lossy().contains(".rendering-")));
+        assert!(
+            fs::read_dir(directory.path())
+                .unwrap()
+                .filter_map(Result::ok)
+                .all(|entry| !entry.file_name().to_string_lossy().contains(".rendering-"))
+        );
+    }
+
+    #[test]
+    fn maximum_track_and_group_stem_set_uses_bounded_spool_shards() {
+        let directory = tempdir().expect("Project root");
+        fs::write(
+            directory.path().join("project.crump"),
+            maximum_stem_source(),
+        )
+        .expect("Project source");
+        let bundle = load_project(directory.path()).expect("load maximum-stem Project");
+        let output = directory.path().join("maximum-stems");
+        let mut options = RenderOptions::new(&output);
+        for index in 0..MAX_RUNTIME_TRACKS {
+            for tap in [TapPoint::PreFader, TapPoint::PostFader] {
+                options.stems.push(RenderStemRequest {
+                    owner: ChannelRef::Track(format!("t{index:02}")),
+                    tap,
+                });
+            }
+        }
+        for index in 0..MAX_STEM_GROUPS {
+            for tap in [TapPoint::PreFader, TapPoint::PostFader] {
+                options.stems.push(RenderStemRequest {
+                    owner: ChannelRef::Group(format!("g{index:02}")),
+                    tap,
+                });
+            }
+        }
+        let maximum_selectable_stems = (MAX_MIX_CHANNELS - 1) * 2;
+        assert_eq!(options.stems.len(), maximum_selectable_stems);
+        assert_eq!(
+            options.stems.len().div_ceil(STEMS_PER_SPOOL),
+            maximum_selectable_stems.div_ceil(STEMS_PER_SPOOL)
+        );
+
+        let result = render_project(&bundle, &options).expect("render maximum stem set");
+        assert_eq!(result.manifest.stems.len(), maximum_selectable_stems);
+        assert_eq!(directory_bytes(&output).len(), maximum_selectable_stems + 2);
+        assert!(result.manifest.stems.iter().all(|stem| {
+            stem.frame_count == result.manifest.frame_count
+                && stem.analysis.analyzed_frames == result.manifest.frame_count
+                && output.join(&stem.plan.file).is_file()
+        }));
+        assert!(
+            fs::read_dir(directory.path())
+                .expect("Project root entries")
+                .all(|entry| {
+                    let name = entry
+                        .expect("Project root entry")
+                        .file_name()
+                        .to_string_lossy()
+                        .into_owned();
+                    !name.contains(".rendering-") && !name.contains(".stem-spool-")
+                })
+        );
+    }
+
+    #[test]
+    fn injected_post_spool_failure_preserves_destination_and_cleans_staging() {
+        let directory = tempdir().expect("Project root");
+        fs::write(
+            directory.path().join("project.crump"),
+            maximum_stem_source(),
+        )
+        .expect("Project source");
+        let bundle = load_project(directory.path()).expect("load stem Project");
+        let output = directory.path().join("preserved");
+        let request = RenderStemRequest {
+            owner: ChannelRef::Track("t00".to_owned()),
+            tap: TapPoint::PostFader,
+        };
+        let mut initial = RenderOptions::new(&output);
+        initial.stems.push(request.clone());
+        render_project(&bundle, &initial).expect("initial render");
+        let before = directory_bytes(&output);
+
+        let mut interrupted = RenderOptions::new(&output);
+        interrupted.stems.push(request);
+        interrupted.fail_after_stem_spool = true;
+        let error = render_project(&bundle, &interrupted).expect_err("injected render failure");
+        assert!(
+            error
+                .to_string()
+                .contains("injected failure after stem spool finalization"),
+            "{error}"
+        );
+        assert_eq!(directory_bytes(&output), before);
+        assert!(
+            fs::read_dir(directory.path())
+                .expect("Project root entries")
+                .all(|entry| {
+                    let name = entry
+                        .expect("Project root entry")
+                        .file_name()
+                        .to_string_lossy()
+                        .into_owned();
+                    !name.contains(".rendering-") && !name.contains(".stem-spool-")
+                })
+        );
+    }
+
+    #[test]
+    fn selected_track_and_group_stems_are_aligned_analyzed_and_reconstruct_the_master() {
+        let directory = tempdir().expect("Project root");
+        let source = r#"crump 1
+project "Stem Alignment" {
+  id stem_alignment
+  seed 42
+  sample_rate 48000
+  render_tail 100ms
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1beat
+    instrument drums "Drums" stock_drums {
+      polyphony 8
+      parameter tone "Tone" ratio 0 1 0.5 0.5
+      parameter punch "Punch" ratio 0 1 0.5 0.5
+      faceplate {
+        control tone "Tone" "Brightness" maps tone
+        control punch "Punch" "Impact" maps punch
+      }
+    }
+    pattern beat 1beat {
+      hit 0beat kick 1
+    }
+    track a "A" instrument drums level -6db pan 0 {
+      processor wait latency {
+        setting frames 5
+      }
+      output group/bus
+      clip a pattern beat start 0beat duration 1beat mode once
+    }
+    track b "B" instrument drums level -9db pan 0 {
+      output group/bus
+      clip b pattern beat start 0beat duration 1beat mode once
+    }
+    group bus "Bus" level 0db {
+      output master
+    }
+    master level 0db {
+    }
+  }
+}
+"#;
+        fs::write(directory.path().join("project.crump"), source).expect("Project source");
+        let bundle = load_project(directory.path()).expect("Project");
+        assert!(!bundle.diagnostics.has_errors());
+        let output = directory.path().join("stems");
+        let mut duplicate_options = RenderOptions::new(directory.path().join("duplicate"));
+        duplicate_options.stems = ["track/a:pre_fader", "track/a:pre_fader"]
+            .map(|value| value.parse().expect("duplicate request"))
+            .to_vec();
+        let duplicate = render_project(&bundle, &duplicate_options)
+            .expect_err("duplicate stem selection is rejected");
+        assert!(duplicate.to_string().contains("selected more than once"));
+        assert!(!duplicate_options.output.exists());
+        let mut unknown_options = RenderOptions::new(directory.path().join("unknown"));
+        unknown_options.stems = vec!["track/missing:pre_fader".parse().expect("unknown request")];
+        let unknown = render_project(&bundle, &unknown_options)
+            .expect_err("unknown stem selection is rejected");
+        assert!(unknown.to_string().contains("does not exist"));
+        assert!(!unknown_options.output.exists());
+
+        let stemless =
+            render_project(&bundle, &RenderOptions::new(&output)).expect("initial stemless render");
+        assert!(stemless.manifest.stems.is_empty());
+
+        let mut options = RenderOptions::new(&output);
+        options.stems = [
+            "track/a:pre_fader",
+            "track/a:post_fader",
+            "track/b:post_fader",
+            "group/bus:post_fader",
+        ]
+        .map(|value| value.parse().expect("stem request"))
+        .to_vec();
+
+        let rendered = render_project(&bundle, &options).expect("stem render");
+        assert_eq!(rendered.stems.len(), 4);
+        assert_eq!(rendered.manifest.stems.len(), 4);
+        for stem in &rendered.manifest.stems {
+            assert_eq!(stem.frame_count, rendered.manifest.frame_count);
+            assert_eq!(stem.analysis.analyzed_frames, stem.frame_count);
+            assert_eq!(stem.analysis.non_finite_sample_count, 0);
+            assert!(output.join(&stem.plan.file).is_file());
+        }
+        let stem = |owner: &ChannelRef, tap: TapPoint| {
+            rendered
+                .manifest
+                .stems
+                .iter()
+                .find(|stem| &stem.plan.owner == owner && stem.plan.tap == tap)
+                .expect("selected stem")
+        };
+        assert_eq!(
+            stem(&ChannelRef::Track("a".to_owned()), TapPoint::PostFader)
+                .plan
+                .alignment_delay_frames,
+            0
+        );
+        assert_eq!(
+            stem(&ChannelRef::Track("b".to_owned()), TapPoint::PostFader)
+                .plan
+                .alignment_delay_frames,
+            5
+        );
+        assert!(
+            !stem(&ChannelRef::Track("a".to_owned()), TapPoint::PreFader)
+                .plan
+                .processing_policy
+                .includes_owner_fader_panner_mute
+        );
+
+        let read_frames = |path: &Path| {
+            let mut reader = hound::WavReader::open(path).expect("open rendered WAV");
+            let samples = reader
+                .samples::<f32>()
+                .collect::<Result<Vec<_>, _>>()
+                .expect("decode rendered WAV");
+            samples
+                .chunks_exact(2)
+                .map(|frame| [frame[0], frame[1]])
+                .collect::<Vec<_>>()
+        };
+        let a_pre = read_frames(
+            &output.join(
+                &stem(&ChannelRef::Track("a".to_owned()), TapPoint::PreFader)
+                    .plan
+                    .file,
+            ),
+        );
+        let a_post = read_frames(
+            &output.join(
+                &stem(&ChannelRef::Track("a".to_owned()), TapPoint::PostFader)
+                    .plan
+                    .file,
+            ),
+        );
+        let b_post = read_frames(
+            &output.join(
+                &stem(&ChannelRef::Track("b".to_owned()), TapPoint::PostFader)
+                    .plan
+                    .file,
+            ),
+        );
+        let bus = read_frames(
+            &output.join(
+                &stem(&ChannelRef::Group("bus".to_owned()), TapPoint::PostFader)
+                    .plan
+                    .file,
+            ),
+        );
+        let master = read_frames(&rendered.wav);
+        assert_eq!(master.len(), bus.len());
+        assert!(
+            a_pre
+                .iter()
+                .flatten()
+                .map(|sample| sample.abs())
+                .fold(0.0_f32, f32::max)
+                > a_post
+                    .iter()
+                    .flatten()
+                    .map(|sample| sample.abs())
+                    .fold(0.0_f32, f32::max)
+        );
+        for (((a, b), bus), master) in a_post.iter().zip(&b_post).zip(&bus).zip(&master) {
+            for channel in 0..2 {
+                assert!((a[channel] + b[channel] - bus[channel]).abs() < 1.0e-6);
+                assert!((bus[channel] - master[channel]).abs() < 1.0e-6);
+            }
+        }
+
+        let first_stem = fs::read(&rendered.stems[0]).expect("first stem bytes");
+        let repeated = render_project(&bundle, &options).expect("repeat stem render");
+        assert_eq!(
+            fs::read(&repeated.stems[0]).expect("repeated stem bytes"),
+            first_stem
+        );
+
+        let replaced_with_stemless = render_project(&bundle, &RenderOptions::new(&output))
+            .expect("replace stems with a stemless bundle");
+        assert!(replaced_with_stemless.manifest.stems.is_empty());
+        assert!(repeated.stems.iter().all(|path| !path.exists()));
+        let artifact_names = fs::read_dir(&output)
+            .expect("stemless artifact set")
+            .map(|entry| entry.expect("artifact").file_name())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            artifact_names,
+            [MANIFEST_FILE, WAV_FILE]
+                .map(std::ffi::OsString::from)
+                .into_iter()
+                .collect()
+        );
+
+        let repeated = render_project(&bundle, &options).expect("restore stem bundle");
+        let manifest_bytes = fs::read(&repeated.manifest_path).expect("manifest bytes");
+        let mut tampered_manifest: serde_json::Value =
+            serde_json::from_slice(&manifest_bytes).expect("manifest JSON");
+        tampered_manifest["stems"][0]["analysis"]["dc_offset"][0] = serde_json::json!(0.125);
+        let tampered_manifest =
+            serde_json::to_vec_pretty(&tampered_manifest).expect("tampered manifest JSON");
+        fs::write(&repeated.manifest_path, &tampered_manifest).expect("tamper analysis");
+        let analysis_error = render_project(&bundle, &options)
+            .expect_err("manifest analysis tampering blocks replacement");
+        assert!(
+            analysis_error
+                .to_string()
+                .contains("analysis does not describe")
+        );
+        assert_eq!(
+            fs::read(&repeated.manifest_path).expect("tampered manifest survives"),
+            tampered_manifest
+        );
+        fs::write(&repeated.manifest_path, manifest_bytes).expect("restore manifest");
+
+        let mut tampered_stem = first_stem;
+        tampered_stem.push(0);
+        fs::write(&repeated.stems[0], &tampered_stem).expect("tamper stem");
+        let error =
+            render_project(&bundle, &options).expect_err("tampered stem blocks replacement");
+        assert!(
+            error
+                .to_string()
+                .contains("does not match its manifest hash")
+        );
+        assert_eq!(
+            fs::read(&repeated.stems[0]).expect("tampered stem survives"),
+            tampered_stem
+        );
     }
 
     #[test]
@@ -584,9 +1569,11 @@ mod tests {
         fs::create_dir(&metadata).unwrap();
         fs::write(metadata.join("keep"), b"history").unwrap();
         let metadata_error = render_project(&bundle, &RenderOptions::new(&metadata)).unwrap_err();
-        assert!(metadata_error
-            .to_string()
-            .contains("overlaps Project source"));
+        assert!(
+            metadata_error
+                .to_string()
+                .contains("overlaps Project source")
+        );
         assert_eq!(fs::read(metadata.join("keep")).unwrap(), b"history");
 
         let arbitrary = directory.path().join("documents");
@@ -610,9 +1597,11 @@ mod tests {
         fs::write(&rendered.wav, &tampered).unwrap();
 
         let error = render_project(&bundle, &RenderOptions::new(&output)).unwrap_err();
-        assert!(error
-            .to_string()
-            .contains("does not match its manifest hash"));
+        assert!(
+            error
+                .to_string()
+                .contains("does not match its manifest hash")
+        );
         assert_eq!(fs::read(&rendered.wav).unwrap(), tampered);
     }
 

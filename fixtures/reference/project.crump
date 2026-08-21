@@ -10,10 +10,10 @@ project "Neon Steps" {
     end 16bar
     instrument lead "Neon Lead" graph {
       polyphony 8
-      parameter cutoff "Cutoff" hz 200hz 12000hz 3600hz 4200hz
+      parameter cutoff "Cutoff" hz 200hz 12000hz 3600hz 4200hz automatable
       parameter drive "Drive" ratio 0 1 0.2 0.32
-      parameter delay_mix "Delay" ratio 0 1 0.18 0.24
-      parameter room "Room" ratio 0 1 0.2 0.28
+      parameter delay_mix "Delay" ratio 0 1 0.18 0.24 automatable
+      parameter room "Room" ratio 0 1 0.2 0.28 automatable
       faceplate {
         control cutoff "Cutoff" "Lead brightness" maps cutoff
         control drive "Drive" "Harmonic edge" maps drive
@@ -133,6 +133,36 @@ project "Neon Steps" {
       hit 5/2beat hat 0.54
       hit 3beat hat 0.44
       hit 7/2beat hat 0.6
+    }
+    automation lead-cutoff target instrument/lead/cutoff {
+      point intro 0bar 2600hz linear
+      point lift 4bar 7200hz power(1.5)
+      point release 12bar 4200hz linear
+      point end 16bar 1800hz step
+    }
+    automation lead-delay target instrument/lead/delay_mix {
+      point intro 0bar 0.12 linear
+      point lift 4bar 0.3 step
+      point release 12bar 0.2 linear
+      point end 16bar 0.08 step
+    }
+    automation lead-room target instrument/lead/room {
+      point intro 0bar 0.18 linear
+      point lift 4bar 0.42 linear
+      point release 12bar 0.3 linear
+      point end 16bar 0.5 step
+    }
+    automation lead-level target track/lead/level {
+      point intro 0bar -15db linear
+      point lift 4bar -10db step
+      point release 12bar -12db linear
+      point end 16bar -24db step
+    }
+    automation lead-balance target track/lead/balance {
+      point intro 0bar -0.18 linear
+      point lift 4bar 0.12 power(2)
+      point release 12bar -0.06 linear
+      point end 16bar 0 step
     }
     track lead "Neon Lead" instrument lead level -12db pan -0.08 {
       clip lead_intro pattern lead_a start 0bar duration 4bar mode loop

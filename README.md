@@ -10,17 +10,23 @@ The First Public Release is deliberately narrower than a general DAW: it makes, 
 
 - Human-readable, lossless `.crump` Project and Instrument Module source
 - Source-located parse, semantic, graph, and resource diagnostics
-- Timeline Tracks, reusable Patterns, Clips, pitched Events, and stock drum hits
-- Polyphonic composable DSP graphs with physical-unit Parameters and Faceplates
-- Keyboard-complete Timeline, Event Grid, Faceplate, Parameters, Graph, Source, Diagnostics, and History views
+- Timeline Tracks, reusable Patterns, procedural Pattern Variations, Clips, named Locators, and deterministic Groove Templates
+- Polyphonic composable DSP graphs, expressive native devices, stock drums, and portable WAV-backed sampler Instruments
+- Source-backed point Automation and Pattern Parameter locks for topology-stable physical-unit targets
+- Sample-accurate effective-value evaluation shared by playback and rendering, with base/Automation/lock/Modulation provenance
+- Keyboard-complete Timeline, Event Grid, Faceplate, Parameters, Automation, Graph, Source, Diagnostics, and History views
 - Native stereo 48 kHz PipeWire playback and transient MIDI 1.0/UMP Note Audition
 - Checked source-preserving edits with stale-revision protection
 - Explicit Candidate → Active publication and append-only exact Project History
-- Safe Active graph replacement through an aligned 10 ms equal-power transition
-- Deterministic stereo IEEE 32-bit-float WAV plus a hashed render manifest
+- Portable WAV declaration/import/collection, exact content-addressed History ownership, deterministic off-callback decode/resampling, and sampler playback
+- Native Track/Group/Return/Master routing with Sends, sidechains, latency compensation, and a bounded processor floor
+- Checked Clip, Locator, arrangement-time, Groove, Variation, and Parameter-lock edits without procedural flattening
+- Safe Active publication through aligned 10 ms transitions: changed-target scalar handoff or equal-power topology fade
+- Deterministic stereo IEEE 32-bit-float Master/Stem bundles with hashes and finalized-file peak, loudness, DC, clipping, and non-finite analysis
+- Versioned exact-range offline workload reports that keep PipeWire, callback-safety, and named-hardware evidence explicitly external
 - Stable one-response JSON commands for external Authoring Agents
 
-Samples, plug-ins, recording, automation, advanced routing/mixing, generated Rust DSP, and complete-track scope are intentionally outside this release.
+The implemented engineering baseline remains **Production Control Foundation 1A**; this is not completion of the production roadmap or a newly certified release. Later roadmap engineering now includes routed LFO Modulation, the compiled mix graph and native processor floor, Slice 4 sampler playback, Slice 5 expressive-device contracts, Slice 6 linear arrangement/groove workflows, and Slice 7 finalized delivery plus offline workload characterization. Plug-ins, recording, Media Tracks and time stretching, generated Rust DSP, realtime complete-track qualification, named-hardware evidence, listening gates, and every Slice acceptance gate remain open.
 
 ## Install from source
 
@@ -56,7 +62,7 @@ crump                 # opens the Production Workspace in a terminal
 Inside the workspace:
 
 - `Space` starts/stops the exact Active Revision.
-- `1`–`9` select views; `Tab` and `Shift-Tab` move between them.
+- `1`–`9` select production views, `0` opens Help; `Tab` and `Shift-Tab` move between all views.
 - Arrow keys select and make bounded source-backed adjustments.
 - `Enter` accepts an exact value; `P` publishes a valid Candidate.
 - `?` shows complete keyboard help; `q` exits.
@@ -73,15 +79,25 @@ crump --project neon-steps check
 crump --project neon-steps play
 crump --project neon-steps render --output render/master --plan
 crump --project neon-steps render --output render/master
+# Optional offline range/quantum workload evidence (not a PipeWire test):
+crump --project neon-steps qualify --quantum 128 --plan
+crump --project neon-steps qualify --quantum 128 \
+  --output evidence/qualification.json
+# Optional aligned channel delivery:
+crump --project neon-steps render --output render/stems \
+  --stem track/lead:post_fader \
+  --stem group/music:post_fader
 ```
 
-The render bundle contains `master.wav` and `manifest.json` and is published atomically.
+The render bundle always contains analyzed `master.wav` and `manifest.json`; each requested Track/Group tap adds an aligned, independently analyzed and hashed Stem WAV. The complete artifact set is published atomically.
+
+A separate long-form engineering fixture lives in `fixtures/production/`. It is a self-contained 96-bar (3:12) portable-sampler/native-instrument Project used for admission and deterministic grouping tests; it is not independent listening or named-hardware qualification evidence.
 
 ## Safe source workflow
 
-`project.crump` and imported `.crump` modules are authoritative. Crump never makes an invalid Candidate audible:
+`project.crump`, imported `.crump` modules, and explicitly declared Project-owned media are authoritative. Crump never makes an invalid Candidate audible:
 
-1. Files on disk form the **Candidate Revision**.
+1. Source and declared media files on disk form the **Candidate Revision**.
 2. `validate` checks the complete Candidate and emits source locations.
 3. `publish` atomically records a valid Candidate as the **Active Revision**.
 4. Playback and rendering consume exact Active snapshots, not unchecked disk state.
@@ -93,9 +109,13 @@ This lets a musician keep playing the last valid state while a person, editor, o
 
 ```text
 new  validate  inspect  status  publish  check
-workspace  play  render  doctor
+workspace  play  render  qualify  doctor
 history list|show|diff|restore
 edit parameter|track-level|track-pan|note-pitch|event-time|note-duration|event-velocity|hit-voice
+edit automation-create|automation-delete|automation-point-create|automation-point-time|automation-point-value|automation-point-curve|automation-point-delete
+edit clip-*|locator-*|time-*|groove-*|pattern-variation-*|parameter-lock-*
+edit sample-place|sample-move|sample-duplicate|sample-split|sample-trim|sample-slip|sample-fade|sample-gain|sample-pan
+asset import|collect|list
 module export|install|list|inspect
 ```
 

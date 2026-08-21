@@ -1,9 +1,10 @@
 /target/
-/.crump/
+.crump/
 /renders/
 *.wav
 *.deb
 .DS_Store
 
 renders/
+productions/
 plan-*.md

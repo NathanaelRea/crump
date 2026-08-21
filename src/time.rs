@@ -81,6 +81,22 @@ impl MusicalTime {
         Ok((frames + 0.5).floor() as u64)
     }
 
+    /// Rounds a non-negative Song position to the nearest positive exact grid multiple.
+    ///
+    /// Exact halfway positions round forward, matching authored-time-to-frame rounding.
+    pub fn snap_to_grid(self, grid: Self) -> Result<Self, TimeError> {
+        if self < Self::ZERO || !grid.is_positive() {
+            return Err(TimeError::InvalidGrid);
+        }
+        let numerator = i128::from(self.numerator) * i128::from(grid.denominator);
+        let denominator = i128::from(self.denominator) * i128::from(grid.numerator);
+        let lower = numerator / denominator;
+        let remainder = numerator % denominator;
+        let rounded = lower + i128::from(remainder.saturating_mul(2) >= denominator);
+        let multiple = u64::try_from(rounded).map_err(|_| TimeError::Overflow)?;
+        grid.checked_mul(multiple)
+    }
+
     /// Checked addition.
     pub fn checked_add(self, rhs: Self) -> Result<Self, TimeError> {
         let lhs = self
@@ -304,11 +320,7 @@ const fn gcd(mut lhs: u64, mut rhs: u64) -> u64 {
         lhs = rhs;
         rhs = remainder;
     }
-    if lhs == 0 {
-        1
-    } else {
-        lhs
-    }
+    if lhs == 0 { 1 } else { lhs }
 }
 
 /// Errors produced while interpreting authored time.
@@ -326,6 +338,9 @@ pub enum TimeError {
     /// A duration could not be parsed or was negative/non-finite.
     #[error("duration must be a non-negative number with a supported unit")]
     InvalidDuration,
+    /// A snapping operation used a non-positive grid or negative position.
+    #[error("snapping requires a non-negative time and positive grid")]
+    InvalidGrid,
     /// Arithmetic exceeded the supported authored range.
     #[error("authored time exceeds the supported range")]
     Overflow,
@@ -358,6 +373,27 @@ mod tests {
         assert_eq!(
             parse_musical_time("0.25beat", meter).unwrap(),
             MusicalTime::new(1, 4).unwrap()
+        );
+    }
+
+    #[test]
+    fn snaps_to_exact_grid_with_forward_halfway_ties() {
+        let grid = MusicalTime::new(1, 4).unwrap();
+        assert_eq!(
+            MusicalTime::new(3, 8).unwrap().snap_to_grid(grid).unwrap(),
+            MusicalTime::new(1, 2).unwrap()
+        );
+        assert_eq!(
+            MusicalTime::new(7, 20).unwrap().snap_to_grid(grid).unwrap(),
+            MusicalTime::new(1, 4).unwrap()
+        );
+        assert_eq!(
+            MusicalTime::ZERO.snap_to_grid(grid).unwrap(),
+            MusicalTime::ZERO
+        );
+        assert_eq!(
+            MusicalTime::whole(1).snap_to_grid(MusicalTime::ZERO),
+            Err(TimeError::InvalidGrid)
         );
     }
 

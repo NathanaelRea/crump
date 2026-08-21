@@ -36,7 +36,15 @@ Crump's complete author, edit, play, save, and render capabilities require no Au
 
 ### Project
 
-The complete portable authored unit: human-readable DSL and configuration files plus references to media assets. A project owns exactly one song and does not depend on an opaque database or binary project document.
+The complete portable authored unit: human-readable DSL and configuration files plus declared Project-owned media assets. A project owns exactly one song and does not depend on an opaque database or binary project document.
+
+### Media Asset
+
+A Project-owned regular WAV file with a durable source ID, normalized Project-relative path, and required lowercase SHA-256 of its complete bytes. An external path may be used only as an import input; Crump copies those exact bytes into the Project and never persists the external path. Distinct paths with identical content remain separate identities and produce a warning.
+
+### Changed Media Asset
+
+A declared Media Asset whose current complete file bytes hash to a different SHA-256 than the digest in Authoritative Source. Filesystem timestamps, ownership, host canonical paths, and decoded sample representations do not define change.
 
 ### First Public Release
 
@@ -142,6 +150,10 @@ The linear, musically addressed arrangement axis used by the first public releas
 
 The exact rational quarter-note coordinate shared by the timeline, patterns, clips, events, and durations. Authored bar-and-beat notation resolves through the song's meter map; the tempo map converts musical time to runtime sample positions under deterministic rounding semantics.
 
+### Locator
+
+A durably identified, human-named position on the Song Timeline. It is a navigation and audition boundary, not an owner of material: moving a Locator does not implicitly move Clips, Events, or Automation. Checked time-oriented operations may resolve its ID to exact Musical Time before publishing canonical source.
+
 ### Tempo Map
 
 The song-wide sequence of positive BPM points that maps musical time to elapsed runtime. An explicit marker is required at song time zero; marker positions are strictly increasing and unique. Each segment explicitly uses step or linear interpolation in BPM over musical time, and playback and offline rendering share the same mapping.
@@ -154,13 +166,21 @@ The song-wide sequence of meter markers used to interpret bar-and-beat notation.
 
 Reusable, timeline-independent musical material expressed in relative time. A pattern owns its events and compositional logic, declares a positive finite musical span, and may be referenced by multiple clips. Its canonical times are rational quarter-note units and never inherit meter from placement; bar-and-beat notation requires an explicit pattern-local meter used only for authoring and display. Pure composition uses sequence, whose span is the sum of its operands; parallel composition, whose span is their maximum; and positive integer repetition, which multiplies the operand span. The required pure transformation floor is rational time shift, positive rational time scale, reversal within the span, cyclic rotation, pitch transposition, velocity or value scaling, event filtering, and deterministic probability gating. Transformations are type-checked, applied left to right, and explicitly map events and span without mutating referenced patterns. Events and generators are evaluated within the resulting span; ongoing material is expressed through repetition rather than an unbounded pattern.
 
+### Pattern Variation
+
+A Pattern whose authoritative source retains an acyclic reference to another equal-span Pattern plus explicit rotation, transposition, velocity scaling, reversal, deterministic probability, and seed values instead of copied Events. Variations may chain. They are validated and materialized into immutable runtime Events before publication while inspection preserves lineage; reordering source Events cannot change probability identity. Inherited Parameter Locks follow the Variation's time transforms but are not removed by Event probability.
+
+### Groove Template
+
+A durably identified reusable Clip transform with an exact subdivision grid, straight-to-swung odd-subdivision placement, bounded deterministic timing and velocity displacement, independent deterministic Event probability, and an authored seed. It changes only a Clip's materialized Event excitation and onset; source Events and other Clips remain unchanged. Semantic Event identity makes its result independent of source order and callback grouping.
+
 ### Clip
 
-An arranged occurrence of a pattern on a track, carrying an explicit source ID that survives rename, movement, reload, and restart. A clip owns its timeline start, positive duration, source offset, explicit `once` or `loop` playback mode, and placement-level transformations. Evaluation first produces the finite pattern value, applies clip transformations left to right, normalizes the source offset against the transformed span, traverses once or loops, crops to the clip interval, and translates events into song time. `once` traverses the transformed pattern at most once from the source offset; `loop` wraps at its span until the clip ends. Its timeline interval is half-open: events at the end are excluded and active note-like events are terminated there, while downstream release and effect tails may continue. Loop boundaries do not truncate prior-cycle events, and a source offset does not chase earlier events. Editing the referenced pattern affects every clip that references it.
+An arranged occurrence of a pattern on a track, carrying an explicit source ID that survives rename, movement, reload, and restart. A clip owns its timeline start, positive duration, source offset, explicit `once` or `loop` playback mode, and placement-level transformations. Evaluation first produces the finite pattern value, applies clip transformations left to right, normalizes the source offset against the transformed span, traverses once or loops, crops to the clip interval, and translates events into song time. `once` traverses the transformed pattern at most once from the source offset; `loop` wraps at its span until the clip ends. Its timeline interval is half-open: events at the end are excluded and active note-like events are terminated there, while downstream release and effect tails may continue. Loop boundaries do not truncate prior-cycle events, and a source offset does not chase earlier events. Editing the referenced pattern affects every clip that references it. Placement-local source offset, whole-semitone transposition, excitation gain, boundary fades, and optional Groove Template remain explicit and do not mutate the Pattern.
 
 ### Track
 
-A stable timeline lane with an explicit source ID that survives rename, reorder, reload, and restart. Authored track order controls presentation and navigation only and cannot affect sound. A track's clips emit typed events into an assigned processing chain; overlapping clips contribute additively and their events are merged deterministically without implicit precedence. Tracks do not have fixed MIDI, audio, or instrument kinds; validation determines whether their events and assigned devices are compatible. Groups and Returns are separate routing-only channels, while Buses are explicit typed signal paths rather than channels.
+A stable timeline lane with an explicit source ID that survives rename, reorder, reload, and restart. Authored track order controls presentation and navigation only and cannot affect sound. A track's clips emit typed events into an assigned processing chain; overlapping clips contribute additively and their events are merged deterministically without implicit precedence. The exception is Parameter locking: Clips sharing one Instrument cannot overlap when either carries locks, because an absolute lock must never acquire hidden precedence. Tracks do not have fixed MIDI, audio, or instrument kinds; validation determines whether their events and assigned devices are compatible. Groups and Returns are separate routing-only channels, while Buses are explicit typed signal paths rather than channels.
 
 ### Group
 
@@ -186,6 +206,10 @@ A typed signal path connecting an output to an input. A Bus is routing between T
 
 The fixed processing order shared by Tracks, Groups, and Returns: sum inputs, run ordered inserts, expose the pre-fader Send tap, apply gain and an explicitly selected panner mode, apply mute, expose the post-fader Send tap, then route the main output. `mono_pan` uses equal-power mono-to-stereo placement, `balance` attenuates stereo sides without crossfeed, and `stereo_pan` positions the two input sides independently; the declared input layout determines which modes are valid.
 
+### Stem
+
+A delivery WAV captured from an explicitly selected Track or Group at its `pre_fader` or `post_fader` Channel Strip tap. It shares the Master Render Range, sample rate, stereo layout, exact frame count, and tail policy. Zero padding aligns the selected tap to the compiled Master output latency. The stem includes upstream main-route material and processing through the selected owner's inserts; a post-fader stem also includes that owner's gain, panner, and Mute. It excludes outgoing Send branches and all downstream Group, Return, and Master processing. Consequently, a set of stems reconstructs the Master only when the selected routing and processing policy mathematically permits it; Crump does not imply that arbitrary requested stems sum to Master.
+
 ### Audition State
 
 Transient workspace state used to Solo, cue, or monitor part of the running project without changing the authored mix. It is not Authoritative Source and does not affect offline rendering; Solo preserves the upstream and Return paths needed to hear the selected material.
@@ -200,11 +224,15 @@ A parameter change over time generated by a code expression, pattern, envelope, 
 
 ### Automation
 
-The single Song-scoped time-varying absolute value for a target Parameter. Automation replaces the Parameter's base value at a given time before Modulation is applied; procedural and point-based representations preserve their distinct source forms. A point lane begins at Song time zero, has strictly increasing unique positions within the arrangement, and holds its last value through the arrangement end. Each segment explicitly selects `step`, `linear`, or `power(p)` interpolation in the Parameter's canonical physical unit. For `power(p)`, positive `p` raises normalized segment progress to that power before interpolating the endpoint values. Playback and offline rendering evaluate the same curve at runtime sample positions derived through the Tempo Map. Reusable control material from Patterns, envelopes, and LFOs reaches Parameters as Modulation rather than competing absolute Automation. Continuous Automation has sample-accurate, block-size-independent semantics.
+The single Song-scoped time-varying absolute value for a target Parameter. Automation replaces the Parameter's base value at a given time before an optional Parameter Lock and Modulation are applied; procedural and point-based representations preserve their distinct source forms. A point lane begins at Song time zero, has strictly increasing unique positions within the arrangement, and holds its last value through the arrangement end. Each segment explicitly selects `step`, `linear`, or `power(p)` interpolation in the Parameter's canonical physical unit. For `power(p)`, positive `p` raises normalized segment progress to that power before interpolating the endpoint values. Playback and offline rendering evaluate the same curve at runtime sample positions derived through the Tempo Map. Continuous reusable control from Patterns, envelopes, and LFOs reaches Parameters as Modulation rather than competing absolute Automation. Continuous Automation has sample-accurate, block-size-independent semantics.
+
+### Parameter Lock
+
+A durably identified, Pattern-relative physical-unit step override for one automatable, topology-stable Parameter on the Instrument consuming that Pattern through a Clip. It is applied after Song Automation and before additive Modulation, follows Pattern Variation timing, source offset, and looping, and resets at the Clip's end. It is intentionally narrow rather than a second free-form Automation lane; validation rejects ambiguous overlapping Clips that share its Instrument.
 
 ### Modulation
 
-A routed normalized unipolar or bipolar Control signal that contributes a time-varying offset after a Parameter's base value and Automation are evaluated. Each route has an explicit depth in the target's declared modulation unit; multiple routes combine additively in deterministic order before the result is constrained to the Parameter's legal domain. Continuous Modulation has sample-accurate, block-size-independent semantics.
+A routed normalized unipolar or bipolar Control signal that contributes a time-varying offset after a Parameter's base value, Automation, and optional Parameter Lock are evaluated. Each route has an explicit depth in the target's declared modulation unit; multiple routes combine additively in deterministic order before the result is constrained to the Parameter's legal domain. Continuous Modulation has sample-accurate, block-size-independent semantics.
 
 ### Composable DSP Graph
 
@@ -272,6 +300,14 @@ The First Public Release's offline interval from Song time zero through the arra
 
 A non-negative duration in readable Project render settings for processing release, delay, and reverb after the arrangement end. Crump does not infer it through silence detection or a hidden global duration.
 
+### Finalized Audio Analysis
+
+A versioned set of delivery measurements derived by reopening the completed stereo float WAV rather than observing an in-memory bus. It contains analyzed frame count, sample peak, a named fixed-oversampling reconstructed-peak estimate, BS.1770/EBU-derived K-weighted gated integrated loudness, maximum three-second Short-term loudness at 100 ms steps, Loudness Range, per-channel DC offset, clipping counts, and non-finite count. Silence or insufficient measurement windows remain explicit missing values. The method and kernel identities disclose the exact product algorithm; they do not claim complete standards conformance, normalization, or a universal loudness target.
+
+### Qualification Report
+
+A versioned machine-readable record from profiling one exact Active Revision and half-open frame range at a supported offline full-block quantum, with one disclosed short final block when needed. Each block is timed against its exact frame deadline. It binds build/host/resource identity, timing distribution, deadline and finite-output facts, and the operator's p99.9 threshold. It is not PipeWire evidence: xruns remain absent and named-hardware endurance plus callback-safety auditing stay external.
+
 ### Deterministic Evaluation
 
 Evaluation in which the same project, assets, compatible engine version, and explicit inputs produce the same musical result. By default, a random choice derives from the project seed, pattern semantic path, clip durable ID, loop iteration, and a stable source-local choice key. Separate clips and iterations vary, while clip movement or rename does not reroll choices; source may explicitly override seed or scope.
@@ -282,4 +318,4 @@ Repeated rendering of the same Project and render settings with the exact same C
 
 ## Terms Requiring Decisions
 
-The following names appear in the product contract but do not yet have sufficiently precise, agreed meanings: stem, compatible engine version, and changed asset.
+The following name appears in the product contract but does not yet have a sufficiently precise, agreed meaning: compatible engine version.

@@ -1,0 +1,48 @@
+crump-module 1
+instrument melodic-pluck "Melodic Pluck" graph {
+  polyphony 8
+  parameter cutoff "Cutoff" hertz 120hz 12khz 750hz 750hz modulatable
+  parameter envelope "Timbre" hertz -12khz 12khz 5200hz 5200hz modulatable
+  parameter decay "Decay" seconds 10ms 2s 180ms 180ms automatable
+  parameter velocity-tone "Velocity Tone" hertz -8khz 8khz 2200hz 2200hz modulatable
+  faceplate {
+    control cutoff "Cutoff" "Sets the pluck's resting brightness" maps cutoff
+    control envelope "Timbre" "Opens the filter from its short envelope" maps envelope
+    control decay "Decay" "Shapes note length before the shared echo" maps decay
+    control velocity-tone "Touch" "Makes harder notes brighter" maps velocity-tone
+  }
+  graph 10 {
+    node oscillator oscillator waveform saw glide 8ms level 0.7
+    node amplitude envelope attack 1ms decay $decay sustain 0.05 release 120ms
+    node timbre envelope attack 1ms decay $decay sustain 0 release 80ms
+    node filter filter mode lowpass cutoff $cutoff resonance 0.3 mod_depth $envelope velocity_depth $velocity-tone key_track 0.55 key_reference 261.625565hz
+    node amp amplifier
+    node touch amplifier
+    node color saturation drive 1.35
+    node place pan position 0
+    node output output
+    connect note.pitch -> oscillator.pitch
+    connect note.gate -> amplitude.gate
+    connect note.gate -> timbre.gate
+    connect note.pitch -> filter.key
+    connect note.velocity -> filter.velocity
+    connect timbre.control -> filter.mod
+    connect oscillator.audio -> filter.audio
+    connect filter.audio -> amp.audio
+    connect amplitude.control -> amp.gain
+    connect amp.audio -> touch.audio
+    connect note.velocity -> touch.gain
+    connect touch.audio -> color.audio
+    connect color.audio -> place.audio
+    connect place.audio -> output.audio
+  }
+  processor melodic-pluck-echo delay {
+    setting tempo_sync true
+    setting division 1/8d
+    setting feedback 0.22
+    setting low_pass 6.5khz
+    setting high_pass 250hz
+    setting mode ping_pong
+    setting mix 0.2
+  }
+}

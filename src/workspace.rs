@@ -1,7 +1,7 @@
 //! Ratatui production workspace over the terminal-independent Project model.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     io::{self, Stdout},
     path::{Path, PathBuf},
     process::Command,
@@ -31,24 +31,32 @@ use ratatui::{
 use crate::{
     diagnostic::Severity,
     edit::{
-        apply_structured_edit, set_event_at, set_event_velocity, set_hit_voice, set_note_duration,
-        set_note_pitch, set_parameter, set_track_level, set_track_pan,
+        apply_structured_edit, fade_sample_occurrence, set_automation_point_at,
+        set_automation_point_interpolation, set_automation_point_value, set_event_at,
+        set_event_velocity, set_hit_voice, set_note_duration, set_note_pitch, set_parameter,
+        set_parameter_target, set_sample_occurrence_gain, set_sample_occurrence_pan,
+        set_track_level, set_track_pan, trim_sample_occurrence,
     },
     engine::CompiledProject,
     history::{ChangeOrigin, HistoryEntry, HistoryStore, Publication, write_atomic},
-    model::{DrumVoice, InstrumentKind, PatternEvent, Project, Unit, parse_pitch},
+    model::{
+        AutomationInterpolation, AutomationLane, AutomationPoint, DrumVoice, InstrumentKind,
+        ParameterSpec, ParameterTarget, PatternEvent, Project, TapPoint, Unit, parse_pitch,
+    },
     project::{ProjectBundle, RevisionId, load_project},
-    realtime::{PipeWirePlayer, PlayerTelemetry, StreamStatus},
+    realtime::{PipeWirePlayer, PlayerTelemetry, RealtimeError, StreamStatus},
 };
 
 const TICK_RATE: Duration = Duration::from_millis(40);
 const REFRESH_RATE: Duration = Duration::from_millis(400);
 const AUDITION_TIMEOUT: Duration = Duration::from_millis(700);
-const VIEWS: [View; 9] = [
+const VIEWS: [View; 11] = [
     View::Timeline,
+    View::Mixer,
     View::EventGrid,
     View::Faceplate,
     View::Parameters,
+    View::Automation,
     View::Graph,
     View::Source,
     View::Diagnostics,
@@ -191,9 +199,11 @@ impl Drop for TerminalSession {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum View {
     Timeline,
+    Mixer,
     EventGrid,
     Faceplate,
     Parameters,
+    Automation,
     Graph,
     Source,
     Diagnostics,
@@ -205,9 +215,11 @@ impl View {
     const fn title(self) -> &'static str {
         match self {
             Self::Timeline => "Timeline",
+            Self::Mixer => "Mixer",
             Self::EventGrid => "Event Grid",
             Self::Faceplate => "Faceplate",
             Self::Parameters => "Parameters",
+            Self::Automation => "Automation",
             Self::Graph => "Graph",
             Self::Source => "Source",
             Self::Diagnostics => "Diagnostics",
@@ -226,10 +238,13 @@ struct Workspace {
     history: Vec<HistoryEntry>,
     view: View,
     selected_track: usize,
+    selected_mixer_parameter: usize,
     selected_pattern: usize,
     selected_event: usize,
     selected_instrument: usize,
     selected_parameter: usize,
+    selected_automation: usize,
+    selected_automation_point: usize,
     selected_graph_node: usize,
     selected_history: usize,
     selected_source: usize,
@@ -238,7 +253,11 @@ struct Workspace {
     status: String,
     quit: bool,
     player: Option<PipeWirePlayer>,
+    pending_audio_revision: Option<RevisionId>,
     telemetry: PlayerTelemetry,
+    mix_channel_identities: Vec<String>,
+    soloed_channels: BTreeSet<String>,
+    cue_channel: Option<(String, TapPoint)>,
     held_notes: BTreeMap<char, HeldNote>,
     next_note_id: u64,
     audition_loop: Option<String>,
@@ -270,6 +289,10 @@ enum Modal {
 }
 
 enum InputAction {
+    Target {
+        target: ParameterTarget,
+        unit: Unit,
+    },
     Parameter {
         instrument: String,
         parameter: String,
@@ -280,6 +303,18 @@ enum InputAction {
     },
     TrackPan {
         track: String,
+    },
+    AutomationValue {
+        lane: String,
+        point: String,
+    },
+    AutomationTime {
+        lane: String,
+        point: String,
+    },
+    AutomationCurve {
+        lane: String,
+        point: String,
     },
     NotePitch {
         pattern: String,
@@ -301,6 +336,22 @@ enum InputAction {
         pattern: String,
         event: usize,
     },
+    SampleRegion {
+        pattern: String,
+        id: String,
+    },
+    SampleFade {
+        pattern: String,
+        id: String,
+    },
+    SampleGain {
+        pattern: String,
+        id: String,
+    },
+    SamplePan {
+        pattern: String,
+        id: String,
+    },
     Publish,
 }
 
@@ -318,10 +369,13 @@ impl Workspace {
             history,
             view: View::Timeline,
             selected_track: 0,
+            selected_mixer_parameter: 0,
             selected_pattern: 0,
             selected_event: 0,
             selected_instrument: 0,
             selected_parameter: 0,
+            selected_automation: 0,
+            selected_automation_point: 0,
             selected_graph_node: 0,
             selected_history: 0,
             selected_source: 0,
@@ -330,7 +384,11 @@ impl Workspace {
             status: "Ready · ? opens keyboard help".to_owned(),
             quit: false,
             player: None,
+            pending_audio_revision: None,
             telemetry: PlayerTelemetry::default(),
+            mix_channel_identities: Vec::new(),
+            soloed_channels: BTreeSet::new(),
+            cue_channel: None,
             held_notes: BTreeMap::new(),
             next_note_id: 1 << 32,
             audition_loop: None,
@@ -387,6 +445,24 @@ impl Workspace {
         let Some(revision) = revision else {
             return;
         };
+        let reservation = match self.player.as_mut() {
+            Some(player) => match player.reserve_publication() {
+                Ok(reservation) => reservation,
+                Err(RealtimeError::QueueFull) => {
+                    self.pending_audio_revision = Some(revision.clone());
+                    self.status =
+                        "Runtime publication delayed; the newest Active Revision will retry"
+                            .to_owned();
+                    return;
+                }
+                Err(error) => {
+                    self.pending_audio_revision = None;
+                    self.status = format!("Runtime publication failed: {error}");
+                    return;
+                }
+            },
+            None => return,
+        };
         let active = match HistoryStore::open(&self.root).and_then(|store| store.active_bundle()) {
             Ok(Some(active)) => active,
             Ok(None) => return,
@@ -396,6 +472,7 @@ impl Workspace {
             }
         };
         if &active.revision != revision {
+            self.pending_audio_revision = Some(active.revision.clone());
             self.status = "Active Revision changed during reload; retrying".to_owned();
             return;
         }
@@ -403,14 +480,21 @@ impl Workspace {
             self.status = "Active Revision snapshot is invalid".to_owned();
             return;
         };
-        let compiled = match CompiledProject::compile(project) {
+        let compiled = match CompiledProject::compile_with_assets(project, &active.assets) {
             Ok(compiled) => compiled,
             Err(error) => {
                 self.status = format!("Audio compile failed: {error}");
                 return;
             }
         };
+        let mix_channel_identities = compiled
+            .mix_graph_inspection()
+            .channels
+            .iter()
+            .map(|channel| channel.identity.clone())
+            .collect::<Vec<_>>();
         let mut runtime = compiled.runtime();
+        self.apply_mixer_audition_state(&mut runtime);
         let loop_range = self.audition_loop.as_deref().and_then(|pattern_id| {
             match audition_loop_range(project, pattern_id) {
                 Ok(range) => Some(range),
@@ -423,30 +507,44 @@ impl Workspace {
         if self.audition_loop.is_some() && loop_range.is_none() {
             self.audition_loop = None;
         }
-        if let Some(player) = self.player.as_mut() {
-            let target = loop_range.map_or_else(
-                || self.telemetry.engine.frame.saturating_add(1),
-                |(start, end)| self.telemetry.engine.frame.clamp(start, end - 1),
-            );
-            runtime.seek_transport(target);
-            if let Some((start, end)) = loop_range
-                && let Err(error) = runtime.enable_audition_loop(start, end)
-            {
-                self.status = format!("Audition loop preparation failed: {error}");
-                return;
+        let target = loop_range.map_or_else(
+            || self.telemetry.engine.frame.saturating_add(1),
+            |(start, end)| self.telemetry.engine.frame.clamp(start, end - 1),
+        );
+        runtime.seek_transport(target);
+        if let Some((start, end)) = loop_range
+            && let Err(error) = runtime.enable_audition_loop(start, end)
+        {
+            self.status = format!("Audition loop preparation failed: {error}");
+            return;
+        }
+        let Some(player) = self.player.as_mut() else {
+            self.status = "Playback stopped before publication could be queued".to_owned();
+            return;
+        };
+        match player.publish_reserved(runtime, reservation) {
+            Ok(()) => {
+                self.pending_audio_revision = None;
+                self.mix_channel_identities = mix_channel_identities;
+                self.status =
+                    "Active Revision queued · compatible controls ramp; topology changes fade"
+                        .to_owned()
             }
-            match player.publish(runtime) {
-                Ok(()) => self.status =
-                    "Active Revision queued · changed instruments restart behind a protective fade"
-                        .to_owned(),
-                Err(error) => self.status = format!("Runtime publication delayed: {error}"),
+            Err(RealtimeError::QueueFull) => {
+                self.pending_audio_revision = Some(revision.clone());
+                self.status =
+                    "Runtime publication delayed; the newest Active Revision will retry".to_owned();
+            }
+            Err(error) => {
+                self.pending_audio_revision = None;
+                self.status = format!("Runtime publication failed: {error}");
             }
         }
     }
 
     fn poll_audio(&mut self) {
         let audition_track = self.audition_track();
-        if let Some(player) = self.player.as_mut() {
+        let publication_ready = if let Some(player) = self.player.as_mut() {
             self.telemetry = player.poll();
             player.set_audition_track(audition_track);
             if self.telemetry.stream_state == StreamStatus::Error {
@@ -457,12 +555,112 @@ impl Workspace {
                 self.status =
                     "PipeWire stream stopped or disconnected; press Space to restart".to_owned();
             }
+            !self.telemetry.transition_active
+        } else {
+            false
+        };
+        if publication_ready && let Some(revision) = self.pending_audio_revision.clone() {
+            self.publish_runtime_for_active(Some(&revision));
         }
+    }
+
+    fn apply_mixer_audition_state(&self, runtime: &mut crate::engine::SongRuntime) {
+        for identity in &self.soloed_channels {
+            let _ = runtime.set_channel_solo(identity, true);
+        }
+        if let Some((identity, tap)) = &self.cue_channel {
+            let _ = runtime.set_channel_cue(Some(identity), *tap);
+        }
+    }
+
+    fn toggle_mixer_solo(&mut self) {
+        if !self.candidate_is_active() {
+            self.status = "Publish the Candidate before changing transient Solo".to_owned();
+            return;
+        }
+        let Some(identity) = self.selected_mixer_channel_identity() else {
+            self.status = "Selected mixer target has no singular channel to Solo".to_owned();
+            return;
+        };
+        if identity == "master" {
+            self.status = "Master Solo is undefined; Solo a Track, Group, or Return".to_owned();
+            return;
+        }
+        let enabled = !self.soloed_channels.contains(&identity);
+        if let Some(player) = self.player.as_mut()
+            && let Err(error) = player.set_channel_solo(&identity, enabled)
+        {
+            self.status = format!("Solo command delayed: {error}");
+            return;
+        }
+        if enabled {
+            self.soloed_channels.insert(identity.clone());
+        } else {
+            self.soloed_channels.remove(&identity);
+        }
+        self.status = format!(
+            "Solo {} for `{identity}` (transient monitoring only)",
+            if enabled { "enabled" } else { "disabled" }
+        );
+    }
+
+    fn toggle_mixer_cue(&mut self, tap: TapPoint) {
+        if !self.candidate_is_active() {
+            self.status = "Publish the Candidate before changing transient cue".to_owned();
+            return;
+        }
+        let Some(identity) = self.selected_mixer_channel_identity() else {
+            self.status = "Selected mixer target has no singular channel to cue".to_owned();
+            return;
+        };
+        let next = if self
+            .cue_channel
+            .as_ref()
+            .is_some_and(|(current, current_tap)| current == &identity && *current_tap == tap)
+        {
+            None
+        } else {
+            Some((identity.clone(), tap))
+        };
+        if let Some(player) = self.player.as_mut()
+            && let Err(error) =
+                player.set_channel_cue(next.as_ref().map(|(identity, _)| identity.as_str()), tap)
+        {
+            self.status = format!("Cue command delayed: {error}");
+            return;
+        }
+        self.cue_channel = next;
+        self.status = self.cue_channel.as_ref().map_or_else(
+            || "Cue cleared (transient monitoring only)".to_owned(),
+            |(identity, tap)| format!("Cue {:?} for `{identity}` (transient monitoring only)", tap),
+        );
+    }
+
+    fn toggle_mixer_mute(&mut self) {
+        let Some(target) = self.selected_mixer_mute_target() else {
+            self.status = "Selected mixer target has no source-backed channel Mute".to_owned();
+            return;
+        };
+        let Some(spec) = self
+            .bundle
+            .project
+            .as_ref()
+            .and_then(|project| project.parameter_spec(&target))
+        else {
+            self.status = "Selected channel Mute target is unavailable".to_owned();
+            return;
+        };
+        let value = if spec.base >= 0.5 { 0.0 } else { 1.0 };
+        self.apply_replacement(
+            set_parameter_target(&self.bundle, &target, value),
+            format!("Set {target} to {}", Unit::Boolean.format_value(value)),
+        );
     }
 
     fn toggle_playback(&mut self) {
         if let Some(player) = self.player.take() {
             let _ = player.shutdown();
+            self.pending_audio_revision = None;
             self.telemetry = PlayerTelemetry::default();
             self.held_notes.clear();
             self.status = "Playback stopped".to_owned();
@@ -483,13 +681,21 @@ impl Workspace {
             self.status = "Active Revision snapshot is invalid".to_owned();
             return;
         };
-        let mut runtime = match CompiledProject::compile(project) {
-            Ok(compiled) => compiled.runtime(),
+        let compiled = match CompiledProject::compile_with_assets(project, &active.assets) {
+            Ok(compiled) => compiled,
             Err(error) => {
                 self.status = format!("Audio compile failed: {error}");
                 return;
             }
         };
+        let mix_channel_identities = compiled
+            .mix_graph_inspection()
+            .channels
+            .iter()
+            .map(|channel| channel.identity.clone())
+            .collect::<Vec<_>>();
+        let mut runtime = compiled.runtime();
+        self.apply_mixer_audition_state(&mut runtime);
         let loop_label = if let Some(pattern_id) = self.audition_loop.as_deref() {
             let (start, end) = match audition_loop_range(project, pattern_id) {
                 Ok(range) => range,
@@ -510,6 +716,8 @@ impl Workspace {
         match PipeWirePlayer::start(runtime) {
             Ok(mut player) => {
                 player.set_audition_track(self.audition_track());
+                self.pending_audio_revision = None;
+                self.mix_channel_identities = mix_channel_identities;
                 self.player = Some(player);
                 self.status = loop_label.map_or_else(
                     || "Playing Active Revision · PipeWire MIDI audition enabled".to_owned(),
@@ -595,13 +803,30 @@ impl Workspace {
             (KeyCode::Char(character @ '1'..='9'), _) => {
                 self.view = VIEWS[usize::from(character as u8 - b'1')]
             }
+            (KeyCode::Char('0'), _) => self.view = VIEWS[9],
             (KeyCode::Char('r'), _) => self.refresh(),
             (KeyCode::Char('P'), _) => self.open_publish(),
             (KeyCode::Char(' '), _) => self.toggle_playback(),
             (KeyCode::Char('L'), _) if self.view == View::EventGrid => self.toggle_audition_loop(),
+            (KeyCode::Char('m'), _) if self.view == View::Mixer => self.toggle_mixer_mute(),
+            (KeyCode::Char('s'), _) if self.view == View::Mixer => self.toggle_mixer_solo(),
+            (KeyCode::Char('c'), _) if self.view == View::Mixer => {
+                self.toggle_mixer_cue(TapPoint::PostFader)
+            }
+            (KeyCode::Char('C'), _) if self.view == View::Mixer => {
+                self.toggle_mixer_cue(TapPoint::PreFader)
+            }
             (KeyCode::Char('t'), _) if self.view == View::EventGrid => self.open_event_time(),
             (KeyCode::Char('v'), _) if self.view == View::EventGrid => self.open_event_velocity(),
             (KeyCode::Char('u'), _) if self.view == View::EventGrid => self.open_note_duration(),
+            (KeyCode::Char('x'), _) if self.view == View::EventGrid => self.open_sample_region(),
+            (KeyCode::Char('f'), _) if self.view == View::EventGrid => self.open_sample_fade(),
+            (KeyCode::Char('g'), _) if self.view == View::EventGrid => self.open_sample_gain(),
+            (KeyCode::Char('p'), _) if self.view == View::EventGrid => self.open_sample_pan(),
+            (KeyCode::Char('t'), _) if self.view == View::Automation => self.open_automation_time(),
+            (KeyCode::Char('c'), _) if self.view == View::Automation => {
+                self.open_automation_curve()
+            }
             (KeyCode::Char('['), _) => self.change_context(-1),
             (KeyCode::Char(']'), _) => self.change_context(1),
             (KeyCode::Up, _) => self.move_selection(-1),
@@ -716,6 +941,11 @@ impl Workspace {
                 self.selected_parameter = 0;
                 self.selected_graph_node = 0;
             }
+            View::Automation => {
+                self.selected_automation =
+                    wrap_selection(self.selected_automation, self.automation_count(), delta);
+                self.selected_automation_point = 0;
+            }
             _ => {}
         }
     }
@@ -727,6 +957,13 @@ impl Workspace {
                     wrap_selection(self.selected_track, self.track_count(), delta);
                 self.sync_instrument_to_track();
             }
+            View::Mixer => {
+                self.selected_mixer_parameter = wrap_selection(
+                    self.selected_mixer_parameter,
+                    self.mixer_parameter_count(),
+                    delta,
+                );
+            }
             View::EventGrid => {
                 self.selected_event = wrap_selection(self.selected_event, self.event_count(), delta)
             }
@@ -737,6 +974,13 @@ impl Workspace {
             View::Parameters => {
                 self.selected_parameter =
                     wrap_selection(self.selected_parameter, self.parameter_count(), delta)
+            }
+            View::Automation => {
+                self.selected_automation_point = wrap_selection(
+                    self.selected_automation_point,
+                    self.automation_point_count(),
+                    delta,
+                )
             }
             View::Graph => {
                 self.selected_graph_node =
@@ -754,8 +998,10 @@ impl Workspace {
     fn adjust_selected(&mut self, direction: isize) {
         match self.view {
             View::Timeline => self.step_track_level(direction as f64),
+            View::Mixer => self.step_mixer_parameter(direction as f64),
             View::EventGrid => self.step_note(direction),
             View::Faceplate | View::Parameters => self.step_parameter(direction as f64),
+            View::Automation => self.step_automation(direction as f64),
             View::Graph => {
                 self.selected_instrument =
                     wrap_selection(self.selected_instrument, self.instrument_count(), direction);
@@ -774,8 +1020,10 @@ impl Workspace {
     fn open_exact_edit(&mut self) {
         match self.view {
             View::Timeline => self.open_track_level(),
+            View::Mixer => self.open_mixer_parameter(),
             View::EventGrid => self.open_event_primary(),
             View::Faceplate | View::Parameters => self.open_parameter(),
+            View::Automation => self.open_automation_value(),
             View::Graph => self.open_graph_source(),
             View::History => self.open_history_diff(),
             _ => {}
@@ -872,6 +1120,28 @@ impl Workspace {
         });
     }
 
+    fn open_mixer_parameter(&mut self) {
+        let Some((target, spec)) = self.selected_mixer_parameter() else {
+            self.status = "No continuous Mixer Parameter is selected".to_owned();
+            return;
+        };
+        self.modal = Some(Modal::Input {
+            title: target.to_string(),
+            prompt: format!(
+                "Exact {} value ({} … {})",
+                spec.unit,
+                spec.unit.format_value(spec.minimum),
+                spec.unit.format_value(spec.maximum)
+            ),
+            value: spec.unit.format_value(spec.base),
+            replace_on_type: true,
+            action: InputAction::Target {
+                target,
+                unit: spec.unit,
+            },
+        });
+    }
+
     fn open_track_level(&mut self) {
         let Some(track) = self.selected_track_ref() else {
             return;
@@ -879,7 +1149,7 @@ impl Workspace {
         self.modal = Some(Modal::Input {
             title: format!("{} · Level", track.name),
             prompt: "Exact level (-96db … 12db)".to_owned(),
-            value: Unit::Decibels.format_value(track.level_db),
+            value: Unit::Decibels.format_value(track.channel.level_db),
             replace_on_type: true,
             action: InputAction::TrackLevel {
                 track: track.id.clone(),
@@ -894,10 +1164,80 @@ impl Workspace {
         self.modal = Some(Modal::Input {
             title: format!("{} · Pan", track.name),
             prompt: "Exact pan (-1 … 1)".to_owned(),
-            value: Unit::Pan.format_value(track.pan),
+            value: Unit::Pan.format_value(track.channel.panner.primary_position()),
             replace_on_type: true,
             action: InputAction::TrackPan {
                 track: track.id.clone(),
+            },
+        });
+    }
+
+    fn open_automation_value(&mut self) {
+        let Some((lane, point)) = self.selected_automation_point_pair() else {
+            self.status = "Select an Automation point first".to_owned();
+            return;
+        };
+        let lane_id = lane.id.clone();
+        let point_id = point.id.clone();
+        let authored_value = point.value.clone();
+        let prompt = self
+            .bundle
+            .project
+            .as_ref()
+            .and_then(|project| project.parameter_spec(&lane.target))
+            .map_or_else(
+                || "Exact physical Parameter value".to_owned(),
+                |spec| {
+                    format!(
+                        "Exact {} value ({} … {})",
+                        spec.unit,
+                        spec.unit.format_value(spec.minimum),
+                        spec.unit.format_value(spec.maximum)
+                    )
+                },
+            );
+        self.modal = Some(Modal::Input {
+            title: format!("{lane_id} · {point_id} · Value"),
+            prompt,
+            value: authored_value,
+            replace_on_type: true,
+            action: InputAction::AutomationValue {
+                lane: lane_id,
+                point: point_id,
+            },
+        });
+    }
+
+    fn open_automation_time(&mut self) {
+        let Some((lane, point)) = self.selected_automation_point_pair() else {
+            self.status = "Select an Automation point first".to_owned();
+            return;
+        };
+        self.modal = Some(Modal::Input {
+            title: format!("{} · {} · Song Time", lane.id, point.id),
+            prompt: "Exact absolute musical time (for example 2bar or 3/2beat)".to_owned(),
+            value: point.at.to_string(),
+            replace_on_type: true,
+            action: InputAction::AutomationTime {
+                lane: lane.id.clone(),
+                point: point.id.clone(),
+            },
+        });
+    }
+
+    fn open_automation_curve(&mut self) {
+        let Some((lane, point)) = self.selected_automation_point_pair() else {
+            self.status = "Select an Automation point first".to_owned();
+            return;
+        };
+        self.modal = Some(Modal::Input {
+            title: format!("{} · {} · Curve", lane.id, point.id),
+            prompt: "Interpolation leaving this point: step, linear, or power(P)".to_owned(),
+            value: point.interpolation.to_string(),
+            replace_on_type: true,
+            action: InputAction::AutomationCurve {
+                lane: lane.id.clone(),
+                point: point.id.clone(),
             },
         });
     }
@@ -915,6 +1255,7 @@ impl Workspace {
         match event {
             PatternEvent::Note { .. } => self.open_note_pitch(),
             PatternEvent::Hit { .. } => self.open_hit_voice(),
+            PatternEvent::Sample { .. } => self.open_note_duration(),
         }
     }
 
@@ -970,10 +1311,14 @@ impl Workspace {
         let Some(pattern) = project.song.patterns.get(self.selected_pattern) else {
             return;
         };
-        let Some(PatternEvent::Note { duration, .. }) = pattern.events.get(self.selected_event)
-        else {
-            self.status = "Selected percussion hit has no duration".to_owned();
-            return;
+        let duration = match pattern.events.get(self.selected_event) {
+            Some(PatternEvent::Note { duration, .. } | PatternEvent::Sample { duration, .. }) => {
+                *duration
+            }
+            _ => {
+                self.status = "Selected percussion hit has no duration".to_owned();
+                return;
+            }
         };
         self.modal = Some(Modal::Input {
             title: format!("{} · Event {} duration", pattern.id, self.selected_event),
@@ -998,7 +1343,9 @@ impl Workspace {
             return;
         };
         let velocity = match event {
-            PatternEvent::Note { velocity, .. } | PatternEvent::Hit { velocity, .. } => *velocity,
+            PatternEvent::Note { velocity, .. }
+            | PatternEvent::Hit { velocity, .. }
+            | PatternEvent::Sample { velocity, .. } => *velocity,
         };
         self.modal = Some(Modal::Input {
             title: format!("{} · Event {} velocity", pattern.id, self.selected_event),
@@ -1031,6 +1378,113 @@ impl Workspace {
             action: InputAction::HitVoice {
                 pattern: pattern.id.clone(),
                 event: self.selected_event,
+            },
+        });
+    }
+
+    fn open_sample_region(&mut self) {
+        let Some(project) = self.bundle.project.as_ref() else {
+            return;
+        };
+        let Some(pattern) = project.song.patterns.get(self.selected_pattern) else {
+            return;
+        };
+        let Some(PatternEvent::Sample {
+            id,
+            start_frame,
+            end_frame,
+            ..
+        }) = pattern.events.get(self.selected_event)
+        else {
+            self.status = "Selected Event is not a sample occurrence".to_owned();
+            return;
+        };
+        self.modal = Some(Modal::Input {
+            title: format!("{} · {id} source region", pattern.id),
+            prompt: "Half-open original-source frames as START:END".to_owned(),
+            value: format!("{start_frame}:{end_frame}"),
+            replace_on_type: true,
+            action: InputAction::SampleRegion {
+                pattern: pattern.id.clone(),
+                id: id.clone(),
+            },
+        });
+    }
+
+    fn open_sample_fade(&mut self) {
+        let Some(project) = self.bundle.project.as_ref() else {
+            return;
+        };
+        let Some(pattern) = project.song.patterns.get(self.selected_pattern) else {
+            return;
+        };
+        let Some(PatternEvent::Sample {
+            id,
+            fade_in_frames,
+            fade_out_frames,
+            ..
+        }) = pattern.events.get(self.selected_event)
+        else {
+            self.status = "Selected Event is not a sample occurrence".to_owned();
+            return;
+        };
+        self.modal = Some(Modal::Input {
+            title: format!("{} · {id} source fades", pattern.id),
+            prompt: "Original-source fade frames as IN:OUT".to_owned(),
+            value: format!("{fade_in_frames}:{fade_out_frames}"),
+            replace_on_type: true,
+            action: InputAction::SampleFade {
+                pattern: pattern.id.clone(),
+                id: id.clone(),
+            },
+        });
+    }
+
+    fn open_sample_gain(&mut self) {
+        let Some(project) = self.bundle.project.as_ref() else {
+            return;
+        };
+        let Some(pattern) = project.song.patterns.get(self.selected_pattern) else {
+            return;
+        };
+        let Some(PatternEvent::Sample { id, gain_db, .. }) =
+            pattern.events.get(self.selected_event)
+        else {
+            self.status = "Selected Event is not a sample occurrence".to_owned();
+            return;
+        };
+        self.modal = Some(Modal::Input {
+            title: format!("{} · {id} gain", pattern.id),
+            prompt: "Gain trim in dB (-96db to 24db)".to_owned(),
+            value: Unit::Decibels.format_value(*gain_db),
+            replace_on_type: true,
+            action: InputAction::SampleGain {
+                pattern: pattern.id.clone(),
+                id: id.clone(),
+            },
+        });
+    }
+
+    fn open_sample_pan(&mut self) {
+        let Some(project) = self.bundle.project.as_ref() else {
+            return;
+        };
+        let Some(pattern) = project.song.patterns.get(self.selected_pattern) else {
+            return;
+        };
+        let Some(PatternEvent::Sample { id, pan, .. }) = pattern.events.get(self.selected_event)
+        else {
+            self.status = "Selected Event is not a sample occurrence".to_owned();
+            return;
+        };
+        self.modal = Some(Modal::Input {
+            title: format!("{} · {id} pan", pattern.id),
+            prompt: "Pan from -1 to 1".to_owned(),
+            value: Unit::Pan.format_value(*pan),
+            replace_on_type: true,
+            action: InputAction::SamplePan {
+                pattern: pattern.id.clone(),
+                id: id.clone(),
             },
         });
     }
@@ -1079,6 +1533,13 @@ impl Workspace {
 
     fn commit_input(&mut self, value: String, action: InputAction) {
         match action {
+            InputAction::Target { target, unit } => match unit.parse_value(value.trim()) {
+                Ok(value) => {
+                    let replacement = set_parameter_target(&self.bundle, &target, value);
+                    self.apply_replacement(replacement, format!("Set {target}"));
+                }
+                Err(error) => self.status = format!("Invalid physical value: {error}"),
+            },
             InputAction::Parameter {
                 instrument,
                 parameter,
@@ -1104,6 +1565,36 @@ impl Workspace {
                 }
                 Err(error) => self.status = format!("Invalid pan: {error}"),
             },
+            InputAction::AutomationValue { lane, point } => {
+                let replacement =
+                    set_automation_point_value(&self.bundle, &lane, &point, value.trim());
+                self.apply_replacement(replacement, format!("Set {lane}.{point} Automation value"));
+            }
+            InputAction::AutomationTime { lane, point } => {
+                let replacement =
+                    set_automation_point_at(&self.bundle, &lane, &point, value.trim());
+                self.apply_replacement(
+                    replacement,
+                    format!("Move {lane}.{point} Automation point"),
+                );
+            }
+            InputAction::AutomationCurve { lane, point } => {
+                match value.trim().parse::<AutomationInterpolation>() {
+                    Ok(interpolation) => {
+                        let replacement = set_automation_point_interpolation(
+                            &self.bundle,
+                            &lane,
+                            &point,
+                            interpolation,
+                        );
+                        self.apply_replacement(
+                            replacement,
+                            format!("Set {lane}.{point} Automation curve"),
+                        );
+                    }
+                    Err(error) => self.status = format!("Invalid Automation curve: {error}"),
+                }
+            }
             InputAction::NotePitch { pattern, event } => match parse_pitch(value.trim()) {
                 Ok(pitch) => {
                     let replacement = set_note_pitch(&self.bundle, &pattern, event, pitch);
@@ -1141,6 +1632,42 @@ impl Workspace {
                     );
                 }
                 Err(error) => self.status = format!("Invalid percussion voice: {error}"),
+            },
+            InputAction::SampleRegion { pattern, id } => match parse_frame_pair(value.trim()) {
+                Ok((start, end)) => {
+                    let replacements =
+                        trim_sample_occurrence(&self.bundle, &pattern, &id, start, end);
+                    self.apply_replacements(replacements, format!("Trim sample {pattern}.{id}"));
+                }
+                Err(error) => self.status = error,
+            },
+            InputAction::SampleFade { pattern, id } => match parse_fade_pair(value.trim()) {
+                Ok((fade_in, fade_out)) => {
+                    let replacements =
+                        fade_sample_occurrence(&self.bundle, &pattern, &id, fade_in, fade_out);
+                    self.apply_replacements(replacements, format!("Fade sample {pattern}.{id}"));
+                }
+                Err(error) => self.status = error,
+            },
+            InputAction::SampleGain { pattern, id } => {
+                match Unit::Decibels.parse_value(value.trim()) {
+                    Ok(gain_db) => {
+                        let replacement =
+                            set_sample_occurrence_gain(&self.bundle, &pattern, &id, gain_db);
+                        self.apply_replacement(
+                            replacement,
+                            format!("Set sample {pattern}.{id} gain"),
+                        );
+                    }
+                    Err(error) => self.status = format!("Invalid sample gain: {error}"),
+                }
+            }
+            InputAction::SamplePan { pattern, id } => match Unit::Pan.parse_value(value.trim()) {
+                Ok(pan) => {
+                    let replacement = set_sample_occurrence_pan(&self.bundle, &pattern, &id, pan);
+                    self.apply_replacement(replacement, format!("Set sample {pattern}.{id} pan"));
+                }
+                Err(error) => self.status = format!("Invalid sample pan: {error}"),
             },
             InputAction::Publish => {
                 let summary = value.trim();
@@ -1184,14 +1711,58 @@ impl Workspace {
         );
     }
 
+    fn step_mixer_parameter(&mut self, direction: f64) {
+        let Some((target, spec)) = self.selected_mixer_parameter() else {
+            return;
+        };
+        let value = if spec.unit == Unit::Boolean {
+            if direction < 0.0 { 0.0 } else { 1.0 }
+        } else {
+            let step = ((spec.maximum - spec.minimum) / 100.0).max(f64::EPSILON);
+            (spec.base + direction * step).clamp(spec.minimum, spec.maximum)
+        };
+        let replacement = set_parameter_target(&self.bundle, &target, value);
+        self.apply_replacement(replacement, format!("Adjust {target}"));
+    }
+
     fn step_track_level(&mut self, direction: f64) {
         let Some(track) = self.selected_track_ref() else {
             return;
         };
         let id = track.id.clone();
-        let value = (track.level_db + direction).clamp(-96.0, 12.0);
+        let value = (track.channel.level_db + direction).clamp(-96.0, 12.0);
         let replacement = set_track_level(&self.bundle, &id, value);
         self.apply_replacement(replacement, format!("Adjust {id} level"));
+    }
+
+    fn step_automation(&mut self, direction: f64) {
+        let Some(project) = self.bundle.project.as_ref() else {
+            return;
+        };
+        let Some(lane) = project.song.automations.get(self.selected_automation) else {
+            return;
+        };
+        let Some(point) = lane.points.get(self.selected_automation_point) else {
+            return;
+        };
+        let Some(spec) = project.parameter_spec(&lane.target) else {
+            self.status = "Selected Automation target is unavailable".to_owned();
+            return;
+        };
+        let Ok(current) = spec.unit.parse_value(&point.value) else {
+            self.status = "Selected Automation value is invalid".to_owned();
+            return;
+        };
+        let lane_id = lane.id.clone();
+        let point_id = point.id.clone();
+        let step = ((spec.maximum - spec.minimum) / 100.0).max(f64::EPSILON);
+        let next = (current + direction * step).clamp(spec.minimum, spec.maximum);
+        let authored = spec.unit.format_value(next);
+        let replacement = set_automation_point_value(&self.bundle, &lane_id, &point_id, &authored);
+        self.apply_replacement(
+            replacement,
+            format!("Adjust {lane_id}.{point_id} Automation value"),
+        );
     }
 
     fn step_note(&mut self, direction: isize) {
@@ -1226,6 +1797,9 @@ impl Workspace {
                 let next = wrap_index(current, voices.len(), direction);
                 set_hit_voice(&self.bundle, &pattern_id, self.selected_event, voices[next])
             }
+            PatternEvent::Sample { .. } => Err(crate::edit::EditError::WrongTargetKind(
+                "sample occurrences use exact region/velocity edits".to_owned(),
+            )),
         };
         self.apply_replacement(replacement, format!("Change Event in {pattern_id}"));
     }
@@ -1235,8 +1809,16 @@ impl Workspace {
         replacement: Result<crate::edit::CheckedReplacement, crate::edit::EditError>,
         summary: String,
     ) {
-        let replacement = match replacement {
-            Ok(replacement) => replacement,
+        self.apply_replacements(replacement.map(|replacement| vec![replacement]), summary);
+    }
+
+    fn apply_replacements(
+        &mut self,
+        replacements: Result<Vec<crate::edit::CheckedReplacement>, crate::edit::EditError>,
+        summary: String,
+    ) {
+        let replacements = match replacements {
+            Ok(replacements) => replacements,
             Err(error) => {
                 self.status = format!("Edit rejected: {error}");
                 return;
@@ -1245,7 +1827,7 @@ impl Workspace {
         match apply_structured_edit(
             &self.root,
             &self.bundle.revision,
-            vec![replacement],
+            replacements,
             Publication::new(
                 ChangeOrigin::human("workspace"),
                 summary,
@@ -1405,6 +1987,26 @@ impl Workspace {
         }
     }
 
+    fn selected_mixer_parameter(&self) -> Option<(ParameterTarget, ParameterSpec)> {
+        self.bundle
+            .project
+            .as_ref()?
+            .mix_parameter_specs()
+            .get(self.selected_mixer_parameter)
+            .cloned()
+    }
+
+    fn selected_mixer_channel_identity(&self) -> Option<String> {
+        let project = self.bundle.project.as_ref()?;
+        let (target, _) = self.selected_mixer_parameter()?;
+        mixer_channel_identity(project, &target)
+    }
+
+    fn selected_mixer_mute_target(&self) -> Option<ParameterTarget> {
+        let identity = self.selected_mixer_channel_identity()?;
+        mixer_mute_target(&identity)
+    }
+
     fn selected_track_ref(&self) -> Option<&crate::model::Track> {
         self.bundle
             .project
@@ -1412,6 +2014,18 @@ impl Workspace {
             .song
             .tracks
             .get(self.selected_track)
+    }
+
+    fn selected_automation_point_pair(&self) -> Option<(&AutomationLane, &AutomationPoint)> {
+        let lane = self
+            .bundle
+            .project
+            .as_ref()?
+            .song
+            .automations
+            .get(self.selected_automation)?;
+        let point = lane.points.get(self.selected_automation_point)?;
+        Some((lane, point))
     }
 
     fn selected_parameter_pair(
@@ -1437,6 +2051,8 @@ impl Workspace {
 
     fn clamp_selections(&mut self) {
         self.selected_track = clamp_index(self.selected_track, self.track_count());
+        self.selected_mixer_parameter =
+            clamp_index(self.selected_mixer_parameter, self.mixer_parameter_count());
         self.selected_pattern = clamp_index(self.selected_pattern, self.pattern_count());
         self.selected_event = clamp_index(self.selected_event, self.event_count());
         self.selected_instrument = clamp_index(self.selected_instrument, self.instrument_count());
@@ -1448,6 +2064,11 @@ impl Workspace {
                 self.parameter_count()
             },
         );
+        self.selected_automation = clamp_index(self.selected_automation, self.automation_count());
+        self.selected_automation_point = clamp_index(
+            self.selected_automation_point,
+            self.automation_point_count(),
+        );
         self.selected_graph_node = clamp_index(self.selected_graph_node, self.graph_node_count());
         self.selected_history = clamp_index(self.selected_history, self.history.len());
         self.selected_source = clamp_index(self.selected_source, self.bundle.sources.len());
@@ -1458,6 +2079,13 @@ impl Workspace {
             .project
             .as_ref()
             .map_or(0, |project| project.song.tracks.len())
+    }
+
+    fn mixer_parameter_count(&self) -> usize {
+        self.bundle
+            .project
+            .as_ref()
+            .map_or(0, |project| project.mix_parameter_specs().len())
     }
 
     fn pattern_count(&self) -> usize {
@@ -1480,6 +2108,21 @@ impl Workspace {
             .project
             .as_ref()
             .map_or(0, |project| project.song.instruments.len())
+    }
+
+    fn automation_count(&self) -> usize {
+        self.bundle
+            .project
+            .as_ref()
+            .map_or(0, |project| project.song.automations.len())
+    }
+
+    fn automation_point_count(&self) -> usize {
+        self.bundle
+            .project
+            .as_ref()
+            .and_then(|project| project.song.automations.get(self.selected_automation))
+            .map_or(0, |lane| lane.points.len())
     }
 
     fn graph_node_count(&self) -> usize {
@@ -1554,9 +2197,11 @@ fn render(frame: &mut Frame<'_>, app: &Workspace) {
     render_tabs(frame, app, regions[1]);
     match app.view {
         View::Timeline => render_timeline(frame, app, regions[2]),
+        View::Mixer => render_mixer(frame, app, regions[2]),
         View::EventGrid => render_event_grid(frame, app, regions[2]),
         View::Faceplate => render_faceplate(frame, app, regions[2]),
         View::Parameters => render_parameters(frame, app, regions[2]),
+        View::Automation => render_automation(frame, app, regions[2]),
         View::Graph => render_graph(frame, app, regions[2]),
         View::Source => render_source(frame, app, regions[2]),
         View::Diagnostics => render_diagnostics(frame, app, regions[2]),
@@ -1644,7 +2289,14 @@ fn render_tabs(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     let titles = VIEWS
         .iter()
         .enumerate()
-        .map(|(index, view)| Line::from(format!("{} {}", index + 1, view.title())))
+        .map(|(index, view)| {
+            let key = match index {
+                0..=8 => (index + 1).to_string(),
+                9 => "0".to_owned(),
+                _ => "?".to_owned(),
+            };
+            Line::from(format!("{key} {}", view.title()))
+        })
         .collect::<Vec<_>>();
     let selected = VIEWS.iter().position(|view| *view == app.view).unwrap_or(0);
     let tabs = Tabs::new(titles)
@@ -1669,18 +2321,76 @@ fn render_timeline(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         );
         return;
     };
+    let context_height = if project.song.locators.is_empty() && project.song.grooves.is_empty() {
+        0
+    } else {
+        3
+    };
+    let regions = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(context_height), Constraint::Min(5)])
+        .split(area);
+    if context_height > 0 {
+        let locators = project
+            .song
+            .locators
+            .iter()
+            .map(|locator| format!("{}={} ({})", locator.id, locator.at, locator.name))
+            .collect::<Vec<_>>()
+            .join("  ");
+        let grooves = project
+            .song
+            .grooves
+            .iter()
+            .map(|groove| groove.id.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        frame.render_widget(
+            Paragraph::new(format!(
+                "Locators: {}\nGrooves: {}",
+                if locators.is_empty() {
+                    "—"
+                } else {
+                    &locators
+                },
+                if grooves.is_empty() { "—" } else { &grooves }
+            ))
+            .block(
+                Block::default()
+                    .title(" Arrangement context ")
+                    .borders(Borders::ALL),
+            ),
+            regions[0],
+        );
+    }
     let rows = project.song.tracks.iter().map(|track| {
         let clips = track
             .clips
             .iter()
-            .map(|clip| format!("{}:{}+{}", clip.id, clip.start, clip.duration))
+            .map(|clip| {
+                format!(
+                    "{}:{}+{} {:?} off={} tr={:+}st gain={:+.1}db fade={}/{}{}",
+                    clip.id,
+                    clip.start,
+                    clip.duration,
+                    clip.mode,
+                    clip.source_offset,
+                    clip.transpose_semitones,
+                    clip.gain_db,
+                    clip.fade_in,
+                    clip.fade_out,
+                    clip.groove
+                        .as_deref()
+                        .map_or_else(String::new, |groove| format!(" groove={groove}"))
+                )
+            })
             .collect::<Vec<_>>()
             .join("  ");
         Row::new(vec![
             Cell::from(track.name.clone()),
             Cell::from(track.instrument.clone()),
-            Cell::from(format!("{:.1} dB", track.level_db)),
-            Cell::from(format!("{:+.2}", track.pan)),
+            Cell::from(format!("{:.1} dB", track.channel.level_db)),
+            Cell::from(format!("{:+.2}", track.channel.panner.primary_position())),
             Cell::from(clips),
         ])
     });
@@ -1695,14 +2405,8 @@ fn render_timeline(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         ],
     )
     .header(
-        Row::new([
-            "Track",
-            "Instrument",
-            "Level",
-            "Pan",
-            "Clips: start + duration",
-        ])
-        .style(Style::default().fg(Color::Cyan)),
+        Row::new(["Track", "Instrument", "Level", "Pan", "Procedural Clips"])
+            .style(Style::default().fg(Color::Cyan)),
     )
     .block(
         Block::default()
@@ -1718,6 +2422,122 @@ fn render_timeline(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     .row_highlight_style(selected_style())
     .highlight_symbol("▶ ");
     let mut state = TableState::default().with_selected(Some(app.selected_track));
+    frame.render_stateful_widget(table, regions[1], &mut state);
+}
+
+fn render_mixer(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
+    let Some(project) = app.bundle.project.as_ref() else {
+        render_unavailable(
+            frame,
+            area,
+            "Mixer unavailable while Project source is unparseable",
+        );
+        return;
+    };
+    let parameters = project.mix_parameter_specs();
+    let rows = parameters.iter().map(|(target, spec)| {
+        let identity = mixer_channel_identity(project, target);
+        let meter = identity
+            .as_ref()
+            .and_then(|identity| {
+                app.mix_channel_identities
+                    .iter()
+                    .position(|candidate| candidate == identity)
+            })
+            .filter(|index| *index < app.telemetry.engine.channel_count)
+            .map(|index| app.telemetry.engine.channel_activity[index]);
+        let muted = identity
+            .as_deref()
+            .and_then(mixer_mute_target)
+            .and_then(|target| project.parameter_spec(&target))
+            .is_some_and(|mute| mute.base >= 0.5);
+        let audition = identity.as_ref().map_or_else(
+            || "—".to_owned(),
+            |identity| {
+                format!(
+                    "{}{}{}",
+                    if muted { 'M' } else { '·' },
+                    if app.soloed_channels.contains(identity) {
+                        'S'
+                    } else {
+                        '·'
+                    },
+                    if app
+                        .cue_channel
+                        .as_ref()
+                        .is_some_and(|(cue, _)| cue == identity)
+                    {
+                        'C'
+                    } else {
+                        '·'
+                    }
+                )
+            },
+        );
+        Row::new(vec![
+            Cell::from(target.to_string()),
+            Cell::from(spec.unit.format_value(spec.base)),
+            Cell::from(format!(
+                "{} … {}",
+                spec.unit.format_value(spec.minimum),
+                spec.unit.format_value(spec.maximum)
+            )),
+            Cell::from(
+                meter
+                    .map(|meter| format!("{:.3}", meter.current_peak))
+                    .unwrap_or_else(|| "—".to_owned()),
+            ),
+            Cell::from(
+                meter
+                    .map(|meter| format!("{:.3}", meter.average))
+                    .unwrap_or_else(|| "—".to_owned()),
+            ),
+            Cell::from(audition),
+            Cell::from(format!(
+                "{}/{}",
+                if spec.automatable { "A" } else { "·" },
+                if spec.modulatable { "M" } else { "·" }
+            )),
+        ])
+    });
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Percentage(31),
+            Constraint::Length(12),
+            Constraint::Percentage(24),
+            Constraint::Length(8),
+            Constraint::Length(8),
+            Constraint::Length(7),
+            Constraint::Length(6),
+        ],
+    )
+    .header(
+        Row::new([
+            "Stable target",
+            "Base",
+            "Legal domain",
+            "Peak",
+            "Average",
+            "M/S/C",
+            "A/M",
+        ])
+        .style(Style::default().fg(Color::Cyan)),
+    )
+    .block(
+        Block::default()
+            .title(format!(
+                " Mixer · {} Tracks · {} Groups · {} Returns · {} Sidechains · m source Mute · s transient Solo · c/C post/pre cue · Enter exact · ←/→ step ",
+                project.song.tracks.len(),
+                project.song.groups.len(),
+                project.song.returns.len(),
+                project.song.sidechains.len()
+            ))
+            .borders(Borders::ALL),
+    )
+    .row_highlight_style(selected_style())
+    .highlight_symbol("▶ ");
+    let mut state = TableState::default().with_selected(Some(app.selected_mixer_parameter));
     frame.render_stateful_widget(table, area, &mut state);
 }
 
@@ -1730,6 +2550,37 @@ fn render_event_grid(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         render_unavailable(frame, area, "No Pattern");
         return;
     };
+    let mut procedure_lines = Vec::new();
+    if let Some(variation) = &pattern.variation {
+        procedure_lines.push(Line::from(format!(
+            "Variation from {} · rotate {} · transpose {:+}st · velocity ×{} · reverse {} · probability {} · seed {}",
+            variation.source,
+            variation.rotate,
+            variation.transpose_semitones,
+            variation.velocity_scale,
+            variation.reverse,
+            variation.probability,
+            variation.seed
+        )));
+    }
+    procedure_lines.extend(pattern.locks.iter().map(|lock| {
+        Line::from(format!(
+            "Lock {} · {} · {} = {}",
+            lock.id, lock.at, lock.parameter, lock.value
+        ))
+    }));
+    let context_height = if procedure_lines.is_empty() {
+        0
+    } else {
+        u16::try_from(procedure_lines.len())
+            .unwrap_or(u16::MAX)
+            .saturating_add(2)
+            .min(area.height.saturating_sub(5))
+    };
+    let regions = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(5), Constraint::Length(context_height)])
+        .split(area);
     let rows = pattern.events.iter().enumerate().map(|(index, event)| {
         let row = match event {
             PatternEvent::Note {
@@ -1757,6 +2608,21 @@ fn render_event_grid(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
                 "hit".to_owned(),
                 format!("{voice:?}").to_lowercase(),
                 "—".to_owned(),
+                format!("{velocity:.2}"),
+            ]),
+            PatternEvent::Sample {
+                id,
+                at,
+                mapping,
+                duration,
+                velocity,
+                ..
+            } => Row::new(vec![
+                index.to_string(),
+                at.to_string(),
+                "sample".to_owned(),
+                format!("{id}:{mapping}"),
+                duration.to_string(),
                 format!("{velocity:.2}"),
             ]),
         };
@@ -1798,7 +2664,17 @@ fn render_event_grid(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     .row_highlight_style(selected_style())
     .highlight_symbol("▶ ");
     let mut state = TableState::default().with_selected(Some(app.selected_event));
-    frame.render_stateful_widget(table, area, &mut state);
+    frame.render_stateful_widget(table, regions[0], &mut state);
+    if context_height > 0 {
+        frame.render_widget(
+            Paragraph::new(procedure_lines).block(
+                Block::default()
+                    .title(" Procedural source & Parameter locks ")
+                    .borders(Borders::ALL),
+            ),
+            regions[1],
+        );
+    }
 }
 
 fn render_faceplate(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
@@ -1918,6 +2794,7 @@ fn render_parameters(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
                 parameter.unit.format_value(parameter.maximum)
             ),
             parameter.unit.format_value(parameter.default),
+            if parameter.automatable { "yes" } else { "no" }.to_owned(),
             if parameter.modulatable { "yes" } else { "no" }.to_owned(),
         ])
     });
@@ -1931,6 +2808,7 @@ fn render_parameters(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
             Constraint::Length(24),
             Constraint::Length(14),
             Constraint::Length(10),
+            Constraint::Length(10),
         ],
     )
     .header(
@@ -1941,6 +2819,7 @@ fn render_parameters(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
             "Value",
             "Legal domain",
             "Default",
+            "Automate",
             "Modulate",
         ])
         .style(Style::default().fg(Color::Cyan)),
@@ -1954,6 +2833,124 @@ fn render_parameters(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     .highlight_symbol("▶ ");
     let mut state = TableState::default().with_selected(Some(app.selected_parameter));
     frame.render_stateful_widget(table, area, &mut state);
+}
+
+fn render_automation(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
+    let Some(project) = app.bundle.project.as_ref() else {
+        render_unavailable(
+            frame,
+            area,
+            "Automation unavailable while Project source is unparseable",
+        );
+        return;
+    };
+    let Some(lane) = project.song.automations.get(app.selected_automation) else {
+        render_unavailable(
+            frame,
+            area,
+            "No Song Automation lanes · use the CLI or readable source to create one",
+        );
+        return;
+    };
+    let sections = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(4), Constraint::Min(4)])
+        .split(area);
+    let spec = project.parameter_spec(&lane.target);
+    let frame_position = app.telemetry.engine.frame;
+    let snapshot = crate::engine::control::CompiledControlProgram::compile(project)
+        .ok()
+        .and_then(|program| {
+            program
+                .snapshot_at(frame_position)
+                .into_iter()
+                .find(|value| value.target == lane.target)
+        });
+    let base = spec.map_or_else(
+        || "unresolved".to_owned(),
+        |spec| spec.unit.format_value(spec.base),
+    );
+    let provenance = snapshot.map_or_else(
+        || "effective unavailable".to_owned(),
+        |value| {
+            let automation = value.automation.map_or_else(
+                || "none".to_owned(),
+                |automation| value.unit.format_value(automation),
+            );
+            let routes = value
+                .modulation_routes
+                .iter()
+                .map(|route| route.route.as_str())
+                .collect::<Vec<_>>()
+                .join(",");
+            format!(
+                "base {base}  →  automation {automation}  +  modulation {} [{}]  →  effective {}{}",
+                value.unit.format_value(value.modulation),
+                if routes.is_empty() { "none" } else { &routes },
+                value.unit.format_value(value.effective),
+                if value.clamped { "  CLAMPED" } else { "" }
+            )
+        },
+    );
+    frame.render_widget(
+        Paragraph::new(vec![
+            Line::from(format!(
+                "Lane {}  target {}  points {}  source {}:{}",
+                lane.id,
+                lane.target,
+                lane.points.len(),
+                lane.location.file.display(),
+                lane.location.line
+            )),
+            Line::from(format!("frame {frame_position}  {provenance}")),
+        ])
+        .block(
+            Block::default()
+                .title(" Effective Parameter Provenance ")
+                .borders(Borders::ALL),
+        ),
+        sections[0],
+    );
+    let rows = lane.points.iter().map(|point| {
+        Row::new(vec![
+            Cell::from(point.id.clone()),
+            Cell::from(point.at.to_string()),
+            Cell::from(point.value.clone()),
+            Cell::from(point.interpolation.to_string()),
+            Cell::from(format!(
+                "{}:{}",
+                point.location.file.display(),
+                point.location.line
+            )),
+        ])
+    });
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(18),
+            Constraint::Length(14),
+            Constraint::Length(16),
+            Constraint::Length(14),
+            Constraint::Min(18),
+        ],
+    )
+    .header(Row::new(["Point", "Song time", "Physical value", "Curve out", "Source"]))
+    .block(
+        Block::default()
+            .title(format!(
+                " Automation Points · lane {}/{} · [ ] lane  ↑↓ point  ←→ value  Enter exact  t time  c curve ",
+                app.selected_automation + 1,
+                project.song.automations.len()
+            ))
+            .borders(Borders::ALL),
+    )
+    .row_highlight_style(selected_style())
+    .highlight_symbol("▶ ");
+    let mut state = TableState::default();
+    if !lane.points.is_empty() {
+        state.select(Some(app.selected_automation_point));
+    }
+    frame.render_stateful_widget(table, sections[1], &mut state);
 }
 
 fn render_graph(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
@@ -2307,7 +3304,7 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from("1–9 views · Tab / Shift-Tab next/previous · ↑/↓ select · q quit · r reload"),
+        Line::from("1–9/0 views · Tab / Shift-Tab next/previous · ↑/↓ select · q quit · r reload"),
         Line::from(
             "Space play/stop exact Active Revision · P inspect/publish valid Candidate · ? help",
         ),
@@ -2320,9 +3317,10 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         )),
         Line::from("Timeline: ←/→ level ±1 dB · Enter/l exact level · p exact pan"),
         Line::from(
-            "Event Grid: ←/→ note/voice · Enter pitch/voice · t onset · u duration · v velocity · L loop",
+            "Event Grid: t onset · u duration · v velocity · sample x region/f fade/g gain/p pan · L loop",
         ),
         Line::from("Faceplate / Parameters: ←/→ bounded step · Enter exact physical value"),
+        Line::from("Automation: [/] lane · ↑/↓ point · ←/→ value · Enter exact · t time · c curve"),
         Line::from(
             "Graph: ↑/↓ Node/Bus/Parameter/Mapping · ←/→ Instrument · Enter Source location",
         ),
@@ -2543,6 +3541,132 @@ fn audition_loop_range(
     Ok((start_frame, end_frame))
 }
 
+fn mixer_channel_identity(project: &Project, target: &ParameterTarget) -> Option<String> {
+    match target {
+        ParameterTarget::Track { track, .. } => Some(format!("track/{track}")),
+        ParameterTarget::Group { group, .. } => Some(format!("group/{group}")),
+        ParameterTarget::Return { r#return, .. } => {
+            Some(format!("return/{return}", r#return = r#return))
+        }
+        ParameterTarget::Send { send } => project
+            .song
+            .tracks
+            .iter()
+            .find(|track| {
+                track
+                    .channel
+                    .sends
+                    .iter()
+                    .any(|candidate| candidate.id == *send)
+            })
+            .map(|track| format!("track/{}", track.id))
+            .or_else(|| {
+                project
+                    .song
+                    .groups
+                    .iter()
+                    .find(|group| {
+                        group
+                            .channel
+                            .sends
+                            .iter()
+                            .any(|candidate| candidate.id == *send)
+                    })
+                    .map(|group| format!("group/{}", group.id))
+            })
+            .or_else(|| {
+                project
+                    .song
+                    .returns
+                    .iter()
+                    .find(|channel| {
+                        channel
+                            .channel
+                            .sends
+                            .iter()
+                            .any(|candidate| candidate.id == *send)
+                    })
+                    .map(|channel| format!("return/{}", channel.id))
+            }),
+        ParameterTarget::Processor { processor, .. } => project
+            .song
+            .tracks
+            .iter()
+            .find(|track| {
+                track
+                    .channel
+                    .inserts
+                    .iter()
+                    .any(|candidate| candidate.id == *processor)
+            })
+            .map(|track| format!("track/{}", track.id))
+            .or_else(|| {
+                project
+                    .song
+                    .groups
+                    .iter()
+                    .find(|group| {
+                        group
+                            .channel
+                            .inserts
+                            .iter()
+                            .any(|candidate| candidate.id == *processor)
+                    })
+                    .map(|group| format!("group/{}", group.id))
+            })
+            .or_else(|| {
+                project
+                    .song
+                    .returns
+                    .iter()
+                    .find(|channel| {
+                        channel
+                            .channel
+                            .inserts
+                            .iter()
+                            .any(|candidate| candidate.id == *processor)
+                    })
+                    .map(|channel| format!("return/{}", channel.id))
+            })
+            .or_else(|| {
+                project
+                    .song
+                    .master
+                    .as_ref()
+                    .filter(|master| {
+                        master
+                            .inserts
+                            .iter()
+                            .any(|candidate| candidate.id == *processor)
+                    })
+                    .map(|_| "master".to_owned())
+            }),
+        ParameterTarget::Master => Some("master".to_owned()),
+        ParameterTarget::Instrument { .. } => None,
+    }
+}
+
+fn mixer_mute_target(identity: &str) -> Option<ParameterTarget> {
+    if let Some(track) = identity.strip_prefix("track/") {
+        return Some(ParameterTarget::Track {
+            track: track.to_owned(),
+            parameter: crate::model::TrackParameter::Mute,
+        });
+    }
+    if let Some(group) = identity.strip_prefix("group/") {
+        return Some(ParameterTarget::Group {
+            group: group.to_owned(),
+            parameter: crate::model::TrackParameter::Mute,
+        });
+    }
+    identity
+        .strip_prefix("return/")
+        .map(|r#return| ParameterTarget::Return {
+            r#return: r#return.to_owned(),
+            parameter: crate::model::TrackParameter::Mute,
+        })
+}
+
 fn transport_quarter_notes(app: &Workspace) -> f64 {
     let Some(project) = app.active_project.as_ref() else {
         return 0.0;
@@ -2595,7 +3719,9 @@ fn event_is_active(app: &Workspace, pattern_id: &str, event: &PatternEvent) -> b
             let local = position - start;
             let onset = event.at().as_f64();
             let activity_duration = match event {
-                PatternEvent::Note { duration, .. } => duration.as_f64(),
+                PatternEvent::Note { duration, .. } | PatternEvent::Sample { duration, .. } => {
+                    duration.as_f64()
+                }
                 PatternEvent::Hit { .. } => 0.125,
             };
             match clip.mode {
@@ -2631,6 +3757,36 @@ fn keyboard_pitch(character: char) -> Option<u8> {
         'k' => Some(72),
         _ => None,
     }
+}
+
+fn parse_frame_pair(value: &str) -> Result<(u64, u64), String> {
+    let (start, end) = value
+        .split_once(':')
+        .ok_or_else(|| "Source region must use START:END".to_owned())?;
+    let start = start
+        .trim()
+        .parse::<u64>()
+        .map_err(|_| "Source-region start must be an unsigned frame".to_owned())?;
+    let end = end
+        .trim()
+        .parse::<u64>()
+        .map_err(|_| "Source-region end must be an unsigned frame".to_owned())?;
+    Ok((start, end))
+}
+
+fn parse_fade_pair(value: &str) -> Result<(u32, u32), String> {
+    let (fade_in, fade_out) = value
+        .split_once(':')
+        .ok_or_else(|| "Source fades must use IN:OUT".to_owned())?;
+    let fade_in = fade_in
+        .trim()
+        .parse::<u32>()
+        .map_err(|_| "Fade-in must be an unsigned frame count".to_owned())?;
+    let fade_out = fade_out
+        .trim()
+        .parse::<u32>()
+        .map_err(|_| "Fade-out must be an unsigned frame count".to_owned())?;
+    Ok((fade_in, fade_out))
 }
 
 fn wrap_index(current: usize, count: usize, delta: isize) -> usize {
@@ -2675,6 +3831,122 @@ mod tests {
     use std::fs;
 
     use super::*;
+
+    #[test]
+    fn exact_automation_entry_preserves_value_and_curve_precision() {
+        let root = tempfile::tempdir().expect("temporary Project");
+        let source = fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/minimal.crump"
+        ))
+        .expect("read fixture")
+        .replace(
+            "    track lead \"Lead\" instrument lead level -9db pan -0.1 {",
+            r#"    automation lead-level target track/lead/level {
+      point start 0bar -18db linear
+      point lift 2beat -6db step
+    }
+    track lead "Lead" instrument lead level -9db pan -0.1 {"#,
+        );
+        fs::write(root.path().join("project.crump"), source).expect("write fixture");
+        let mut workspace = Workspace::load(root.path()).expect("load workspace");
+
+        workspace.commit_input(
+            "-6.123456789db".to_owned(),
+            InputAction::AutomationValue {
+                lane: "lead-level".to_owned(),
+                point: "lift".to_owned(),
+            },
+        );
+        workspace.commit_input(
+            "power(0.0000004)".to_owned(),
+            InputAction::AutomationCurve {
+                lane: "lead-level".to_owned(),
+                point: "lift".to_owned(),
+            },
+        );
+
+        let source = fs::read_to_string(root.path().join("project.crump"))
+            .expect("read exact Automation source");
+        assert!(source.contains("point lift 2beat -6.123456789db power(0.0000004)"));
+    }
+
+    #[test]
+    fn mixer_exposes_source_backed_controls_for_every_routing_scope() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join("project.crump"),
+            include_str!("../tests/fixtures/production_mix.crump"),
+        )
+        .unwrap();
+        let mut workspace = Workspace::load(directory.path()).unwrap();
+        workspace.view = View::Mixer;
+        let parameters = workspace
+            .bundle
+            .project
+            .as_ref()
+            .expect("Project")
+            .mix_parameter_specs();
+        for expected in [
+            "track/bass/left_pan",
+            "track/drums/mute",
+            "group/mix_bus/level",
+            "group/mix_bus/mute",
+            "return/room/level",
+            "return/room/mute",
+            "send/drum_room/level",
+            "processor/bass_comp/threshold",
+            "master/level",
+        ] {
+            assert!(
+                parameters
+                    .iter()
+                    .any(|(target, _)| target.to_string() == expected),
+                "{expected}"
+            );
+        }
+        let project = workspace.bundle.project.as_ref().expect("Project");
+        assert_eq!(
+            mixer_channel_identity(
+                project,
+                &"send/drum_room/level".parse().expect("Send target")
+            )
+            .as_deref(),
+            Some("track/drums")
+        );
+        assert_eq!(
+            mixer_channel_identity(
+                project,
+                &"processor/bass_comp/threshold"
+                    .parse()
+                    .expect("processor target")
+            )
+            .as_deref(),
+            Some("track/bass")
+        );
+        assert_eq!(
+            mixer_mute_target("return/room")
+                .expect("mute target")
+                .to_string(),
+            "return/room/mute"
+        );
+
+        workspace.selected_mixer_parameter = parameters
+            .iter()
+            .position(|(target, _)| *target == ParameterTarget::Master)
+            .expect("Master target");
+        workspace.open_exact_edit();
+        assert!(matches!(
+            workspace.modal,
+            Some(Modal::Input {
+                action: InputAction::Target {
+                    target: ParameterTarget::Master,
+                    ..
+                },
+                ..
+            })
+        ));
+    }
 
     #[test]
     fn every_graph_item_class_is_selectable_and_source_navigable() {

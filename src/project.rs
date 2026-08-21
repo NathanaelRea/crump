@@ -13,8 +13,9 @@ use sha2::{Digest, Sha256};
 use crate::{
     diagnostic::{Diagnostic, Diagnostics, SourceLocation},
     dsl::{ImportDeclaration, parse_module, parse_project},
+    media::{AssetInventory, load_asset_inventory, load_asset_inventory_from_bytes},
     model::Project,
-    validate::validate_project,
+    validate::{validate_project, validate_project_assets},
 };
 
 /// Conventional root source filename.
@@ -33,9 +34,11 @@ pub struct ProjectBundle {
     pub project: Option<Project>,
     /// Every authoritative source file keyed by its stable display path.
     pub sources: BTreeMap<PathBuf, String>,
-    /// SHA-256 identity of paths and exact source bytes.
+    /// Exact-byte portable media retained with this Candidate.
+    pub assets: AssetInventory,
+    /// SHA-256 identity of source paths/bytes and declared media identity.
     pub revision: RevisionId,
-    /// Complete parse, import, and semantic diagnostics.
+    /// Complete parse, import, media, and semantic diagnostics.
     pub diagnostics: Diagnostics,
 }
 
@@ -157,15 +160,22 @@ pub fn load_project(path: impl AsRef<Path>) -> Result<ProjectBundle, ProjectIoEr
             format!("Project source is {total_bytes} bytes; maximum is {MAX_PROJECT_SOURCE_BYTES}"),
         ));
     }
-    if let Some(candidate) = &project {
+    let assets = if let Some(candidate) = &project {
+        let (assets, asset_diagnostics) = load_asset_inventory(&root, &candidate.assets);
+        diagnostics.extend(asset_diagnostics);
         diagnostics.extend(validate_project(candidate));
-    }
+        diagnostics.extend(validate_project_assets(candidate, &assets));
+        assets
+    } else {
+        AssetInventory::default()
+    };
     resolve_locations(&mut diagnostics, &sources);
-    let revision = hash_sources(&sources);
+    let revision = hash_project_contents(&sources, &assets);
     Ok(ProjectBundle {
         root,
         project,
         sources,
+        assets,
         revision,
         diagnostics,
     })
@@ -177,6 +187,22 @@ pub fn load_project(path: impl AsRef<Path>) -> Result<ProjectBundle, ProjectIoEr
 /// Restore before any candidate bytes replace files on disk.
 #[must_use]
 pub fn load_project_sources(root: PathBuf, sources: BTreeMap<PathBuf, String>) -> ProjectBundle {
+    load_project_sources_inner(root, sources, None)
+}
+
+pub(crate) fn load_project_sources_with_assets(
+    root: PathBuf,
+    sources: BTreeMap<PathBuf, String>,
+    asset_bytes: &BTreeMap<PathBuf, Vec<u8>>,
+) -> ProjectBundle {
+    load_project_sources_inner(root, sources, Some(asset_bytes))
+}
+
+fn load_project_sources_inner(
+    root: PathBuf,
+    sources: BTreeMap<PathBuf, String>,
+    asset_bytes: Option<&BTreeMap<PathBuf, Vec<u8>>>,
+) -> ProjectBundle {
     let revision = hash_sources(&sources);
     let Some(root_source) = sources.get(Path::new(PROJECT_FILE)) else {
         let mut diagnostics = Diagnostics::new();
@@ -188,6 +214,7 @@ pub fn load_project_sources(root: PathBuf, sources: BTreeMap<PathBuf, String>) -
             root,
             project: None,
             sources,
+            assets: AssetInventory::default(),
             revision,
             diagnostics,
         };
@@ -268,14 +295,26 @@ pub fn load_project_sources(root: PathBuf, sources: BTreeMap<PathBuf, String>) -
             format!("Project source is {total_bytes} bytes; maximum is {MAX_PROJECT_SOURCE_BYTES}"),
         ));
     }
-    if let Some(candidate) = &project {
+    let assets = if let Some(candidate) = &project {
+        let (assets, asset_diagnostics) = if let Some(asset_bytes) = asset_bytes {
+            load_asset_inventory_from_bytes(&candidate.assets, asset_bytes)
+        } else {
+            load_asset_inventory(&root, &candidate.assets)
+        };
+        diagnostics.extend(asset_diagnostics);
         diagnostics.extend(validate_project(candidate));
-    }
+        diagnostics.extend(validate_project_assets(candidate, &assets));
+        assets
+    } else {
+        AssetInventory::default()
+    };
     resolve_locations(&mut diagnostics, &sources);
+    let revision = hash_project_contents(&sources, &assets);
     ProjectBundle {
         root,
         project,
         sources,
+        assets,
         revision,
         diagnostics,
     }
@@ -286,6 +325,44 @@ pub fn load_project_sources(root: PathBuf, sources: BTreeMap<PathBuf, String>) -
 pub fn hash_sources(sources: &BTreeMap<PathBuf, String>) -> RevisionId {
     let mut hasher = Sha256::new();
     hasher.update(b"crump-project-source-v1\0");
+    hash_source_entries(&mut hasher, sources);
+    let digest = hasher.finalize();
+    RevisionId(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+pub(crate) fn hash_project_contents(
+    sources: &BTreeMap<PathBuf, String>,
+    assets: &AssetInventory,
+) -> RevisionId {
+    hash_project_identity(sources, assets.identities())
+}
+
+pub(crate) fn hash_project_identity<'a>(
+    sources: &BTreeMap<PathBuf, String>,
+    assets: impl IntoIterator<Item = (&'a Path, &'a str, u64)>,
+) -> RevisionId {
+    let mut identities = assets.into_iter().collect::<Vec<_>>();
+    if identities.is_empty() {
+        return hash_sources(sources);
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(b"crump-project-content-v1\0");
+    hash_source_entries(&mut hasher, sources);
+    identities.sort_by(|left, right| left.0.cmp(right.0));
+    for (path, sha256, byte_len) in identities {
+        let path = path
+            .to_str()
+            .expect("validated asset identities use UTF-8 paths");
+        hasher.update((path.len() as u64).to_le_bytes());
+        hasher.update(path.as_bytes());
+        hasher.update(byte_len.to_le_bytes());
+        hasher.update(sha256.as_bytes());
+    }
+    let digest = hasher.finalize();
+    RevisionId(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+fn hash_source_entries(hasher: &mut Sha256, sources: &BTreeMap<PathBuf, String>) {
     for (path, source) in sources {
         let path = path.to_string_lossy();
         hasher.update((path.len() as u64).to_le_bytes());
@@ -293,8 +370,6 @@ pub fn hash_sources(sources: &BTreeMap<PathBuf, String>) -> RevisionId {
         hasher.update((source.len() as u64).to_le_bytes());
         hasher.update(source.as_bytes());
     }
-    let digest = hasher.finalize();
-    RevisionId(digest.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
 /// Returns Crump's personal Instrument Module directory.
@@ -474,6 +549,32 @@ mod tests {
 
     use super::*;
 
+    fn write_test_wav(path: &Path, samples: &[i16]) -> Vec<u8> {
+        fs::create_dir_all(path.parent().expect("media parent")).expect("media directory");
+        let mut writer = hound::WavWriter::create(
+            path,
+            hound::WavSpec {
+                channels: 1,
+                sample_rate: 48_000,
+                bits_per_sample: 16,
+                sample_format: hound::SampleFormat::Int,
+            },
+        )
+        .expect("WAV writer");
+        for sample in samples {
+            writer.write_sample(*sample).expect("sample");
+        }
+        writer.finalize().expect("finalize");
+        fs::read(path).expect("WAV bytes")
+    }
+
+    fn digest(bytes: &[u8]) -> String {
+        Sha256::digest(bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
+    }
+
     #[test]
     fn source_hash_covers_paths_and_exact_bytes() {
         let mut sources = BTreeMap::new();
@@ -481,6 +582,89 @@ mod tests {
         let first = hash_sources(&sources);
         sources.insert(PathBuf::from("project.crump"), "one\n".to_owned());
         assert_ne!(first, hash_sources(&sources));
+    }
+
+    #[test]
+    fn asset_free_project_identity_preserves_the_source_v1_revision() {
+        let mut sources = BTreeMap::new();
+        sources.insert(PathBuf::from(PROJECT_FILE), SOURCE_FOR_HASH.to_owned());
+        assert_eq!(
+            hash_project_contents(&sources, &AssetInventory::default()),
+            hash_sources(&sources)
+        );
+    }
+
+    const SOURCE_FOR_HASH: &str = "crump 1\n";
+
+    #[test]
+    fn project_revision_and_diagnostics_cover_exact_media_bytes() {
+        let root = tempdir().expect("Project root");
+        let wav_path = root.path().join("media/voice.wav");
+        let original = write_test_wav(&wav_path, &[0, 100, -100]);
+        let source = include_str!("../tests/fixtures/minimal.crump").replacen(
+            "  song {",
+            &format!(
+                "  asset voice \"Voice\" wav \"media/voice.wav\" sha256 \"{}\"\n  song {{",
+                digest(&original)
+            ),
+            1,
+        );
+        fs::write(root.path().join(PROJECT_FILE), source).expect("Project source");
+        let loaded = load_project(root.path()).expect("load asset Project");
+        assert!(!loaded.diagnostics.has_errors());
+        assert_eq!(loaded.assets.iter().len(), 1);
+
+        write_test_wav(&wav_path, &[0, 200, -200]);
+        let changed = load_project(root.path()).expect("reload changed asset");
+        assert_ne!(loaded.revision, changed.revision);
+        assert!(
+            changed
+                .diagnostics
+                .as_slice()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "CRM003")
+        );
+
+        fs::remove_file(&wav_path).expect("remove asset");
+        let missing = load_project(root.path()).expect("reload missing asset");
+        assert!(
+            missing
+                .diagnostics
+                .as_slice()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "CRM002")
+        );
+    }
+
+    #[test]
+    fn authored_asset_identity_errors_are_source_located() {
+        let root = tempdir().expect("Project root");
+        let source = include_str!("../tests/fixtures/minimal.crump").replacen(
+            "  song {",
+            &format!(
+                "  asset duplicate \"One\" wav \"media/shared.wav\" sha256 \"{}\"\n  asset duplicate \"Two\" wav \"media/shared.wav\" sha256 \"{}\"\n  song {{",
+                "0".repeat(64),
+                "A".repeat(64)
+            ),
+            1,
+        );
+        fs::write(root.path().join(PROJECT_FILE), source).expect("Project source");
+        let bundle = load_project(root.path()).expect("load invalid asset declarations");
+        for code in ["CRV140", "CRV141", "CRV142"] {
+            let diagnostic = bundle
+                .diagnostics
+                .as_slice()
+                .iter()
+                .find(|diagnostic| diagnostic.code == code)
+                .unwrap_or_else(|| panic!("missing diagnostic {code}"));
+            assert_eq!(
+                diagnostic
+                    .location
+                    .as_ref()
+                    .map(|location| location.file.as_path()),
+                Some(Path::new(PROJECT_FILE))
+            );
+        }
     }
 
     #[test]

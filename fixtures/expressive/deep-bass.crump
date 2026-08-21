@@ -1,0 +1,44 @@
+crump-module 1
+instrument deep-bass "Deep Mono-Compatible Bass" graph {
+  polyphony 1
+  parameter cutoff "Cutoff" hertz 60hz 4khz 260hz 260hz modulatable
+  parameter envelope "Envelope" hertz -4khz 4khz 850hz 850hz modulatable
+  parameter glide "Glide" seconds 0s 500ms 70ms 70ms automatable
+  parameter drive "Drive" ratio 0 4 1.2 1.2 automatable
+  faceplate {
+    control cutoff "Cutoff" "Places the bass beneath the melodic layers" maps cutoff
+    control envelope "Envelope" "Adds a short low-mid articulation" maps envelope
+    control glide "Glide" "Slews overlapping mono notes" maps glide
+    control drive "Drive" "Adds bounded harmonic weight" maps drive
+  }
+  graph 12 {
+    node fundamental oscillator waveform sine glide $glide level 0.8
+    node harmonics oscillator waveform square detune -0.02st glide $glide level 0.22
+    node oscillators mixer a_level 1 b_level 1
+    node amplitude envelope attack 2ms decay 160ms sustain 0.72 release 180ms
+    node timbre envelope attack 1ms decay 190ms sustain 0.08 release 100ms
+    node filter filter mode lowpass cutoff $cutoff resonance 0.18 mod_depth $envelope velocity_depth 320hz key_track 0.25 key_reference 130.812783hz
+    node amp amplifier
+    node touch amplifier
+    node weight saturation drive $drive
+    node mono pan position 0
+    node output output
+    connect note.pitch -> fundamental.pitch
+    connect note.pitch -> harmonics.pitch
+    connect fundamental.audio -> oscillators.a
+    connect harmonics.audio -> oscillators.b
+    connect note.gate -> amplitude.gate
+    connect note.gate -> timbre.gate
+    connect note.pitch -> filter.key
+    connect note.velocity -> filter.velocity
+    connect timbre.control -> filter.mod
+    connect oscillators.audio -> filter.audio
+    connect filter.audio -> amp.audio
+    connect amplitude.control -> amp.gain
+    connect amp.audio -> touch.audio
+    connect note.velocity -> touch.gain
+    connect touch.audio -> weight.audio
+    connect weight.audio -> mono.audio
+    connect mono.audio -> output.audio
+  }
+}

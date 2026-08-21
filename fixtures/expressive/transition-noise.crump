@@ -1,0 +1,41 @@
+crump-module 1
+instrument transition-noise "Transition Noise" graph {
+  polyphony 4
+  parameter center "Center" hertz 80hz 16khz 500hz 500hz modulatable
+  parameter sweep "Sweep" hertz -16khz 16khz 9000hz 9000hz modulatable
+  parameter rise "Rise" seconds 10ms 8s 1.5s 1.5s automatable
+  parameter release "Release" seconds 50ms 8s 2s 2s automatable
+  faceplate {
+    control center "Center" "Starts the transition in a chosen band" maps center
+    control sweep "Sweep" "Moves the timbre envelope across the band" maps sweep
+    control rise "Rise" "Controls the transition build time" maps rise
+    control release "Release" "Preserves the shared tail after Note Off" maps release
+  }
+  graph 8 {
+    node source noise level 0.65
+    node amplitude envelope attack $rise decay 800ms sustain 0.7 release $release
+    node timbre envelope attack $rise decay 500ms sustain 0.85 release $release
+    node filter filter mode highpass cutoff $center resonance 0.2 mod_depth $sweep velocity_depth 1600hz key_track 0
+    node amp amplifier
+    node place pan position 0
+    node output output
+    connect note.gate -> amplitude.gate
+    connect note.gate -> timbre.gate
+    connect note.velocity -> filter.velocity
+    connect timbre.control -> filter.mod
+    connect source.audio -> filter.audio
+    connect filter.audio -> amp.audio
+    connect amplitude.control -> amp.gain
+    connect amp.audio -> place.audio
+    connect place.audio -> output.audio
+  }
+  processor transition-noise-space reverb {
+    setting pre_delay 12ms
+    setting diffusion 0.72
+    setting decay 0.88
+    setting damping 0.45
+    setting modulation 0.18
+    setting width 0.95
+    setting mix 0.3
+  }
+}

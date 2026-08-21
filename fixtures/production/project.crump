@@ -1,0 +1,383 @@
+crump 1
+project "Production Scale Contract" {
+  id production-scale-contract
+  seed 20260821
+  sample_rate 48000
+  render_tail 3s
+  asset texture "Deterministic texture one-shot" wav "media/texture.wav" sha256 "b6074285b764119ce6f019839c91b249eafd3ac9a7ac909df33f36ae47be36c3"
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 96bar
+
+    instrument pad "Evolving Pad" graph {
+      polyphony 6
+      parameter attack "Attack" seconds 0s 2s 0.3s 0.3s automatable
+      parameter release "Release" seconds 0.05s 8s 2.5s 2.5s automatable
+      parameter width "Width" ratio 0 1 0.82 0.86 automatable modulatable
+      parameter motion "Motion" semitones -1st 1st 0.12st 0.12st modulatable
+      faceplate {
+        control attack "Attack" "Moves the pad onset from soft to present" maps attack
+        control release "Release" "Carries chords between sections" maps release
+        control width "Width" "Controls mono-compatible unison spread" maps width
+        control motion "Motion" "Adds bounded pitch drift" maps motion
+      }
+      graph 7 {
+        node amplitude envelope attack $attack decay 800ms sustain 0.78 release $release
+        node movement lfo waveform sine rate 0.13hz depth 1
+        node cloud unison waveform saw voices 6 detune 0.16st width $width drift 0.025st glide 80ms mod_depth $motion velocity_amount 0.3 level 0.22
+        node output output
+        connect note.gate -> amplitude.gate
+        connect note.pitch -> cloud.pitch
+        connect note.velocity -> cloud.velocity
+        connect movement.control -> cloud.mod
+        connect amplitude.control -> cloud.gain
+        connect cloud.audio -> output.audio
+      }
+      processor pad_echo delay {
+        setting tempo_sync true
+        setting division 1/8d
+        setting feedback 0.24
+        setting low_pass 7khz
+        setting high_pass 180hz
+        setting mode ping_pong
+        setting mix 0.14
+      }
+    }
+
+    instrument bass "Articulated Bass" graph {
+      polyphony 1
+      parameter cutoff "Cutoff" hertz 60hz 4khz 260hz 300hz modulatable
+      parameter envelope "Envelope" hertz -4khz 4khz 850hz 850hz modulatable
+      parameter glide "Glide" seconds 0s 500ms 70ms 70ms automatable
+      parameter drive "Drive" ratio 0 4 1.2 1.2 automatable
+      faceplate {
+        control cutoff "Cutoff" "Places the bass below the pad" maps cutoff
+        control envelope "Envelope" "Controls low-mid articulation" maps envelope
+        control glide "Glide" "Slews overlapping mono notes" maps glide
+        control drive "Drive" "Adds bounded harmonic weight" maps drive
+      }
+      graph 12 {
+        node fundamental oscillator waveform sine glide $glide level 0.8
+        node harmonics oscillator waveform square detune -0.02st glide $glide level 0.22
+        node oscillators mixer a_level 1 b_level 1
+        node amplitude envelope attack 2ms decay 160ms sustain 0.72 release 180ms
+        node timbre envelope attack 1ms decay 190ms sustain 0.08 release 100ms
+        node filter filter mode lowpass cutoff $cutoff resonance 0.18 mod_depth $envelope velocity_depth 320hz key_track 0.25 key_reference 130.812783hz
+        node amp amplifier
+        node touch amplifier
+        node weight saturation drive $drive
+        node mono pan position 0
+        node output output
+        connect note.pitch -> fundamental.pitch
+        connect note.pitch -> harmonics.pitch
+        connect fundamental.audio -> oscillators.a
+        connect harmonics.audio -> oscillators.b
+        connect note.gate -> amplitude.gate
+        connect note.gate -> timbre.gate
+        connect note.pitch -> filter.key
+        connect note.velocity -> filter.velocity
+        connect timbre.control -> filter.mod
+        connect oscillators.audio -> filter.audio
+        connect filter.audio -> amp.audio
+        connect amplitude.control -> amp.gain
+        connect amp.audio -> touch.audio
+        connect note.velocity -> touch.gain
+        connect touch.audio -> weight.audio
+        connect weight.audio -> mono.audio
+        connect mono.audio -> output.audio
+      }
+    }
+
+    instrument lead "Dense Pluck" graph {
+      polyphony 8
+      parameter cutoff "Cutoff" hertz 120hz 12khz 750hz 900hz modulatable
+      parameter envelope "Timbre" hertz -12khz 12khz 5200hz 5200hz modulatable
+      parameter decay "Decay" seconds 10ms 2s 180ms 220ms automatable
+      parameter velocity-tone "Velocity Tone" hertz -8khz 8khz 2200hz 2200hz modulatable
+      faceplate {
+        control cutoff "Cutoff" "Sets the pluck resting brightness" maps cutoff
+        control envelope "Timbre" "Opens the short filter envelope" maps envelope
+        control decay "Decay" "Shapes overlapping notes" maps decay
+        control velocity-tone "Touch" "Makes harder notes brighter" maps velocity-tone
+      }
+      graph 10 {
+        node oscillator oscillator waveform saw glide 8ms level 0.7
+        node amplitude envelope attack 1ms decay $decay sustain 0.05 release 120ms
+        node timbre envelope attack 1ms decay $decay sustain 0 release 80ms
+        node filter filter mode lowpass cutoff $cutoff resonance 0.3 mod_depth $envelope velocity_depth $velocity-tone key_track 0.55 key_reference 261.625565hz
+        node amp amplifier
+        node touch amplifier
+        node color saturation drive 1.35
+        node place pan position 0
+        node output output
+        connect note.pitch -> oscillator.pitch
+        connect note.gate -> amplitude.gate
+        connect note.gate -> timbre.gate
+        connect note.pitch -> filter.key
+        connect note.velocity -> filter.velocity
+        connect timbre.control -> filter.mod
+        connect oscillator.audio -> filter.audio
+        connect filter.audio -> amp.audio
+        connect amplitude.control -> amp.gain
+        connect amp.audio -> touch.audio
+        connect note.velocity -> touch.gain
+        connect touch.audio -> color.audio
+        connect color.audio -> place.audio
+        connect place.audio -> output.audio
+      }
+      processor lead_echo delay {
+        setting tempo_sync true
+        setting division 1/8d
+        setting feedback 0.22
+        setting low_pass 6.5khz
+        setting high_pass 250hz
+        setting mode ping_pong
+        setting mix 0.2
+      }
+    }
+
+    instrument drums "Native Drums" stock_drums {
+      polyphony 12
+      parameter tone "Tone" ratio 0 1 0.5 0.62
+      parameter punch "Punch" ratio 0 1 0.5 0.74
+      faceplate {
+        control tone "Tone" "Percussion brightness" maps tone
+        control punch "Punch" "Kick transient" maps punch
+      }
+    }
+
+    instrument textures "Portable Textures" sampler {
+      polyphony 4
+      parameter gain "Gain" db -96db 24db -6db -6db automatable
+      parameter tune "Tune" semitones -24st 24st 0st 0st automatable
+      faceplate {
+        control gain "Gain" "Texture output trim" maps gain
+        control tune "Tune" "Texture repitch" maps tune
+      }
+      mapping texture asset texture keys C3 C5 root C4 {
+        region 0 4800
+        playback one_shot
+        gain -3db
+        pan 0
+        envelope 2ms 40ms
+        fade 64 256
+      }
+    }
+
+    groove pocket grid 1/2beat swing 0.58 timing 1/64beat velocity 0.025 probability 1 seed 73
+
+    pattern pad_chords 4bar {
+      lock open at 0beat parameter width value 0.96
+      lock settle at 8beat parameter width value 0.68
+      note 0beat C4 4beat 0.72
+      note 0beat E4 4beat 0.64
+      note 0beat G4 4beat 0.68
+      note 4beat A3 4beat 0.7
+      note 4beat C4 4beat 0.64
+      note 4beat E4 4beat 0.66
+      note 8beat F3 4beat 0.7
+      note 8beat A3 4beat 0.65
+      note 8beat C4 4beat 0.68
+      note 12beat G3 4beat 0.72
+      note 12beat B3 4beat 0.64
+      note 12beat D4 4beat 0.66
+    }
+    pattern pad_answer 4bar from pad_chords {
+      rotate 4beat
+      transpose 7st
+      velocity 0.88
+      reverse false
+      probability 1
+      seed 211
+    }
+    pattern bass_line 1bar {
+      note 0beat C2 3/4beat 0.82
+      note 1beat C2 1/2beat 0.66
+      note 2beat G1 3/4beat 0.78
+      note 3beat Bb1 1/2beat 0.7
+    }
+    pattern lead_line 2bar {
+      note 0beat C5 2beat 0.74
+      note 1/2beat Eb5 2beat 0.62
+      note 1beat G5 2beat 0.78
+      note 3/2beat Bb5 2beat 0.66
+      note 2beat G5 2beat 0.72
+      note 5/2beat F5 2beat 0.64
+      note 3beat Eb5 2beat 0.7
+      note 7/2beat D5 2beat 0.6
+      note 4beat C5 2beat 0.76
+      note 9/2beat G5 2beat 0.68
+      note 5beat Bb5 2beat 0.8
+      note 11/2beat C6 2beat 0.64
+      note 6beat Bb5 2beat 0.72
+      note 13/2beat G5 2beat 0.66
+      note 7beat F5 1beat 0.7
+    }
+    pattern beat 1bar {
+      hit 0beat kick 0.94
+      hit 1beat snare 0.78
+      hit 2beat kick 0.88
+      hit 3beat clap 0.7
+      hit 1/2beat hat 0.48
+      hit 3/2beat hat 0.52
+      hit 5/2beat hat 0.48
+      hit 7/2beat hat 0.58
+    }
+    pattern beat_turn 1bar from beat {
+      rotate 1/2beat
+      transpose 0st
+      velocity 0.92
+      reverse true
+      probability 1
+      seed 307
+    }
+    pattern texture_hits 4bar {
+      sample texture_left 2beat mapping texture duration 1/2beat start 0 end 4800 gain -9db pan -0.45 fade 64 256 velocity 0.8
+      sample texture_right 10beat mapping texture duration 1/2beat start 0 end 4800 gain -10db pan 0.45 fade 64 256 velocity 0.74
+    }
+    pattern texture_rush 1bar {
+      sample rush_a 0beat mapping texture duration 1/2beat start 0 end 4800 gain -12db pan -0.7 fade 64 256 velocity 0.76
+      sample rush_b 1beat mapping texture duration 1/2beat start 0 end 4800 gain -12db pan 0.7 fade 64 256 velocity 0.72
+      sample rush_c 2beat mapping texture duration 1/2beat start 0 end 4800 gain -11db pan -0.3 fade 64 256 velocity 0.78
+      sample rush_d 3beat mapping texture duration 1/2beat start 0 end 4800 gain -11db pan 0.3 fade 64 256 velocity 0.74
+    }
+
+    automation pad_width target instrument/pad/width {
+      point intro 0bar 0.55 linear
+      point build 16bar 0.78 power(1.5)
+      point drop 32bar 0.95 linear
+      point break 48bar 0.48 power(2)
+      point return 64bar 0.9 linear
+      point outro 80bar 0.66 linear
+      point end 96bar 0.35 step
+    }
+    automation texture_gain target instrument/textures/gain {
+      point intro 0bar -18db linear
+      point build 16bar -10db linear
+      point drop 32bar -7db step
+      point break 48bar -16db linear
+      point return 64bar -8db linear
+      point outro 80bar -12db linear
+      point end 96bar -36db step
+    }
+
+    track pad "Evolving Pad" instrument pad level -13db pan 0 {
+      panner stereo_pan -0.85 0.85
+      send pad_room target return/room tap post level -15db
+      output group/music
+      clip pad_intro pattern pad_chords start 0bar duration 32bar mode loop {
+        fade 1bar 0bar
+      }
+      clip pad_drop pattern pad_answer start 32bar duration 32bar mode loop
+      clip pad_outro pattern pad_chords start 64bar duration 32bar mode loop {
+        transpose -5st
+        fade 0bar 2bar
+      }
+    }
+    track bass "Articulated Bass" instrument bass level -10db pan 0 {
+      processor bass_duck compressor {
+        setting detector peak
+        setting threshold -24db
+        setting ratio 4
+        setting attack 5ms
+        setting release 90ms
+        setting knee 3db
+        setting makeup 0db
+        setting mix 1
+        sidechain input detector
+      }
+      send bass_room target return/room tap post level -24db
+      output group/music
+      clip bass_song pattern bass_line start 0bar duration 96bar mode loop
+    }
+    track lead "Dense Pluck" instrument lead level -15db pan 0 {
+      panner stereo_pan -0.75 0.75
+      send lead_room target return/room tap post level -17db
+      output group/music
+      clip lead_peak pattern lead_line start 32bar duration 32bar mode loop {
+        groove pocket
+        fade 1bar 2bar
+      }
+    }
+    track drums "Native Drums" instrument drums level -8db pan 0 {
+      processor drum_eq eq {
+        setting high_pass 24hz
+        setting high_frequency 8khz
+        setting high_gain 1db
+      }
+      send drum_room target return/room tap pre level -18db
+      output group/percussion
+      clip drums_intro pattern beat start 0bar duration 32bar mode loop {
+        groove pocket
+      }
+      clip drums_turn pattern beat_turn start 32bar duration 32bar mode loop {
+        groove pocket
+      }
+      clip drums_outro pattern beat start 64bar duration 32bar mode loop {
+        groove pocket
+        fade 0bar 2bar
+      }
+    }
+    track textures "Portable Textures" instrument textures level -9db pan 0 {
+      panner stereo_pan -0.7 0.7
+      processor texture_delay delay {
+        setting tempo_sync true
+        setting division 1/4d
+        setting feedback 0.36
+        setting low_pass 6khz
+        setting high_pass 220hz
+        setting mode ping_pong
+        setting mix 0.28
+      }
+      send texture_room target return/room tap post level -12db
+      output group/music
+      clip texture_song pattern texture_hits start 0bar duration 96bar mode loop
+      clip texture_peak pattern texture_rush start 32bar duration 32bar mode loop {
+        groove pocket
+        fade 1bar 2bar
+      }
+    }
+
+    group music "Music" level -1db {
+      processor music_color saturation {
+        setting drive 1.1
+        setting mix 0.18
+        setting output 0db
+        setting mode soft_clip
+      }
+      output master
+    }
+    group percussion "Percussion" level -1db {
+      output master
+    }
+    return room "Shared Room" level -8db {
+      processor room_reverb reverb {
+        setting pre_delay 18ms
+        setting diffusion 0.74
+        setting decay 0.78
+        setting damping 0.5
+        setting modulation 0.12
+        setting width 0.92
+        setting mix 1
+      }
+      output master
+    }
+    sidechain kick_detector from track/drums tap post to processor/bass_duck/detector
+    master level -1db {
+      processor ceiling limiter {
+        setting ceiling -1db
+        setting release 80ms
+        setting lookahead 5ms
+      }
+    }
+
+    locator intro "Intro" at 0bar
+    locator build "Build" at 16bar
+    locator drop "Drop" at 32bar
+    locator break "Break" at 48bar
+    locator return "Return" at 64bar
+    locator outro "Outro" at 80bar
+    locator end "End" at 96bar
+  }
+}

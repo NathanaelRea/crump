@@ -1,6 +1,6 @@
 # Native Audio, Revision Transitions, and MIDI
 
-Crump's supported first-release audio path is native PipeWire on Linux. Playback and offline rendering share the same compiled schedule, Event ordering, seeded voices, graph compiler, Node implementations, and Track balance. Ratatui is not involved in DSP.
+Crump's supported first-release audio path is native PipeWire on Linux. Playback and offline rendering share the same compiled schedule, Event ordering, sample-accurate control program, seeded voices, graph compiler, Node implementations, and Track balance. Ratatui is not involved in DSP.
 
 ## Audio format and routing
 
@@ -8,7 +8,7 @@ Crump's supported first-release audio path is native PipeWire on Linux. Playback
 - Stream format: interleaved stereo `F32LE`
 - PipeWire role/category: Music / Playback
 - Node name: `crump`
-- Project routing: Instrument → Track level/pan → stereo Master
+- Project routing: Instrument → automated Track level/stereo balance → stereo Master
 - Monitoring-only safety: finite-value sanitizer and soft emergency ceiling above 0.9
 
 The safety stage is not authored sound and is never used for offline output. Offline processing instead fails immediately with the exact frame when a non-finite sample appears.
@@ -31,6 +31,7 @@ The Production Workspace uses the same adapter and can publish new Active runtim
 Before connecting a stream, Crump parses, validates, compiles schedules/topology, allocates all graph voices and delay/reverb buffers, and constructs the complete runtime. The PipeWire process callback performs only:
 
 - bounded pops from fixed-capacity single-producer/single-consumer rings;
+- bounded point-Automation and effective-value evaluation at the authored sample frame;
 - fixed Track/voice/Node DSP work;
 - writes into PipeWire's mapped output buffer;
 - bounded old/new transition mixing;
@@ -41,6 +42,24 @@ It does not parse source, perform filesystem or console I/O, construct graphs, a
 
 A callback is counted late when measured wall time exceeds the duration represented by its current buffer. This is useful live evidence but is not equivalent to PipeWire's server xrun counter; a release endurance run records both Crump telemetry and `pw-top`.
 
+## Effective Parameters and Automation
+
+Compilation resolves stable authored targets such as `instrument/lead/cutoff` and `track/lead/level` to dense callback-time slots. Each frame evaluates:
+
+```text
+authored base
+→ optional absolute Song Automation
+→ additive physical-unit Modulation contribution
+→ finite domain constraint
+→ Node-owned DSP smoothing, when a Node declares it
+```
+
+Point lanes support `step`, `linear`, and `power(P)` curves in canonical physical units. Exact musical positions become deterministic sample frames before playback. The evaluator performs no callback allocation or source lookup, and processing one sample at a time or in differently sized blocks produces the same samples. Offline rendering and Active playback call the same evaluator.
+
+Current delivery covers topology-stable existing Instrument scalar settings, stock-drum tone/punch, Track level, and Track stereo balance. Graph scalars include filter envelope/velocity depth and key tracking, oscillator glide, and bounded stereo-unison detune/width/drift/pitch movement; structural unison voice count recompiles. Delay time is not a dynamic control because changing it resizes callback-owned memory; an authored base edit recompiles and restarts that affected topology behind the protective fade. Authored sine/triangle LFO routes support global, Instrument, and per-voice scopes, free or tempo-synchronized rates, normalized arithmetic, physical depth, and durable-ID fold order. Existing graph LFO-to-Control-port behavior remains graph signal flow rather than being falsely reported as a routed Parameter source.
+
+`crump --json inspect --at TIME` reports base, Automation, active Pattern Parameter lock, Modulation, unconstrained, constrained effective value, and clamp/non-finite-hold state for every compiled target. Evaluation order is base → Automation → lock → Modulation → domain constraint. The workspace Automation view shows the selected lane, durable points, source locations, and effective provenance at the visible transport frame.
+
 ## Active Revision transitions
 
 Candidate bytes never enter playback directly. On a successful publication while the workspace is playing:
@@ -49,9 +68,9 @@ Candidate bytes never enter playback directly. On a successful publication while
 2. validates and compiles it away from the process callback;
 3. initializes it at the controller's latest transport frame;
 4. sends one boxed, fully allocated runtime through a bounded queue; and
-5. realigns it to the callback's exact current frame and crossfades old and new runtimes for 10 ms with equal-power gains.
+5. realigns it to the callback's exact current frame and runs a bounded 10 ms protective transition.
 
-The transition begins at a PipeWire block boundary. Transport does not restart. Semantically unchanged Tracks are processed once and retain their running voice/effect state across completion; changed schedules, Instruments, and effects restart at the aligned frame behind the protective transition, as accepted by [ADR 0011](adr/0011-first-release-graph-transition.md).
+The transition begins at a PipeWire block boundary. Transport does not restart. Semantically unchanged Tracks are processed once and retain their running voice/effect state across completion. When the whole runtime topology is compatible, only effective targets whose compiled base/domain/Automation behavior actually changed receive a 10 ms monitoring-only publication ramp; unchanged linear and step Automation remains exact at every authored frame. This ramp is a cross-revision click guard, not authored smoothing, and is absent from ordinary playback and offline rendering within a revision. Topology-preserving Parameter base, Automation, Track-level, and Track-balance edits therefore preserve compatible voice/effect state while adopting the replacement control program. Changed schedules, graph topology, Instruments, and effects restart at the aligned frame behind the existing equal-power old/new fade, as accepted by [ADR 0011](adr/0011-first-release-graph-transition.md).
 
 If another publication arrives during a transition, it waits in bounded control state. If publication or reclamation cannot proceed, the old audible runtime continues. Invalid Candidates never create a runtime.
 
@@ -66,7 +85,7 @@ Crump creates a second PipeWire input stream named `crump-midi-input` with SPA `
 
 Velocity is normalized from `0…127`. Channel and pitch form transient note identity. Note On is routed to the Track associated with the currently selected Instrument. Note Off remembers the Track chosen at Note On, so changing selection while holding a key cannot strand the old voice.
 
-For graph Instruments, MIDI pitch drives the per-note oscillator pitch and Note Off releases envelopes. Stock drums use the standard first-release mapping:
+For graph Instruments, MIDI pitch drives mono or unison oscillator pitch and optional filter key tracking; velocity is available to explicit amplitude and timbre paths, and Note Off releases envelopes. Active-voice replacement uses a fixed 64-frame preallocated crossfade. Stock drums use the standard first-release mapping:
 
 | MIDI note | Voice |
 | ---: | --- |

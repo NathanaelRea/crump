@@ -1,6 +1,6 @@
 ---
 name: crump-authoring
-description: Author and revise Crump Musical Sketch projects through readable .crump source and the schema-versioned crump CLI. Use for arranging Patterns and Clips, building native synthesis graphs, adjusting Parameters and balance, diagnosing validation failures, publishing Agent-authored revisions with provenance, comparing History, and rendering deterministic masters.
+description: Author and revise Crump Musical Sketch projects through readable .crump source and the schema-versioned crump CLI. Use for arranging Patterns and Clips, building native synthesis graphs, automating supported Parameters, adjusting balance, diagnosing validation failures, publishing Agent-authored revisions with provenance, comparing History, and rendering deterministic masters.
 ---
 
 # Crump Authoring
@@ -11,7 +11,7 @@ Crump is agent-ready, not agent-owning. Work beside the application through Proj
 
 1. Read the target Project's `project.crump` and every declared `import` before changing it.
 2. Read the installed Project Language and CLI guides (`docs/language.md` and `docs/cli-and-agents.md` in a source checkout; `/usr/share/doc/crump/docs/language.md` and `/usr/share/doc/crump/docs/cli-and-agents.md` in the Debian package).
-3. Preserve the first-release scope: a 30–60 second, no-sample electronic Musical Sketch with native graph synthesis and/or stock synthesized percussion. Do not invent unsupported samples, plugins, recording, automation, advanced routing, or Rust extensions.
+3. Keep certification and implementation distinct. The certified Reference gate remains a 30–60 second no-sample Musical Sketch. Documented roadmap engineering may additionally use portable sampler Instruments, the compiled mix graph/processors, expressive native devices, checked Clip/Locator/arrangement operations, Groove Templates, procedural Pattern Variations, and Pattern Parameter locks when the musician asks for them; never describe those workflows as Slice-accepted. Point Automation and routed sine/triangle LFO Modulation use topology-stable physical-unit targets. Do not invent plugins, recording, Media Tracks, warping/time stretching, non-LFO routed sources, or Rust extensions.
 4. Source is authoritative. IDs are durable references, physical units are explicit, graph Buses are typed, and bounds are enforced.
 
 ## Safe authoring loop
@@ -20,7 +20,7 @@ Set the Project directory explicitly on every command:
 
 ```bash
 crump --project /path/to/project --json status
-crump --project /path/to/project --json inspect
+crump --project /path/to/project --json inspect --at 0bar
 crump --project /path/to/project --json validate
 ```
 
@@ -45,6 +45,11 @@ crump --project /path/to/project --json edit event-velocity lead_a 2 0.7 \
   --summary "Soften the response"
 crump --project /path/to/project --json edit hit-voice drums_a 3 clap \
   --summary "Change the final snare to a clap"
+crump --project /path/to/project --json edit automation-create lead-cutoff \
+  instrument/lead/cutoff 800hz --summary "Add the dark filter start"
+crump --project /path/to/project --json edit automation-point-create \
+  lead-cutoff open 4bar 8khz --curve 'power(2)' --summary "Open the filter into the lift"
+crump --project /path/to/project --json inspect --at 2bar
 ```
 
 For structural work, edit the smallest relevant `.crump` ranges directly. Preserve unrelated comments, whitespace, declaration order, and literals. Then run:
@@ -111,11 +116,24 @@ Render always consumes the exact Active Revision, never an unpublished Candidate
 ```bash
 crump --project /path/to/project --json render --output render/agent-review --plan
 crump --project /path/to/project --json render --output render/agent-review
+# When the human requests delivery stems:
+crump --project /path/to/project --json render --output render/delivery \
+  --stem track/lead:post_fader --stem group/music:post_fader --plan
 ```
 
-Use `--no-replace` when an existing destination must be treated as a conflict rather than replaced.
+Use `--no-replace` when an existing destination must be treated as a conflict rather than replaced. Repeat `--stem OWNER:TAP` only for requested `track/ID` or `group/ID` owners. Read the planned policy: pre-fader includes upstream routing and owner processing; post-fader also includes owner gain/panner/Mute; neither includes outgoing Sends or downstream Group/Return/Master processing. All files share the Master range and frame count and receive disclosed latency-alignment padding. Do not promise that an arbitrary incomplete stem selection sums to the processed Master.
 
-Report `rendered_active_revision`, Candidate/Active match state, frame count, duration, peak, WAV hash, manifest hash, and output paths. Do not claim identical playback/render audio from a render performed while the intended Candidate is unpublished.
+Report `rendered_active_revision`, Candidate/Active match state, frame count, duration, each artifact's finalized-WAV `analysis` metrics (sample/true peak, available loudness/LRA, DC, clipping, and non-finite count), per-file WAV hashes, manifest hash, processing/alignment policy, and output paths. Do not claim identical playback/render audio from a render performed while the intended Candidate is unpublished.
+
+When engineering workload evidence is explicitly requested, plan an exact range before running it:
+
+```bash
+crump --project /path/to/project --json qualify --quantum 128 --from drop --to outro --plan
+crump --project /path/to/project --json qualify --quantum 128 --from drop --to outro \
+  --output evidence/drop-q128.json
+```
+
+Treat this as an offline profile only. Report its `passed`, p99.9, missed-deadline, range, quantum, and build/resource identities, but preserve `pipewire_xruns: null` and the listed external evidence. Never infer target-hardware, realtime-safety, or 30-minute endurance acceptance from `qualify`.
 
 ## Instrument Modules
 

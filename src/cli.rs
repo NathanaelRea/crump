@@ -4,7 +4,7 @@ use std::{
     ffi::OsString,
     fs::{self, File, OpenOptions},
     io::{IsTerminal, Write},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     process::ExitCode,
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -15,14 +15,33 @@ use serde_json::{Value, json};
 use crate::{
     dsl::parse_module,
     edit::{
-        EditError, apply_structured_edit, set_event_at, set_event_velocity, set_hit_voice,
-        set_note_duration, set_note_pitch, set_parameter, set_track_level, set_track_pan,
+        ArrangementAutomation, ClipPlacement, EditError, GroovePlacement, ParameterLockPlacement,
+        PatternVariationPlacement, SamplePlacement, apply_structured_edit, collect_media_assets,
+        create_automation_lane, create_automation_point, create_clip, create_groove,
+        create_locator, create_parameter_lock, create_pattern_variation, delete_arrangement_time,
+        delete_automation_lane, delete_automation_point, delete_clip, delete_groove,
+        delete_locator, delete_parameter_lock, delete_pattern_variation,
+        duplicate_arrangement_time, duplicate_clip, duplicate_sample_occurrence,
+        fade_sample_occurrence, import_media_asset, insert_arrangement_time, move_clip,
+        move_locator, move_sample_occurrence, place_sample_occurrence, resize_clip,
+        set_automation_point_at, set_automation_point_interpolation, set_automation_point_value,
+        set_clip_fades, set_clip_gain, set_clip_groove, set_clip_source_offset, set_clip_transpose,
+        set_event_at, set_event_velocity, set_hit_voice, set_note_duration, set_note_pitch,
+        set_parameter, set_parameter_target, set_sample_occurrence_gain, set_sample_occurrence_pan,
+        set_track_level, set_track_pan, slip_sample_occurrence, split_clip,
+        split_sample_occurrence, trim_sample_occurrence, update_groove, update_parameter_lock,
+        update_pattern_variation,
     },
-    engine::{CompiledProject, RenderOptions, inspect_render_destination, render_project},
+    engine::{
+        CompiledProject, QualificationOptions, RenderOptions, RenderStemRequest,
+        inspect_render_destination, plan_render_stems, qualification::qualify_compiled_project,
+        render_project,
+    },
     history::{ChangeOrigin, HistoryError, HistoryStore, Publication},
-    model::{DrumVoice, parse_pitch},
+    model::{AutomationInterpolation, ClipMode, DrumVoice, ParameterTarget, parse_pitch},
     project::{MAX_SOURCE_BYTES, ProjectBundle, instrument_library_dir, load_project},
     realtime::{PipeWirePlayer, StreamStatus},
+    time::parse_musical_time,
     validate::{check_musical_sketch, validate_instrument_module},
 };
 
@@ -53,8 +72,8 @@ enum Command {
     New(NewArgs),
     /// Parse and validate the current Candidate Revision.
     Validate,
-    /// Inspect the complete parsed Candidate model and revision state.
-    Inspect,
+    /// Inspect the complete parsed Candidate model, controls, and revision state.
+    Inspect(InspectArgs),
     /// Show Candidate and Active Revision state.
     Status,
     /// Explicitly promote the valid Candidate to Active Revision.
@@ -67,12 +86,17 @@ enum Command {
     Workspace,
     /// Render the exact Active Revision to an atomic float-WAV bundle.
     Render(RenderArgs),
+    /// Profile one exact Active range at a supported offline callback quantum.
+    Qualify(QualifyArgs),
     /// Read or restore append-only Project History.
     #[command(subcommand)]
     History(HistoryCommand),
     /// Apply one checked, source-preserving Production View edit.
     #[command(subcommand)]
-    Edit(EditCommand),
+    Edit(Box<EditCommand>),
+    /// Import or inspect portable Project media.
+    #[command(subcommand)]
+    Asset(AssetCommand),
     /// Export, install, inspect, or list reusable Instrument Modules.
     #[command(subcommand)]
     Module(ModuleCommand),
@@ -115,11 +139,60 @@ enum OriginArg {
     System,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ArrangementAutomationArg {
+    /// Move Automation with transformed Timeline material.
+    Follow,
+    /// Keep Automation at absolute Song times.
+    Locked,
+}
+
+impl From<ArrangementAutomationArg> for ArrangementAutomation {
+    fn from(value: ArrangementAutomationArg) -> Self {
+        match value {
+            ArrangementAutomationArg::Follow => Self::FollowArrangement,
+            ArrangementAutomationArg::Locked => Self::LockToSong,
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+struct InspectArgs {
+    /// Evaluate effective Parameter provenance at this exact Song time.
+    #[arg(long, default_value = "0bar")]
+    at: String,
+}
+
 #[derive(Debug, Args)]
 struct PlayArgs {
     /// Stop after this many seconds instead of the complete Render Range.
     #[arg(long)]
     seconds: Option<f64>,
+    /// Start at this named Song Locator after deterministic preroll.
+    #[arg(long)]
+    from: Option<String>,
+    /// Stop at this named Song Locator.
+    #[arg(long)]
+    to: Option<String>,
+    /// Loop the explicit --from/--to Locator range transiently.
+    #[arg(long, requires_all = ["from", "to"])]
+    loop_range: bool,
+    /// Resolve and report the audition range without opening audio.
+    #[arg(long)]
+    plan: bool,
+}
+
+#[derive(Debug, Args, Default)]
+struct TimeGridArgs {
+    /// Snap the supplied exact time to an explicit grid.
+    #[arg(long, requires = "grid", conflicts_with = "free")]
+    snap: bool,
+    /// Positive exact musical grid used with --snap.
+    #[arg(long, requires = "snap", conflicts_with = "free", value_name = "TIME")]
+    grid: Option<String>,
+    /// Apply the supplied exact time without snapping.
+    #[arg(long, conflicts_with_all = ["snap", "grid"])]
+    free: bool,
 }
 
 #[derive(Debug, Args)]
@@ -130,9 +203,46 @@ struct RenderArgs {
     /// Show the exact Active Render Range without writing output.
     #[arg(long)]
     plan: bool,
+    /// Export one aligned Track/Group tap (`track/ID:post_fader`). Repeat as needed.
+    #[arg(long = "stem", value_name = "OWNER:TAP")]
+    stems: Vec<RenderStemRequest>,
     /// Fail rather than atomically replace an existing complete bundle.
     #[arg(long)]
     no_replace: bool,
+}
+
+#[derive(Debug, Args)]
+struct QualifyArgs {
+    /// Start at this named Song Locator after deterministic untimed preroll.
+    #[arg(long)]
+    from: Option<String>,
+    /// Stop at this named Song Locator.
+    #[arg(long)]
+    to: Option<String>,
+    /// Supported callback quantum to profile.
+    #[arg(long, default_value_t = 128, value_parser = parse_qualification_quantum)]
+    quantum: usize,
+    /// Required p99.9 callback-utilization ceiling in `(0, 1]`.
+    #[arg(long, default_value_t = 0.8)]
+    maximum_p999_utilization: f64,
+    /// Optional machine-readable report destination.
+    #[arg(long)]
+    output: Option<PathBuf>,
+    /// Replace an existing report file atomically.
+    #[arg(long, requires = "output")]
+    replace: bool,
+    /// Resolve the range and resources without timing Audio or writing a report.
+    #[arg(long)]
+    plan: bool,
+}
+
+fn parse_qualification_quantum(value: &str) -> Result<usize, String> {
+    match value {
+        "64" => Ok(64),
+        "128" => Ok(128),
+        "256" => Ok(256),
+        _ => Err("quantum must be 64, 128, or 256 frames".to_owned()),
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -155,6 +265,14 @@ enum HistoryCommand {
 
 #[derive(Debug, Subcommand)]
 enum EditCommand {
+    /// Set any continuous stable Parameter target in physical units.
+    Target {
+        target: String,
+        #[arg(allow_hyphen_values = true)]
+        value: f64,
+        #[arg(long, default_value = "Change Parameter target")]
+        summary: String,
+    },
     /// Set one exact Instrument Parameter in physical units.
     Parameter {
         instrument: String,
@@ -180,6 +298,350 @@ enum EditCommand {
         #[arg(long, default_value = "Change Track pan")]
         summary: String,
     },
+    /// Create one absolute Song Automation lane with its required zero point.
+    AutomationCreate {
+        lane: String,
+        target: String,
+        #[arg(allow_hyphen_values = true)]
+        value: String,
+        #[arg(long, default_value = "Create Automation lane")]
+        summary: String,
+    },
+    /// Delete one complete Song Automation lane.
+    AutomationDelete {
+        lane: String,
+        #[arg(long, default_value = "Delete Automation lane")]
+        summary: String,
+    },
+    /// Create one durable Automation point.
+    AutomationPointCreate {
+        lane: String,
+        point: String,
+        time: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(allow_hyphen_values = true)]
+        value: String,
+        #[arg(long, default_value = "linear")]
+        curve: String,
+        #[arg(long, default_value = "Create Automation point")]
+        summary: String,
+    },
+    /// Set one Automation point's exact Song time.
+    AutomationPointTime {
+        lane: String,
+        point: String,
+        time: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Move Automation point")]
+        summary: String,
+    },
+    /// Set one Automation point's physical value.
+    AutomationPointValue {
+        lane: String,
+        point: String,
+        #[arg(allow_hyphen_values = true)]
+        value: String,
+        #[arg(long, default_value = "Change Automation value")]
+        summary: String,
+    },
+    /// Set the interpolation leaving one Automation point.
+    AutomationPointCurve {
+        lane: String,
+        point: String,
+        curve: String,
+        #[arg(long, default_value = "Change Automation curve")]
+        summary: String,
+    },
+    /// Delete one durable Automation point.
+    AutomationPointDelete {
+        lane: String,
+        point: String,
+        #[arg(long, default_value = "Delete Automation point")]
+        summary: String,
+    },
+    /// Create one reusable deterministic Groove Template.
+    GrooveCreate {
+        id: String,
+        grid: String,
+        #[arg(allow_hyphen_values = true)]
+        swing: f64,
+        timing: String,
+        #[arg(allow_hyphen_values = true)]
+        velocity: f64,
+        #[arg(allow_hyphen_values = true)]
+        probability: f64,
+        seed: u64,
+        #[arg(long, default_value = "Create Groove Template")]
+        summary: String,
+    },
+    /// Update one reusable deterministic Groove Template.
+    GrooveUpdate {
+        id: String,
+        grid: String,
+        #[arg(allow_hyphen_values = true)]
+        swing: f64,
+        timing: String,
+        #[arg(allow_hyphen_values = true)]
+        velocity: f64,
+        #[arg(allow_hyphen_values = true)]
+        probability: f64,
+        seed: u64,
+        #[arg(long, default_value = "Update Groove Template")]
+        summary: String,
+    },
+    /// Delete one unused Groove Template.
+    GrooveDelete {
+        id: String,
+        #[arg(long, default_value = "Delete Groove Template")]
+        summary: String,
+    },
+    /// Create one procedural Pattern Variation without flattening Events.
+    PatternVariationCreate {
+        id: String,
+        source: String,
+        rotate: String,
+        #[arg(allow_hyphen_values = true)]
+        transpose: i16,
+        #[arg(allow_hyphen_values = true)]
+        velocity: f64,
+        #[arg(action = clap::ArgAction::Set)]
+        reverse: bool,
+        #[arg(allow_hyphen_values = true)]
+        probability: f64,
+        seed: u64,
+        #[arg(long, default_value = "Create Pattern Variation")]
+        summary: String,
+    },
+    /// Update one procedural Pattern Variation's checked transforms.
+    PatternVariationUpdate {
+        id: String,
+        source: String,
+        rotate: String,
+        #[arg(allow_hyphen_values = true)]
+        transpose: i16,
+        #[arg(allow_hyphen_values = true)]
+        velocity: f64,
+        #[arg(action = clap::ArgAction::Set)]
+        reverse: bool,
+        #[arg(allow_hyphen_values = true)]
+        probability: f64,
+        seed: u64,
+        #[arg(long, default_value = "Update Pattern Variation")]
+        summary: String,
+    },
+    /// Delete one unreferenced procedural Pattern Variation.
+    PatternVariationDelete {
+        id: String,
+        #[arg(long, default_value = "Delete Pattern Variation")]
+        summary: String,
+    },
+    /// Create one durable Pattern Parameter lock.
+    ParameterLockCreate {
+        pattern: String,
+        id: String,
+        at: String,
+        parameter: String,
+        #[arg(allow_hyphen_values = true)]
+        value: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Create Parameter lock")]
+        summary: String,
+    },
+    /// Update one durable Pattern Parameter lock.
+    ParameterLockUpdate {
+        pattern: String,
+        id: String,
+        at: String,
+        parameter: String,
+        #[arg(allow_hyphen_values = true)]
+        value: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Update Parameter lock")]
+        summary: String,
+    },
+    /// Delete one durable Pattern Parameter lock.
+    ParameterLockDelete {
+        pattern: String,
+        id: String,
+        #[arg(long, default_value = "Delete Parameter lock")]
+        summary: String,
+    },
+    /// Assign a Groove Template to a Clip, or omit GROOVE to clear it.
+    ClipGroove {
+        id: String,
+        groove: Option<String>,
+        #[arg(long, default_value = "Assign Clip Groove")]
+        summary: String,
+    },
+    /// Insert empty arrangement time and shift later material.
+    TimeInsert {
+        at: String,
+        duration: String,
+        #[arg(long, value_enum, default_value_t = ArrangementAutomationArg::Follow)]
+        automation: ArrangementAutomationArg,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Insert arrangement time")]
+        summary: String,
+    },
+    /// Delete arrangement time; boundary-crossing Clips must be split first.
+    TimeDelete {
+        at: String,
+        duration: String,
+        #[arg(long, value_enum, default_value_t = ArrangementAutomationArg::Follow)]
+        automation: ArrangementAutomationArg,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Delete arrangement time")]
+        summary: String,
+    },
+    /// Duplicate complete Clips into newly inserted arrangement time.
+    TimeDuplicate {
+        source_at: String,
+        duration: String,
+        destination: String,
+        suffix: String,
+        #[arg(long, value_enum, default_value_t = ArrangementAutomationArg::Follow)]
+        automation: ArrangementAutomationArg,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Duplicate arrangement time")]
+        summary: String,
+    },
+    /// Create one named Song position for navigation and ranges.
+    LocatorCreate {
+        id: String,
+        name: String,
+        at: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Create Song Locator")]
+        summary: String,
+    },
+    /// Move one named Song Locator.
+    LocatorMove {
+        id: String,
+        at: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Move Song Locator")]
+        summary: String,
+    },
+    /// Delete one named Song Locator.
+    LocatorDelete {
+        id: String,
+        #[arg(long, default_value = "Delete Song Locator")]
+        summary: String,
+    },
+    /// Create one readable Clip on a Timeline Track.
+    ClipCreate {
+        track: String,
+        id: String,
+        pattern: String,
+        start: String,
+        duration: String,
+        #[arg(long, default_value = "once")]
+        mode: String,
+        #[arg(long, default_value = "0beat")]
+        offset: String,
+        #[arg(long, allow_hyphen_values = true, default_value_t = 0)]
+        transpose: i16,
+        #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+        gain_db: f64,
+        #[arg(long, default_value = "0beat")]
+        fade_in: String,
+        #[arg(long, default_value = "0beat")]
+        fade_out: String,
+        #[arg(long)]
+        groove: Option<String>,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Create Timeline Clip")]
+        summary: String,
+    },
+    /// Delete one complete Clip declaration.
+    ClipDelete {
+        id: String,
+        #[arg(long, default_value = "Delete Timeline Clip")]
+        summary: String,
+    },
+    /// Move one Clip to an exact Song time.
+    ClipMove {
+        id: String,
+        start: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Move Timeline Clip")]
+        summary: String,
+    },
+    /// Resize one Clip to an exact positive duration.
+    ClipResize {
+        id: String,
+        duration: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Resize Timeline Clip")]
+        summary: String,
+    },
+    /// Duplicate one Clip under a fresh identity.
+    ClipDuplicate {
+        id: String,
+        new_id: String,
+        start: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Duplicate Timeline Clip")]
+        summary: String,
+    },
+    /// Split one Clip and give its right side a fresh identity.
+    ClipSplit {
+        id: String,
+        new_id: String,
+        at: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Split Timeline Clip")]
+        summary: String,
+    },
+    /// Set one Clip's Pattern-local source phase.
+    ClipOffset {
+        id: String,
+        offset: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Change Clip source offset")]
+        summary: String,
+    },
+    /// Set one Clip's whole-semitone transposition.
+    ClipTranspose {
+        id: String,
+        #[arg(allow_hyphen_values = true)]
+        semitones: i16,
+        #[arg(long, default_value = "Transpose Timeline Clip")]
+        summary: String,
+    },
+    /// Set one Clip's event-excitation gain.
+    ClipGain {
+        id: String,
+        #[arg(allow_hyphen_values = true)]
+        gain_db: f64,
+        #[arg(long, default_value = "Change Clip gain")]
+        summary: String,
+    },
+    /// Set one Clip's left/right fade durations.
+    ClipFade {
+        id: String,
+        fade_in: String,
+        fade_out: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Change Clip fades")]
+        summary: String,
+    },
     /// Set one pitched Event by zero-based Pattern Event index.
     NotePitch {
         pattern: String,
@@ -193,6 +655,8 @@ enum EditCommand {
         pattern: String,
         event: usize,
         value: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
         #[arg(long, default_value = "Change Event onset")]
         summary: String,
     },
@@ -201,6 +665,8 @@ enum EditCommand {
         pattern: String,
         event: usize,
         value: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
         #[arg(long, default_value = "Change note duration")]
         summary: String,
     },
@@ -221,6 +687,134 @@ enum EditCommand {
         #[arg(long, default_value = "Change percussion voice")]
         summary: String,
     },
+    /// Place one durable sample occurrence in a Pattern.
+    SamplePlace {
+        pattern: String,
+        id: String,
+        mapping: String,
+        at: String,
+        duration: String,
+        start_frame: u64,
+        end_frame: u64,
+        #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+        gain_db: f64,
+        #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+        pan: f64,
+        #[arg(long, default_value_t = 0)]
+        fade_in: u32,
+        #[arg(long, default_value_t = 0)]
+        fade_out: u32,
+        #[arg(long, default_value_t = 1.0)]
+        velocity: f64,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Place sample occurrence")]
+        summary: String,
+    },
+    /// Move one durable sample occurrence.
+    SampleMove {
+        pattern: String,
+        id: String,
+        at: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Move sample occurrence")]
+        summary: String,
+    },
+    /// Duplicate one durable sample occurrence.
+    SampleDuplicate {
+        pattern: String,
+        id: String,
+        new_id: String,
+        at: String,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Duplicate sample occurrence")]
+        summary: String,
+    },
+    /// Split one sample occurrence at matching timeline/source positions.
+    SampleSplit {
+        pattern: String,
+        id: String,
+        new_id: String,
+        at: String,
+        source_frame: u64,
+        #[command(flatten)]
+        timing: TimeGridArgs,
+        #[arg(long, default_value = "Split sample occurrence")]
+        summary: String,
+    },
+    /// Trim one sample occurrence to a half-open source region.
+    SampleTrim {
+        pattern: String,
+        id: String,
+        start_frame: u64,
+        end_frame: u64,
+        #[arg(long, default_value = "Trim sample occurrence")]
+        summary: String,
+    },
+    /// Slip one sample occurrence by signed original-source frames.
+    SampleSlip {
+        pattern: String,
+        id: String,
+        #[arg(allow_hyphen_values = true)]
+        frames: i64,
+        #[arg(long, default_value = "Slip sample occurrence")]
+        summary: String,
+    },
+    /// Set source-edge fades in original-source frames.
+    SampleFade {
+        pattern: String,
+        id: String,
+        fade_in: u32,
+        fade_out: u32,
+        #[arg(long, default_value = "Fade sample occurrence")]
+        summary: String,
+    },
+    /// Set one durable sample occurrence gain trim.
+    SampleGain {
+        pattern: String,
+        id: String,
+        #[arg(allow_hyphen_values = true)]
+        gain_db: f64,
+        #[arg(long, default_value = "Change sample gain")]
+        summary: String,
+    },
+    /// Set one durable sample occurrence pan.
+    SamplePan {
+        pattern: String,
+        id: String,
+        #[arg(allow_hyphen_values = true)]
+        pan: f64,
+        #[arg(long, default_value = "Change sample pan")]
+        summary: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AssetCommand {
+    /// Copy one external WAV into the Project and publish its declaration.
+    Import {
+        /// External WAV input; it is never retained in authoritative source.
+        source: PathBuf,
+        /// Durable Project-local identity and destination filename stem.
+        #[arg(long)]
+        id: String,
+        /// Human-facing asset name; defaults to the ID.
+        #[arg(long)]
+        name: Option<String>,
+        /// History summary.
+        #[arg(long, default_value = "Import portable WAV asset")]
+        summary: String,
+    },
+    /// Collect declared WAVs into canonical `media/<asset-id>.wav` paths.
+    Collect {
+        /// History summary.
+        #[arg(long, default_value = "Collect portable Project media")]
+        summary: String,
+    },
+    /// List verified portable media without exposing host backing paths.
+    List,
 }
 
 #[derive(Debug, Subcommand)]
@@ -368,15 +962,17 @@ fn execute(cli: &Cli) -> Result<Success, Failure> {
     match cli.command.as_ref() {
         Some(Command::New(args)) => command_new(cli, args),
         Some(Command::Validate) => command_validate(cli),
-        Some(Command::Inspect) => command_inspect(cli),
+        Some(Command::Inspect(args)) => command_inspect(cli, args),
         Some(Command::Status) => command_status(cli),
         Some(Command::Publish(args)) => command_publish(cli, args),
         Some(Command::Check) => command_check(cli),
         Some(Command::Play(args)) => command_play(cli, args),
         Some(Command::Workspace) => command_workspace(cli),
         Some(Command::Render(args)) => command_render(cli, args),
+        Some(Command::Qualify(args)) => command_qualify(cli, args),
         Some(Command::History(command)) => command_history(cli, command),
         Some(Command::Edit(command)) => command_edit(cli, command),
+        Some(Command::Asset(command)) => command_asset(cli, command),
         Some(Command::Module(command)) => command_module(cli, command),
         Some(Command::Doctor) => command_doctor(cli),
         None if !cli.json && std::io::stdin().is_terminal() && std::io::stdout().is_terminal() => {
@@ -477,7 +1073,7 @@ fn command_validate(cli: &Cli) -> Result<Success, Failure> {
     }
 }
 
-fn command_inspect(cli: &Cli) -> Result<Success, Failure> {
+fn command_inspect(cli: &Cli, args: &InspectArgs) -> Result<Success, Failure> {
     let bundle = load(cli, "inspect")?;
     let (active_entry, active_revision) = active_identity(&bundle, "inspect")?;
     let project = bundle.project.as_ref();
@@ -486,15 +1082,67 @@ fn command_inspect(cli: &Cli) -> Result<Success, Failure> {
         .keys()
         .map(|path| path.display().to_string())
         .collect();
+    let assets = portable_asset_data(&bundle);
+    let (control_frame, effective_parameters, mix_graph) = if let Some(project) = project
+        && !bundle.diagnostics.has_errors()
+    {
+        let at =
+            crate::time::parse_musical_time(&args.at, project.song.meter).map_err(|error| {
+                Failure::blocked(
+                    "inspect",
+                    "invalid_control_time",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?;
+        let frame = at
+            .to_frames(project.song.tempo_bpm, project.sample_rate)
+            .map_err(|error| {
+                Failure::blocked(
+                    "inspect",
+                    "invalid_control_time",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?;
+        let compiled =
+            CompiledProject::compile_with_assets(project, &bundle.assets).map_err(|error| {
+                Failure::blocked(
+                    "inspect",
+                    "control_compile_failed",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?;
+        if frame > compiled.total_frames() {
+            return Err(Failure::blocked(
+                "inspect",
+                "invalid_control_time",
+                format!(
+                    "requested control frame {frame} exceeds the inclusive render boundary {}",
+                    compiled.total_frames()
+                ),
+                json!([]),
+            ));
+        }
+        (
+            Some(frame),
+            Some(compiled.control_snapshot_at_frame(frame)),
+            Some(compiled.mix_graph_inspection().clone()),
+        )
+    } else {
+        (None, None, None)
+    };
     Ok(Success {
         command: "inspect",
         human: if let Some(project) = project {
             format!(
-                "{}: {} Instrument(s), {} Pattern(s), {} Track(s)\nCandidate {}",
+                "{}: {} Instrument(s), {} Pattern(s), {} Track(s), {} Automation lane(s)\nCandidate {}",
                 project.name,
                 project.song.instruments.len(),
                 project.song.patterns.len(),
                 project.song.tracks.len(),
+                project.song.automations.len(),
                 bundle.revision
             )
         } else {
@@ -506,7 +1154,11 @@ fn command_inspect(cli: &Cli) -> Result<Success, Failure> {
             "active_entry": active_entry,
             "candidate_is_active": active_revision.as_ref() == Some(&bundle.revision),
             "source_files": files,
+            "assets": assets,
             "project": project,
+            "control_frame": control_frame,
+            "effective_parameters": effective_parameters,
+            "mix_graph": mix_graph,
             "diagnostics": bundle.diagnostics.as_slice(),
         }),
     })
@@ -684,12 +1336,84 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
             json!([]),
         )
     })?;
-    let compiled = CompiledProject::compile(project)
+    let locator_frame = |locator_id: &str| {
+        project
+            .song
+            .locators
+            .iter()
+            .find(|locator| locator.id == locator_id)
+            .ok_or_else(|| {
+                Failure::blocked(
+                    "play",
+                    "unknown_locator",
+                    format!("unknown Song Locator `{locator_id}`"),
+                    json!([]),
+                )
+            })?
+            .at
+            .to_frames(project.song.tempo_bpm, project.sample_rate)
+            .map_err(|error| {
+                Failure::blocked("play", "invalid_range", error.to_string(), json!([]))
+            })
+    };
+    let compiled = CompiledProject::compile_with_assets(project, &active.assets)
         .map_err(|error| Failure::operational("play", "compile_failed", error))?;
     let total_frames = compiled.total_frames();
-    let mut player = PipeWirePlayer::start(compiled.runtime())
-        .map_err(|error| Failure::operational("play", "audio_unavailable", error))?;
+    let start_frame = args.from.as_deref().map_or(Ok(0), locator_frame)?;
+    let end_frame = args.to.as_deref().map_or(Ok(total_frames), locator_frame)?;
+    if start_frame >= end_frame {
+        return Err(Failure::blocked(
+            "play",
+            "invalid_range",
+            "the audition start Locator must precede its end Locator",
+            json!([]),
+        ));
+    }
+    let range_data = json!({
+        "from_locator": args.from,
+        "to_locator": args.to,
+        "start_frame": start_frame,
+        "end_frame": end_frame,
+        "loop": args.loop_range,
+    });
+    if args.plan {
+        return Ok(Success {
+            command: "play",
+            human: format!(
+                "Audition range [{start_frame}, {end_frame}) frames{}",
+                if args.loop_range { " · looped" } else { "" }
+            ),
+            data: json!({
+                "active_revision": active.revision,
+                "candidate_revision": candidate.revision,
+                "candidate_was_active": candidate.revision == active.revision,
+                "range": range_data,
+            }),
+        });
+    }
+
     let interactive = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+    if args.loop_range && args.seconds.is_none() && !interactive {
+        return Err(Failure::blocked(
+            "play",
+            "unbounded_loop",
+            "non-interactive loop playback requires --seconds",
+            json!([]),
+        ));
+    }
+    let mut runtime = compiled.runtime();
+    runtime
+        .advance_to(start_frame)
+        .map_err(|error| Failure::operational("play", "preroll_failed", error))?;
+    if args.loop_range {
+        runtime
+            .enable_audition_loop(start_frame, end_frame)
+            .map_err(|error| {
+                Failure::blocked("play", "invalid_range", error.to_string(), json!([]))
+            })?;
+    }
+    let mut player = PipeWirePlayer::start(runtime)
+        .map_err(|error| Failure::operational("play", "audio_unavailable", error))?;
     let raw_mode = RawModeGuard::new(interactive);
     let started = std::time::Instant::now();
     let mut report;
@@ -720,7 +1444,7 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
             ));
             break;
         }
-        if report.engine.frame.saturating_add(1) >= total_frames {
+        if !args.loop_range && report.engine.frame.saturating_add(1) >= end_frame {
             break;
         }
         if args
@@ -758,6 +1482,7 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
             "candidate_revision": candidate.revision,
             "candidate_was_active": candidate.revision == active.revision,
             "elapsed_seconds": started.elapsed().as_secs_f64(),
+            "range": range_data,
             "telemetry": report,
         }),
     })
@@ -819,7 +1544,9 @@ fn command_render(cli: &Cli, args: &RenderArgs) -> Result<Success, Failure> {
                 "Active Revision could not be parsed",
             )
         })?;
-        let compiled = CompiledProject::compile(project)
+        let compiled = CompiledProject::compile_with_assets(project, &active.assets)
+            .map_err(|error| Failure::operational("render", "render_failed", error))?;
+        let stems = plan_render_stems(&compiled, &args.stems)
             .map_err(|error| Failure::operational("render", "render_failed", error))?;
         let arrangement_frames = compiled.arrangement_frames();
         let total_frames = compiled.total_frames();
@@ -850,6 +1577,7 @@ fn command_render(cli: &Cli, args: &RenderArgs) -> Result<Success, Failure> {
                     "sample_rate": project.sample_rate,
                     "duration_seconds": duration_seconds,
                 },
+                "stems": stems,
             }),
         });
     }
@@ -862,6 +1590,7 @@ fn command_render(cli: &Cli, args: &RenderArgs) -> Result<Success, Failure> {
     }
     let mut options = RenderOptions::new(output);
     options.replace = !args.no_replace;
+    options.stems.clone_from(&args.stems);
     let result = render_project(&active, &options)
         .map_err(|error| Failure::operational("render", "render_failed", error))?;
     Ok(Success {
@@ -877,6 +1606,188 @@ fn command_render(cli: &Cli, args: &RenderArgs) -> Result<Success, Failure> {
             "rendered_active_revision": active.revision,
             "candidate_was_active": candidate.revision == active.revision,
             "render": result,
+        }),
+    })
+}
+
+fn command_qualify(cli: &Cli, args: &QualifyArgs) -> Result<Success, Failure> {
+    if !args.maximum_p999_utilization.is_finite()
+        || args.maximum_p999_utilization <= 0.0
+        || args.maximum_p999_utilization > 1.0
+    {
+        return Err(Failure::blocked(
+            "qualify",
+            "invalid_utilization_margin",
+            "--maximum-p999-utilization must be finite and in (0, 1]",
+            json!([]),
+        ));
+    }
+    let candidate = load(cli, "qualify")?;
+    let active = {
+        let store = HistoryStore::open(&candidate.root)
+            .map_err(|error| Failure::operational("qualify", "history_error", error))?;
+        store
+            .active_bundle()
+            .map_err(|error| Failure::operational("qualify", "history_error", error))?
+            .ok_or_else(|| {
+                Failure::blocked(
+                    "qualify",
+                    "no_active_revision",
+                    "Project has no Active Revision; publish a valid Candidate first",
+                    json!([]),
+                )
+            })?
+    };
+    let project = active.publishable().ok_or_else(|| {
+        Failure::blocked(
+            "qualify",
+            "invalid_active_revision",
+            "Active Revision is invalid",
+            json!([]),
+        )
+    })?;
+    let compiled = CompiledProject::compile_with_assets(project, &active.assets)
+        .map_err(|error| Failure::operational("qualify", "compile_failed", error))?;
+    let locator_frame = |locator_id: &str| {
+        project
+            .song
+            .locators
+            .iter()
+            .find(|locator| locator.id == locator_id)
+            .ok_or_else(|| {
+                Failure::blocked(
+                    "qualify",
+                    "unknown_locator",
+                    format!("unknown Song Locator `{locator_id}`"),
+                    json!([]),
+                )
+            })?
+            .at
+            .to_frames(project.song.tempo_bpm, project.sample_rate)
+            .map_err(|error| {
+                Failure::blocked("qualify", "invalid_range", error.to_string(), json!([]))
+            })
+    };
+    let start_frame = args.from.as_deref().map_or(Ok(0), locator_frame)?;
+    let end_frame = args
+        .to
+        .as_deref()
+        .map_or(Ok(compiled.total_frames()), locator_frame)?;
+    if start_frame >= end_frame {
+        return Err(Failure::blocked(
+            "qualify",
+            "invalid_range",
+            "the qualification start must precede its end",
+            json!([]),
+        ));
+    }
+    let options = QualificationOptions {
+        start_frame,
+        end_frame,
+        quantum_frames: args.quantum,
+        maximum_p999_utilization: args.maximum_p999_utilization,
+    };
+    let output = args
+        .output
+        .as_ref()
+        .map(|path| {
+            let path = if path.is_absolute() {
+                path.clone()
+            } else {
+                candidate.root.join(path)
+            };
+            inspect_qualification_output(&candidate, &active, &path)
+        })
+        .transpose()
+        .map_err(|error| {
+            Failure::blocked(
+                "qualify",
+                "unsafe_destination",
+                error.to_string(),
+                json!([]),
+            )
+        })?;
+    let resources = &compiled.mix_graph_inspection().resources;
+    if args.plan {
+        return Ok(Success {
+            command: "qualify",
+            human: format!(
+                "Qualification range [{start_frame}, {end_frame}) at {} frames · offline plan only",
+                args.quantum
+            ),
+            data: json!({
+                "candidate_revision": candidate.revision,
+                "qualified_active_revision": active.revision,
+                "candidate_was_active": candidate.revision == active.revision,
+                "range": {
+                    "from_locator": args.from,
+                    "to_locator": args.to,
+                    "start_frame": start_frame,
+                    "end_frame": end_frame,
+                    "sample_rate": project.sample_rate,
+                    "duration_seconds": (end_frame - start_frame) as f64 / f64::from(project.sample_rate),
+                },
+                "quantum_frames": args.quantum,
+                "final_block_frames": ((end_frame - start_frame - 1) % args.quantum as u64 + 1),
+                "maximum_p999_utilization": args.maximum_p999_utilization,
+                "resources": resources,
+                "report_path": output,
+                "report_exists": output.as_ref().is_some_and(|path| path.exists()),
+                "would_replace": args.replace && output.as_ref().is_some_and(|path| path.exists()),
+                "would_conflict": !args.replace && output.as_ref().is_some_and(|path| path.exists()),
+                "backend": "offline",
+                "external_evidence_required": [
+                    "PipeWire xrun count from the target graph",
+                    "named-hardware 30-minute realtime endurance",
+                    "callback allocation/blocking/I/O audit",
+                ],
+            }),
+        });
+    }
+
+    if !args.replace
+        && let Some(path) = &output
+        && path.exists()
+    {
+        return Err(Failure::conflict(
+            "qualify",
+            "report_exists",
+            format!("qualification report {} already exists", path.display()),
+        ));
+    }
+    let report = qualify_compiled_project(&active, &compiled, options)
+        .map_err(|error| Failure::operational("qualify", "qualification_failed", error))?;
+    if let Some(path) = &output {
+        let mut bytes = serde_json::to_vec_pretty(&report)
+            .map_err(|error| Failure::operational("qualify", "report_failed", error))?;
+        bytes.push(b'\n');
+        if let Err(error) = write_atomic_file(path, &bytes, args.replace) {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                return Err(Failure::conflict(
+                    "qualify",
+                    "report_exists",
+                    format!("qualification report {} already exists", path.display()),
+                ));
+            }
+            return Err(Failure::operational("qualify", "report_failed", error));
+        }
+    }
+    Ok(Success {
+        command: "qualify",
+        human: format!(
+            "Profiled {} frames at quantum {} · p99.9 {:.3} · missed {} · {}",
+            report.profiled_frames,
+            report.actual_quantum_frames,
+            report.p999_callback_utilization,
+            report.missed_deadlines,
+            if report.passed { "PASS" } else { "FAIL" }
+        ),
+        data: json!({
+            "candidate_revision": candidate.revision,
+            "qualified_active_revision": active.revision,
+            "candidate_was_active": candidate.revision == active.revision,
+            "report_path": output,
+            "qualification": report,
         }),
     })
 }
@@ -992,7 +1903,636 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             json!(bundle.diagnostics.as_slice()),
         ));
     }
+    let multi_replacement_edit = match command {
+        EditCommand::GrooveCreate {
+            id,
+            grid,
+            swing,
+            timing,
+            velocity,
+            probability,
+            seed,
+            summary,
+        } => Some((
+            vec![
+                create_groove(
+                    &bundle,
+                    &GroovePlacement {
+                        id: id.clone(),
+                        grid: grid.clone(),
+                        swing: *swing,
+                        timing: timing.clone(),
+                        velocity: *velocity,
+                        probability: *probability,
+                        seed: *seed,
+                    },
+                )
+                .map_err(|error| sample_edit_failure("edit.groove_create", error))?,
+            ],
+            summary.as_str(),
+        )),
+        EditCommand::GrooveUpdate {
+            id,
+            grid,
+            swing,
+            timing,
+            velocity,
+            probability,
+            seed,
+            summary,
+        } => Some((
+            update_groove(
+                &bundle,
+                &GroovePlacement {
+                    id: id.clone(),
+                    grid: grid.clone(),
+                    swing: *swing,
+                    timing: timing.clone(),
+                    velocity: *velocity,
+                    probability: *probability,
+                    seed: *seed,
+                },
+            )
+            .map_err(|error| sample_edit_failure("edit.groove_update", error))?,
+            summary.as_str(),
+        )),
+        EditCommand::GrooveDelete { id, summary } => Some((
+            vec![
+                delete_groove(&bundle, id)
+                    .map_err(|error| sample_edit_failure("edit.groove_delete", error))?,
+            ],
+            summary.as_str(),
+        )),
+        EditCommand::PatternVariationCreate {
+            id,
+            source,
+            rotate,
+            transpose,
+            velocity,
+            reverse,
+            probability,
+            seed,
+            summary,
+        } => Some((
+            vec![
+                create_pattern_variation(
+                    &bundle,
+                    &PatternVariationPlacement {
+                        id: id.clone(),
+                        source: source.clone(),
+                        rotate: rotate.clone(),
+                        transpose_semitones: *transpose,
+                        velocity_scale: *velocity,
+                        reverse: *reverse,
+                        probability: *probability,
+                        seed: *seed,
+                    },
+                )
+                .map_err(|error| sample_edit_failure("edit.pattern_variation_create", error))?,
+            ],
+            summary.as_str(),
+        )),
+        EditCommand::PatternVariationUpdate {
+            id,
+            source,
+            rotate,
+            transpose,
+            velocity,
+            reverse,
+            probability,
+            seed,
+            summary,
+        } => Some((
+            update_pattern_variation(
+                &bundle,
+                &PatternVariationPlacement {
+                    id: id.clone(),
+                    source: source.clone(),
+                    rotate: rotate.clone(),
+                    transpose_semitones: *transpose,
+                    velocity_scale: *velocity,
+                    reverse: *reverse,
+                    probability: *probability,
+                    seed: *seed,
+                },
+            )
+            .map_err(|error| sample_edit_failure("edit.pattern_variation_update", error))?,
+            summary.as_str(),
+        )),
+        EditCommand::PatternVariationDelete { id, summary } => Some((
+            vec![
+                delete_pattern_variation(&bundle, id)
+                    .map_err(|error| sample_edit_failure("edit.pattern_variation_delete", error))?,
+            ],
+            summary.as_str(),
+        )),
+        EditCommand::ParameterLockCreate {
+            pattern,
+            id,
+            at,
+            parameter,
+            value,
+            timing,
+            summary,
+        } => {
+            let at = resolve_edit_time(&bundle, at, timing, "edit.parameter_lock_create")?;
+            Some((
+                vec![
+                    create_parameter_lock(
+                        &bundle,
+                        &ParameterLockPlacement {
+                            pattern: pattern.clone(),
+                            id: id.clone(),
+                            at,
+                            parameter: parameter.clone(),
+                            value: value.clone(),
+                        },
+                    )
+                    .map_err(|error| sample_edit_failure("edit.parameter_lock_create", error))?,
+                ],
+                summary.as_str(),
+            ))
+        }
+        EditCommand::ParameterLockUpdate {
+            pattern,
+            id,
+            at,
+            parameter,
+            value,
+            timing,
+            summary,
+        } => {
+            let at = resolve_edit_time(&bundle, at, timing, "edit.parameter_lock_update")?;
+            Some((
+                update_parameter_lock(
+                    &bundle,
+                    &ParameterLockPlacement {
+                        pattern: pattern.clone(),
+                        id: id.clone(),
+                        at,
+                        parameter: parameter.clone(),
+                        value: value.clone(),
+                    },
+                )
+                .map_err(|error| sample_edit_failure("edit.parameter_lock_update", error))?,
+                summary.as_str(),
+            ))
+        }
+        EditCommand::ParameterLockDelete {
+            pattern,
+            id,
+            summary,
+        } => Some((
+            vec![
+                delete_parameter_lock(&bundle, pattern, id)
+                    .map_err(|error| sample_edit_failure("edit.parameter_lock_delete", error))?,
+            ],
+            summary.as_str(),
+        )),
+        EditCommand::ClipGroove {
+            id,
+            groove,
+            summary,
+        } => Some((
+            vec![
+                set_clip_groove(&bundle, id, groove.as_deref())
+                    .map_err(|error| sample_edit_failure("edit.clip_groove", error))?,
+            ],
+            summary.as_str(),
+        )),
+        EditCommand::TimeInsert {
+            at,
+            duration,
+            automation,
+            timing,
+            summary,
+        } => {
+            let at = resolve_edit_time(&bundle, at, timing, "edit.time_insert")?;
+            let duration = resolve_edit_time(&bundle, duration, timing, "edit.time_insert")?;
+            Some((
+                insert_arrangement_time(&bundle, &at, &duration, (*automation).into())
+                    .map_err(|error| sample_edit_failure("edit.time_insert", error))?,
+                summary.as_str(),
+            ))
+        }
+        EditCommand::TimeDelete {
+            at,
+            duration,
+            automation,
+            timing,
+            summary,
+        } => {
+            let at = resolve_edit_time(&bundle, at, timing, "edit.time_delete")?;
+            let duration = resolve_edit_time(&bundle, duration, timing, "edit.time_delete")?;
+            Some((
+                delete_arrangement_time(&bundle, &at, &duration, (*automation).into())
+                    .map_err(|error| sample_edit_failure("edit.time_delete", error))?,
+                summary.as_str(),
+            ))
+        }
+        EditCommand::TimeDuplicate {
+            source_at,
+            duration,
+            destination,
+            suffix,
+            automation,
+            timing,
+            summary,
+        } => {
+            let source_at = resolve_edit_time(&bundle, source_at, timing, "edit.time_duplicate")?;
+            let duration = resolve_edit_time(&bundle, duration, timing, "edit.time_duplicate")?;
+            let destination =
+                resolve_edit_time(&bundle, destination, timing, "edit.time_duplicate")?;
+            Some((
+                duplicate_arrangement_time(
+                    &bundle,
+                    &source_at,
+                    &duration,
+                    &destination,
+                    suffix,
+                    (*automation).into(),
+                )
+                .map_err(|error| sample_edit_failure("edit.time_duplicate", error))?,
+                summary.as_str(),
+            ))
+        }
+        EditCommand::LocatorCreate {
+            id,
+            name,
+            at,
+            timing,
+            summary,
+        } => {
+            let at = resolve_edit_time(&bundle, at, timing, "edit.locator_create")?;
+            Some((
+                vec![
+                    create_locator(&bundle, id, name, &at)
+                        .map_err(|error| sample_edit_failure("edit.locator_create", error))?,
+                ],
+                summary.as_str(),
+            ))
+        }
+        EditCommand::LocatorMove {
+            id,
+            at,
+            timing,
+            summary,
+        } => {
+            let at = resolve_edit_time(&bundle, at, timing, "edit.locator_move")?;
+            Some((
+                vec![
+                    move_locator(&bundle, id, &at)
+                        .map_err(|error| sample_edit_failure("edit.locator_move", error))?,
+                ],
+                summary.as_str(),
+            ))
+        }
+        EditCommand::LocatorDelete { id, summary } => Some((
+            vec![
+                delete_locator(&bundle, id)
+                    .map_err(|error| sample_edit_failure("edit.locator_delete", error))?,
+            ],
+            summary.as_str(),
+        )),
+        EditCommand::ClipCreate {
+            track,
+            id,
+            pattern,
+            start,
+            duration,
+            mode,
+            offset,
+            transpose,
+            gain_db,
+            fade_in,
+            fade_out,
+            groove,
+            timing,
+            summary,
+        } => {
+            let mode = mode.parse::<ClipMode>().map_err(|error| {
+                Failure::blocked(
+                    "edit.clip_create",
+                    "edit_rejected",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?;
+            let start = resolve_edit_time(&bundle, start, timing, "edit.clip_create")?;
+            let duration = resolve_edit_time(&bundle, duration, timing, "edit.clip_create")?;
+            let offset = resolve_edit_time(&bundle, offset, timing, "edit.clip_create")?;
+            Some((
+                vec![
+                    create_clip(
+                        &bundle,
+                        track,
+                        &ClipPlacement {
+                            id: id.clone(),
+                            pattern: pattern.clone(),
+                            start,
+                            duration,
+                            mode,
+                            source_offset: offset,
+                            transpose_semitones: *transpose,
+                            gain_db: *gain_db,
+                            fade_in: fade_in.clone(),
+                            fade_out: fade_out.clone(),
+                            groove: groove.clone(),
+                        },
+                    )
+                    .map_err(|error| sample_edit_failure("edit.clip_create", error))?,
+                ],
+                summary.as_str(),
+            ))
+        }
+        EditCommand::ClipDelete { id, summary } => Some((
+            vec![
+                delete_clip(&bundle, id)
+                    .map_err(|error| sample_edit_failure("edit.clip_delete", error))?,
+            ],
+            summary.as_str(),
+        )),
+        EditCommand::ClipMove {
+            id,
+            start,
+            timing,
+            summary,
+        } => {
+            let start = resolve_edit_time(&bundle, start, timing, "edit.clip_move")?;
+            Some((
+                vec![
+                    move_clip(&bundle, id, &start)
+                        .map_err(|error| sample_edit_failure("edit.clip_move", error))?,
+                ],
+                summary.as_str(),
+            ))
+        }
+        EditCommand::ClipResize {
+            id,
+            duration,
+            timing,
+            summary,
+        } => {
+            let duration = resolve_edit_time(&bundle, duration, timing, "edit.clip_resize")?;
+            Some((
+                vec![
+                    resize_clip(&bundle, id, &duration)
+                        .map_err(|error| sample_edit_failure("edit.clip_resize", error))?,
+                ],
+                summary.as_str(),
+            ))
+        }
+        EditCommand::ClipDuplicate {
+            id,
+            new_id,
+            start,
+            timing,
+            summary,
+        } => {
+            let start = resolve_edit_time(&bundle, start, timing, "edit.clip_duplicate")?;
+            Some((
+                vec![
+                    duplicate_clip(&bundle, id, new_id, &start)
+                        .map_err(|error| sample_edit_failure("edit.clip_duplicate", error))?,
+                ],
+                summary.as_str(),
+            ))
+        }
+        EditCommand::ClipSplit {
+            id,
+            new_id,
+            at,
+            timing,
+            summary,
+        } => {
+            let at = resolve_edit_time(&bundle, at, timing, "edit.clip_split")?;
+            Some((
+                split_clip(&bundle, id, new_id, &at)
+                    .map_err(|error| sample_edit_failure("edit.clip_split", error))?,
+                summary.as_str(),
+            ))
+        }
+        EditCommand::ClipOffset {
+            id,
+            offset,
+            timing,
+            summary,
+        } => {
+            let offset = resolve_edit_time(&bundle, offset, timing, "edit.clip_offset")?;
+            Some((
+                set_clip_source_offset(&bundle, id, &offset)
+                    .map_err(|error| sample_edit_failure("edit.clip_offset", error))?,
+                summary.as_str(),
+            ))
+        }
+        EditCommand::ClipTranspose {
+            id,
+            semitones,
+            summary,
+        } => Some((
+            set_clip_transpose(&bundle, id, *semitones)
+                .map_err(|error| sample_edit_failure("edit.clip_transpose", error))?,
+            summary.as_str(),
+        )),
+        EditCommand::ClipGain {
+            id,
+            gain_db,
+            summary,
+        } => Some((
+            set_clip_gain(&bundle, id, *gain_db)
+                .map_err(|error| sample_edit_failure("edit.clip_gain", error))?,
+            summary.as_str(),
+        )),
+        EditCommand::ClipFade {
+            id,
+            fade_in,
+            fade_out,
+            timing,
+            summary,
+        } => {
+            let fade_in = resolve_edit_time(&bundle, fade_in, timing, "edit.clip_fade")?;
+            let fade_out = resolve_edit_time(&bundle, fade_out, timing, "edit.clip_fade")?;
+            Some((
+                set_clip_fades(&bundle, id, &fade_in, &fade_out)
+                    .map_err(|error| sample_edit_failure("edit.clip_fade", error))?,
+                summary.as_str(),
+            ))
+        }
+        EditCommand::SamplePlace {
+            pattern,
+            id,
+            mapping,
+            at,
+            duration,
+            start_frame,
+            end_frame,
+            gain_db,
+            pan,
+            fade_in,
+            fade_out,
+            velocity,
+            timing,
+            summary,
+        } => {
+            let at = resolve_edit_time(&bundle, at, timing, "edit.sample_place")?;
+            let duration = resolve_edit_time(&bundle, duration, timing, "edit.sample_place")?;
+            Some((
+                vec![
+                    place_sample_occurrence(
+                        &bundle,
+                        pattern,
+                        &SamplePlacement {
+                            id: id.clone(),
+                            mapping: mapping.clone(),
+                            at,
+                            duration,
+                            start_frame: *start_frame,
+                            end_frame: *end_frame,
+                            gain_db: *gain_db,
+                            pan: *pan,
+                            fade_in_frames: *fade_in,
+                            fade_out_frames: *fade_out,
+                            velocity: *velocity,
+                        },
+                    )
+                    .map_err(|error| sample_edit_failure("edit.sample_place", error))?,
+                ],
+                summary.as_str(),
+            ))
+        }
+        EditCommand::SampleMove {
+            pattern,
+            id,
+            at,
+            timing,
+            summary,
+        } => {
+            let at = resolve_edit_time(&bundle, at, timing, "edit.sample_move")?;
+            Some((
+                vec![
+                    move_sample_occurrence(&bundle, pattern, id, &at)
+                        .map_err(|error| sample_edit_failure("edit.sample_move", error))?,
+                ],
+                summary.as_str(),
+            ))
+        }
+        EditCommand::SampleDuplicate {
+            pattern,
+            id,
+            new_id,
+            at,
+            timing,
+            summary,
+        } => {
+            let at = resolve_edit_time(&bundle, at, timing, "edit.sample_duplicate")?;
+            Some((
+                vec![
+                    duplicate_sample_occurrence(&bundle, pattern, id, new_id, &at)
+                        .map_err(|error| sample_edit_failure("edit.sample_duplicate", error))?,
+                ],
+                summary.as_str(),
+            ))
+        }
+        EditCommand::SampleSplit {
+            pattern,
+            id,
+            new_id,
+            at,
+            source_frame,
+            timing,
+            summary,
+        } => {
+            let at = resolve_edit_time(&bundle, at, timing, "edit.sample_split")?;
+            Some((
+                vec![
+                    split_sample_occurrence(&bundle, pattern, id, new_id, &at, *source_frame)
+                        .map_err(|error| sample_edit_failure("edit.sample_split", error))?,
+                ],
+                summary.as_str(),
+            ))
+        }
+        EditCommand::SampleTrim {
+            pattern,
+            id,
+            start_frame,
+            end_frame,
+            summary,
+        } => Some((
+            trim_sample_occurrence(&bundle, pattern, id, *start_frame, *end_frame)
+                .map_err(|error| sample_edit_failure("edit.sample_trim", error))?,
+            summary.as_str(),
+        )),
+        EditCommand::SampleSlip {
+            pattern,
+            id,
+            frames,
+            summary,
+        } => Some((
+            slip_sample_occurrence(&bundle, pattern, id, *frames)
+                .map_err(|error| sample_edit_failure("edit.sample_slip", error))?,
+            summary.as_str(),
+        )),
+        EditCommand::SampleFade {
+            pattern,
+            id,
+            fade_in,
+            fade_out,
+            summary,
+        } => Some((
+            fade_sample_occurrence(&bundle, pattern, id, *fade_in, *fade_out)
+                .map_err(|error| sample_edit_failure("edit.sample_fade", error))?,
+            summary.as_str(),
+        )),
+        EditCommand::SampleGain {
+            pattern,
+            id,
+            gain_db,
+            summary,
+        } => Some((
+            vec![
+                set_sample_occurrence_gain(&bundle, pattern, id, *gain_db)
+                    .map_err(|error| sample_edit_failure("edit.sample_gain", error))?,
+            ],
+            summary.as_str(),
+        )),
+        EditCommand::SamplePan {
+            pattern,
+            id,
+            pan,
+            summary,
+        } => Some((
+            vec![
+                set_sample_occurrence_pan(&bundle, pattern, id, *pan)
+                    .map_err(|error| sample_edit_failure("edit.sample_pan", error))?,
+            ],
+            summary.as_str(),
+        )),
+        _ => None,
+    };
+    if let Some((replacements, summary)) = multi_replacement_edit {
+        return commit_cli_edit(&bundle, replacements, summary);
+    }
     let (replacement, summary) = match command {
+        EditCommand::Target {
+            target,
+            value,
+            summary,
+        } => {
+            let target = target.parse::<ParameterTarget>().map_err(|error| {
+                Failure::blocked(
+                    "edit.target",
+                    "invalid_target",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?;
+            (
+                set_parameter_target(&bundle, &target, *value).map_err(|error| {
+                    Failure::blocked("edit.target", "edit_rejected", error.to_string(), json!([]))
+                })?,
+                summary,
+            )
+        }
         EditCommand::Parameter {
             instrument,
             parameter,
@@ -1039,6 +2579,154 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             })?,
             summary,
         ),
+        EditCommand::AutomationCreate {
+            lane,
+            target,
+            value,
+            summary,
+        } => {
+            let target = target.parse::<ParameterTarget>().map_err(|error| {
+                Failure::blocked(
+                    "edit.automation_create",
+                    "invalid_target",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?;
+            (
+                create_automation_lane(&bundle, lane, &target, value).map_err(|error| {
+                    Failure::blocked(
+                        "edit.automation_create",
+                        "edit_rejected",
+                        error.to_string(),
+                        json!([]),
+                    )
+                })?,
+                summary,
+            )
+        }
+        EditCommand::AutomationDelete { lane, summary } => (
+            delete_automation_lane(&bundle, lane).map_err(|error| {
+                Failure::blocked(
+                    "edit.automation_delete",
+                    "edit_rejected",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?,
+            summary,
+        ),
+        EditCommand::AutomationPointCreate {
+            lane,
+            point,
+            time,
+            timing,
+            value,
+            curve,
+            summary,
+        } => {
+            let time = resolve_edit_time(&bundle, time, timing, "edit.automation_point_create")?;
+            let curve = curve.parse::<AutomationInterpolation>().map_err(|error| {
+                Failure::blocked(
+                    "edit.automation_point_create",
+                    "invalid_curve",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?;
+            (
+                create_automation_point(&bundle, lane, point, &time, value, curve).map_err(
+                    |error| {
+                        Failure::blocked(
+                            "edit.automation_point_create",
+                            "edit_rejected",
+                            error.to_string(),
+                            json!([]),
+                        )
+                    },
+                )?,
+                summary,
+            )
+        }
+        EditCommand::AutomationPointTime {
+            lane,
+            point,
+            time,
+            timing,
+            summary,
+        } => {
+            let time = resolve_edit_time(&bundle, time, timing, "edit.automation_point_time")?;
+            (
+                set_automation_point_at(&bundle, lane, point, &time).map_err(|error| {
+                    Failure::blocked(
+                        "edit.automation_point_time",
+                        "edit_rejected",
+                        error.to_string(),
+                        json!([]),
+                    )
+                })?,
+                summary,
+            )
+        }
+        EditCommand::AutomationPointValue {
+            lane,
+            point,
+            value,
+            summary,
+        } => (
+            set_automation_point_value(&bundle, lane, point, value).map_err(|error| {
+                Failure::blocked(
+                    "edit.automation_point_value",
+                    "edit_rejected",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?,
+            summary,
+        ),
+        EditCommand::AutomationPointCurve {
+            lane,
+            point,
+            curve,
+            summary,
+        } => {
+            let curve = curve.parse::<AutomationInterpolation>().map_err(|error| {
+                Failure::blocked(
+                    "edit.automation_point_curve",
+                    "invalid_curve",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?;
+            (
+                set_automation_point_interpolation(&bundle, lane, point, curve).map_err(
+                    |error| {
+                        Failure::blocked(
+                            "edit.automation_point_curve",
+                            "edit_rejected",
+                            error.to_string(),
+                            json!([]),
+                        )
+                    },
+                )?,
+                summary,
+            )
+        }
+        EditCommand::AutomationPointDelete {
+            lane,
+            point,
+            summary,
+        } => (
+            delete_automation_point(&bundle, lane, point).map_err(|error| {
+                Failure::blocked(
+                    "edit.automation_point_delete",
+                    "edit_rejected",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?,
+            summary,
+        ),
         EditCommand::NotePitch {
             pattern,
             event,
@@ -1069,34 +2757,42 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             pattern,
             event,
             value,
+            timing,
             summary,
-        } => (
-            set_event_at(&bundle, pattern, *event, value).map_err(|error| {
-                Failure::blocked(
-                    "edit.event_time",
-                    "edit_rejected",
-                    error.to_string(),
-                    json!([]),
-                )
-            })?,
-            summary,
-        ),
+        } => {
+            let value = resolve_edit_time(&bundle, value, timing, "edit.event_time")?;
+            (
+                set_event_at(&bundle, pattern, *event, &value).map_err(|error| {
+                    Failure::blocked(
+                        "edit.event_time",
+                        "edit_rejected",
+                        error.to_string(),
+                        json!([]),
+                    )
+                })?,
+                summary,
+            )
+        }
         EditCommand::NoteDuration {
             pattern,
             event,
             value,
+            timing,
             summary,
-        } => (
-            set_note_duration(&bundle, pattern, *event, value).map_err(|error| {
-                Failure::blocked(
-                    "edit.note_duration",
-                    "edit_rejected",
-                    error.to_string(),
-                    json!([]),
-                )
-            })?,
-            summary,
-        ),
+        } => {
+            let value = resolve_edit_time(&bundle, value, timing, "edit.note_duration")?;
+            (
+                set_note_duration(&bundle, pattern, *event, &value).map_err(|error| {
+                    Failure::blocked(
+                        "edit.note_duration",
+                        "edit_rejected",
+                        error.to_string(),
+                        json!([]),
+                    )
+                })?,
+                summary,
+            )
+        }
         EditCommand::EventVelocity {
             pattern,
             event,
@@ -1139,11 +2835,99 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary,
             )
         }
+        EditCommand::GrooveCreate { .. }
+        | EditCommand::GrooveUpdate { .. }
+        | EditCommand::GrooveDelete { .. }
+        | EditCommand::PatternVariationCreate { .. }
+        | EditCommand::PatternVariationUpdate { .. }
+        | EditCommand::PatternVariationDelete { .. }
+        | EditCommand::ParameterLockCreate { .. }
+        | EditCommand::ParameterLockUpdate { .. }
+        | EditCommand::ParameterLockDelete { .. }
+        | EditCommand::ClipGroove { .. }
+        | EditCommand::TimeInsert { .. }
+        | EditCommand::TimeDelete { .. }
+        | EditCommand::TimeDuplicate { .. }
+        | EditCommand::LocatorCreate { .. }
+        | EditCommand::LocatorMove { .. }
+        | EditCommand::LocatorDelete { .. }
+        | EditCommand::ClipCreate { .. }
+        | EditCommand::ClipDelete { .. }
+        | EditCommand::ClipMove { .. }
+        | EditCommand::ClipResize { .. }
+        | EditCommand::ClipDuplicate { .. }
+        | EditCommand::ClipSplit { .. }
+        | EditCommand::ClipOffset { .. }
+        | EditCommand::ClipTranspose { .. }
+        | EditCommand::ClipGain { .. }
+        | EditCommand::ClipFade { .. }
+        | EditCommand::SamplePlace { .. }
+        | EditCommand::SampleMove { .. }
+        | EditCommand::SampleDuplicate { .. }
+        | EditCommand::SampleSplit { .. }
+        | EditCommand::SampleTrim { .. }
+        | EditCommand::SampleSlip { .. }
+        | EditCommand::SampleFade { .. }
+        | EditCommand::SampleGain { .. }
+        | EditCommand::SamplePan { .. } => unreachable!("multi-replacement edits returned above"),
     };
+    commit_cli_edit(&bundle, vec![replacement], summary)
+}
+
+fn sample_edit_failure(command: &'static str, error: EditError) -> Failure {
+    Failure::blocked(command, "edit_rejected", error.to_string(), json!([]))
+}
+
+fn resolve_edit_time(
+    bundle: &ProjectBundle,
+    value: &str,
+    timing: &TimeGridArgs,
+    command: &'static str,
+) -> Result<String, Failure> {
+    let project = bundle.project.as_ref().ok_or_else(|| {
+        Failure::blocked(
+            command,
+            "invalid_base",
+            "Project model is unavailable",
+            json!([]),
+        )
+    })?;
+    let resolved = project
+        .song
+        .locators
+        .iter()
+        .find(|locator| locator.id == value)
+        .map_or_else(|| value.to_owned(), |locator| locator.at.to_string());
+    if timing.free || !timing.snap {
+        return Ok(resolved);
+    }
+    let grid = timing.grid.as_deref().ok_or_else(|| {
+        Failure::blocked(
+            command,
+            "invalid_grid",
+            "--snap requires --grid TIME",
+            json!([]),
+        )
+    })?;
+    let value = parse_musical_time(&resolved, project.song.meter)
+        .map_err(|error| Failure::blocked(command, "invalid_time", error.to_string(), json!([])))?;
+    let grid = parse_musical_time(grid, project.song.meter)
+        .map_err(|error| Failure::blocked(command, "invalid_grid", error.to_string(), json!([])))?;
+    value
+        .snap_to_grid(grid)
+        .map(|snapped| snapped.to_string())
+        .map_err(|error| Failure::blocked(command, "invalid_grid", error.to_string(), json!([])))
+}
+
+fn commit_cli_edit(
+    bundle: &ProjectBundle,
+    replacements: Vec<crate::edit::CheckedReplacement>,
+    summary: &str,
+) -> Result<Success, Failure> {
     let entry = apply_structured_edit(
         &bundle.root,
         &bundle.revision,
-        vec![replacement],
+        replacements,
         Publication::new(
             ChangeOrigin::human("cli"),
             summary,
@@ -1162,7 +2946,10 @@ fn edit_transaction_failure(error: EditError) -> Failure {
     match error {
         error @ (EditError::StaleRevision { .. }
         | EditError::CandidateNotActive { .. }
-        | EditError::StaleTarget { .. }) => Failure::conflict("edit", "edit_conflict", error),
+        | EditError::StaleTarget { .. }
+        | EditError::AssetDestinationExists(_)) => {
+            Failure::conflict("edit", "edit_conflict", error)
+        }
         EditError::InvalidResult(diagnostics) => Failure::blocked(
             "edit",
             "invalid_result",
@@ -1175,6 +2962,7 @@ fn edit_transaction_failure(error: EditError) -> Failure {
         | EditError::InvalidUtf8Boundary(_)
         | EditError::UnknownSource(_)
         | EditError::UnsafePath(_)
+        | EditError::UndeclaredAssetPath(_)
         | EditError::UnknownTarget(_)
         | EditError::WrongTargetKind(_)
         | EditError::InvalidValue(_)
@@ -1188,6 +2976,114 @@ fn edit_transaction_failure(error: EditError) -> Failure {
             Failure::operational("edit", "edit_transaction_failed", error)
         }
     }
+}
+
+fn command_asset(cli: &Cli, command: &AssetCommand) -> Result<Success, Failure> {
+    match command {
+        AssetCommand::Import {
+            source,
+            id,
+            name,
+            summary,
+        } => {
+            let bundle = load(cli, "asset.import")?;
+            if bundle.diagnostics.has_errors() {
+                return Err(Failure::blocked(
+                    "asset.import",
+                    "invalid_base",
+                    "media import requires a valid Active Candidate",
+                    json!(bundle.diagnostics.as_slice()),
+                ));
+            }
+            let entry = import_media_asset(
+                &bundle.root,
+                &bundle.revision,
+                source,
+                id,
+                name.as_deref().unwrap_or(id),
+                Publication::new(
+                    ChangeOrigin::human("cli"),
+                    summary,
+                    "Copied external WAV into portable Project media",
+                ),
+            )
+            .map_err(|error| {
+                let mut failure = edit_transaction_failure(error);
+                failure.command = "asset.import";
+                failure
+            })?;
+            Ok(Success {
+                command: "asset.import",
+                human: format!("Imported media asset {id} as history entry {}", entry.id),
+                data: json!({ "asset_id": id, "history_entry": entry }),
+            })
+        }
+        AssetCommand::Collect { summary } => {
+            let bundle = load(cli, "asset.collect")?;
+            if bundle.diagnostics.has_errors() {
+                return Err(Failure::blocked(
+                    "asset.collect",
+                    "invalid_base",
+                    "media collection requires a valid Active Candidate",
+                    json!(bundle.diagnostics.as_slice()),
+                ));
+            }
+            let entry = collect_media_assets(
+                &bundle.root,
+                &bundle.revision,
+                Publication::new(
+                    ChangeOrigin::human("cli"),
+                    summary,
+                    "Collected exact WAV bytes into canonical portable paths",
+                ),
+            )
+            .map_err(|error| {
+                let mut failure = edit_transaction_failure(error);
+                failure.command = "asset.collect";
+                failure
+            })?;
+            Ok(Success {
+                command: "asset.collect",
+                human: format!("Collected portable media as history entry {}", entry.id),
+                data: json!({ "history_entry": entry }),
+            })
+        }
+        AssetCommand::List => {
+            let bundle = load(cli, "asset.list")?;
+            let assets = portable_asset_data(&bundle);
+            Ok(Success {
+                command: "asset.list",
+                human: format!("{} portable media asset(s)", assets.len()),
+                data: json!({
+                    "revision": bundle.revision,
+                    "assets": assets,
+                    "diagnostics": bundle.diagnostics.as_slice(),
+                }),
+            })
+        }
+    }
+}
+
+fn portable_asset_data(bundle: &ProjectBundle) -> Vec<Value> {
+    bundle
+        .assets
+        .iter()
+        .map(|asset| {
+            let metadata = asset.metadata();
+            json!({
+                "id": asset.id(),
+                "name": asset.name(),
+                "path": asset.path(),
+                "sha256": asset.sha256(),
+                "byte_len": asset.byte_len(),
+                "channels": metadata.channels,
+                "sample_rate": metadata.sample_rate,
+                "frames": metadata.frames,
+                "sample_format": format!("{:?}", metadata.sample_format).to_lowercase(),
+                "bits_per_sample": metadata.bits_per_sample,
+            })
+        })
+        .collect()
 }
 
 fn command_module(cli: &Cli, command: &ModuleCommand) -> Result<Success, Failure> {
@@ -1667,6 +3563,103 @@ fn module_write_failure(command: &'static str, error: std::io::Error) -> Failure
     } else {
         Failure::operational(command, "io_error", error)
     }
+}
+
+fn resolved_output_file(path: &Path) -> Result<PathBuf, std::io::Error> {
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()?.join(path)
+    };
+    let mut normalized = PathBuf::new();
+    for component in absolute.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::Prefix(_) | Component::RootDir | Component::Normal(_) => {
+                normalized.push(component.as_os_str());
+            }
+        }
+    }
+    let name = normalized.file_name().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "qualification output requires a file name",
+        )
+    })?;
+    let mut cursor = normalized.parent().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "qualification output has no parent",
+        )
+    })?;
+    let mut missing = Vec::new();
+    while !cursor.exists() {
+        let component = cursor.file_name().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "qualification output has no existing ancestor",
+            )
+        })?;
+        missing.push(component.to_os_string());
+        cursor = cursor.parent().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "qualification output has no existing ancestor",
+            )
+        })?;
+    }
+    let mut resolved = fs::canonicalize(cursor)?;
+    for component in missing.iter().rev() {
+        resolved.push(component);
+    }
+    resolved.push(name);
+    Ok(resolved)
+}
+
+fn inspect_qualification_output(
+    candidate: &ProjectBundle,
+    active: &ProjectBundle,
+    output: &Path,
+) -> Result<PathBuf, std::io::Error> {
+    let destination = resolved_output_file(output)?;
+    for bundle in [candidate, active] {
+        let root = fs::canonicalize(&bundle.root)?;
+        let history = root.join(".crump");
+        let overlaps_source = bundle
+            .sources
+            .keys()
+            .map(|path| root.join(path))
+            .any(|path| path.starts_with(&destination));
+        let overlaps_declared_media = bundle
+            .project
+            .iter()
+            .flat_map(|project| &project.assets)
+            .map(|asset| root.join(&asset.path))
+            .any(|path| path.starts_with(&destination));
+        let overlaps_loaded_media = bundle
+            .assets
+            .iter()
+            .map(|asset| root.join(asset.path()))
+            .any(|path| path.starts_with(&destination));
+        if root.starts_with(&destination)
+            || destination.starts_with(&history)
+            || overlaps_source
+            || overlaps_declared_media
+            || overlaps_loaded_media
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "qualification report destination {} overlaps Project source, media, or history",
+                    destination.display()
+                ),
+            ));
+        }
+    }
+    Ok(destination)
 }
 
 fn write_atomic_file(path: &Path, bytes: &[u8], replace: bool) -> Result<(), std::io::Error> {

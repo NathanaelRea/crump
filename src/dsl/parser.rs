@@ -9,9 +9,15 @@ use std::{
 use crate::{
     diagnostic::{Diagnostic, Diagnostics, SourceLocation},
     model::{
-        Clip, ClipMode, Connection, DrumVoice, Endpoint, FaceplateControl, Graph, GraphNode,
-        Instrument, InstrumentKind, NodeKind, Parameter, Pattern, PatternEvent, Project,
-        SOURCE_VERSION, SettingValue, Song, Track, Unit, ValueSite, parse_pitch,
+        AutomationInterpolation, AutomationLane, AutomationPoint, ChannelRef, ChannelStrip, Clip,
+        ClipMode, ClipSites, Connection, ControlPolarity, DrumVoice, Endpoint, FaceplateControl,
+        Graph, GraphNode, GrooveSites, GrooveTemplate, Group, Instrument, InstrumentKind,
+        LfoWaveform, Locator, Master, MediaAsset, ModulationOperator, ModulationRate,
+        ModulationRoute, ModulationScope, NodeKind, OutputTarget, Panner, Parameter, ParameterLock,
+        ParameterLockSites, ParameterTarget, Pattern, PatternEvent, PatternVariation,
+        PatternVariationSites, Processor, ProcessorKind, ProcessorSetting, Project, Return,
+        SOURCE_VERSION, SampleEventSites, SampleMapping, SamplePlayback, SamplerDefinition, Send,
+        SettingValue, SidechainRoute, Song, TapPoint, Track, Unit, ValueSite, parse_pitch,
     },
     time::{Meter, MusicalTime, parse_musical_time, parse_seconds},
 };
@@ -227,6 +233,7 @@ impl Parser<'_> {
         let mut seed = None;
         let mut sample_rate = None;
         let mut render_tail_seconds = None;
+        let mut assets = Vec::new();
         let mut song = None;
 
         for child in &statement.children {
@@ -244,6 +251,11 @@ impl Parser<'_> {
                                 None
                             }
                         });
+                }
+                Some("asset") => {
+                    if let Some(asset) = self.parse_media_asset(child) {
+                        assets.push(asset);
+                    }
                 }
                 Some("song") => {
                     if song.is_some() {
@@ -289,8 +301,36 @@ impl Parser<'_> {
             seed,
             sample_rate,
             render_tail_seconds,
+            assets,
             song,
             imports: Vec::new(),
+        })
+    }
+
+    fn parse_media_asset(&mut self, statement: &Statement) -> Option<MediaAsset> {
+        if statement.tokens.len() != 7
+            || statement.tokens[2].kind != TokenKind::String
+            || statement.tokens[3].value != "wav"
+            || statement.tokens[4].kind != TokenKind::String
+            || statement.tokens[5].value != "sha256"
+            || statement.tokens[6].kind != TokenKind::String
+            || !statement.children.is_empty()
+        {
+            self.error_at(
+                "CRP230",
+                "asset syntax is `asset id \"Name\" wav \"media/file.wav\" sha256 \"lowercase-hex\"`",
+                statement,
+            );
+            return None;
+        }
+        Some(MediaAsset {
+            id: statement.tokens[1].value.clone(),
+            name: statement.tokens[2].value.clone(),
+            path: PathBuf::from(&statement.tokens[4].value),
+            sha256: statement.tokens[6].value.clone(),
+            path_site: self.site(&statement.tokens[4]),
+            sha256_site: self.site(&statement.tokens[6]),
+            location: statement.location(self.file, self.source),
         })
     }
 
@@ -303,7 +343,15 @@ impl Parser<'_> {
         let mut end_token: Option<&Token> = None;
         let mut instruments = Vec::new();
         let mut pattern_statements = Vec::new();
+        let mut groove_statements = Vec::new();
         let mut track_statements = Vec::new();
+        let mut group_statements = Vec::new();
+        let mut return_statements = Vec::new();
+        let mut master_statement = None;
+        let mut sidechain_statements = Vec::new();
+        let mut locator_statements = Vec::new();
+        let mut automation_statements = Vec::new();
+        let mut modulation_statements = Vec::new();
 
         for child in &statement.children {
             match child.keyword() {
@@ -333,7 +381,19 @@ impl Parser<'_> {
                     }
                 }
                 Some("pattern") => pattern_statements.push(child),
+                Some("groove") => groove_statements.push(child),
                 Some("track") => track_statements.push(child),
+                Some("group") => group_statements.push(child),
+                Some("return") => return_statements.push(child),
+                Some("master") => {
+                    if master_statement.replace(child).is_some() {
+                        self.error_at("CRP128", "Song contains more than one Master", child);
+                    }
+                }
+                Some("sidechain") => sidechain_statements.push(child),
+                Some("locator") => locator_statements.push(child),
+                Some("automation") => automation_statements.push(child),
+                Some("modulation") => modulation_statements.push(child),
                 Some(keyword) => self.unknown("Song", keyword, child),
                 None => {}
             }
@@ -341,23 +401,62 @@ impl Parser<'_> {
 
         let tempo_bpm = self.required(tempo_bpm, "CRP125", "Song is missing `tempo`", statement)?;
         let meter = self.required(meter, "CRP126", "Song is missing `meter`", statement)?;
-        let end = end_token.and_then(|token| self.parse_time(token, meter));
-        let end = self.required(end, "CRP127", "Song is missing `end`", statement)?;
+        let end_token = self.required(end_token, "CRP127", "Song is missing `end`", statement)?;
+        let end = self.parse_time(end_token, meter)?;
         let patterns = pattern_statements
             .into_iter()
             .filter_map(|pattern| self.parse_pattern(pattern, meter))
+            .collect();
+        let grooves = groove_statements
+            .into_iter()
+            .filter_map(|groove| self.parse_groove(groove, meter))
             .collect();
         let tracks = track_statements
             .into_iter()
             .filter_map(|track| self.parse_track(track, meter))
             .collect();
+        let groups = group_statements
+            .into_iter()
+            .filter_map(|group| self.parse_group(group))
+            .collect();
+        let returns = return_statements
+            .into_iter()
+            .filter_map(|channel| self.parse_return(channel))
+            .collect();
+        let master = master_statement.and_then(|master| self.parse_master(master));
+        let sidechains = sidechain_statements
+            .into_iter()
+            .filter_map(|route| self.parse_sidechain(route))
+            .collect();
+        let locators = locator_statements
+            .into_iter()
+            .filter_map(|locator| self.parse_locator(locator, meter))
+            .collect();
+        let automations = automation_statements
+            .into_iter()
+            .filter_map(|automation| self.parse_automation(automation, meter))
+            .collect();
+        let modulations = modulation_statements
+            .into_iter()
+            .filter_map(|modulation| self.parse_modulation(modulation, meter))
+            .collect();
         Some(Song {
             tempo_bpm,
             meter,
             end,
+            end_site: self.site(end_token),
             instruments,
             patterns,
+            grooves,
             tracks,
+            groups,
+            returns,
+            master,
+            sidechains,
+            locators,
+            automations,
+            modulations,
+            location: statement.location(self.file, self.source),
         })
     }
 
@@ -365,7 +464,7 @@ impl Parser<'_> {
         if statement.tokens.len() != 4 || statement.tokens[2].kind != TokenKind::String {
             self.error_at(
                 "CRP130",
-                "instrument syntax is `instrument id \"Name\" graph|stock_drums {`",
+                "instrument syntax is `instrument id \"Name\" graph|stock_drums|sampler {`",
                 statement,
             );
             return None;
@@ -375,6 +474,7 @@ impl Parser<'_> {
         let kind = match statement.tokens[3].value.as_str() {
             "graph" => InstrumentKind::Graph,
             "stock_drums" => InstrumentKind::StockDrums,
+            "sampler" => InstrumentKind::Sampler,
             other => {
                 self.token_error(
                     "CRP131",
@@ -388,6 +488,8 @@ impl Parser<'_> {
         let mut parameters = Vec::new();
         let mut faceplate = Vec::new();
         let mut graph = None;
+        let mut sample_mappings = Vec::new();
+        let mut post_processors = Vec::new();
         for child in &statement.children {
             match child.keyword() {
                 Some("polyphony") => polyphony = self.parse_u16_value(child, "polyphony"),
@@ -402,6 +504,16 @@ impl Parser<'_> {
                         self.error_at("CRP132", "instrument contains more than one graph", child);
                     } else {
                         graph = self.parse_graph(child);
+                    }
+                }
+                Some("mapping") => {
+                    if let Some(mapping) = self.parse_sample_mapping(child) {
+                        sample_mappings.push(mapping);
+                    }
+                }
+                Some("processor") => {
+                    if let Some(processor) = self.parse_processor(child) {
+                        post_processors.push(processor);
                     }
                 }
                 Some(keyword) => self.unknown("instrument", keyword, child),
@@ -422,17 +534,159 @@ impl Parser<'_> {
             parameters,
             faceplate,
             graph,
+            sampler: (kind == InstrumentKind::Sampler).then(|| SamplerDefinition {
+                mappings: sample_mappings,
+                location: statement.location(self.file, self.source),
+            }),
+            post_processors,
             location: statement.location(self.file, self.source),
         })
     }
 
-    fn parse_parameter(&mut self, statement: &Statement) -> Option<Parameter> {
-        if !(8..=9).contains(&statement.tokens.len())
-            || statement.tokens[2].kind != TokenKind::String
+    fn parse_sample_mapping(&mut self, statement: &Statement) -> Option<SampleMapping> {
+        if statement.tokens.len() != 9
+            || statement.tokens[2].value != "asset"
+            || statement.tokens[4].value != "keys"
+            || statement.tokens[7].value != "root"
         {
             self.error_at(
+                "CRP134",
+                "mapping syntax is `mapping ID asset ASSET keys LOW HIGH root ROOT {`",
+                statement,
+            );
+            return None;
+        }
+        let low_key = self.parse_pitch_token(&statement.tokens[5])?;
+        let high_key = self.parse_pitch_token(&statement.tokens[6])?;
+        let root_key = self.parse_pitch_token(&statement.tokens[8])?;
+        let mut region = None;
+        let mut playback = None;
+        let mut gain = None;
+        let mut pan = None;
+        let mut envelope = None;
+        let mut fade = None;
+        let mut choke_group = None;
+        for child in &statement.children {
+            match child.keyword() {
+                Some("region") if child.tokens.len() == 3 => {
+                    let start = self.parse_u64_token(&child.tokens[1], "region start");
+                    let end = self.parse_u64_token(&child.tokens[2], "region end");
+                    if let (Some(start), Some(end)) = (start, end) {
+                        region = Some((start, end, self.site(&child.tokens[1]), self.site(&child.tokens[2])));
+                    }
+                }
+                Some("playback") => {
+                    playback = self
+                        .single_argument(child, "CRP135", "playback requires one_shot or gated")
+                        .and_then(|token| match SamplePlayback::from_str(&token.value) {
+                            Ok(value) => Some(value),
+                            Err(error) => {
+                                self.token_error("CRP135", error.to_string(), token);
+                                None
+                            }
+                        });
+                }
+                Some("gain") => {
+                    gain = self
+                        .single_argument(child, "CRP136", "gain requires one dB value")
+                        .and_then(|token| self.parse_physical(Unit::Decibels, token).map(|value| (value, self.site(token))));
+                }
+                Some("pan") => {
+                    pan = self
+                        .single_argument(child, "CRP137", "pan requires one value")
+                        .and_then(|token| self.parse_physical(Unit::Pan, token).map(|value| (value, self.site(token))));
+                }
+                Some("envelope") if child.tokens.len() == 3 => {
+                    let attack = self.parse_physical(Unit::Seconds, &child.tokens[1]);
+                    let release = self.parse_physical(Unit::Seconds, &child.tokens[2]);
+                    if let (Some(attack), Some(release)) = (attack, release) {
+                        envelope = Some((attack, release));
+                    }
+                }
+                Some("fade") if child.tokens.len() == 3 => {
+                    let fade_in = self.parse_u32_token(&child.tokens[1], "fade in");
+                    let fade_out = self.parse_u32_token(&child.tokens[2], "fade out");
+                    if let (Some(fade_in), Some(fade_out)) = (fade_in, fade_out) {
+                        fade = Some((fade_in, fade_out, self.site(&child.tokens[1]), self.site(&child.tokens[2])));
+                    }
+                }
+                Some("choke") => {
+                    choke_group = self
+                        .single_argument(child, "CRP138", "choke requires one group ID")
+                        .map(|token| token.value.clone());
+                }
+                Some("region" | "envelope" | "fade") => self.error_at(
+                    "CRP139",
+                    "mapping directives are `region START END`, `envelope ATTACK RELEASE`, and `fade IN END`",
+                    child,
+                ),
+                Some(keyword) => self.unknown("sample mapping", keyword, child),
+                None => {}
+            }
+        }
+        let (start_frame, end_frame, start_site, end_site) = self.required(
+            region,
+            "CRP134",
+            "sample mapping is missing `region START END`",
+            statement,
+        )?;
+        let playback = self.required(
+            playback,
+            "CRP135",
+            "sample mapping is missing `playback`",
+            statement,
+        )?;
+        let (gain_db, gain_site) = self.required(
+            gain,
+            "CRP136",
+            "sample mapping is missing `gain`",
+            statement,
+        )?;
+        let (pan, pan_site) =
+            self.required(pan, "CRP137", "sample mapping is missing `pan`", statement)?;
+        let (attack_seconds, release_seconds) = self.required(
+            envelope,
+            "CRP139",
+            "sample mapping is missing `envelope ATTACK RELEASE`",
+            statement,
+        )?;
+        let (fade_in_frames, fade_out_frames, fade_in_site, fade_out_site) = self.required(
+            fade,
+            "CRP139",
+            "sample mapping is missing `fade IN OUT`",
+            statement,
+        )?;
+        Some(SampleMapping {
+            id: statement.tokens[1].value.clone(),
+            asset: statement.tokens[3].value.clone(),
+            low_key,
+            high_key,
+            root_key,
+            start_frame,
+            end_frame,
+            playback,
+            gain_db,
+            pan,
+            attack_seconds,
+            release_seconds,
+            fade_in_frames,
+            fade_out_frames,
+            choke_group,
+            location: statement.location(self.file, self.source),
+            start_site,
+            end_site,
+            gain_site,
+            pan_site,
+            fade_in_site,
+            fade_out_site,
+        })
+    }
+
+    fn parse_parameter(&mut self, statement: &Statement) -> Option<Parameter> {
+        if statement.tokens.len() < 8 || statement.tokens[2].kind != TokenKind::String {
+            self.error_at(
                 "CRP140",
-                "parameter syntax is `parameter key \"Name\" unit min max default value [modulatable]`",
+                "parameter syntax is `parameter key \"Name\" unit min max default value [automatable] [modulatable]`",
                 statement,
             );
             return None;
@@ -449,18 +703,31 @@ impl Parser<'_> {
         let default = self.parse_physical(unit, &statement.tokens[6])?;
         let value_token = &statement.tokens[7];
         let value = self.parse_physical(unit, value_token)?;
-        let modulatable = match statement.tokens.get(8).map(|token| token.value.as_str()) {
-            None => false,
-            Some("modulatable") => true,
-            Some(other) => {
-                self.token_error(
-                    "CRP142",
-                    format!("unknown parameter capability `{other}`"),
-                    &statement.tokens[8],
-                );
-                false
-            }
-        };
+        let mut automatable = false;
+        let mut modulatable = false;
+        for token in &statement.tokens[8..] {
+            let capability = match token.value.as_str() {
+                "automatable" if !automatable => &mut automatable,
+                "modulatable" if !modulatable => &mut modulatable,
+                "automatable" | "modulatable" => {
+                    self.token_error(
+                        "CRP142",
+                        format!("duplicate parameter capability `{}`", token.value),
+                        token,
+                    );
+                    continue;
+                }
+                other => {
+                    self.token_error(
+                        "CRP142",
+                        format!("unknown parameter capability `{other}`"),
+                        token,
+                    );
+                    continue;
+                }
+            };
+            *capability = true;
+        }
         Some(Parameter {
             key: statement.tokens[1].value.clone(),
             name: statement.tokens[2].value.clone(),
@@ -469,6 +736,7 @@ impl Parser<'_> {
             maximum,
             default,
             value,
+            automatable,
             modulatable,
             value_site: self.site(value_token),
             location: statement.location(self.file, self.source),
@@ -595,12 +863,16 @@ impl Parser<'_> {
     }
 
     fn parse_pattern(&mut self, statement: &Statement, meter: Meter) -> Option<Pattern> {
+        if statement.tokens.len() == 5 && statement.tokens[3].value == "from" {
+            return self.parse_pattern_variation(statement, meter);
+        }
         if statement.tokens.len() != 3 {
             self.error_at("CRP180", "pattern syntax is `pattern id span {`", statement);
             return None;
         }
         let span = self.parse_time(&statement.tokens[2], meter)?;
         let mut events = Vec::new();
+        let mut locks = Vec::new();
         for child in &statement.children {
             match child.keyword() {
                 Some("note") => {
@@ -678,6 +950,115 @@ impl Parser<'_> {
                         });
                     }
                 }
+                Some("lock") => {
+                    if child.tokens.len() != 8
+                        || child.tokens[2].value != "at"
+                        || child.tokens[4].value != "parameter"
+                        || child.tokens[6].value != "value"
+                    {
+                        self.error_at(
+                            "CRP235",
+                            "Parameter lock syntax is `lock ID at TIME parameter PARAMETER value VALUE`",
+                            child,
+                        );
+                        continue;
+                    }
+                    if let Some(at) = self.parse_time(&child.tokens[3], meter) {
+                        locks.push(ParameterLock {
+                            id: child.tokens[1].value.clone(),
+                            at,
+                            parameter: child.tokens[5].value.clone(),
+                            value: child.tokens[7].value.clone(),
+                            sites: ParameterLockSites {
+                                at: self.site(&child.tokens[3]),
+                                parameter: self.site(&child.tokens[5]),
+                                value: self.site(&child.tokens[7]),
+                            },
+                            location: child.location(self.file, self.source),
+                        });
+                    }
+                }
+                Some("sample") => {
+                    if child.tokens.len() != 20
+                        || child.tokens[3].value != "mapping"
+                        || child.tokens[5].value != "duration"
+                        || child.tokens[7].value != "start"
+                        || child.tokens[9].value != "end"
+                        || child.tokens[11].value != "gain"
+                        || child.tokens[13].value != "pan"
+                        || child.tokens[15].value != "fade"
+                        || child.tokens[18].value != "velocity"
+                    {
+                        self.error_at(
+                            "CRP185",
+                            "sample syntax is `sample ID AT mapping MAPPING duration TIME start FRAME end FRAME gain DB pan PAN fade IN OUT velocity VALUE`",
+                            child,
+                        );
+                        continue;
+                    }
+                    let at = self.parse_time(&child.tokens[2], meter);
+                    let duration = self.parse_time(&child.tokens[6], meter);
+                    let start_frame = self.parse_u64_token(&child.tokens[8], "sample start");
+                    let end_frame = self.parse_u64_token(&child.tokens[10], "sample end");
+                    let gain_db = self.parse_physical(Unit::Decibels, &child.tokens[12]);
+                    let pan = self.parse_physical(Unit::Pan, &child.tokens[14]);
+                    let fade_in_frames = self.parse_u32_token(&child.tokens[16], "sample fade in");
+                    let fade_out_frames =
+                        self.parse_u32_token(&child.tokens[17], "sample fade out");
+                    let velocity = self.parse_ratio(&child.tokens[19]);
+                    if let (
+                        Some(at),
+                        Some(duration),
+                        Some(start_frame),
+                        Some(end_frame),
+                        Some(gain_db),
+                        Some(pan),
+                        Some(fade_in_frames),
+                        Some(fade_out_frames),
+                        Some(velocity),
+                    ) = (
+                        at,
+                        duration,
+                        start_frame,
+                        end_frame,
+                        gain_db,
+                        pan,
+                        fade_in_frames,
+                        fade_out_frames,
+                        velocity,
+                    ) {
+                        events.push(PatternEvent::Sample {
+                            id: child.tokens[1].value.clone(),
+                            at,
+                            mapping: child.tokens[4].value.clone(),
+                            duration,
+                            start_frame,
+                            end_frame,
+                            gain_db,
+                            pan,
+                            fade_in_frames,
+                            fade_out_frames,
+                            velocity,
+                            sites: Box::new(SampleEventSites {
+                                site: ValueSite::new(
+                                    self.file.to_path_buf(),
+                                    child.start,
+                                    child.end,
+                                    self.source[child.start..child.end].to_owned(),
+                                ),
+                                at: self.site(&child.tokens[2]),
+                                duration: self.site(&child.tokens[6]),
+                                start: self.site(&child.tokens[8]),
+                                end: self.site(&child.tokens[10]),
+                                gain: self.site(&child.tokens[12]),
+                                pan: self.site(&child.tokens[14]),
+                                fade_in: self.site(&child.tokens[16]),
+                                fade_out: self.site(&child.tokens[17]),
+                                velocity: self.site(&child.tokens[19]),
+                            }),
+                        });
+                    }
+                }
                 Some(keyword) => self.unknown("Pattern", keyword, child),
                 None => {}
             }
@@ -685,7 +1066,142 @@ impl Parser<'_> {
         Some(Pattern {
             id: statement.tokens[1].value.clone(),
             span,
+            span_site: self.site(&statement.tokens[2]),
             events,
+            locks,
+            variation: None,
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_pattern_variation(&mut self, statement: &Statement, meter: Meter) -> Option<Pattern> {
+        let span = self.parse_time(&statement.tokens[2], meter)?;
+        let mut rotate = None;
+        let mut transpose = None;
+        let mut velocity = None;
+        let mut reverse = None;
+        let mut probability = None;
+        let mut seed = None;
+        for directive in &statement.children {
+            match directive.keyword() {
+                Some("rotate") if directive.tokens.len() == 2 && rotate.is_none() => {
+                    rotate = self
+                        .parse_time(&directive.tokens[1], meter)
+                        .map(|value| (value, self.site(&directive.tokens[1])));
+                }
+                Some("transpose") if directive.tokens.len() == 2 && transpose.is_none() => {
+                    if let Some(value) = self.parse_physical(Unit::Semitones, &directive.tokens[1])
+                    {
+                        if value.fract() == 0.0
+                            && value >= f64::from(i16::MIN)
+                            && value <= f64::from(i16::MAX)
+                        {
+                            transpose = Some((value as i16, self.site(&directive.tokens[1])));
+                        } else {
+                            self.token_error(
+                                "CRP233",
+                                "Pattern Variation transpose must be a whole semitone value",
+                                &directive.tokens[1],
+                            );
+                        }
+                    }
+                }
+                Some("velocity") if directive.tokens.len() == 2 && velocity.is_none() => {
+                    velocity = self
+                        .parse_ratio(&directive.tokens[1])
+                        .map(|value| (value, self.site(&directive.tokens[1])));
+                }
+                Some("reverse") if directive.tokens.len() == 2 && reverse.is_none() => {
+                    reverse = self
+                        .parse_bool(&directive.tokens[1], "Pattern Variation reverse")
+                        .map(|value| (value, self.site(&directive.tokens[1])));
+                }
+                Some("probability") if directive.tokens.len() == 2 && probability.is_none() => {
+                    probability = self
+                        .parse_ratio(&directive.tokens[1])
+                        .map(|value| (value, self.site(&directive.tokens[1])));
+                }
+                Some("seed") if directive.tokens.len() == 2 && seed.is_none() => {
+                    seed = self
+                        .parse_u64_token(&directive.tokens[1], "Pattern Variation seed")
+                        .map(|value| (value, self.site(&directive.tokens[1])));
+                }
+                Some(keyword) => self.unknown("Pattern Variation", keyword, directive),
+                None => {}
+            }
+        }
+        let Some((rotate, rotate_site)) = rotate else {
+            self.error_at(
+                "CRP234",
+                "Pattern Variation requires one `rotate TIME`",
+                statement,
+            );
+            return None;
+        };
+        let Some((transpose_semitones, transpose_site)) = transpose else {
+            self.error_at(
+                "CRP234",
+                "Pattern Variation requires one `transpose NST`",
+                statement,
+            );
+            return None;
+        };
+        let Some((velocity_scale, velocity_site)) = velocity else {
+            self.error_at(
+                "CRP234",
+                "Pattern Variation requires one `velocity RATIO`",
+                statement,
+            );
+            return None;
+        };
+        let Some((reverse, reverse_site)) = reverse else {
+            self.error_at(
+                "CRP234",
+                "Pattern Variation requires one `reverse true|false`",
+                statement,
+            );
+            return None;
+        };
+        let Some((probability, probability_site)) = probability else {
+            self.error_at(
+                "CRP234",
+                "Pattern Variation requires one `probability RATIO`",
+                statement,
+            );
+            return None;
+        };
+        let Some((seed, seed_site)) = seed else {
+            self.error_at(
+                "CRP234",
+                "Pattern Variation requires one `seed INTEGER`",
+                statement,
+            );
+            return None;
+        };
+        Some(Pattern {
+            id: statement.tokens[1].value.clone(),
+            span,
+            span_site: self.site(&statement.tokens[2]),
+            events: Vec::new(),
+            locks: Vec::new(),
+            variation: Some(PatternVariation {
+                source: statement.tokens[4].value.clone(),
+                rotate,
+                transpose_semitones,
+                velocity_scale,
+                reverse,
+                probability,
+                seed,
+                sites: PatternVariationSites {
+                    source: self.site(&statement.tokens[4]),
+                    rotate: rotate_site,
+                    transpose: transpose_site,
+                    velocity: velocity_site,
+                    reverse: reverse_site,
+                    probability: probability_site,
+                    seed: seed_site,
+                },
+            }),
             location: statement.location(self.file, self.source),
         })
     }
@@ -706,10 +1222,25 @@ impl Parser<'_> {
         }
         let level_db = self.parse_physical(Unit::Decibels, &statement.tokens[6])?;
         let pan = self.parse_physical(Unit::Pan, &statement.tokens[8])?;
+        let mut channel = ChannelStrip {
+            inserts: Vec::new(),
+            sends: Vec::new(),
+            level_db,
+            panner: Panner::Balance {
+                position: pan,
+                site: self.site(&statement.tokens[8]),
+            },
+            mute: false,
+            output: OutputTarget::Master,
+            level_site: self.site(&statement.tokens[6]),
+            mute_site: None,
+        };
         let mut clips = Vec::new();
         for child in &statement.children {
             if child.keyword() != Some("clip") {
-                self.unknown("Track", child.keyword().unwrap_or(""), child);
+                if !self.parse_channel_directive(child, &mut channel) {
+                    self.unknown("Track", child.keyword().unwrap_or(""), child);
+                }
                 continue;
             }
             if child.tokens.len() != 10
@@ -734,6 +1265,95 @@ impl Parser<'_> {
                     None
                 }
             };
+            let mut source_offset = MusicalTime::ZERO;
+            let mut transpose_semitones = 0_i16;
+            let mut gain_db = 0.0;
+            let mut fade_in = MusicalTime::ZERO;
+            let mut fade_out = MusicalTime::ZERO;
+            let mut groove = None;
+            let mut source_offset_site = None;
+            let mut transpose_site = None;
+            let mut gain_site = None;
+            let mut fade_in_site = None;
+            let mut fade_out_site = None;
+            let mut groove_site = None;
+            for directive in &child.children {
+                match directive.keyword() {
+                    Some("offset" | "source_offset") if directive.tokens.len() == 2 => {
+                        if source_offset_site.is_some() {
+                            self.error_at("CRP193", "Clip offset may be declared once", directive);
+                            continue;
+                        }
+                        if let Some(value) = self.parse_time(&directive.tokens[1], meter) {
+                            source_offset = value;
+                            source_offset_site = Some(self.site(&directive.tokens[1]));
+                        }
+                    }
+                    Some("transpose") if directive.tokens.len() == 2 => {
+                        if transpose_site.is_some() {
+                            self.error_at(
+                                "CRP194",
+                                "Clip transpose may be declared once",
+                                directive,
+                            );
+                            continue;
+                        }
+                        if let Some(value) =
+                            self.parse_physical(Unit::Semitones, &directive.tokens[1])
+                        {
+                            if value.fract() == 0.0
+                                && value >= f64::from(i16::MIN)
+                                && value <= f64::from(i16::MAX)
+                            {
+                                transpose_semitones = value as i16;
+                                transpose_site = Some(self.site(&directive.tokens[1]));
+                            } else {
+                                self.token_error(
+                                    "CRP194",
+                                    "Clip transpose must be a whole semitone value",
+                                    &directive.tokens[1],
+                                );
+                            }
+                        }
+                    }
+                    Some("gain") if directive.tokens.len() == 2 => {
+                        if gain_site.is_some() {
+                            self.error_at("CRP195", "Clip gain may be declared once", directive);
+                            continue;
+                        }
+                        if let Some(value) =
+                            self.parse_physical(Unit::Decibels, &directive.tokens[1])
+                        {
+                            gain_db = value;
+                            gain_site = Some(self.site(&directive.tokens[1]));
+                        }
+                    }
+                    Some("fade") if directive.tokens.len() == 3 => {
+                        if fade_in_site.is_some() || fade_out_site.is_some() {
+                            self.error_at("CRP196", "Clip fade may be declared once", directive);
+                            continue;
+                        }
+                        let parsed_in = self.parse_time(&directive.tokens[1], meter);
+                        let parsed_out = self.parse_time(&directive.tokens[2], meter);
+                        if let (Some(parsed_in), Some(parsed_out)) = (parsed_in, parsed_out) {
+                            fade_in = parsed_in;
+                            fade_out = parsed_out;
+                            fade_in_site = Some(self.site(&directive.tokens[1]));
+                            fade_out_site = Some(self.site(&directive.tokens[2]));
+                        }
+                    }
+                    Some("groove") if directive.tokens.len() == 2 => {
+                        if groove_site.is_some() {
+                            self.error_at("CRP231", "Clip groove may be declared once", directive);
+                            continue;
+                        }
+                        groove = Some(directive.tokens[1].value.clone());
+                        groove_site = Some(self.site(&directive.tokens[1]));
+                    }
+                    Some(keyword) => self.unknown("Clip", keyword, directive),
+                    None => {}
+                }
+            }
             if let (Some(start), Some(duration), Some(mode)) = (start, duration, mode) {
                 clips.push(Clip {
                     id: child.tokens[1].value.clone(),
@@ -741,6 +1361,30 @@ impl Parser<'_> {
                     start,
                     duration,
                     mode,
+                    source_offset,
+                    transpose_semitones,
+                    gain_db,
+                    fade_in,
+                    fade_out,
+                    groove,
+                    sites: ClipSites {
+                        site: ValueSite::new(
+                            self.file.to_path_buf(),
+                            child.start,
+                            child.end,
+                            self.source[child.start..child.end].to_owned(),
+                        ),
+                        pattern: self.site(&child.tokens[3]),
+                        start: self.site(&child.tokens[5]),
+                        duration: self.site(&child.tokens[7]),
+                        mode: self.site(&child.tokens[9]),
+                        source_offset: source_offset_site,
+                        transpose: transpose_site,
+                        gain: gain_site,
+                        fade_in: fade_in_site,
+                        fade_out: fade_out_site,
+                        groove: groove_site,
+                    },
                     location: child.location(self.file, self.source),
                 });
             }
@@ -749,11 +1393,603 @@ impl Parser<'_> {
             id: statement.tokens[1].value.clone(),
             name: statement.tokens[2].value.clone(),
             instrument: statement.tokens[4].value.clone(),
-            level_db,
-            pan,
+            channel,
             clips,
-            level_site: self.site(&statement.tokens[6]),
-            pan_site: self.site(&statement.tokens[8]),
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_group(&mut self, statement: &Statement) -> Option<Group> {
+        if statement.tokens.len() != 5
+            || statement.tokens[2].kind != TokenKind::String
+            || statement.tokens[3].value != "level"
+        {
+            self.error_at(
+                "CRP210",
+                "Group syntax is `group id \"Name\" level 0db {`",
+                statement,
+            );
+            return None;
+        }
+        let mut channel = self.parse_channel_header(statement, 4)?;
+        for child in &statement.children {
+            if !self.parse_channel_directive(child, &mut channel) {
+                self.unknown("Group", child.keyword().unwrap_or(""), child);
+            }
+        }
+        Some(Group {
+            id: statement.tokens[1].value.clone(),
+            name: statement.tokens[2].value.clone(),
+            channel,
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_return(&mut self, statement: &Statement) -> Option<Return> {
+        if statement.tokens.len() != 5
+            || statement.tokens[2].kind != TokenKind::String
+            || statement.tokens[3].value != "level"
+        {
+            self.error_at(
+                "CRP211",
+                "Return syntax is `return id \"Name\" level 0db {`",
+                statement,
+            );
+            return None;
+        }
+        let mut channel = self.parse_channel_header(statement, 4)?;
+        for child in &statement.children {
+            if !self.parse_channel_directive(child, &mut channel) {
+                self.unknown("Return", child.keyword().unwrap_or(""), child);
+            }
+        }
+        Some(Return {
+            id: statement.tokens[1].value.clone(),
+            name: statement.tokens[2].value.clone(),
+            channel,
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_master(&mut self, statement: &Statement) -> Option<Master> {
+        if statement.tokens.len() != 3 || statement.tokens[1].value != "level" {
+            self.error_at("CRP212", "Master syntax is `master level 0db {`", statement);
+            return None;
+        }
+        let level_db = self.parse_physical(Unit::Decibels, &statement.tokens[2])?;
+        let mut inserts = Vec::new();
+        for child in &statement.children {
+            if child.keyword() == Some("processor") {
+                if let Some(processor) = self.parse_processor(child) {
+                    inserts.push(processor);
+                }
+            } else {
+                self.unknown("Master", child.keyword().unwrap_or(""), child);
+            }
+        }
+        Some(Master {
+            inserts,
+            level_db,
+            level_site: self.site(&statement.tokens[2]),
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_channel_header(
+        &mut self,
+        statement: &Statement,
+        level_index: usize,
+    ) -> Option<ChannelStrip> {
+        let level_db = self.parse_physical(Unit::Decibels, &statement.tokens[level_index])?;
+        let site = self.site(&statement.tokens[level_index]);
+        Some(ChannelStrip {
+            inserts: Vec::new(),
+            sends: Vec::new(),
+            level_db,
+            panner: Panner::Balance {
+                position: 0.0,
+                site: site.clone(),
+            },
+            mute: false,
+            output: OutputTarget::Master,
+            level_site: site,
+            mute_site: None,
+        })
+    }
+
+    fn parse_channel_directive(
+        &mut self,
+        statement: &Statement,
+        channel: &mut ChannelStrip,
+    ) -> bool {
+        match statement.keyword() {
+            Some("processor") => {
+                if let Some(processor) = self.parse_processor(statement) {
+                    channel.inserts.push(processor);
+                }
+            }
+            Some("send") => {
+                if let Some(send) = self.parse_send(statement) {
+                    channel.sends.push(send);
+                }
+            }
+            Some("panner") => {
+                if let Some(panner) = self.parse_panner(statement) {
+                    channel.panner = panner;
+                }
+            }
+            Some("mute") => {
+                if statement.tokens.len() != 2 {
+                    self.error_at("CRP213", "mute syntax is `mute true|false`", statement);
+                } else if let Some(value) = self.parse_bool(&statement.tokens[1], "mute") {
+                    channel.mute = value;
+                    channel.mute_site = Some(self.site(&statement.tokens[1]));
+                }
+            }
+            Some("output") => {
+                if statement.tokens.len() != 2 {
+                    self.error_at(
+                        "CRP214",
+                        "output syntax is `output master|group/ID|return/ID`",
+                        statement,
+                    );
+                } else {
+                    match OutputTarget::from_str(&statement.tokens[1].value) {
+                        Ok(output) => channel.output = output,
+                        Err(error) => {
+                            self.token_error("CRP215", error.to_string(), &statement.tokens[1])
+                        }
+                    }
+                }
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    fn parse_panner(&mut self, statement: &Statement) -> Option<Panner> {
+        match statement.tokens.get(1).map(|token| token.value.as_str()) {
+            Some("mono_pan") if statement.tokens.len() == 3 => {
+                let position = self.parse_physical(Unit::Pan, &statement.tokens[2])?;
+                Some(Panner::MonoPan {
+                    position,
+                    site: self.site(&statement.tokens[2]),
+                })
+            }
+            Some("balance") if statement.tokens.len() == 3 => {
+                let position = self.parse_physical(Unit::Pan, &statement.tokens[2])?;
+                Some(Panner::Balance {
+                    position,
+                    site: self.site(&statement.tokens[2]),
+                })
+            }
+            Some("stereo_pan") if statement.tokens.len() == 4 => {
+                let left = self.parse_physical(Unit::Pan, &statement.tokens[2])?;
+                let right = self.parse_physical(Unit::Pan, &statement.tokens[3])?;
+                Some(Panner::StereoPan {
+                    left,
+                    right,
+                    left_site: self.site(&statement.tokens[2]),
+                    right_site: self.site(&statement.tokens[3]),
+                })
+            }
+            _ => {
+                self.error_at(
+                    "CRP216",
+                    "panner syntax is `panner mono_pan|balance POS` or `panner stereo_pan LEFT RIGHT`",
+                    statement,
+                );
+                None
+            }
+        }
+    }
+
+    fn parse_send(&mut self, statement: &Statement) -> Option<Send> {
+        if statement.tokens.len() != 8
+            || statement.tokens[2].value != "target"
+            || statement.tokens[4].value != "tap"
+            || statement.tokens[6].value != "level"
+        {
+            self.error_at(
+                "CRP217",
+                "Send syntax is `send id target return/ID tap pre|post level -12db`",
+                statement,
+            );
+            return None;
+        }
+        let target = statement.tokens[3]
+            .value
+            .strip_prefix("return/")
+            .filter(|target| !target.is_empty())
+            .map(str::to_owned);
+        let target = self.required(
+            target,
+            "CRP218",
+            "Send target must be `return/ID`",
+            statement,
+        )?;
+        let tap = match TapPoint::from_str(&statement.tokens[5].value) {
+            Ok(tap) => tap,
+            Err(error) => {
+                self.token_error("CRP219", error.to_string(), &statement.tokens[5]);
+                return None;
+            }
+        };
+        let level_db = self.parse_physical(Unit::Decibels, &statement.tokens[7])?;
+        Some(Send {
+            id: statement.tokens[1].value.clone(),
+            target,
+            tap,
+            level_db,
+            level_site: self.site(&statement.tokens[7]),
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_processor(&mut self, statement: &Statement) -> Option<Processor> {
+        if statement.tokens.len() != 3 {
+            self.error_at(
+                "CRP220",
+                "processor syntax is `processor id utility|eq|compressor|delay|reverb|saturation|limiter|latency {`",
+                statement,
+            );
+            return None;
+        }
+        let kind = match ProcessorKind::from_str(&statement.tokens[2].value) {
+            Ok(kind) => kind,
+            Err(error) => {
+                self.token_error("CRP221", error.to_string(), &statement.tokens[2]);
+                return None;
+            }
+        };
+        let mut settings = Vec::new();
+        let mut sidechain_inputs = Vec::new();
+        let mut latency_frames = 0;
+        let mut latency_site = None;
+        for child in &statement.children {
+            match child.keyword() {
+                Some("setting") if child.tokens.len() == 3 => settings.push(ProcessorSetting {
+                    key: child.tokens[1].value.clone(),
+                    value: child.tokens[2].value.clone(),
+                    value_site: self.site(&child.tokens[2]),
+                    location: child.location(self.file, self.source),
+                }),
+                Some("sidechain")
+                    if child.tokens.len() == 3 && child.tokens[1].value == "input" =>
+                {
+                    sidechain_inputs.push(child.tokens[2].value.clone());
+                }
+                Some("latency") => {
+                    if let Some(value) = self.parse_u32_value(child, "processor latency") {
+                        latency_frames = value;
+                        latency_site = child.tokens.get(1).map(|token| self.site(token));
+                    }
+                }
+                Some("setting") => {
+                    self.error_at("CRP222", "setting syntax is `setting KEY VALUE`", child)
+                }
+                Some("sidechain") => self.error_at(
+                    "CRP223",
+                    "sidechain input syntax is `sidechain input NAME`",
+                    child,
+                ),
+                Some(keyword) => self.unknown("processor", keyword, child),
+                None => {}
+            }
+        }
+        Some(Processor {
+            id: statement.tokens[1].value.clone(),
+            kind,
+            settings,
+            sidechain_inputs,
+            latency_frames,
+            latency_site,
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_sidechain(&mut self, statement: &Statement) -> Option<SidechainRoute> {
+        if statement.tokens.len() != 8
+            || statement.tokens[2].value != "from"
+            || statement.tokens[4].value != "tap"
+            || statement.tokens[6].value != "to"
+        {
+            self.error_at(
+                "CRP224",
+                "sidechain syntax is `sidechain id from track|group|return/ID tap pre|post to processor/ID/INPUT`",
+                statement,
+            );
+            return None;
+        }
+        let from = match ChannelRef::from_str(&statement.tokens[3].value) {
+            Ok(from) => from,
+            Err(error) => {
+                self.token_error("CRP225", error.to_string(), &statement.tokens[3]);
+                return None;
+            }
+        };
+        let tap = match TapPoint::from_str(&statement.tokens[5].value) {
+            Ok(tap) => tap,
+            Err(error) => {
+                self.token_error("CRP226", error.to_string(), &statement.tokens[5]);
+                return None;
+            }
+        };
+        let destination = statement.tokens[7].value.split('/').collect::<Vec<_>>();
+        let ["processor", processor, input] = destination.as_slice() else {
+            self.token_error(
+                "CRP227",
+                "sidechain destination must be `processor/ID/INPUT`",
+                &statement.tokens[7],
+            );
+            return None;
+        };
+        Some(SidechainRoute {
+            id: statement.tokens[1].value.clone(),
+            from,
+            tap,
+            processor: (*processor).to_owned(),
+            input: (*input).to_owned(),
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_groove(&mut self, statement: &Statement, meter: Meter) -> Option<GrooveTemplate> {
+        if statement.tokens.len() != 14
+            || statement.tokens[2].value != "grid"
+            || statement.tokens[4].value != "swing"
+            || statement.tokens[6].value != "timing"
+            || statement.tokens[8].value != "velocity"
+            || statement.tokens[10].value != "probability"
+            || statement.tokens[12].value != "seed"
+        {
+            self.error_at(
+                "CRP232",
+                "groove syntax is `groove ID grid TIME swing RATIO timing TIME velocity RATIO probability RATIO seed INTEGER`",
+                statement,
+            );
+            return None;
+        }
+        Some(GrooveTemplate {
+            id: statement.tokens[1].value.clone(),
+            grid: self.parse_time(&statement.tokens[3], meter)?,
+            swing: self.parse_ratio(&statement.tokens[5])?,
+            timing: self.parse_time(&statement.tokens[7], meter)?,
+            velocity: self.parse_ratio(&statement.tokens[9])?,
+            probability: self.parse_ratio(&statement.tokens[11])?,
+            seed: self.parse_u64_token(&statement.tokens[13], "Groove seed")?,
+            sites: GrooveSites {
+                grid: self.site(&statement.tokens[3]),
+                swing: self.site(&statement.tokens[5]),
+                timing: self.site(&statement.tokens[7]),
+                velocity: self.site(&statement.tokens[9]),
+                probability: self.site(&statement.tokens[11]),
+                seed: self.site(&statement.tokens[13]),
+            },
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_locator(&mut self, statement: &Statement, meter: Meter) -> Option<Locator> {
+        if statement.tokens.len() != 5
+            || statement.tokens[2].kind != TokenKind::String
+            || statement.tokens[3].value != "at"
+        {
+            self.error_at(
+                "CRP228",
+                "locator syntax is `locator id \"Name\" at TIME`",
+                statement,
+            );
+            return None;
+        }
+        Some(Locator {
+            id: statement.tokens[1].value.clone(),
+            name: statement.tokens[2].value.clone(),
+            at: self.parse_time(&statement.tokens[4], meter)?,
+            at_site: self.site(&statement.tokens[4]),
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_bool(&mut self, token: &Token, name: &str) -> Option<bool> {
+        match token.value.as_str() {
+            "true" => Some(true),
+            "false" => Some(false),
+            _ => {
+                self.token_error("CRP229", format!("{name} must be true or false"), token);
+                None
+            }
+        }
+    }
+
+    fn parse_automation(&mut self, statement: &Statement, meter: Meter) -> Option<AutomationLane> {
+        if statement.tokens.len() != 4 || statement.tokens[2].value != "target" {
+            self.error_at(
+                "CRP193",
+                "Automation syntax is `automation id target instrument/ID/KEY|track/ID/level|balance {`",
+                statement,
+            );
+            return None;
+        }
+        let target = match ParameterTarget::from_str(&statement.tokens[3].value) {
+            Ok(target) => target,
+            Err(error) => {
+                self.token_error("CRP194", error.to_string(), &statement.tokens[3]);
+                return None;
+            }
+        };
+        let mut points = Vec::new();
+        for child in &statement.children {
+            if child.keyword() != Some("point") {
+                self.unknown("Automation", child.keyword().unwrap_or(""), child);
+                continue;
+            }
+            if child.tokens.len() != 5 {
+                self.error_at(
+                    "CRP195",
+                    "Automation point syntax is `point id time value step|linear|power(P)`",
+                    child,
+                );
+                continue;
+            }
+            let Some(at) = self.parse_time(&child.tokens[2], meter) else {
+                continue;
+            };
+            let interpolation = match AutomationInterpolation::from_str(&child.tokens[4].value) {
+                Ok(interpolation) => interpolation,
+                Err(error) => {
+                    self.token_error("CRP196", error.to_string(), &child.tokens[4]);
+                    continue;
+                }
+            };
+            points.push(AutomationPoint {
+                id: child.tokens[1].value.clone(),
+                at,
+                value: child.tokens[3].value.clone(),
+                interpolation,
+                site: ValueSite::new(
+                    self.file.to_path_buf(),
+                    child.start,
+                    child.end,
+                    self.source[child.start..child.end].to_owned(),
+                ),
+                at_site: self.site(&child.tokens[2]),
+                value_site: self.site(&child.tokens[3]),
+                interpolation_site: self.site(&child.tokens[4]),
+                location: child.location(self.file, self.source),
+            });
+        }
+        Some(AutomationLane {
+            id: statement.tokens[1].value.clone(),
+            target,
+            points,
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_modulation(&mut self, statement: &Statement, meter: Meter) -> Option<ModulationRoute> {
+        if statement.tokens.len() != 12
+            || statement.tokens[2].value != "lfo"
+            || statement.tokens[8].value != "target"
+            || statement.tokens[10].value != "depth"
+        {
+            self.error_at(
+                "CRP197",
+                "Modulation syntax is `modulation ID lfo SCOPE unipolar|bipolar sine|triangle free|sync RATE target TARGET depth VALUE {`",
+                statement,
+            );
+            return None;
+        }
+        let scope_token = &statement.tokens[3];
+        let scope = if scope_token.value == "global" {
+            ModulationScope::Global
+        } else if let Some(instrument) = scope_token.value.strip_prefix("instrument/") {
+            ModulationScope::Instrument(instrument.to_owned())
+        } else if let Some(instrument) = scope_token.value.strip_prefix("per_voice/") {
+            ModulationScope::PerVoice(instrument.to_owned())
+        } else {
+            self.token_error(
+                "CRP198",
+                "scope must be `global`, `instrument/ID`, or `per_voice/ID`",
+                scope_token,
+            );
+            return None;
+        };
+        let polarity = match statement.tokens[4].value.as_str() {
+            "unipolar" => ControlPolarity::Unipolar,
+            "bipolar" => ControlPolarity::Bipolar,
+            _ => {
+                self.token_error(
+                    "CRP199",
+                    "LFO polarity must be `unipolar` or `bipolar`",
+                    &statement.tokens[4],
+                );
+                return None;
+            }
+        };
+        let waveform = match statement.tokens[5].value.as_str() {
+            "sine" => LfoWaveform::Sine,
+            "triangle" => LfoWaveform::Triangle,
+            _ => {
+                self.token_error(
+                    "CRP200",
+                    "LFO waveform must be `sine` or `triangle`",
+                    &statement.tokens[5],
+                );
+                return None;
+            }
+        };
+        let rate = match statement.tokens[6].value.as_str() {
+            "free" => self
+                .parse_physical(Unit::Hertz, &statement.tokens[7])
+                .map(ModulationRate::FreeHertz),
+            "sync" => self
+                .parse_time(&statement.tokens[7], meter)
+                .map(ModulationRate::Synchronized),
+            _ => {
+                self.token_error(
+                    "CRP201",
+                    "LFO rate mode must be `free` or `sync`",
+                    &statement.tokens[6],
+                );
+                None
+            }
+        }?;
+        let target = match ParameterTarget::from_str(&statement.tokens[9].value) {
+            Ok(target) => target,
+            Err(error) => {
+                self.token_error("CRP202", error.to_string(), &statement.tokens[9]);
+                return None;
+            }
+        };
+        let mut operators = Vec::new();
+        for child in &statement.children {
+            let Some(keyword) = child.keyword() else {
+                continue;
+            };
+            let scalar = |parser: &mut Self| {
+                parser
+                    .single_argument(
+                        child,
+                        "CRP203",
+                        "Modulation operator requires one finite scalar",
+                    )
+                    .and_then(|token| parser.parse_ratio(token))
+            };
+            let operator = match keyword {
+                "add" => scalar(self).map(|value| ModulationOperator::Add { value }),
+                "multiply" => scalar(self).map(|value| ModulationOperator::Multiply { value }),
+                "scale" => scalar(self).map(|value| ModulationOperator::Scale { value }),
+                "bias" => scalar(self).map(|value| ModulationOperator::Bias { value }),
+                "clamp" if child.tokens.len() == 3 => {
+                    let minimum = self.parse_ratio(&child.tokens[1]);
+                    let maximum = self.parse_ratio(&child.tokens[2]);
+                    minimum
+                        .zip(maximum)
+                        .map(|(minimum, maximum)| ModulationOperator::Clamp { minimum, maximum })
+                }
+                "clamp" => {
+                    self.error_at("CRP204", "clamp syntax is `clamp MINIMUM MAXIMUM`", child);
+                    None
+                }
+                _ => {
+                    self.unknown("Modulation", keyword, child);
+                    None
+                }
+            };
+            if let Some(operator) = operator {
+                operators.push(operator);
+            }
+        }
+        Some(ModulationRoute {
+            id: statement.tokens[1].value.clone(),
+            scope,
+            polarity,
+            waveform,
+            rate,
+            target,
+            depth: statement.tokens[11].value.clone(),
+            operators,
             location: statement.location(self.file, self.source),
         })
     }
@@ -811,6 +2047,44 @@ impl Parser<'_> {
                     format!("{name} must be an integer from 0 to 65535"),
                     token,
                 );
+                None
+            }
+        }
+    }
+
+    fn parse_u32_token(&mut self, token: &Token, name: &str) -> Option<u32> {
+        match token.value.parse() {
+            Ok(value) => Some(value),
+            Err(_) => {
+                self.token_error(
+                    "CRP206",
+                    format!("{name} must be an unsigned integer"),
+                    token,
+                );
+                None
+            }
+        }
+    }
+
+    fn parse_u64_token(&mut self, token: &Token, name: &str) -> Option<u64> {
+        match token.value.parse() {
+            Ok(value) => Some(value),
+            Err(_) => {
+                self.token_error(
+                    "CRP206",
+                    format!("{name} must be an unsigned integer"),
+                    token,
+                );
+                None
+            }
+        }
+    }
+
+    fn parse_pitch_token(&mut self, token: &Token) -> Option<u8> {
+        match parse_pitch(&token.value) {
+            Ok(value) => Some(value),
+            Err(error) => {
+                self.token_error("CRP182", error.to_string(), token);
                 None
             }
         }

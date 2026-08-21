@@ -1,0 +1,114 @@
+crump 1
+project "Production Mix" {
+  id production_mix
+  seed 42
+  sample_rate 48000
+  render_tail 2s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 4bar
+
+    instrument drums "Drums" stock_drums {
+      polyphony 12
+      parameter tone "Tone" ratio 0 1 0.5 0.6
+      parameter punch "Punch" ratio 0 1 0.5 0.7
+      faceplate {
+        control tone "Tone" "Percussion brightness" maps tone
+        control punch "Punch" "Percussion impact" maps punch
+      }
+      processor drum_post utility {
+        setting gain 0db
+        setting width 1
+        latency 0
+      }
+    }
+
+    pattern beat 1bar {
+      hit 1.1 kick 1
+      hit 1.3 snare 0.8
+      hit 1.4 hat 0.7
+    }
+
+    track drums "Drums" instrument drums level 0db pan 0 {
+      panner balance 0
+      processor drum_latency latency {
+        setting frames 5
+      }
+      send drum_room target return/room tap pre level -6db
+      output group/mix_bus
+      clip drum_clip pattern beat start 1.1 duration 3bar mode loop
+    }
+
+    track bass "Bass Sidechain Probe" instrument drums level -6db pan 0 {
+      panner stereo_pan -1 1
+      processor bass_comp compressor {
+        setting threshold -24db
+        setting ratio 4
+        setting attack 0.005s
+        setting release 0.08s
+        setting knee 3db
+        setting makeup 0db
+        setting mix 1
+        sidechain input detector
+      }
+      send bass_room target return/room tap post level -18db
+      output group/mix_bus
+      clip bass_clip pattern beat start 1.1 duration 3bar mode loop
+    }
+
+    group mix_bus "Mix Bus" level 0db {
+      panner mono_pan 0
+      processor bus_eq eq {
+        setting high_pass 20hz
+        setting mid1_frequency 350hz
+        setting mid1_gain -1db
+        setting mid1_q 1
+      }
+      send bus_room target return/room tap post level -24db
+      output master
+    }
+
+    return room "Room" level -3db {
+      panner balance 0
+      processor room_delay delay {
+        setting tempo_sync true
+        setting division 1/16d
+        setting feedback 0.25
+        setting low_pass 8khz
+        setting high_pass 120hz
+        setting mode ping_pong
+        setting mix 0.2
+      }
+      processor room_reverb reverb {
+        setting pre_delay 0.01s
+        setting diffusion 0.7
+        setting decay 0.9
+        setting damping 0.35
+        setting modulation 0.1
+        setting width 1
+        setting mix 1
+      }
+      output master
+    }
+
+    sidechain kick_detector from track/drums tap post to processor/bass_comp/detector
+
+    master level -1db {
+      processor master_saturation saturation {
+        setting drive 1.2
+        setting mix 0.3
+        setting output 0db
+        setting mode soft_clip
+      }
+      processor master_limiter limiter {
+        setting ceiling -1db
+        setting release 0.08s
+        setting lookahead 0.005s
+      }
+    }
+
+    locator intro "Intro" at 1.1
+    locator outro "Outro" at 4.1
+  }
+}

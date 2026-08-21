@@ -6,6 +6,7 @@ pub mod dsl;
 pub mod edit;
 pub mod engine;
 pub mod history;
+pub mod media;
 pub mod model;
 pub mod project;
 pub mod realtime;

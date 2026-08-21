@@ -1,0 +1,90 @@
+crump 1
+import "warm-pad.crump"
+import "melodic-pluck.crump"
+import "deep-bass.crump"
+import "textured-percussion.crump"
+import "transition-noise.crump"
+project "Expressive Instrument Engineering Fixture" {
+  id expressive-instruments
+  seed 20250308
+  sample_rate 48000
+  render_tail 3s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+
+    pattern pad-chords 2bar {
+      note 0beat C4 4beat 0.45
+      note 0beat Eb4 4beat 0.58
+      note 0beat G4 4beat 0.72
+      note 4beat Bb3 4beat 0.5
+      note 4beat D4 4beat 0.62
+      note 4beat F4 4beat 0.8
+    }
+    pattern pluck-line 1bar {
+      note 0beat C5 1/2beat 0.35
+      note 1/2beat G4 1/2beat 0.62
+      note 1beat Bb4 1/2beat 0.82
+      note 3/2beat Eb5 1/2beat 0.55
+      note 2beat D5 1/2beat 0.9
+      note 5/2beat G4 1/2beat 0.48
+      note 3beat Bb4 1/2beat 0.74
+      note 7/2beat F5 1/2beat 0.66
+    }
+    pattern bass-motion 1bar {
+      note 0beat C2 3/2beat 0.82
+      note 1beat G1 3/2beat 0.68
+      note 2beat Bb1 3/2beat 0.88
+      note 3beat F1 1beat 0.74
+    }
+    pattern organic-hits 1bar {
+      note 0beat C3 1/4beat 0.92
+      note 1beat D3 1/4beat 0.5
+      note 2beat C3 1/4beat 0.78
+      note 3beat F3 1/4beat 0.64
+    }
+    pattern transition 4bar {
+      note 0bar C4 15beat 0.85
+    }
+
+    track pad "Warm Pad" instrument warm-pad level -15db pan 0 {
+      clip pad-main pattern pad-chords start 0bar duration 8bar mode loop
+    }
+    track pluck "Melodic Pluck" instrument melodic-pluck level -13db pan 0 {
+      clip pluck-main pattern pluck-line start 2bar duration 6bar mode loop
+    }
+    track bass "Deep Bass" instrument deep-bass level -14db pan 0 {
+      clip bass-main pattern bass-motion start 0bar duration 8bar mode loop
+    }
+    track texture "Textured Percussion" instrument textured-percussion level -18db pan 0 {
+      clip texture-main pattern organic-hits start 1bar duration 7bar mode loop
+    }
+    track transition "Transition" instrument transition-noise level -24db pan 0 {
+      clip transition-main pattern transition start 4bar duration 4bar mode once
+    }
+
+    modulation pad-width lfo global bipolar sine sync 4bar target instrument/warm-pad/width depth 0.12 {
+      scale 1
+    }
+    modulation pad-motion lfo per_voice/warm-pad bipolar triangle sync 2bar target instrument/warm-pad/motion depth 0.04st {
+      scale 1
+    }
+    modulation pluck-filter lfo instrument/melodic-pluck bipolar triangle sync 2bar target instrument/melodic-pluck/cutoff depth 280hz {
+      scale 1
+    }
+    modulation bass-filter lfo per_voice/deep-bass unipolar sine sync 1bar target instrument/deep-bass/cutoff depth 90hz {
+      scale 1
+    }
+
+    master level -6db {
+      processor expressive-ceiling limiter {
+        setting ceiling -1db
+        setting release 80ms
+        setting lookahead 5ms
+      }
+    }
+    locator build "Build" at 4bar
+    locator outro "Outro" at 7bar
+  }
+}

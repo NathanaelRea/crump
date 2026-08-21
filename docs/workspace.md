@@ -18,12 +18,12 @@ Short Candidate and Active hashes are shown side by side. During playback the sa
 
 | Key | Action |
 | --- | --- |
-| `1`–`9` | Select Timeline, Event Grid, Faceplate, Parameters, Graph, Source, Diagnostics, History, or Help |
+| `1`–`9`, `0`, `?` | Select Timeline, Mixer, Event Grid, Faceplate, Parameters, Automation, Graph, Source, Diagnostics, History, or Help |
 | `Tab` / `Shift-Tab` | Next / previous view |
 | `↑` / `↓` | Move the current selection |
 | `Page Up` / `Page Down` | Move by eight rows |
 | `←` / `→` | Make the view's bounded adjustment or change the Source/Graph context |
-| `[` / `]` | Previous / next Pattern or Instrument where applicable |
+| `[` / `]` | Previous / next Pattern, Instrument, or Automation lane where applicable |
 | `Enter` | Open an exact-value editor or selected History diff |
 | `Space` | Start or stop the exact Active Revision |
 | `L` in Event Grid | Arm or disable the selected Pattern's looping Audition Phrase |
@@ -37,7 +37,7 @@ Mouse wheel selection is available as a convenience. No required workflow needs 
 
 ## Timeline
 
-Timeline lists presentation-ordered Tracks, assigned Instruments, source-backed level/pan, and Clip ranges. The title displays the current playhead.
+Timeline lists presentation-ordered Tracks, assigned Instruments, source-backed level/pan, and Clip ranges. Arrangement context lists named Locators and reusable Groove Template IDs. Every Clip row keeps its durable ID, start/duration, traversal mode, source offset, transpose, gain, fades, and optional Groove assignment visible, making shared placement and local treatment distinguishable without opening source. The title displays the current playhead.
 
 - `↑` / `↓` selects a Track and follows its Instrument in instrument views.
 - `←` / `→` changes level by 1 dB through a checked source edit.
@@ -46,22 +46,37 @@ Timeline lists presentation-ordered Tracks, assigned Instruments, source-backed 
 
 Every accepted change replaces only the selected literal, validates the complete Project, writes atomically, and appends a human-origin History Entry. If source changed since the view was loaded, Crump rejects the operation rather than editing a stale range.
 
+## Mixer
+
+Mixer enumerates stable Track, Group, Return, Send, processor, and Master targets with exact physical base values, legal domains, and Automation/Modulation eligibility. Each target is associated with its owning channel where that owner is singular. During playback the table reports that channel's current peak and exponential average activity. `M/S/C` shows source-backed Mute, transient Solo, and transient cue state.
+
+- `↑` / `↓` selects a stable target.
+- `←` / `→` changes continuous values by 1% of the legal domain; boolean Mute selects `false`/`true`.
+- `Enter` opens exact physical or boolean source-backed entry.
+- `m` toggles the owning Track/Group/Return Mute through a checked source edit and History publication.
+- `s` toggles transient Solo for the owning Track, Group, or Return.
+- `c` toggles a post-fader cue; `C` toggles a pre-fader cue. Only one cue tap is active at a time.
+
+Solo and cue are callback-safe Audition State. They are retained across compatible workspace publications, affect monitoring only, and never alter source, History, or offline renders. A processor shared by multiple Instrument instances has no singular mixer channel for these commands.
+
 ## Event Grid
 
-Event Grid shows one Pattern's source Events with exact onset, type, pitch/voice, duration, and velocity. Currently sounding note ranges and recent hit windows turn green during playback.
+Event Grid shows one Pattern's source Events with exact onset, type, pitch/voice or durable sample identity/mapping, duration, and velocity. A separate procedural panel shows Pattern Variation lineage and every authored transform, or durable Parameter-lock ID/time/key/value rows for a concrete Pattern. A Variation remains visibly procedural and is never presented as flattened authored Events. Currently sounding note/sample ranges and recent hit windows turn green during playback.
 
 - `[` / `]` selects a Pattern.
 - `↑` / `↓` selects an Event.
 - `←` / `→` transposes a pitched Event by one semitone or cycles a percussion voice.
-- `Enter` enters an exact scientific pitch or percussion voice.
-- `t` enters an exact onset for either Event kind.
-- `u` enters an exact duration for a pitched Event.
-- `v` enters an exact velocity for either Event kind.
+- `Enter` enters an exact scientific pitch, percussion voice, or sample duration.
+- `t` enters an exact onset for every Event kind.
+- `u` enters an exact duration for a pitched or sample Event.
+- `v` enters an exact velocity for every Event kind.
+- `x` edits a sample occurrence's half-open original-source `START:END` region.
+- `f` edits sample source-edge fade frames as `IN:OUT`; `g` edits occurrence gain; `p` edits occurrence pan.
 - `L` arms or disables an Audition Phrase spanning one full selected Pattern occurrence at its first Timeline Clip. `Space` starts an armed phrase; pressing `L` during playback changes mode through the same bounded runtime-publication seam.
 
 The header labels `LOOP:<pattern>` while this non-authoritative transport mode is active. At each half-open loop boundary schedule cursors rewind and active notes release, while bounded DSP effect state can decay naturally. An Event Grid or Faceplate publication recompiles off-thread and preserves the phrase. The loop changes no source or History and is never used by offline rendering.
 
-Percussion hits have no pitch or duration. Their voice, onset, and velocity remain source-backed and editable.
+Percussion hits have no pitch or duration. Sample occurrences use durable IDs and non-destructive regions rather than pitch stepping; place, duplicate, split, and slip are also available through checked CLI commands. Groove, Variation, and Parameter-lock creation or transformation use the checked `edit groove-*`, `pattern-variation-*`, and `parameter-lock-*` CLI commands. Every displayed value remains source-backed.
 
 ## Instrument Faceplate
 
@@ -76,9 +91,22 @@ The same Instrument receives transient computer-keyboard and PipeWire MIDI audit
 
 ## Exact Parameters
 
-Parameters exposes every authored Parameter, including its durable key, unit, current value, inclusive domain, default, and modulation eligibility. Controls are identical to Faceplate, but this view is intentionally denser for experienced producers.
+Parameters exposes every authored Parameter, including its durable key, unit, current base value, inclusive domain, default, and Automation/Modulation eligibility. Controls are identical to Faceplate, but this view is intentionally denser for experienced producers.
 
 The exact input field initially selects the existing literal: typing replaces it, `Ctrl-A` reselects it, Backspace clears/removes characters, Enter applies, and Escape cancels.
+
+## Automation
+
+Automation shows one Song-scoped absolute lane at a time. Its header names the stable `ParameterTarget`, source location, base → Automation → Parameter lock → Modulation → effective provenance at the visible transport frame, and whether domain constraint occurred. The point table keeps durable point IDs, exact Song times, physical values, outgoing curves, and source locations visible.
+
+- `[` / `]` selects a lane.
+- `↑` / `↓` selects a durable point.
+- `←` / `→` changes the selected value by 1% of the target's physical domain through a checked source edit.
+- `Enter` opens exact physical-value entry.
+- `t` opens exact absolute musical-time entry.
+- `c` selects `step`, `linear`, or `power(P)` interpolation leaving the point.
+
+The workspace intentionally stays shallow rather than becoming a dense desktop curve editor. Lane/point creation and deletion are available through readable source and the checked `edit automation-*` CLI commands. Checked creation inserts a point at its chronological source position, and a time edit that crosses neighbors relocates the whole durable point directive. Locator IDs are accepted as section-level time operands. Invalid moves—such as moving the required first point away from zero or colliding at one sample frame—are rejected before publication.
 
 ## Graph
 
@@ -99,20 +127,20 @@ Diagnostics shows all recoverable parse and whole-Project validation findings wi
 History is a durable append-only action log, not a transient undo stack. It shows Active status, sequence ID, Human/Agent/System provenance, actor, summary, changed-file count, and timestamp.
 
 - `Enter` or `d` opens the exact parent diff.
-- `R` asks for confirmation, restores the selected exact source snapshot atomically, and records the restore as a new History Entry.
+- `R` asks for confirmation, restores the selected exact source-and-media snapshot atomically, and records the restore as a new History Entry.
 
 Restoring never deletes or rewrites earlier entries.
 
 ## Playback and publication
 
-Space compiles the Active snapshot before creating PipeWire streams. Candidate source is never used implicitly. When another process publishes a revision while playback is running, the workspace:
+Space compiles the Active snapshot before creating PipeWire streams. Candidate source or media is never used implicitly. Exact declared media is stored in Active snapshots and sampler Instruments decode/resample it off the callback before playback; Media Track playback remains deferred. When another process publishes a revision while playback is running, the workspace:
 
 1. loads and validates the exact Active snapshot from History;
 2. compiles and initializes a replacement runtime off the audio thread at the current transport frame;
 3. publishes it through a bounded lock-free queue; and
-4. realigns it to the callback's exact current frame and applies a 10 ms equal-power old/new transition at an audio block boundary.
+4. realigns it to the callback's exact current frame and begins a bounded 10 ms protective transition at an audio block boundary.
 
-Unchanged Tracks retain their running state; affected Tracks restart at the aligned transport position behind the transition. If publication cannot be queued immediately, the old runtime continues. Invalid source never enters this path. If PipeWire stops or disconnects after playback began, the workspace reports the failure and offers `Space` to restart.
+Tracks with unchanged schedule/topology semantics retain running voice state. A compatible compiled mix graph also retains shared processor and compensation state and executes once during publication. In a wholly compatible scalar publication, only changed continuous targets receive a monitoring-only 10 ms handoff ramp; unrelated linear/step Automation stays exact and boolean Mute stays discrete. Configuration/topology changes use the aligned equal-power old/new transition. If publication cannot be queued immediately, the old runtime continues. Invalid source never enters this path. If PipeWire stops or disconnects after playback began, the workspace reports the failure and offers `Space` to restart.
 
 ## Note Audition
 

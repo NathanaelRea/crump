@@ -9,6 +9,40 @@ use serde::{Deserialize, Serialize};
 
 use crate::engine::{RuntimeTelemetry, SongRuntime};
 
+#[cfg(feature = "pipewire")]
+const MAX_AUDITION_CHANNEL_IDENTITY_BYTES: usize = 256;
+
+/// Fixed-capacity channel identity carried across the callback command seam.
+#[cfg(feature = "pipewire")]
+#[derive(Debug, Clone, Copy)]
+struct AuditionChannelIdentity {
+    bytes: [u8; MAX_AUDITION_CHANNEL_IDENTITY_BYTES],
+    length: u16,
+}
+
+#[cfg(feature = "pipewire")]
+impl AuditionChannelIdentity {
+    fn new(identity: &str) -> Result<Self, RealtimeError> {
+        let bytes = identity.as_bytes();
+        if bytes.len() > MAX_AUDITION_CHANNEL_IDENTITY_BYTES {
+            return Err(RealtimeError::ChannelIdentityTooLong {
+                length: bytes.len(),
+                maximum: MAX_AUDITION_CHANNEL_IDENTITY_BYTES,
+            });
+        }
+        let mut fixed = [0_u8; MAX_AUDITION_CHANNEL_IDENTITY_BYTES];
+        fixed[..bytes.len()].copy_from_slice(bytes);
+        Ok(Self {
+            bytes: fixed,
+            length: bytes.len() as u16,
+        })
+    }
+
+    fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.bytes[..usize::from(self.length)]).unwrap_or("")
+    }
+}
+
 /// One callback-safe transient audition operation.
 #[cfg(feature = "pipewire")]
 #[derive(Debug, Clone, Copy)]
@@ -24,6 +58,14 @@ enum AuditionCommand {
         note_id: u64,
     },
     AllNotesOff,
+    SetChannelSolo {
+        identity: AuditionChannelIdentity,
+        enabled: bool,
+    },
+    SetChannelCue {
+        identity: Option<AuditionChannelIdentity>,
+        tap: crate::model::TapPoint,
+    },
 }
 
 /// Realtime playback health sampled without locking the callback.
@@ -92,6 +134,14 @@ pub enum RealtimeError {
     /// Playback thread terminated unexpectedly.
     #[error("PipeWire playback thread terminated unexpectedly")]
     ThreadStopped,
+    /// A callback command identity exceeded its fixed-capacity representation.
+    #[error("channel identity is {length} bytes; callback command maximum is {maximum}")]
+    ChannelIdentityTooLong {
+        /// Attempted UTF-8 byte length.
+        length: usize,
+        /// Fixed command capacity.
+        maximum: usize,
+    },
 }
 
 #[cfg(feature = "pipewire")]
@@ -112,14 +162,44 @@ mod native {
     use rtrb::{Consumer, Producer, PushError, RingBuffer};
     use spa::pod::Pod;
 
-    use super::{AuditionCommand, PlayerTelemetry, RealtimeError, SongRuntime, StreamStatus};
-    use crate::engine::ProcessingMode;
+    use super::{
+        AuditionChannelIdentity, AuditionCommand, PlayerTelemetry, RealtimeError, SongRuntime,
+        StreamStatus,
+    };
+    use crate::engine::{PUBLICATION_TRANSITION_MILLISECONDS, ProcessingMode};
 
     const COMMAND_CAPACITY: usize = 32;
     const RECLAIM_CAPACITY: usize = 8;
     const TELEMETRY_CAPACITY: usize = 64;
-    const TRANSITION_MILLISECONDS: u64 = 10;
     const FRAME_BYTES: usize = mem::size_of::<f32>() * 2;
+
+    fn reserve_publication(slot: &AtomicBool) -> bool {
+        slot.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+    }
+
+    fn release_publication(slot: &AtomicBool) {
+        slot.store(false, Ordering::Release);
+    }
+
+    pub(crate) struct PublicationReservation {
+        slot: Arc<AtomicBool>,
+        committed: bool,
+    }
+
+    impl PublicationReservation {
+        fn commit(mut self) {
+            self.committed = true;
+        }
+    }
+
+    impl Drop for PublicationReservation {
+        fn drop(&mut self) {
+            if !self.committed {
+                release_publication(&self.slot);
+            }
+        }
+    }
 
     fn requested_output_frames(capacity_bytes: usize, requested_frames: u64) -> usize {
         let capacity_frames = capacity_bytes / FRAME_BYTES;
@@ -152,6 +232,9 @@ mod native {
         (histogram.len() - 1) as f32 / 100.0
     }
 
+    // Audition identities stay inline so the audio callback never frees a boxed
+    // command; the bounded ring's larger slots are an intentional memory tradeoff.
+    #[allow(clippy::large_enum_variant)]
     enum AudioCommand {
         Publish(Box<SongRuntime>),
         Audition(AuditionCommand),
@@ -167,8 +250,8 @@ mod native {
     struct CallbackState {
         current: Box<SongRuntime>,
         transition: Option<Transition>,
-        deferred_publish: Option<Box<SongRuntime>>,
         pending_reclaim: Option<Box<SongRuntime>>,
+        publication_in_flight: Arc<AtomicBool>,
         commands: Consumer<AudioCommand>,
         midi: Consumer<AuditionCommand>,
         reclaimed: Producer<Box<SongRuntime>>,
@@ -274,6 +357,9 @@ mod native {
                 self.current.complete_transition(&mut transition.next);
                 let retired = mem::replace(&mut self.current, transition.next);
                 self.retire(retired);
+                if self.pending_reclaim.is_none() {
+                    release_publication(&self.publication_in_flight);
+                }
             }
             output
         }
@@ -297,23 +383,16 @@ mod native {
                 self.stopping = true;
                 return;
             }
-            if self.transition.is_none()
-                && self.pending_reclaim.is_none()
-                && let Some(runtime) = self.deferred_publish.take()
-            {
-                self.begin_transition(runtime);
-            }
-            if self.deferred_publish.is_some() {
+            // The producer admits at most one replacement until its predecessor
+            // has been retired off the Active slot. Waiting here also prevents a
+            // callback from ever owning current + next + queued replacement.
+            if self.transition.is_some() || self.pending_reclaim.is_some() {
                 return;
             }
             while let Ok(command) = self.commands.pop() {
                 match command {
                     AudioCommand::Publish(runtime) => {
-                        if self.transition.is_none() && self.pending_reclaim.is_none() {
-                            self.begin_transition(runtime);
-                        } else {
-                            self.deferred_publish = Some(runtime);
-                        }
+                        self.begin_transition(runtime);
                         break;
                     }
                     AudioCommand::Audition(command) => self.audition(command),
@@ -337,7 +416,8 @@ mod native {
         }
 
         fn begin_transition(&mut self, mut runtime: Box<SongRuntime>) {
-            let frames = u64::from(runtime.sample_rate()) * TRANSITION_MILLISECONDS / 1_000;
+            let frames =
+                u64::from(runtime.sample_rate()) * PUBLICATION_TRANSITION_MILLISECONDS / 1_000;
             self.current.prepare_transition(&mut runtime);
             self.transition = Some(Transition {
                 next: runtime,
@@ -357,8 +437,9 @@ mod native {
             let Some(runtime) = self.pending_reclaim.take() else {
                 return;
             };
-            if let Err(PushError::Full(runtime)) = self.reclaimed.push(runtime) {
-                self.pending_reclaim = Some(runtime);
+            match self.reclaimed.push(runtime) {
+                Ok(()) => release_publication(&self.publication_in_flight),
+                Err(PushError::Full(runtime)) => self.pending_reclaim = Some(runtime),
             }
         }
     }
@@ -380,6 +461,13 @@ mod native {
                 let _ = runtime.audition_note_off_track(track_index, note_id);
             }
             AuditionCommand::AllNotesOff => runtime.all_notes_off(),
+            AuditionCommand::SetChannelSolo { identity, enabled } => {
+                let _ = runtime.set_channel_solo(identity.as_str(), enabled);
+            }
+            AuditionCommand::SetChannelCue { identity, tap } => {
+                let _ = runtime
+                    .set_channel_cue(identity.as_ref().map(AuditionChannelIdentity::as_str), tap);
+            }
         }
     }
 
@@ -512,6 +600,7 @@ mod native {
     pub struct PipeWirePlayer {
         commands: Option<Producer<AudioCommand>>,
         reclaimed: Consumer<Box<SongRuntime>>,
+        publication_in_flight: Arc<AtomicBool>,
         telemetry: Consumer<PlayerTelemetry>,
         latest: PlayerTelemetry,
         stream_status: Arc<AtomicU8>,
@@ -529,6 +618,8 @@ mod native {
             let (midi_producer, midi_consumer) = RingBuffer::new(128);
             let stream_status = Arc::new(AtomicU8::new(encode_status(StreamStatus::Starting)));
             let callback_status = Arc::clone(&stream_status);
+            let publication_in_flight = Arc::new(AtomicBool::new(false));
+            let callback_publication_in_flight = Arc::clone(&publication_in_flight);
             let stop_requested = Arc::new(AtomicBool::new(false));
             let callback_stop = Arc::clone(&stop_requested);
             let selected_track = Arc::new(AtomicUsize::new(0));
@@ -549,6 +640,7 @@ mod native {
                         midi: midi_consumer,
                         midi_producer,
                         reclaimed: reclaim_producer,
+                        publication_in_flight: callback_publication_in_flight,
                         telemetry: telemetry_producer,
                         stream_status: callback_status,
                         stop_requested: callback_stop,
@@ -567,6 +659,7 @@ mod native {
                 Ok(Ok(())) => Ok(Self {
                     commands: Some(command_producer),
                     reclaimed: reclaim_consumer,
+                    publication_in_flight,
                     telemetry: telemetry_consumer,
                     latest: PlayerTelemetry::default(),
                     stream_status,
@@ -589,13 +682,42 @@ mod native {
             }
         }
 
-        /// Publishes an already compiled and transport-aligned runtime.
-        pub fn publish(&mut self, runtime: SongRuntime) -> Result<(), RealtimeError> {
+        /// Reserves the sole replacement slot before a candidate runtime is allocated.
+        pub(crate) fn reserve_publication(
+            &mut self,
+        ) -> Result<PublicationReservation, RealtimeError> {
+            if !reserve_publication(&self.publication_in_flight) {
+                return Err(RealtimeError::QueueFull);
+            }
+            // The callback releases the slot only after retiring its predecessor.
+            // Drain that predecessor before the controller allocates a candidate.
             self.collect_garbage();
-            let commands = self.commands.as_mut().ok_or(RealtimeError::ThreadStopped)?;
-            commands
-                .push(AudioCommand::Publish(Box::new(runtime)))
-                .map_err(|PushError::Full(_)| RealtimeError::QueueFull)
+            Ok(PublicationReservation {
+                slot: Arc::clone(&self.publication_in_flight),
+                committed: false,
+            })
+        }
+
+        /// Queues a runtime built while the caller owned the replacement reservation.
+        pub(crate) fn publish_reserved(
+            &mut self,
+            mut runtime: SongRuntime,
+            reservation: PublicationReservation,
+        ) -> Result<(), RealtimeError> {
+            debug_assert!(Arc::ptr_eq(&reservation.slot, &self.publication_in_flight));
+            // Reset all potentially large DSP storage on the controller thread.
+            // The callback only realigns schedule cursors to its exact frame.
+            runtime.prime_for_publication();
+            let Some(commands) = self.commands.as_mut() else {
+                return Err(RealtimeError::ThreadStopped);
+            };
+            match commands.push(AudioCommand::Publish(Box::new(runtime))) {
+                Ok(()) => {
+                    reservation.commit();
+                    Ok(())
+                }
+                Err(PushError::Full(_)) => Err(RealtimeError::QueueFull),
+            }
         }
 
         /// Enqueues one transient Note On by zero-based Track index.
@@ -625,6 +747,30 @@ mod native {
         /// Releases all transient and scheduled graph notes.
         pub fn all_notes_off(&mut self) -> Result<(), RealtimeError> {
             self.push_audition(AuditionCommand::AllNotesOff)
+        }
+
+        /// Enables or disables transient Solo for one compiled channel identity.
+        pub fn set_channel_solo(
+            &mut self,
+            identity: &str,
+            enabled: bool,
+        ) -> Result<(), RealtimeError> {
+            self.push_audition(AuditionCommand::SetChannelSolo {
+                identity: AuditionChannelIdentity::new(identity)?,
+                enabled,
+            })
+        }
+
+        /// Selects a transient channel cue tap, or clears cue with `None`.
+        pub fn set_channel_cue(
+            &mut self,
+            identity: Option<&str>,
+            tap: crate::model::TapPoint,
+        ) -> Result<(), RealtimeError> {
+            self.push_audition(AuditionCommand::SetChannelCue {
+                identity: identity.map(AuditionChannelIdentity::new).transpose()?,
+                tap,
+            })
         }
 
         /// Selects the zero-based Track that receives transient PipeWire MIDI.
@@ -691,6 +837,7 @@ mod native {
         midi: Consumer<AuditionCommand>,
         midi_producer: Producer<AuditionCommand>,
         reclaimed: Producer<Box<SongRuntime>>,
+        publication_in_flight: Arc<AtomicBool>,
         telemetry: Producer<PlayerTelemetry>,
         stream_status: Arc<AtomicU8>,
         stop_requested: Arc<AtomicBool>,
@@ -710,6 +857,7 @@ mod native {
             midi,
             midi_producer,
             reclaimed,
+            publication_in_flight,
             telemetry,
             stream_status,
             stop_requested,
@@ -759,8 +907,8 @@ mod native {
         let callback_state = CallbackState {
             current: Box::new(runtime),
             transition: None,
-            deferred_publish: None,
             pending_reclaim: None,
+            publication_in_flight,
             commands,
             midi,
             reclaimed,
@@ -962,6 +1110,32 @@ mod native {
         use super::*;
 
         #[test]
+        fn publication_protocol_admits_only_active_plus_one_replacement() {
+            let slot = Arc::new(AtomicBool::new(false));
+            assert!(reserve_publication(&slot));
+            let reservation = PublicationReservation {
+                slot: Arc::clone(&slot),
+                committed: false,
+            };
+            assert!(!reserve_publication(&slot));
+            drop(reservation);
+            assert!(!slot.load(Ordering::Acquire));
+
+            assert!(reserve_publication(&slot));
+            let reservation = PublicationReservation {
+                slot: Arc::clone(&slot),
+                committed: false,
+            };
+            reservation.commit();
+            assert!(slot.load(Ordering::Acquire));
+            release_publication(&slot);
+            assert_eq!(
+                crate::engine::mix_graph::MAX_RESIDENT_PUBLICATION_RUNTIMES,
+                2
+            );
+        }
+
+        #[test]
         fn output_frames_respect_pipewire_request_and_capacity() {
             assert_eq!(requested_output_frames(12_288 * FRAME_BYTES, 1_024), 1_024);
             assert_eq!(requested_output_frames(12_288 * FRAME_BYTES, 0), 12_288);
@@ -1037,6 +1211,17 @@ mod native {
         }
 
         #[test]
+        fn callback_channel_identity_is_fixed_capacity_and_exact() {
+            let identity = AuditionChannelIdentity::new("return/room").expect("identity");
+            assert_eq!(identity.as_str(), "return/room");
+            let oversized = "x".repeat(crate::realtime::MAX_AUDITION_CHANNEL_IDENTITY_BYTES + 1);
+            assert!(matches!(
+                AuditionChannelIdentity::new(&oversized),
+                Err(RealtimeError::ChannelIdentityTooLong { .. })
+            ));
+        }
+
+        #[test]
         fn rejects_truncated_spa_sequence() {
             let mut sequence = vec![0_u8; 32];
             put_u32(&mut sequence, 0, 100);
@@ -1059,6 +1244,9 @@ mod native {
 pub use native::Player as PipeWirePlayer;
 
 #[cfg(not(feature = "pipewire"))]
+pub(crate) struct PublicationReservation;
+
+#[cfg(not(feature = "pipewire"))]
 /// Stub native player for builds that intentionally omit PipeWire.
 pub struct PipeWirePlayer;
 
@@ -1070,7 +1258,16 @@ impl PipeWirePlayer {
     }
 
     /// Reports that this build lacks native playback.
-    pub fn publish(&mut self, _runtime: SongRuntime) -> Result<(), RealtimeError> {
+    pub(crate) fn reserve_publication(&mut self) -> Result<PublicationReservation, RealtimeError> {
+        Err(RealtimeError::Unavailable)
+    }
+
+    /// Reports that this build lacks native playback.
+    pub(crate) fn publish_reserved(
+        &mut self,
+        _runtime: SongRuntime,
+        _reservation: PublicationReservation,
+    ) -> Result<(), RealtimeError> {
         Err(RealtimeError::Unavailable)
     }
 
@@ -1092,6 +1289,24 @@ impl PipeWirePlayer {
 
     /// Reports that this build lacks native playback.
     pub fn all_notes_off(&mut self) -> Result<(), RealtimeError> {
+        Err(RealtimeError::Unavailable)
+    }
+
+    /// Reports that this build lacks transient channel Solo control.
+    pub fn set_channel_solo(
+        &mut self,
+        _identity: &str,
+        _enabled: bool,
+    ) -> Result<(), RealtimeError> {
+        Err(RealtimeError::Unavailable)
+    }
+
+    /// Reports that this build lacks transient channel cue control.
+    pub fn set_channel_cue(
+        &mut self,
+        _identity: Option<&str>,
+        _tap: crate::model::TapPoint,
+    ) -> Result<(), RealtimeError> {
         Err(RealtimeError::Unavailable)
     }
 

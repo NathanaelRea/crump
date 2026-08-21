@@ -76,10 +76,13 @@ The first release accepts only the validated Musical Sketch slice:
 - one finite linear Song at 48 kHz;
 - 30–60 seconds for acceptance (the parser can represent other finite spans);
 - native graph Instruments and stock synthesized drums;
-- finite Patterns, Events, Clips, simple Track level/pan, and stereo Master;
+- finite Patterns, Events, Clips, topology-stable point Automation, routed LFO Modulation, and the certified Reference Project's Track-level stereo balance;
 - at most 64 authored Nodes per graph voice;
-- at most 256 graph voices across the Project; and
+- at most 256 graph voices across actual runtime Track instances;
+- at most 128 Automation lanes, 1,024 points per lane, 8,192 points total, 256 Modulation routes, 2,048 route operators, and 512 callback-time Parameter targets; and
 - at most 30 seconds of explicit Render Tail.
+
+Unaccepted roadmap engineering can additionally declare/import/collect up to 256 Project-owned WAV assets (64 MiB each, 256 MiB total), preserve their exact bytes through History, decode/resample them off-callback, and play them through bounded sampler Instruments. Later engineering also includes the compiled mix graph/processor floor, expressive native devices, and checked linear arrangement, Groove, Pattern Variation, and Parameter-lock workflows. None of this expands the certified First Public Release envelope without its separate evidence gates.
 
 The limits protect bounded work; they are not a recommendation to use maximum voices/Nodes on reference hardware. The frozen Reference Project is [`fixtures/reference/project.crump`](../fixtures/reference/project.crump).
 
@@ -87,12 +90,12 @@ The limits protect bounded work; they are not a recommendation to use maximum vo
 
 The First Public Release does not promise:
 
-- samples or audio-file import;
+- certified sampler or imported-audio workflow quality, Media Tracks, or time stretching (sampler playback exists as unaccepted Slice 4 engineering);
 - recording, comping, warping, or time stretching;
 - VST, CLAP, LV2, or other plug-in hosting;
 - user Rust/native extensions or arbitrary scripting;
-- automation lanes;
-- advanced mixer, Groups, Sends, Returns, sidechains, or stem export;
+- recorded or procedural Automation, non-LFO routed Modulation sources, or allocation-changing Automation/Modulation targets;
+- production-qualified advanced mixing, processor quality, stem export, or complete-track delivery (roadmap mix-graph engineering exists but is not release-certified);
 - complete-track duration, mixing, mastering, or delivery formats;
 - MIDI clock/transport, pitch bend, pressure, CC mapping, MPE, SysEx, or full MIDI 2.0;
 - accessibility certification solely because the client is text-based;
@@ -108,6 +111,10 @@ crump --version
 crump --project ./song doctor --json
 crump --project ./song status --json
 crump --project ./song validate --json
+crump --project ./song qualify --quantum 128 --plan --json
+# When an offline workload report is relevant:
+crump --project ./song qualify --quantum 128 \
+  --output evidence/qualification.json --json
 uname -a
 rustc --version
 pw-cli --version
@@ -123,8 +130,11 @@ Also record:
 - selected sink/profile/rate/quantum;
 - whether RTKit granted scheduling;
 - reproduction steps and whether offline render is correct;
-- Crump executable SHA-256 (also present in render manifests); and
-- callback, late-callback, processing-error, MIDI-dropped, and PipeWire xrun counts.
+- Crump executable SHA-256 (also present in render manifests and qualification reports);
+- the explicit Locator range and quantum used for any offline qualification report; and
+- callback, late-callback, processing-error, MIDI-dropped, and independently observed PipeWire xrun counts.
+
+A `qualify` report times only the offline engine and intentionally leaves `pipewire_xruns` as `null`. Archive it as workload evidence, but capture target-graph xruns and the 30-minute realtime run separately.
 
 Do not publish usernames, home paths, unrelated PipeWire node names, environment variables, Project source, or Agent prompts unless needed and approved.
 
@@ -152,7 +162,7 @@ Verify the controller appears in `wpctl status` or a PipeWire graph tool and lin
 
 ### Render comparison differs
 
-First compare manifest Project revision, Crump version, executable hash, architecture, sample rate, frame count, and settings. A difference outside the documented comparison domain is not a determinism regression.
+First compare manifest Project revision, Crump version, executable hash, architecture, sample rate, frame count, and settings. For stems, also compare the exact selected owner/tap set, processing policy, and alignment delay before comparing per-file hashes and analysis. A difference outside the documented comparison domain is not a determinism regression.
 
 ## Security updates and lifecycle
 

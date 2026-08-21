@@ -4,31 +4,37 @@ use std::f64::consts::TAU;
 
 use crate::model::{DrumVoice, Instrument};
 
+use super::schedule::ClipEnvelope;
+
 /// Preallocated stock-percussion runtime.
 #[derive(Debug, Clone)]
 pub(crate) struct DrumSynth {
     voices: Vec<DrumState>,
     sample_rate: f64,
-    tone: f64,
-    punch: f64,
 }
 
 impl DrumSynth {
+    pub(crate) fn voice_state_bytes(polyphony: u16) -> u64 {
+        u64::from(polyphony).saturating_mul(std::mem::size_of::<DrumState>() as u64)
+    }
+
     pub(crate) fn new(instrument: &Instrument, sample_rate: u32) -> Self {
-        let tone = parameter(instrument, "tone", 0.55).clamp(0.0, 1.0);
-        let punch = parameter(instrument, "punch", 0.65).clamp(0.0, 1.0);
         let voices = (0..instrument.polyphony)
             .map(|_| DrumState::default())
             .collect();
         Self {
             voices,
             sample_rate: f64::from(sample_rate),
-            tone,
-            punch,
         }
     }
 
-    pub(crate) fn trigger(&mut self, voice: DrumVoice, velocity: f32, seed: u64) {
+    pub(crate) fn trigger(
+        &mut self,
+        voice: DrumVoice,
+        velocity: f32,
+        seed: u64,
+        clip_envelope: ClipEnvelope,
+    ) {
         let slot = self
             .voices
             .iter()
@@ -48,10 +54,13 @@ impl DrumSynth {
             phase: seed_phase(seed),
             rng: nonzero_seed(seed),
             lowpass: 0.0,
+            clip_envelope,
         };
     }
 
-    pub(crate) fn process(&mut self) -> [f32; 2] {
+    pub(crate) fn process(&mut self, tone: f64, punch: f64) -> [f32; 2] {
+        let tone = tone.clamp(0.0, 1.0);
+        let punch = punch.clamp(0.0, 1.0);
         let mut mono = 0.0_f64;
         for voice in &mut self.voices {
             if !voice.active {
@@ -59,12 +68,14 @@ impl DrumSynth {
             }
             let time = voice.age_frames as f64 / self.sample_rate;
             let sample = match voice.voice {
-                DrumVoice::Kick => kick(voice, time, self.sample_rate, self.punch),
-                DrumVoice::Snare => snare(voice, time, self.sample_rate, self.tone),
-                DrumVoice::Hat => hat(voice, time, self.tone),
-                DrumVoice::Clap => clap(voice, time, self.tone),
+                DrumVoice::Kick => kick(voice, time, self.sample_rate, punch),
+                DrumVoice::Snare => snare(voice, time, self.sample_rate, tone),
+                DrumVoice::Hat => hat(voice, time, tone),
+                DrumVoice::Clap => clap(voice, time, tone),
             };
-            mono += sample * f64::from(voice.velocity);
+            mono += sample
+                * f64::from(voice.velocity)
+                * f64::from(voice.clip_envelope.gain_at(voice.age_frames));
             voice.age_frames = voice.age_frames.saturating_add(1);
             let maximum = match voice.voice {
                 DrumVoice::Kick => 1.2,
@@ -83,6 +94,11 @@ impl DrumSynth {
     pub(crate) fn active_voice_count(&self) -> usize {
         self.voices.iter().filter(|voice| voice.active).count()
     }
+
+    #[cfg(test)]
+    pub(crate) fn allocated_voice_state_bytes(&self) -> u64 {
+        (self.voices.capacity() as u64).saturating_mul(std::mem::size_of::<DrumState>() as u64)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -94,6 +110,7 @@ struct DrumState {
     phase: f64,
     rng: u64,
     lowpass: f64,
+    clip_envelope: ClipEnvelope,
 }
 
 impl Default for DrumState {
@@ -106,6 +123,7 @@ impl Default for DrumState {
             phase: 0.0,
             rng: 1,
             lowpass: 0.0,
+            clip_envelope: ClipEnvelope::TRANSPARENT,
         }
     }
 }
@@ -172,14 +190,6 @@ fn next_noise(state: &mut DrumState) -> f64 {
     normalized * 2.0 - 1.0
 }
 
-fn parameter(instrument: &Instrument, key: &str, default: f64) -> f64 {
-    instrument
-        .parameters
-        .iter()
-        .find(|parameter| parameter.key == key)
-        .map_or(default, |parameter| parameter.value)
-}
-
 const fn xorshift(mut value: u64) -> u64 {
     value ^= value << 13;
     value ^= value >> 7;
@@ -241,11 +251,11 @@ project "Drum" {
         let instrument = &document.project.unwrap().song.instruments[0];
         let mut first = DrumSynth::new(instrument, 48_000);
         let mut second = DrumSynth::new(instrument, 48_000);
-        first.trigger(DrumVoice::Snare, 0.8, 4);
-        second.trigger(DrumVoice::Snare, 0.8, 4);
+        first.trigger(DrumVoice::Snare, 0.8, 4, ClipEnvelope::TRANSPARENT);
+        second.trigger(DrumVoice::Snare, 0.8, 4, ClipEnvelope::TRANSPARENT);
         for _ in 0..1_000 {
-            let a = first.process();
-            let b = second.process();
+            let a = first.process(0.55, 0.65);
+            let b = second.process(0.55, 0.65);
             assert_eq!(a, b);
             assert!(a.into_iter().all(f32::is_finite));
         }
