@@ -9,23 +9,23 @@ use std::{
 };
 
 use fs2::FileExt;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use similar::{ChangeTag, TextDiff};
-use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 #[cfg(test)]
 use crate::project::load_project_sources;
 use crate::{
     diagnostic::Diagnostic,
     media::{
-        AssetInventory, AssetReadError, MAX_MEDIA_ASSET_BYTES, MAX_MEDIA_ASSETS,
-        MAX_PROJECT_MEDIA_BYTES, read_project_asset_bytes, read_regular_asset_bytes,
-        valid_asset_path, valid_sha256,
+        read_project_asset_bytes, read_regular_asset_bytes, valid_asset_path, valid_sha256,
+        AssetInventory, AssetReadError, MAX_MEDIA_ASSETS, MAX_MEDIA_ASSET_BYTES,
+        MAX_PROJECT_MEDIA_BYTES,
     },
     project::{
-        MAX_PROJECT_SOURCE_BYTES, MAX_SOURCE_BYTES, PROJECT_FILE, ProjectBundle, RevisionId,
-        hash_project_identity, load_project, load_project_sources_with_assets,
+        hash_project_identity, load_project, load_project_sources_with_assets, ProjectBundle,
+        RevisionId, MAX_PROJECT_SOURCE_BYTES, MAX_SOURCE_BYTES, PROJECT_FILE,
     },
 };
 
@@ -207,6 +207,17 @@ struct SourceTransaction {
     after: SourceSnapshot,
     #[serde(default)]
     before_asset_files: Option<BTreeMap<PathBuf, SnapshotAsset>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SourcePublicationMode {
+    Candidate,
+    Restore,
+}
+
+struct SourceTransactionContext<'a> {
+    root: &'a Path,
+    before_asset_files: &'a BTreeMap<PathBuf, SnapshotAsset>,
 }
 
 /// Locked access to one Project's persistent history.
@@ -402,31 +413,21 @@ impl HistoryStore {
             explanation: explanation.into(),
             restored_from: Some(target_id.to_owned()),
         };
-        let previous_asset_files =
-            self.begin_source_transaction_with_assets(&previous, &target_bundle)?;
-        let operation = (|| -> Result<HistoryEntry, HistoryError> {
-            reconcile_source_set(&self.root, &snapshot.sources, &previous.sources)?;
-            reconcile_asset_set(&self.root, &snapshot.assets, &previous_asset_files, false)?;
-            let restored = load_project(&self.root).map_err(HistoryError::Project)?;
-            if restored.revision != target.revision || restored.diagnostics.has_errors() {
-                return Err(HistoryError::Corrupt(format!(
-                    "restored source produced revision {}, expected {}",
-                    restored.revision, target.revision
-                )));
-            }
-            self.validate_publication(&restored, &publication)?;
-            self.publish_inner(&restored, publication)
-        })();
-        match operation {
-            Ok(entry) => {
-                self.finish_source_transaction()?;
-                Ok(entry)
-            }
-            Err(error) => {
-                self.abort_source_transaction()?;
-                Err(error)
-            }
-        }
+        self.source_transaction(
+            &previous,
+            &target_bundle,
+            publication,
+            SourcePublicationMode::Restore,
+            |transaction| {
+                reconcile_source_set(transaction.root, &snapshot.sources, &previous.sources)?;
+                reconcile_asset_set(
+                    transaction.root,
+                    &snapshot.assets,
+                    transaction.before_asset_files,
+                    false,
+                )
+            },
+        )
     }
 
     fn publish_inner(
@@ -684,7 +685,80 @@ impl HistoryStore {
         read_snapshot_asset_bytes(&self.metadata, snapshot)
     }
 
-    pub(crate) fn begin_source_transaction(
+    /// Runs an edit-specific write inside the complete durable source transaction.
+    pub(crate) fn commit_source_transaction<E>(
+        &self,
+        before: &ProjectBundle,
+        after: &ProjectBundle,
+        publication: Publication,
+        write: impl FnOnce() -> Result<(), E>,
+    ) -> Result<HistoryEntry, E>
+    where
+        E: From<HistoryError>,
+    {
+        self.source_transaction(
+            before,
+            after,
+            publication,
+            SourcePublicationMode::Candidate,
+            |_| write(),
+        )
+    }
+
+    fn source_transaction<E>(
+        &self,
+        before: &ProjectBundle,
+        after: &ProjectBundle,
+        publication: Publication,
+        publication_mode: SourcePublicationMode,
+        write: impl FnOnce(SourceTransactionContext<'_>) -> Result<(), E>,
+    ) -> Result<HistoryEntry, E>
+    where
+        E: From<HistoryError>,
+    {
+        let before_asset_files = self
+            .begin_source_transaction_with_assets(before, after)
+            .map_err(E::from)?;
+        let operation = (|| -> Result<HistoryEntry, E> {
+            write(SourceTransactionContext {
+                root: &self.root,
+                before_asset_files: &before_asset_files,
+            })?;
+            match publication_mode {
+                SourcePublicationMode::Candidate => {
+                    self.publish(after, publication).map_err(E::from)
+                }
+                SourcePublicationMode::Restore => {
+                    let restored = load_project(&self.root)
+                        .map_err(|error| E::from(HistoryError::Project(error)))?;
+                    if restored.revision != after.revision || restored.diagnostics.has_errors() {
+                        return Err(E::from(HistoryError::Corrupt(format!(
+                            "restored source produced revision {}, expected {}",
+                            restored.revision, after.revision
+                        ))));
+                    }
+                    self.validate_publication(&restored, &publication)
+                        .map_err(E::from)?;
+                    self.publish_inner(&restored, publication).map_err(E::from)
+                }
+            }
+        })();
+        match operation {
+            Ok(entry) => {
+                self.finish_source_transaction().map_err(E::from)?;
+                Ok(entry)
+            }
+            Err(error) => {
+                if let Err(rollback) = self.abort_source_transaction() {
+                    return Err(E::from(rollback));
+                }
+                Err(error)
+            }
+        }
+    }
+
+    #[cfg(test)]
+    fn begin_source_transaction(
         &self,
         before: &ProjectBundle,
         after: &ProjectBundle,
@@ -734,11 +808,11 @@ impl HistoryStore {
         Ok(before_asset_files)
     }
 
-    pub(crate) fn finish_source_transaction(&self) -> Result<(), HistoryError> {
+    fn finish_source_transaction(&self) -> Result<(), HistoryError> {
         self.clear_source_transaction()
     }
 
-    pub(crate) fn abort_source_transaction(&self) -> Result<(), HistoryError> {
+    fn abort_source_transaction(&self) -> Result<(), HistoryError> {
         let path = self.metadata.join(SOURCE_TRANSACTION_FILE);
         let transaction: SourceTransaction = read_json(&path)?;
         let before_assets = transaction
@@ -1934,14 +2008,12 @@ project "History" {
                 Publication::new(ChangeOrigin::human("test"), "Second media", "replace"),
             )
             .expect("publish second");
-        assert!(
-            second_entry
-                .changes
-                .iter()
-                .any(|change| change.path == Path::new("media/voice.wav")
-                    && change.kind == SourceChangeKind::Modified
-                    && change.changed_lines == 0)
-        );
+        assert!(second_entry
+            .changes
+            .iter()
+            .any(|change| change.path == Path::new("media/voice.wav")
+                && change.kind == SourceChangeKind::Modified
+                && change.changed_lines == 0));
         let diff = store.diff(&second_entry.id).expect("binary diff");
         assert!(diff.contains("binary media/voice.wav: sha256"));
         assert!(diff.contains("bytes) -> sha256"));
@@ -2131,6 +2203,45 @@ project "History" {
             )
             .unwrap_err();
         assert!(matches!(error, HistoryError::StaleCandidate { .. }));
+    }
+
+    #[test]
+    fn complete_source_transaction_rolls_back_a_failed_writer() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join(PROJECT_FILE);
+        fs::write(&path, SOURCE).unwrap();
+        let before = load_project(directory.path()).unwrap();
+        let store = HistoryStore::open(directory.path()).unwrap();
+        store
+            .publish(
+                &before,
+                Publication::new(ChangeOrigin::system("test"), "initial", "initial"),
+            )
+            .unwrap();
+
+        let changed = SOURCE.replace("0.5 0.5", "0.5 0.75");
+        let mut sources = before.sources.clone();
+        sources.insert(PathBuf::from(PROJECT_FILE), changed.clone());
+        let after = load_project_sources(before.root.clone(), sources);
+        let result = store.commit_source_transaction(
+            &before,
+            &after,
+            Publication::new(ChangeOrigin::human("test"), "change", "change"),
+            || -> Result<(), HistoryError> {
+                write_atomic(&path, changed.as_bytes())?;
+                Err(HistoryError::Corrupt("injected writer failure".to_owned()))
+            },
+        );
+
+        assert!(
+            matches!(result, Err(HistoryError::Corrupt(message)) if message == "injected writer failure")
+        );
+        assert_eq!(fs::read_to_string(&path).unwrap(), SOURCE);
+        assert_eq!(
+            store.active_state().unwrap().unwrap().active_revision,
+            before.revision
+        );
+        assert!(!store.metadata.join(SOURCE_TRANSACTION_FILE).exists());
     }
 
     #[test]
@@ -2358,13 +2469,11 @@ project "History" {
 
         let _recovered = HistoryStore::open(directory.path()).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), SOURCE);
-        assert!(
-            !directory
-                .path()
-                .join(METADATA_DIR)
-                .join(SOURCE_TRANSACTION_FILE)
-                .exists()
-        );
+        assert!(!directory
+            .path()
+            .join(METADATA_DIR)
+            .join(SOURCE_TRANSACTION_FILE)
+            .exists());
     }
 
     #[test]
@@ -2499,12 +2608,10 @@ instrument shared "Shared" stock_drums {
         let recovered = HistoryStore::open(directory.path()).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), changed);
         assert_eq!(recovered.list().unwrap().len(), 2);
-        assert!(
-            !directory
-                .path()
-                .join(METADATA_DIR)
-                .join(SOURCE_TRANSACTION_FILE)
-                .exists()
-        );
+        assert!(!directory
+            .path()
+            .join(METADATA_DIR)
+            .join(SOURCE_TRANSACTION_FILE)
+            .exists());
     }
 }

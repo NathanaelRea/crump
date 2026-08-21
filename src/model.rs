@@ -949,144 +949,59 @@ pub struct ParameterSpec {
 }
 
 impl Project {
-    /// Resolves a stable target to its physical control contract.
+    /// Resolves a stable target through the authoritative Parameter inventory.
     #[must_use]
     pub fn parameter_spec(&self, target: &ParameterTarget) -> Option<ParameterSpec> {
-        match target {
-            ParameterTarget::Instrument {
-                instrument,
-                parameter,
-            } => self
-                .song
-                .instruments
-                .iter()
-                .find(|candidate| candidate.id == *instrument)?
-                .parameters
-                .iter()
-                .find(|candidate| candidate.key == *parameter)
-                .map(|parameter| ParameterSpec {
-                    unit: parameter.unit,
-                    minimum: parameter.minimum,
-                    maximum: parameter.maximum,
-                    base: parameter.value,
-                    automatable: parameter.automatable,
-                    modulatable: parameter.modulatable,
-                }),
-            ParameterTarget::Track { track, parameter } => channel_parameter_spec(
-                &self
-                    .song
-                    .tracks
-                    .iter()
-                    .find(|candidate| candidate.id == *track)?
-                    .channel,
-                *parameter,
-            ),
-            ParameterTarget::Group { group, parameter } => channel_parameter_spec(
-                &self
-                    .song
-                    .groups
-                    .iter()
-                    .find(|candidate| candidate.id == *group)?
-                    .channel,
-                *parameter,
-            ),
-            ParameterTarget::Return {
-                r#return,
-                parameter,
-            } => channel_parameter_spec(
-                &self
-                    .song
-                    .returns
-                    .iter()
-                    .find(|candidate| candidate.id == *r#return)?
-                    .channel,
-                *parameter,
-            ),
-            ParameterTarget::Send { send } => self
-                .song
-                .tracks
-                .iter()
-                .map(|channel| &channel.channel)
-                .chain(self.song.groups.iter().map(|channel| &channel.channel))
-                .chain(self.song.returns.iter().map(|channel| &channel.channel))
-                .flat_map(|channel| &channel.sends)
-                .find(|candidate| candidate.id == *send)
-                .map(|send| ParameterSpec {
-                    unit: Unit::Decibels,
-                    minimum: -96.0,
-                    maximum: 12.0,
-                    base: send.level_db,
-                    automatable: true,
-                    modulatable: true,
-                }),
-            ParameterTarget::Processor {
-                processor,
-                parameter,
-            } => {
-                let processor =
-                    all_processors(&self.song).find(|candidate| candidate.id == *processor)?;
-                let setting = processor
-                    .settings
-                    .iter()
-                    .find(|setting| setting.key == *parameter)?;
-                processor_setting_spec(processor.kind, &setting.key, &setting.value)
-            }
-            ParameterTarget::Master => self.song.master.as_ref().map(|master| ParameterSpec {
-                unit: Unit::Decibels,
-                minimum: -96.0,
-                maximum: 12.0,
-                base: master.level_db,
-                automatable: true,
-                modulatable: true,
-            }),
-        }
+        self.parameter_specs()
+            .into_iter()
+            .find_map(|(candidate, spec)| (candidate == *target).then_some(spec))
     }
 
-    /// Enumerates every continuous routing, mixer, and shared-processor target.
+    /// Enumerates every authored Instrument, mixer, routing, and processor Parameter.
     #[must_use]
-    pub fn mix_parameter_specs(&self) -> Vec<(ParameterTarget, ParameterSpec)> {
+    pub fn parameter_specs(&self) -> Vec<(ParameterTarget, ParameterSpec)> {
         let mut targets = Vec::new();
+        for instrument in &self.song.instruments {
+            for parameter in &instrument.parameters {
+                targets.push((
+                    ParameterTarget::Instrument {
+                        instrument: instrument.id.clone(),
+                        parameter: parameter.key.clone(),
+                    },
+                    ParameterSpec {
+                        unit: parameter.unit,
+                        minimum: parameter.minimum,
+                        maximum: parameter.maximum,
+                        base: parameter.value,
+                        automatable: parameter.automatable,
+                        modulatable: parameter.modulatable,
+                    },
+                ));
+            }
+        }
         for track in &self.song.tracks {
-            for parameter in [TrackParameter::Level, TrackParameter::Mute]
-                .into_iter()
-                .chain(track.channel.panner.parameters().iter().copied())
-            {
-                let target = ParameterTarget::Track {
+            extend_channel_parameter_specs(&mut targets, &track.channel, |parameter| {
+                ParameterTarget::Track {
                     track: track.id.clone(),
                     parameter,
-                };
-                if let Some(spec) = self.parameter_spec(&target) {
-                    targets.push((target, spec));
                 }
-            }
+            });
         }
         for group in &self.song.groups {
-            for parameter in [TrackParameter::Level, TrackParameter::Mute]
-                .into_iter()
-                .chain(group.channel.panner.parameters().iter().copied())
-            {
-                let target = ParameterTarget::Group {
+            extend_channel_parameter_specs(&mut targets, &group.channel, |parameter| {
+                ParameterTarget::Group {
                     group: group.id.clone(),
                     parameter,
-                };
-                if let Some(spec) = self.parameter_spec(&target) {
-                    targets.push((target, spec));
                 }
-            }
+            });
         }
         for channel in &self.song.returns {
-            for parameter in [TrackParameter::Level, TrackParameter::Mute]
-                .into_iter()
-                .chain(channel.channel.panner.parameters().iter().copied())
-            {
-                let target = ParameterTarget::Return {
+            extend_channel_parameter_specs(&mut targets, &channel.channel, |parameter| {
+                ParameterTarget::Return {
                     r#return: channel.id.clone(),
                     parameter,
-                };
-                if let Some(spec) = self.parameter_spec(&target) {
-                    targets.push((target, spec));
                 }
-            }
+            });
         }
         for channel in self
             .song
@@ -1097,36 +1012,75 @@ impl Project {
             .chain(self.song.returns.iter().map(|channel| &channel.channel))
         {
             for send in &channel.sends {
-                let target = ParameterTarget::Send {
-                    send: send.id.clone(),
-                };
-                if let Some(spec) = self.parameter_spec(&target) {
-                    targets.push((target, spec));
-                }
+                targets.push((
+                    ParameterTarget::Send {
+                        send: send.id.clone(),
+                    },
+                    ParameterSpec {
+                        unit: Unit::Decibels,
+                        minimum: -96.0,
+                        maximum: 12.0,
+                        base: send.level_db,
+                        automatable: true,
+                        modulatable: true,
+                    },
+                ));
             }
         }
         for processor in all_processors(&self.song) {
             for setting in &processor.settings {
-                if processor_setting_contract(processor.kind, &setting.key).is_none() {
-                    continue;
-                }
-                let target = ParameterTarget::Processor {
-                    processor: processor.id.clone(),
-                    parameter: setting.key.clone(),
-                };
-                if let Some(spec) = self.parameter_spec(&target) {
-                    targets.push((target, spec));
+                if let Some(spec) =
+                    processor_setting_spec(processor.kind, &setting.key, &setting.value)
+                {
+                    targets.push((
+                        ParameterTarget::Processor {
+                            processor: processor.id.clone(),
+                            parameter: setting.key.clone(),
+                        },
+                        spec,
+                    ));
                 }
             }
         }
-        if self.song.master.is_some() {
-            let target = ParameterTarget::Master;
-            if let Some(spec) = self.parameter_spec(&target) {
-                targets.push((target, spec));
-            }
+        if let Some(master) = &self.song.master {
+            targets.push((
+                ParameterTarget::Master,
+                ParameterSpec {
+                    unit: Unit::Decibels,
+                    minimum: -96.0,
+                    maximum: 12.0,
+                    base: master.level_db,
+                    automatable: true,
+                    modulatable: true,
+                },
+            ));
         }
         targets.sort_by(|(left, _), (right, _)| left.cmp(right));
         targets
+    }
+
+    /// Enumerates continuous routing, mixer, and shared-processor Parameters.
+    #[must_use]
+    pub fn mix_parameter_specs(&self) -> Vec<(ParameterTarget, ParameterSpec)> {
+        self.parameter_specs()
+            .into_iter()
+            .filter(|(target, _)| !matches!(target, ParameterTarget::Instrument { .. }))
+            .collect()
+    }
+}
+
+fn extend_channel_parameter_specs(
+    targets: &mut Vec<(ParameterTarget, ParameterSpec)>,
+    channel: &ChannelStrip,
+    target: impl Fn(TrackParameter) -> ParameterTarget,
+) {
+    for parameter in [TrackParameter::Level, TrackParameter::Mute]
+        .into_iter()
+        .chain(channel.panner.parameters().iter().copied())
+    {
+        if let Some(spec) = channel_parameter_spec(channel, parameter) {
+            targets.push((target(parameter), spec));
+        }
     }
 }
 
@@ -1204,77 +1158,22 @@ pub fn processor_setting_spec(
 /// Returns the unit and legal inclusive domain of a continuous processor setting.
 #[must_use]
 pub fn processor_setting_contract(kind: ProcessorKind, key: &str) -> Option<(Unit, f64, f64)> {
-    Some(match (kind, key) {
-        (ProcessorKind::Utility, "gain") => (Unit::Decibels, -96.0, 24.0),
-        (ProcessorKind::Utility, "width") => (Unit::Ratio, 0.0, 1.0),
-        (ProcessorKind::Eq, "high_pass" | "low_pass" | "low_frequency" | "high_frequency") => {
-            (Unit::Hertz, 10.0, 23_520.0)
-        }
-        (ProcessorKind::Eq, "low_gain" | "high_gain" | "mid1_gain" | "mid2_gain") => {
-            (Unit::Decibels, -24.0, 24.0)
-        }
-        (ProcessorKind::Eq, "mid1_frequency" | "mid2_frequency") => (Unit::Hertz, 10.0, 23_520.0),
-        (ProcessorKind::Eq, "mid1_q" | "mid2_q") => (Unit::Ratio, 0.1, 20.0),
-        (ProcessorKind::Compressor, "threshold") => (Unit::Decibels, -96.0, 0.0),
-        (ProcessorKind::Compressor, "ratio") => (Unit::Ratio, 1.0, 100.0),
-        (ProcessorKind::Compressor, "attack" | "release") => (Unit::Seconds, 0.000_01, 10.0),
-        (ProcessorKind::Compressor, "knee" | "makeup") => (Unit::Decibels, 0.0, 36.0),
-        (ProcessorKind::Compressor, "mix") => (Unit::Ratio, 0.0, 1.0),
-        (ProcessorKind::Delay, "time") => (Unit::Seconds, 1.0 / 48_000.0, 4.0),
-        (ProcessorKind::Delay, "time_crossfade") => (Unit::Seconds, 0.001, 0.1),
-        (ProcessorKind::Delay, "feedback" | "mix") => (Unit::Ratio, 0.0, 0.999),
-        (ProcessorKind::Delay, "low_pass" | "high_pass") => (Unit::Hertz, 10.0, 23_520.0),
-        (ProcessorKind::Reverb, "pre_delay") => (Unit::Seconds, 0.0, 1.0),
-        (
-            ProcessorKind::Reverb,
-            "diffusion" | "decay" | "damping" | "modulation" | "width" | "mix",
-        ) => (Unit::Ratio, 0.0, 1.0),
-        (ProcessorKind::Saturation, "drive") => (Unit::Ratio, 0.0, 10.0),
-        (ProcessorKind::Saturation, "mix") => (Unit::Ratio, 0.0, 1.0),
-        (ProcessorKind::Saturation, "output") => (Unit::Decibels, -24.0, 24.0),
-        (ProcessorKind::Limiter, "ceiling") => (Unit::Decibels, -24.0, 0.0),
-        (ProcessorKind::Limiter, "release") => (Unit::Seconds, 0.0, 2.0),
-        _ => return None,
-    })
-}
-
-/// Returns the domain of a numeric setting that changes allocated DSP topology.
-///
-/// Structural settings are compile-time literals, not continuous Parameter targets.
-pub(crate) fn processor_structural_setting_contract(
-    kind: ProcessorKind,
-    key: &str,
-) -> Option<(Unit, f64, f64)> {
-    match (kind, key) {
-        (ProcessorKind::Limiter, "lookahead") => Some((Unit::Seconds, 0.0, 0.02)),
-        _ => None,
-    }
+    let (unit, minimum, maximum, _) = crate::processor_semantics::descriptor(kind, key)?
+        .contract
+        .continuous()?;
+    Some((unit, minimum, maximum))
 }
 
 /// Resolves a tempo-synchronized Delay division to quarter-note beats.
 #[must_use]
 pub fn delay_division_beats(literal: &str) -> Option<f64> {
-    let (fraction, multiplier) = match literal.strip_suffix('d') {
-        Some(fraction) => (fraction, 1.5),
-        None => match literal.strip_suffix('t') {
-            Some(fraction) => (fraction, 2.0 / 3.0),
-            None => (literal, 1.0),
-        },
-    };
-    let denominator = fraction.strip_prefix("1/")?.parse::<u32>().ok()?;
-    if !matches!(denominator, 1 | 2 | 4 | 8 | 16 | 32) {
-        return None;
-    }
-    Some(4.0 / f64::from(denominator) * multiplier)
+    crate::processor_semantics::delay_division_beats(literal)
 }
 
 /// Resolves a tempo-synchronized Delay division to seconds.
 #[must_use]
 pub fn delay_division_seconds(literal: &str, tempo_bpm: f64) -> Option<f64> {
-    if !tempo_bpm.is_finite() || tempo_bpm <= 0.0 {
-        return None;
-    }
-    Some(delay_division_beats(literal)? * 60.0 / tempo_bpm)
+    crate::processor_semantics::delay_division_seconds(literal, tempo_bpm)
 }
 
 /// One Song-scoped absolute point Automation lane.
@@ -2198,20 +2097,44 @@ mod tests {
                 "{path}"
             );
         }
-        assert!("send/drum_room/gain".parse::<ParameterTarget>().is_err());
-        assert!(
-            project
-                .parameter_spec(&"group/missing/level".parse().expect("target"))
-                .is_none()
+        let inventory = project.parameter_specs();
+        assert!(inventory.iter().any(|(target, _)| matches!(
+            target,
+            ParameterTarget::Instrument { instrument, parameter }
+                if instrument == "drums" && parameter == "tone"
+        )));
+        let mix_inventory = project.mix_parameter_specs();
+        assert!(mix_inventory
+            .iter()
+            .all(|(target, _)| !matches!(target, ParameterTarget::Instrument { .. })));
+        assert_eq!(
+            inventory
+                .iter()
+                .filter(|(target, _)| !matches!(target, ParameterTarget::Instrument { .. }))
+                .count(),
+            mix_inventory.len()
         );
+
+        assert!("send/drum_room/gain".parse::<ParameterTarget>().is_err());
+        assert!(project
+            .parameter_spec(&"group/missing/level".parse().expect("target"))
+            .is_none());
         let limiter_lookahead = "processor/master_limiter/lookahead"
             .parse()
             .expect("structural processor path");
         assert!(project.parameter_spec(&limiter_lookahead).is_none());
-        assert_eq!(
-            processor_structural_setting_contract(ProcessorKind::Limiter, "lookahead"),
-            Some((Unit::Seconds, 0.0, 0.02))
-        );
+        assert!(matches!(
+            crate::processor_semantics::descriptor(ProcessorKind::Limiter, "lookahead")
+                .map(|descriptor| descriptor.contract),
+            Some(
+                crate::processor_semantics::SettingContract::StructuralNumeric {
+                    unit: Unit::Seconds,
+                    minimum: 0.0,
+                    maximum: 0.02,
+                    ..
+                }
+            )
+        ));
 
         for processor in all_processors(&project.song) {
             for setting in &processor.settings {

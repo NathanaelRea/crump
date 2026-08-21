@@ -69,6 +69,87 @@ impl std::fmt::Display for RevisionId {
     }
 }
 
+struct CandidateAssembly {
+    project: Option<Project>,
+    diagnostics: Diagnostics,
+    canonical_imports: Vec<PathBuf>,
+}
+
+impl CandidateAssembly {
+    fn parse_root(path: &Path, source: &str) -> (Self, Vec<ImportDeclaration>) {
+        let document = parse_project(path, source);
+        (
+            Self {
+                project: document.project,
+                diagnostics: document.diagnostics,
+                canonical_imports: Vec::new(),
+            },
+            document.imports,
+        )
+    }
+
+    fn push_import(&mut self, path: &Path, source: &str) {
+        let module = parse_module(path, source);
+        self.diagnostics.extend(module.diagnostics);
+        if let Some(project) = self.project.as_mut() {
+            project.song.instruments.extend(module.instruments);
+        }
+        self.canonical_imports.push(path.to_path_buf());
+    }
+
+    fn finish(mut self) -> (Option<Project>, Diagnostics) {
+        if let Some(project) = self.project.as_mut() {
+            project.imports = self.canonical_imports;
+        }
+        (self.project, self.diagnostics)
+    }
+}
+
+enum CandidateAssetSource<'a> {
+    Filesystem,
+    ExactBytes(&'a BTreeMap<PathBuf, Vec<u8>>),
+}
+
+fn finish_candidate_reconstruction(
+    root: PathBuf,
+    sources: BTreeMap<PathBuf, String>,
+    assembly: CandidateAssembly,
+    asset_source: CandidateAssetSource<'_>,
+) -> ProjectBundle {
+    let (project, mut diagnostics) = assembly.finish();
+    let total_bytes: usize = sources.values().map(String::len).sum();
+    if total_bytes > MAX_PROJECT_SOURCE_BYTES {
+        diagnostics.push(Diagnostic::error(
+            "CRL004",
+            format!("Project source is {total_bytes} bytes; maximum is {MAX_PROJECT_SOURCE_BYTES}"),
+        ));
+    }
+    let assets = if let Some(candidate) = &project {
+        let (assets, asset_diagnostics) = match asset_source {
+            CandidateAssetSource::Filesystem => load_asset_inventory(&root, &candidate.assets),
+            CandidateAssetSource::ExactBytes(bytes) => {
+                load_asset_inventory_from_bytes(&candidate.assets, bytes)
+            }
+        };
+        diagnostics.extend(asset_diagnostics);
+        diagnostics.extend(validate_project(candidate));
+        diagnostics.extend(validate_project_assets(candidate, &assets));
+        assets
+    } else {
+        AssetInventory::default()
+    };
+    resolve_locations(&mut diagnostics, &sources);
+    let revision = hash_project_contents(&sources, &assets);
+    ProjectBundle {
+        root,
+        project,
+        sources,
+        assets,
+        revision,
+        diagnostics,
+    }
+}
+
 /// Loads a complete Project candidate from a directory or root source path.
 pub fn load_project(path: impl AsRef<Path>) -> Result<ProjectBundle, ProjectIoError> {
     let supplied = path.as_ref();
@@ -91,19 +172,16 @@ pub fn load_project(path: impl AsRef<Path>) -> Result<ProjectBundle, ProjectIoEr
     })?;
     let root_source = read_source(&root_file)?;
     let root_key = PathBuf::from(PROJECT_FILE);
-    let document = parse_project(&root_key, &root_source);
-    let mut diagnostics = document.diagnostics;
+    let (mut assembly, imports) = CandidateAssembly::parse_root(&root_key, &root_source);
     let mut sources = BTreeMap::new();
     sources.insert(root_key, root_source);
-    let mut project = document.project;
     let mut real_imports = BTreeSet::new();
-    let mut canonical_imports = Vec::new();
 
-    for import in &document.imports {
+    for import in &imports {
         match resolve_import(&root, import) {
             Ok(resolved) => {
                 if !real_imports.insert(resolved.real_path.clone()) {
-                    diagnostics.push(
+                    assembly.diagnostics.push(
                         Diagnostic::error(
                             "CRL001",
                             format!(
@@ -117,17 +195,12 @@ pub fn load_project(path: impl AsRef<Path>) -> Result<ProjectBundle, ProjectIoEr
                 }
                 match read_source(&resolved.real_path) {
                     Ok(source) => {
-                        let module = parse_module(&resolved.display_path, &source);
-                        diagnostics.extend(module.diagnostics);
-                        if let Some(project) = project.as_mut() {
-                            project.song.instruments.extend(module.instruments);
-                        }
-                        canonical_imports.push(resolved.display_path.clone());
+                        assembly.push_import(&resolved.display_path, &source);
                         if sources
                             .insert(resolved.display_path.clone(), source)
                             .is_some()
                         {
-                            diagnostics.push(
+                            assembly.diagnostics.push(
                                 Diagnostic::error(
                                     "CRL001",
                                     format!(
@@ -139,46 +212,23 @@ pub fn load_project(path: impl AsRef<Path>) -> Result<ProjectBundle, ProjectIoEr
                             );
                         }
                     }
-                    Err(error) => diagnostics.push(
+                    Err(error) => assembly.diagnostics.push(
                         Diagnostic::error("CRL002", error.to_string()).at(import.location.clone()),
                     ),
                 }
             }
-            Err((code, message)) => {
-                diagnostics.push(Diagnostic::error(code, message).at(import.location.clone()))
-            }
+            Err((code, message)) => assembly
+                .diagnostics
+                .push(Diagnostic::error(code, message).at(import.location.clone())),
         }
     }
-    if let Some(project) = project.as_mut() {
-        project.imports = canonical_imports;
-    }
 
-    let total_bytes: usize = sources.values().map(String::len).sum();
-    if total_bytes > MAX_PROJECT_SOURCE_BYTES {
-        diagnostics.push(Diagnostic::error(
-            "CRL004",
-            format!("Project source is {total_bytes} bytes; maximum is {MAX_PROJECT_SOURCE_BYTES}"),
-        ));
-    }
-    let assets = if let Some(candidate) = &project {
-        let (assets, asset_diagnostics) = load_asset_inventory(&root, &candidate.assets);
-        diagnostics.extend(asset_diagnostics);
-        diagnostics.extend(validate_project(candidate));
-        diagnostics.extend(validate_project_assets(candidate, &assets));
-        assets
-    } else {
-        AssetInventory::default()
-    };
-    resolve_locations(&mut diagnostics, &sources);
-    let revision = hash_project_contents(&sources, &assets);
-    Ok(ProjectBundle {
+    Ok(finish_candidate_reconstruction(
         root,
-        project,
         sources,
-        assets,
-        revision,
-        diagnostics,
-    })
+        assembly,
+        CandidateAssetSource::Filesystem,
+    ))
 }
 
 /// Parses and validates an in-memory authoritative source set.
@@ -219,21 +269,21 @@ fn load_project_sources_inner(
             diagnostics,
         };
     };
-    let document = parse_project(Path::new(PROJECT_FILE), root_source);
-    let mut diagnostics = document.diagnostics;
-    let mut project = document.project;
+    let (mut assembly, imports) =
+        CandidateAssembly::parse_root(Path::new(PROJECT_FILE), root_source);
     let mut imported = BTreeSet::new();
-    let mut canonical_imports = Vec::new();
-    for import in &document.imports {
+    for import in &imports {
         let display_path = match import_display_path(&import.path) {
             Ok(path) => path,
             Err(message) => {
-                diagnostics.push(Diagnostic::error("CRL003", message).at(import.location.clone()));
+                assembly
+                    .diagnostics
+                    .push(Diagnostic::error("CRL003", message).at(import.location.clone()));
                 continue;
             }
         };
         if !imported.insert(display_path.clone()) {
-            diagnostics.push(
+            assembly.diagnostics.push(
                 Diagnostic::error(
                     "CRL001",
                     format!(
@@ -246,7 +296,7 @@ fn load_project_sources_inner(
             continue;
         }
         let Some(source) = sources.get(&display_path) else {
-            diagnostics.push(
+            assembly.diagnostics.push(
                 Diagnostic::error(
                     "CRL006",
                     format!("imported module `{}` is missing", display_path.display()),
@@ -255,21 +305,13 @@ fn load_project_sources_inner(
             );
             continue;
         };
-        canonical_imports.push(display_path.clone());
-        let module = parse_module(&display_path, source);
-        diagnostics.extend(module.diagnostics);
-        if let Some(project) = project.as_mut() {
-            project.song.instruments.extend(module.instruments);
-        }
-    }
-    if let Some(project) = project.as_mut() {
-        project.imports = canonical_imports;
+        assembly.push_import(&display_path, source);
     }
     let mut authoritative = imported;
     authoritative.insert(PathBuf::from(PROJECT_FILE));
     for (path, source) in &sources {
         if source.len() as u64 > MAX_SOURCE_BYTES {
-            diagnostics.push(Diagnostic::error(
+            assembly.diagnostics.push(Diagnostic::error(
                 "CRL007",
                 format!(
                     "source file {} is {} bytes; maximum is {MAX_SOURCE_BYTES}",
@@ -279,7 +321,7 @@ fn load_project_sources_inner(
             ));
         }
         if !authoritative.contains(path) {
-            diagnostics.push(Diagnostic::error(
+            assembly.diagnostics.push(Diagnostic::error(
                 "CRL008",
                 format!(
                     "source set contains unreferenced authoritative path `{}`",
@@ -288,36 +330,11 @@ fn load_project_sources_inner(
             ));
         }
     }
-    let total_bytes: usize = sources.values().map(String::len).sum();
-    if total_bytes > MAX_PROJECT_SOURCE_BYTES {
-        diagnostics.push(Diagnostic::error(
-            "CRL004",
-            format!("Project source is {total_bytes} bytes; maximum is {MAX_PROJECT_SOURCE_BYTES}"),
-        ));
-    }
-    let assets = if let Some(candidate) = &project {
-        let (assets, asset_diagnostics) = if let Some(asset_bytes) = asset_bytes {
-            load_asset_inventory_from_bytes(&candidate.assets, asset_bytes)
-        } else {
-            load_asset_inventory(&root, &candidate.assets)
-        };
-        diagnostics.extend(asset_diagnostics);
-        diagnostics.extend(validate_project(candidate));
-        diagnostics.extend(validate_project_assets(candidate, &assets));
-        assets
-    } else {
-        AssetInventory::default()
-    };
-    resolve_locations(&mut diagnostics, &sources);
-    let revision = hash_project_contents(&sources, &assets);
-    ProjectBundle {
-        root,
-        project,
-        sources,
-        assets,
-        revision,
-        diagnostics,
-    }
+    let asset_source = asset_bytes.map_or(
+        CandidateAssetSource::Filesystem,
+        CandidateAssetSource::ExactBytes,
+    );
+    finish_candidate_reconstruction(root, sources, assembly, asset_source)
 }
 
 /// Computes the deterministic identity of exact source paths and bytes.
@@ -633,6 +650,58 @@ mod tests {
                 .as_slice()
                 .iter()
                 .any(|diagnostic| diagnostic.code == "CRM002")
+        );
+    }
+
+    #[test]
+    fn filesystem_and_snapshot_adapters_reconstruct_the_same_candidate() {
+        const MODULE: &str = r#"crump-module 1
+instrument shared "Shared" stock_drums {
+  polyphony 4
+  parameter tone "Tone" ratio 0 1 0.4 0.4
+  faceplate {
+    control tone "Tone" "Brightness" maps tone
+  }
+}
+"#;
+        let root = tempdir().expect("Project root");
+        let wav_path = root.path().join("media/voice.wav");
+        let bytes = write_test_wav(&wav_path, &[0, 100, -100]);
+        let source = include_str!("../tests/fixtures/minimal.crump")
+            .replacen("crump 1\n", "crump 1\nimport \"shared.crump\"\n", 1)
+            .replacen(
+                "  song {",
+                &format!(
+                    "  asset voice \"Voice\" wav \"media/voice.wav\" sha256 \"{}\"\n  song {{",
+                    digest(&bytes)
+                ),
+                1,
+            );
+        fs::write(root.path().join(PROJECT_FILE), source).expect("Project source");
+        fs::write(root.path().join("shared.crump"), MODULE).expect("Instrument Module");
+
+        let filesystem = load_project(root.path()).expect("filesystem Candidate");
+        assert!(
+            !filesystem.diagnostics.has_errors(),
+            "{:?}",
+            filesystem.diagnostics
+        );
+        let exact_assets = filesystem
+            .assets
+            .iter()
+            .map(|asset| (asset.path().to_path_buf(), asset.bytes().to_vec()))
+            .collect::<BTreeMap<_, _>>();
+        let snapshot = load_project_sources_with_assets(
+            filesystem.root.clone(),
+            filesystem.sources.clone(),
+            &exact_assets,
+        );
+
+        assert_eq!(snapshot.revision, filesystem.revision);
+        assert_eq!(snapshot.diagnostics, filesystem.diagnostics);
+        assert_eq!(
+            serde_json::to_value(snapshot.project.as_ref()).expect("snapshot model"),
+            serde_json::to_value(filesystem.project.as_ref()).expect("filesystem model")
         );
     }
 

@@ -32,147 +32,10 @@ impl CompiledControlProgram {
             .map(|lane| (&lane.target, lane))
             .collect();
         let parameter_lock_lanes = compile_parameter_lock_lanes(project)?;
-        let mut authored = BTreeMap::new();
-        for instrument in &project.song.instruments {
-            for parameter in &instrument.parameters {
-                let target = ParameterTarget::Instrument {
-                    instrument: instrument.id.clone(),
-                    parameter: parameter.key.clone(),
-                };
-                let spec = project.parameter_spec(&target).ok_or_else(|| {
-                    EngineError::Compile(format!("missing Parameter target `{target}`"))
-                })?;
-                authored.insert(target, spec);
-            }
-        }
-        for track in &project.song.tracks {
-            for parameter in [
-                crate::model::TrackParameter::Level,
-                crate::model::TrackParameter::Mute,
-            ]
+        let authored = project
+            .parameter_specs()
             .into_iter()
-            .chain(track.channel.panner.parameters().iter().copied())
-            {
-                let target = ParameterTarget::Track {
-                    track: track.id.clone(),
-                    parameter,
-                };
-                let spec = project.parameter_spec(&target).ok_or_else(|| {
-                    EngineError::Compile(format!("missing Parameter target `{target}`"))
-                })?;
-                authored.insert(target, spec);
-            }
-        }
-        for group in &project.song.groups {
-            for parameter in [
-                crate::model::TrackParameter::Level,
-                crate::model::TrackParameter::Mute,
-            ]
-            .into_iter()
-            .chain(group.channel.panner.parameters().iter().copied())
-            {
-                let target = ParameterTarget::Group {
-                    group: group.id.clone(),
-                    parameter,
-                };
-                let spec = project.parameter_spec(&target).ok_or_else(|| {
-                    EngineError::Compile(format!("missing Parameter target `{target}`"))
-                })?;
-                authored.insert(target, spec);
-            }
-        }
-        for channel in &project.song.returns {
-            for parameter in [
-                crate::model::TrackParameter::Level,
-                crate::model::TrackParameter::Mute,
-            ]
-            .into_iter()
-            .chain(channel.channel.panner.parameters().iter().copied())
-            {
-                let target = ParameterTarget::Return {
-                    r#return: channel.id.clone(),
-                    parameter,
-                };
-                let spec = project.parameter_spec(&target).ok_or_else(|| {
-                    EngineError::Compile(format!("missing Parameter target `{target}`"))
-                })?;
-                authored.insert(target, spec);
-            }
-        }
-        for channel in project
-            .song
-            .tracks
-            .iter()
-            .map(|track| &track.channel)
-            .chain(project.song.groups.iter().map(|group| &group.channel))
-            .chain(project.song.returns.iter().map(|channel| &channel.channel))
-        {
-            for send in &channel.sends {
-                let target = ParameterTarget::Send {
-                    send: send.id.clone(),
-                };
-                let spec = project.parameter_spec(&target).ok_or_else(|| {
-                    EngineError::Compile(format!("missing Parameter target `{target}`"))
-                })?;
-                authored.insert(target, spec);
-            }
-        }
-        for processor in project
-            .song
-            .instruments
-            .iter()
-            .flat_map(|instrument| &instrument.post_processors)
-            .chain(
-                project
-                    .song
-                    .tracks
-                    .iter()
-                    .flat_map(|track| &track.channel.inserts),
-            )
-            .chain(
-                project
-                    .song
-                    .groups
-                    .iter()
-                    .flat_map(|group| &group.channel.inserts),
-            )
-            .chain(
-                project
-                    .song
-                    .returns
-                    .iter()
-                    .flat_map(|channel| &channel.channel.inserts),
-            )
-            .chain(
-                project
-                    .song
-                    .master
-                    .iter()
-                    .flat_map(|master| &master.inserts),
-            )
-        {
-            for setting in &processor.settings {
-                if crate::model::processor_setting_contract(processor.kind, &setting.key).is_none()
-                {
-                    continue;
-                }
-                let target = ParameterTarget::Processor {
-                    processor: processor.id.clone(),
-                    parameter: setting.key.clone(),
-                };
-                let spec = project.parameter_spec(&target).ok_or_else(|| {
-                    EngineError::Compile(format!("missing Parameter target `{target}`"))
-                })?;
-                authored.insert(target, spec);
-            }
-        }
-        if project.song.master.is_some() {
-            let target = ParameterTarget::Master;
-            let spec = project.parameter_spec(&target).ok_or_else(|| {
-                EngineError::Compile(format!("missing Parameter target `{target}`"))
-            })?;
-            authored.insert(target, spec);
-        }
+            .collect::<BTreeMap<_, _>>();
         if let Some(target) = parameter_lock_lanes
             .keys()
             .find(|target| !authored.contains_key(*target))
@@ -928,6 +791,20 @@ project "Control" {
         let diagnostics = validate_project(&project);
         assert!(!diagnostics.has_errors(), "{:?}", diagnostics.as_slice());
         project
+    }
+
+    #[test]
+    fn compiled_targets_match_the_authoritative_parameter_inventory() {
+        let project = project();
+        let inventory = project.parameter_specs();
+        let program = CompiledControlProgram::compile(&project).expect("compile controls");
+        assert_eq!(program.target_count(), inventory.len());
+        for (target, _) in inventory {
+            assert!(
+                program.index(&target).is_some(),
+                "compiled controls omitted {target}"
+            );
+        }
     }
 
     #[test]

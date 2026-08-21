@@ -15,9 +15,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     model::{
         InstrumentKind, Panner, ParameterTarget, ProcessorKind, Project, TapPoint, TrackParameter,
-        Unit, delay_division_seconds, processor_setting_contract,
-        processor_structural_setting_contract,
+        Unit,
     },
+    processor_semantics::{ResolvedSettingValue, resolve_settings},
     validate::{MAX_CONTROL_TARGETS, MAX_GRAPH_VOICES},
 };
 
@@ -2060,256 +2060,41 @@ impl ChannelMeter {
     }
 }
 
-fn push_continuous_processor_setting(
-    resolved: &mut Vec<CompiledProcessorSettingInspection>,
-    processor: &crate::model::Processor,
-    key: &str,
-    default: f64,
-) -> Result<(), EngineError> {
-    let (unit, minimum, maximum) =
-        processor_setting_contract(processor.kind, key).ok_or_else(|| {
-            EngineError::Compile(format!(
-                "processor `{}` has no continuous contract for `{key}`",
-                processor.id
-            ))
-        })?;
-    let authored = processor.settings.iter().find(|setting| setting.key == key);
-    let value = authored
-        .map(|setting| unit.parse_value(&setting.value))
-        .transpose()
-        .map_err(|error| {
-            EngineError::Compile(format!("processor `{}` `{key}`: {error}", processor.id))
-        })?
-        .unwrap_or(default);
-    resolved.push(CompiledProcessorSettingInspection {
-        key: key.to_owned(),
-        unit: Some(unit),
-        value: Some(value),
-        choice: None,
-        minimum: Some(minimum),
-        maximum: Some(maximum),
-        authored: authored.is_some(),
-        parameter_target: authored.is_some(),
-    });
-    Ok(())
-}
-
-fn push_structural_numeric_processor_setting(
-    resolved: &mut Vec<CompiledProcessorSettingInspection>,
-    processor: &crate::model::Processor,
-    key: &str,
-    default: f64,
-) -> Result<(), EngineError> {
-    let (unit, minimum, maximum) = processor_structural_setting_contract(processor.kind, key)
-        .ok_or_else(|| {
-            EngineError::Compile(format!(
-                "processor `{}` has no structural numeric contract for `{key}`",
-                processor.id
-            ))
-        })?;
-    let authored = processor.settings.iter().find(|setting| setting.key == key);
-    let value = authored
-        .map(|setting| unit.parse_value(&setting.value))
-        .transpose()
-        .map_err(|error| {
-            EngineError::Compile(format!("processor `{}` `{key}`: {error}", processor.id))
-        })?
-        .unwrap_or(default);
-    if !value.is_finite() || !(minimum..=maximum).contains(&value) {
-        return Err(EngineError::Compile(format!(
-            "processor `{}` `{key}` must be within {minimum}..={maximum} {unit:?}",
-            processor.id
-        )));
-    }
-    resolved.push(CompiledProcessorSettingInspection {
-        key: key.to_owned(),
-        unit: Some(unit),
-        value: Some(value),
-        choice: None,
-        minimum: Some(minimum),
-        maximum: Some(maximum),
-        authored: authored.is_some(),
-        parameter_target: false,
-    });
-    Ok(())
-}
-
-fn push_discrete_processor_setting(
-    resolved: &mut Vec<CompiledProcessorSettingInspection>,
-    processor: &crate::model::Processor,
-    key: &str,
-    default: &str,
-) {
-    let authored = processor.settings.iter().find(|setting| setting.key == key);
-    resolved.push(CompiledProcessorSettingInspection {
-        key: key.to_owned(),
-        unit: None,
-        value: None,
-        choice: Some(
-            authored
-                .map(|setting| setting.value.clone())
-                .unwrap_or_else(|| default.to_owned()),
-        ),
-        minimum: None,
-        maximum: None,
-        authored: authored.is_some(),
-        parameter_target: false,
-    });
-}
-
 fn resolved_processor_settings(
     processor: &crate::model::Processor,
     tempo_bpm: f64,
 ) -> Result<Vec<CompiledProcessorSettingInspection>, EngineError> {
-    let has = |key: &str| processor.settings.iter().any(|setting| setting.key == key);
-    let mut resolved = Vec::new();
-    match processor.kind {
-        ProcessorKind::Utility => {
-            push_continuous_processor_setting(&mut resolved, processor, "gain", 0.0)?;
-            push_continuous_processor_setting(&mut resolved, processor, "width", 1.0)?;
-            push_discrete_processor_setting(&mut resolved, processor, "polarity", "normal");
-            push_discrete_processor_setting(&mut resolved, processor, "mono", "false");
-        }
-        ProcessorKind::Eq => {
-            if has("high_pass") {
-                push_continuous_processor_setting(&mut resolved, processor, "high_pass", 20.0)?;
-            }
-            if has("low_gain") || has("low_frequency") {
-                push_continuous_processor_setting(
-                    &mut resolved,
-                    processor,
-                    "low_frequency",
-                    120.0,
-                )?;
-                push_continuous_processor_setting(&mut resolved, processor, "low_gain", 0.0)?;
-            }
-            if has("mid1_gain") || has("mid1_frequency") || has("mid1_q") {
-                push_continuous_processor_setting(
-                    &mut resolved,
-                    processor,
-                    "mid1_frequency",
-                    500.0,
-                )?;
-                push_continuous_processor_setting(&mut resolved, processor, "mid1_gain", 0.0)?;
-                push_continuous_processor_setting(&mut resolved, processor, "mid1_q", 1.0)?;
-            }
-            if has("mid2_gain") || has("mid2_frequency") || has("mid2_q") {
-                push_continuous_processor_setting(
-                    &mut resolved,
-                    processor,
-                    "mid2_frequency",
-                    2_500.0,
-                )?;
-                push_continuous_processor_setting(&mut resolved, processor, "mid2_gain", 0.0)?;
-                push_continuous_processor_setting(&mut resolved, processor, "mid2_q", 1.0)?;
-            }
-            if has("high_gain") || has("high_frequency") {
-                push_continuous_processor_setting(
-                    &mut resolved,
-                    processor,
-                    "high_frequency",
-                    8_000.0,
-                )?;
-                push_continuous_processor_setting(&mut resolved, processor, "high_gain", 0.0)?;
-            }
-            if has("low_pass") {
-                push_continuous_processor_setting(&mut resolved, processor, "low_pass", 20_000.0)?;
-            }
-        }
-        ProcessorKind::Compressor => {
-            for (key, default) in [
-                ("threshold", -18.0),
-                ("ratio", 4.0),
-                ("attack", 0.01),
-                ("release", 0.1),
-                ("knee", 6.0),
-                ("makeup", 0.0),
-                ("mix", 1.0),
-            ] {
-                push_continuous_processor_setting(&mut resolved, processor, key, default)?;
-            }
-            push_discrete_processor_setting(&mut resolved, processor, "detector", "peak");
-        }
-        ProcessorKind::Delay => {
-            let tempo_sync = processor
-                .settings
-                .iter()
-                .find(|setting| setting.key == "tempo_sync")
-                .is_some_and(|setting| setting.value == "true");
-            if tempo_sync {
-                let division = processor
-                    .settings
-                    .iter()
-                    .find(|setting| setting.key == "division")
-                    .map_or("1/4", |setting| setting.value.as_str());
-                let seconds = delay_division_seconds(division, tempo_bpm).ok_or_else(|| {
-                    EngineError::Compile(format!(
-                        "delay `{}` has invalid tempo division `{division}`",
-                        processor.id
-                    ))
-                })?;
-                resolved.push(CompiledProcessorSettingInspection {
-                    key: "time".to_owned(),
-                    unit: Some(Unit::Seconds),
-                    value: Some(seconds),
-                    choice: None,
-                    minimum: None,
-                    maximum: None,
-                    authored: false,
-                    parameter_target: false,
+    let settings = resolve_settings(processor, tempo_bpm)
+        .map_err(|error| EngineError::Compile(error.compile_message(processor)))?;
+    Ok(settings
+        .iter()
+        .map(|setting| {
+            let numeric = setting.descriptor.contract.numeric();
+            let (unit, minimum, maximum) =
+                numeric.map_or((None, None, None), |(unit, minimum, maximum, _)| {
+                    (
+                        Some(unit),
+                        (!setting.derived).then_some(minimum),
+                        (!setting.derived).then_some(maximum),
+                    )
                 });
-            } else {
-                push_continuous_processor_setting(&mut resolved, processor, "time", 0.25)?;
+            let (value, choice) = match &setting.value {
+                ResolvedSettingValue::Numeric(value) => (Some(*value), None),
+                ResolvedSettingValue::Choice(choice) => (None, Some(choice.clone())),
+                ResolvedSettingValue::Unsigned(value) => (None, Some(value.to_string())),
+            };
+            CompiledProcessorSettingInspection {
+                key: setting.descriptor.key.to_owned(),
+                unit,
+                value,
+                choice,
+                minimum,
+                maximum,
+                authored: setting.authored,
+                parameter_target: setting.parameter_target(),
             }
-            push_discrete_processor_setting(&mut resolved, processor, "tempo_sync", "false");
-            if tempo_sync {
-                push_discrete_processor_setting(&mut resolved, processor, "division", "1/4");
-            }
-            for (key, default) in [
-                ("feedback", 0.25),
-                ("mix", 0.25),
-                ("low_pass", 20_000.0),
-                ("high_pass", 20.0),
-                ("time_crossfade", 0.01),
-            ] {
-                push_continuous_processor_setting(&mut resolved, processor, key, default)?;
-            }
-            push_discrete_processor_setting(&mut resolved, processor, "mode", "stereo");
-        }
-        ProcessorKind::Reverb => {
-            for (key, default) in [
-                ("pre_delay", 0.0),
-                ("diffusion", 0.7),
-                ("decay", 0.65),
-                ("damping", 0.35),
-                ("modulation", 0.1),
-                ("width", 1.0),
-                ("mix", 0.25),
-            ] {
-                push_continuous_processor_setting(&mut resolved, processor, key, default)?;
-            }
-        }
-        ProcessorKind::Saturation => {
-            push_continuous_processor_setting(&mut resolved, processor, "drive", 1.0)?;
-            push_continuous_processor_setting(&mut resolved, processor, "mix", 1.0)?;
-            push_continuous_processor_setting(&mut resolved, processor, "output", 0.0)?;
-            push_discrete_processor_setting(&mut resolved, processor, "mode", "soft_clip");
-        }
-        ProcessorKind::Limiter => {
-            push_continuous_processor_setting(&mut resolved, processor, "ceiling", -1.0)?;
-            push_continuous_processor_setting(&mut resolved, processor, "release", 0.08)?;
-            push_structural_numeric_processor_setting(
-                &mut resolved,
-                processor,
-                "lookahead",
-                0.005,
-            )?;
-        }
-        ProcessorKind::Latency => {
-            push_discrete_processor_setting(&mut resolved, processor, "frames", "0");
-        }
-    }
-    Ok(resolved)
+        })
+        .collect())
 }
 
 fn processor_telemetry_indices(

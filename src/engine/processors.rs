@@ -6,19 +6,19 @@
 
 use std::f64::consts::PI;
 
-use crate::model::{
-    ParameterTarget, Processor, ProcessorKind, Unit, delay_division_seconds,
-    processor_setting_contract, processor_structural_setting_contract,
+use crate::{
+    model::{ParameterTarget, Processor, ProcessorKind},
+    processor_semantics::{resolve_settings, ResolvedProcessorSettings},
 };
 
 use super::{
-    EngineError,
     control::{CompiledControlProgram, ControlIndex},
     oversampling::{
-        FilteredOversampler, OVERSAMPLING_FACTOR, OVERSAMPLING_FILTER_TAPS,
-        OVERSAMPLING_INTERPOLATOR_LATENCY_FRAMES, OVERSAMPLING_ROUND_TRIP_LATENCY_FRAMES,
-        OversamplingInterpolator,
+        FilteredOversampler, OversamplingInterpolator, OVERSAMPLING_FACTOR,
+        OVERSAMPLING_FILTER_TAPS, OVERSAMPLING_INTERPOLATOR_LATENCY_FRAMES,
+        OVERSAMPLING_ROUND_TRIP_LATENCY_FRAMES,
     },
+    EngineError,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -220,17 +220,8 @@ impl ProcessorProgram {
         sample_rate: u32,
         tempo_bpm: f64,
     ) -> Result<Self, EngineError> {
-        for authored in &processor.settings {
-            let supported = processor_setting_contract(processor.kind, &authored.key).is_some()
-                || processor_structural_setting_contract(processor.kind, &authored.key).is_some()
-                || discrete_setting_supported(processor.kind, &authored.key, &authored.value);
-            if !supported {
-                return Err(EngineError::Compile(format!(
-                    "processor `{}` kind {:?} does not implement `{} {}`",
-                    processor.id, processor.kind, authored.key, authored.value
-                )));
-            }
-        }
+        let settings = resolve_settings(processor, tempo_bpm)
+            .map_err(|error| EngineError::Compile(error.compile_message(processor)))?;
         if processor.kind != ProcessorKind::Compressor && !processor.sidechain_inputs.is_empty() {
             return Err(EngineError::Compile(format!(
                 "processor `{}` kind {:?} does not consume sidechain Audio",
@@ -243,68 +234,60 @@ impl ProcessorProgram {
                 processor.id
             )));
         }
-        let scalar = |key: &str, unit: Unit, default: f64| {
-            processor_scalar(processor, controls, key, unit, default)
-        };
+        let scalar = |key: &str| processor_scalar(processor, controls, &settings, key);
         let config = match processor.kind {
             ProcessorKind::Utility => ProcessorConfig::Utility {
-                gain: scalar("gain", Unit::Decibels, 0.0)?,
-                width: scalar("width", Unit::Ratio, 1.0)?,
-                invert: setting(processor, "polarity").is_some_and(|value| value == "invert"),
-                mono: setting(processor, "mono").is_some_and(|value| value == "true"),
+                gain: scalar("gain")?,
+                width: scalar("width")?,
+                invert: settings.choice("polarity") == Some("invert"),
+                mono: settings.choice("mono") == Some("true"),
             },
             ProcessorKind::Eq => {
                 let mut bands = Vec::with_capacity(6);
-                if has_setting(processor, "high_pass") {
+                if settings.contains("high_pass") {
                     bands.push(EqBandProgram {
                         kind: EqBandKind::HighPass,
-                        frequency: scalar("high_pass", Unit::Hertz, 20.0)?,
+                        frequency: scalar("high_pass")?,
                         gain: Scalar::Constant(0.0),
                         q: Scalar::Constant(std::f64::consts::FRAC_1_SQRT_2),
                     });
                 }
-                if has_setting(processor, "low_gain") || has_setting(processor, "low_frequency") {
+                if settings.contains("low_frequency") {
                     bands.push(EqBandProgram {
                         kind: EqBandKind::LowShelf,
-                        frequency: scalar("low_frequency", Unit::Hertz, 120.0)?,
-                        gain: scalar("low_gain", Unit::Decibels, 0.0)?,
+                        frequency: scalar("low_frequency")?,
+                        gain: scalar("low_gain")?,
                         q: Scalar::Constant(std::f64::consts::FRAC_1_SQRT_2),
                     });
                 }
-                if has_setting(processor, "mid1_gain")
-                    || has_setting(processor, "mid1_frequency")
-                    || has_setting(processor, "mid1_q")
-                {
+                if settings.contains("mid1_frequency") {
                     bands.push(EqBandProgram {
                         kind: EqBandKind::Peak,
-                        frequency: scalar("mid1_frequency", Unit::Hertz, 500.0)?,
-                        gain: scalar("mid1_gain", Unit::Decibels, 0.0)?,
-                        q: scalar("mid1_q", Unit::Ratio, 1.0)?,
+                        frequency: scalar("mid1_frequency")?,
+                        gain: scalar("mid1_gain")?,
+                        q: scalar("mid1_q")?,
                     });
                 }
-                if has_setting(processor, "mid2_gain")
-                    || has_setting(processor, "mid2_frequency")
-                    || has_setting(processor, "mid2_q")
-                {
+                if settings.contains("mid2_frequency") {
                     bands.push(EqBandProgram {
                         kind: EqBandKind::Peak,
-                        frequency: scalar("mid2_frequency", Unit::Hertz, 2_500.0)?,
-                        gain: scalar("mid2_gain", Unit::Decibels, 0.0)?,
-                        q: scalar("mid2_q", Unit::Ratio, 1.0)?,
+                        frequency: scalar("mid2_frequency")?,
+                        gain: scalar("mid2_gain")?,
+                        q: scalar("mid2_q")?,
                     });
                 }
-                if has_setting(processor, "high_gain") || has_setting(processor, "high_frequency") {
+                if settings.contains("high_frequency") {
                     bands.push(EqBandProgram {
                         kind: EqBandKind::HighShelf,
-                        frequency: scalar("high_frequency", Unit::Hertz, 8_000.0)?,
-                        gain: scalar("high_gain", Unit::Decibels, 0.0)?,
+                        frequency: scalar("high_frequency")?,
+                        gain: scalar("high_gain")?,
                         q: Scalar::Constant(std::f64::consts::FRAC_1_SQRT_2),
                     });
                 }
-                if has_setting(processor, "low_pass") {
+                if settings.contains("low_pass") {
                     bands.push(EqBandProgram {
                         kind: EqBandKind::LowPass,
-                        frequency: scalar("low_pass", Unit::Hertz, 20_000.0)?,
+                        frequency: scalar("low_pass")?,
                         gain: Scalar::Constant(0.0),
                         q: Scalar::Constant(std::f64::consts::FRAC_1_SQRT_2),
                     });
@@ -312,106 +295,66 @@ impl ProcessorProgram {
                 ProcessorConfig::Eq { bands }
             }
             ProcessorKind::Compressor => ProcessorConfig::Compressor {
-                threshold: scalar("threshold", Unit::Decibels, -18.0)?,
-                ratio: scalar("ratio", Unit::Ratio, 4.0)?,
-                attack: scalar("attack", Unit::Seconds, 0.01)?,
-                release: scalar("release", Unit::Seconds, 0.1)?,
-                knee: scalar("knee", Unit::Decibels, 6.0)?,
-                makeup: scalar("makeup", Unit::Decibels, 0.0)?,
-                mix: scalar("mix", Unit::Ratio, 1.0)?,
-                rms: setting(processor, "detector").is_some_and(|value| value == "rms"),
+                threshold: scalar("threshold")?,
+                ratio: scalar("ratio")?,
+                attack: scalar("attack")?,
+                release: scalar("release")?,
+                knee: scalar("knee")?,
+                makeup: scalar("makeup")?,
+                mix: scalar("mix")?,
+                rms: settings.choice("detector") == Some("rms"),
             },
-            ProcessorKind::Delay => {
-                let tempo_sync = setting(processor, "tempo_sync") == Some("true");
-                if tempo_sync && has_setting(processor, "time") {
-                    return Err(EngineError::Compile(format!(
-                        "delay `{}` cannot author `time` while tempo sync is enabled",
-                        processor.id
-                    )));
-                }
-                if !tempo_sync && has_setting(processor, "division") {
-                    return Err(EngineError::Compile(format!(
-                        "delay `{}` cannot author `division` unless tempo sync is enabled",
-                        processor.id
-                    )));
-                }
-                let time = if tempo_sync {
-                    let division = setting(processor, "division").unwrap_or("1/4");
-                    Scalar::Constant(delay_division_seconds(division, tempo_bpm).ok_or_else(
-                        || {
-                            EngineError::Compile(format!(
-                                "delay `{}` has invalid tempo division `{division}`",
-                                processor.id
-                            ))
-                        },
-                    )?)
+            ProcessorKind::Delay => ProcessorConfig::Delay {
+                time: scalar("time")?,
+                feedback: scalar("feedback")?,
+                mix: scalar("mix")?,
+                low_pass: scalar("low_pass")?,
+                high_pass: scalar("high_pass")?,
+                time_crossfade: scalar("time_crossfade")?,
+                mode: if settings.choice("mode") == Some("ping_pong") {
+                    DelayMode::PingPong
                 } else {
-                    scalar("time", Unit::Seconds, 0.25)?
-                };
-                ProcessorConfig::Delay {
-                    time,
-                    feedback: scalar("feedback", Unit::Ratio, 0.25)?,
-                    mix: scalar("mix", Unit::Ratio, 0.25)?,
-                    low_pass: scalar("low_pass", Unit::Hertz, 20_000.0)?,
-                    high_pass: scalar("high_pass", Unit::Hertz, 20.0)?,
-                    time_crossfade: scalar("time_crossfade", Unit::Seconds, 0.01)?,
-                    mode: if setting(processor, "mode") == Some("ping_pong") {
-                        DelayMode::PingPong
-                    } else {
-                        DelayMode::Stereo
-                    },
-                    maximum_frames: authored_delay_maximum_frames(processor, sample_rate, tempo_bpm)
-                        as usize,
-                }
-            }
+                    DelayMode::Stereo
+                },
+                maximum_frames: delay_maximum_frames(&settings, sample_rate) as usize,
+            },
             ProcessorKind::Reverb => ProcessorConfig::Reverb {
-                pre_delay: scalar("pre_delay", Unit::Seconds, 0.0)?,
-                diffusion: scalar("diffusion", Unit::Ratio, 0.7)?,
-                decay: scalar("decay", Unit::Ratio, 0.65)?,
-                damping: scalar("damping", Unit::Ratio, 0.35)?,
-                modulation: scalar("modulation", Unit::Ratio, 0.1)?,
-                width: scalar("width", Unit::Ratio, 1.0)?,
-                mix: scalar("mix", Unit::Ratio, 0.25)?,
+                pre_delay: scalar("pre_delay")?,
+                diffusion: scalar("diffusion")?,
+                decay: scalar("decay")?,
+                damping: scalar("damping")?,
+                modulation: scalar("modulation")?,
+                width: scalar("width")?,
+                mix: scalar("mix")?,
             },
             ProcessorKind::Saturation => ProcessorConfig::Saturation {
-                drive: scalar("drive", Unit::Ratio, 1.0)?,
-                mix: scalar("mix", Unit::Ratio, 1.0)?,
-                output: scalar("output", Unit::Decibels, 0.0)?,
-                mode: match setting(processor, "mode") {
-                    Some("soft_clip") | None => SaturationMode::SoftClip,
+                drive: scalar("drive")?,
+                mix: scalar("mix")?,
+                output: scalar("output")?,
+                mode: match settings.choice("mode") {
                     Some("tape") => SaturationMode::Tape,
+                    Some("tanh") => SaturationMode::Tanh,
+                    Some("soft_clip") | None => SaturationMode::SoftClip,
                     Some(_) => SaturationMode::Tanh,
                 },
             },
             ProcessorKind::Limiter => {
-                let lookahead_seconds = setting(processor, "lookahead")
-                    .map(|literal| Unit::Seconds.parse_value(literal))
-                    .transpose()
-                    .map_err(|error| {
-                        EngineError::Compile(format!(
-                            "processor `{}` lookahead: {error}",
-                            processor.id
-                        ))
-                    })?
-                    .unwrap_or(0.005);
-                if !(0.0..=0.02).contains(&lookahead_seconds) {
-                    return Err(EngineError::Compile(format!(
-                        "processor `{}` lookahead must be within 0s..=0.02s",
+                let lookahead_seconds = settings.numeric("lookahead").ok_or_else(|| {
+                    EngineError::Compile(format!(
+                        "processor `{}` is missing resolved `lookahead`",
                         processor.id
-                    )));
-                }
+                    ))
+                })?;
                 ProcessorConfig::Limiter {
-                    ceiling: scalar("ceiling", Unit::Decibels, -1.0)?,
-                    release: scalar("release", Unit::Seconds, 0.08)?,
+                    ceiling: scalar("ceiling")?,
+                    release: scalar("release")?,
                     lookahead_frames: (lookahead_seconds * f64::from(sample_rate)).round() as usize,
                 }
             }
             ProcessorKind::Latency => ProcessorConfig::Latency,
         };
         let configured_latency = if processor.kind == ProcessorKind::Latency {
-            setting(processor, "frames")
-                .and_then(|value| value.parse::<u32>().ok())
-                .unwrap_or(0)
+            settings.unsigned("frames").unwrap_or(0)
         } else {
             0
         };
@@ -557,56 +500,45 @@ impl ProcessorProgram {
 fn processor_scalar(
     processor: &Processor,
     controls: &CompiledControlProgram,
+    settings: &ResolvedProcessorSettings,
     key: &str,
-    unit: Unit,
-    default: f64,
 ) -> Result<Scalar, EngineError> {
-    let Some(literal) = setting(processor, key) else {
-        return Ok(Scalar::Constant(default));
-    };
-    let target = ParameterTarget::Processor {
-        processor: processor.id.clone(),
-        parameter: key.to_owned(),
-    };
-    if let Some(index) = controls.index(&target) {
-        return Ok(Scalar::Control(index));
+    let setting = settings.get(key).ok_or_else(|| {
+        EngineError::Compile(format!(
+            "processor `{}` is missing resolved `{key}`",
+            processor.id
+        ))
+    })?;
+    let value = settings.numeric(key).ok_or_else(|| {
+        EngineError::Compile(format!(
+            "processor `{}` resolved `{key}` as a non-numeric setting",
+            processor.id
+        ))
+    })?;
+    if setting.parameter_target() {
+        let target = ParameterTarget::Processor {
+            processor: processor.id.clone(),
+            parameter: key.to_owned(),
+        };
+        if let Some(index) = controls.index(&target) {
+            return Ok(Scalar::Control(index));
+        }
     }
-    unit.parse_value(literal)
-        .map(Scalar::Constant)
-        .map_err(|error| {
-            EngineError::Compile(format!("processor `{}` `{key}`: {error}", processor.id))
-        })
+    Ok(Scalar::Constant(value))
 }
 
-fn setting<'a>(processor: &'a Processor, key: &str) -> Option<&'a str> {
-    processor
-        .settings
-        .iter()
-        .find(|setting| setting.key == key)
-        .map(|setting| setting.value.as_str())
-}
-
-fn has_setting(processor: &Processor, key: &str) -> bool {
-    setting(processor, key).is_some()
-}
-
-fn eq_band_count(processor: &Processor) -> usize {
-    usize::from(has_setting(processor, "high_pass"))
-        + usize::from(has_setting(processor, "low_gain") || has_setting(processor, "low_frequency"))
-        + usize::from(
-            has_setting(processor, "mid1_gain")
-                || has_setting(processor, "mid1_frequency")
-                || has_setting(processor, "mid1_q"),
-        )
-        + usize::from(
-            has_setting(processor, "mid2_gain")
-                || has_setting(processor, "mid2_frequency")
-                || has_setting(processor, "mid2_q"),
-        )
-        + usize::from(
-            has_setting(processor, "high_gain") || has_setting(processor, "high_frequency"),
-        )
-        + usize::from(has_setting(processor, "low_pass"))
+fn eq_band_count(settings: &ResolvedProcessorSettings) -> usize {
+    [
+        "high_pass",
+        "low_frequency",
+        "mid1_frequency",
+        "mid2_frequency",
+        "high_frequency",
+        "low_pass",
+    ]
+    .into_iter()
+    .filter(|key| settings.contains(key))
+    .count()
 }
 
 pub(crate) fn authored_processor_estimate(
@@ -614,32 +546,36 @@ pub(crate) fn authored_processor_estimate(
     sample_rate: u32,
     tempo_bpm: f64,
 ) -> (u64, u64) {
-    let configured_latency = if processor.kind == ProcessorKind::Latency {
-        setting(processor, "frames")
-            .and_then(|value| value.parse::<u32>().ok())
-            .unwrap_or(0)
-    } else {
-        0
-    };
+    let settings = resolve_settings(processor, tempo_bpm).ok();
+    let configured_latency = settings
+        .as_ref()
+        .and_then(|settings| settings.unsigned("frames"))
+        .unwrap_or(0);
     let declared_latency = processor.latency_frames.saturating_add(configured_latency);
     let fixed_and_declared = (std::mem::size_of::<ProcessorRuntime>() as u64)
         .saturating_add(stereo_delay_heap_bytes(declared_latency));
     let (algorithm_heap, work) = match processor.kind {
         ProcessorKind::Delay => (
-            authored_delay_maximum_frames(processor, sample_rate, tempo_bpm)
+            settings
+                .as_ref()
+                .map_or_else(
+                    || u64::from(sample_rate).saturating_mul(4).saturating_add(2),
+                    |settings| delay_maximum_frames(settings, sample_rate),
+                )
                 .saturating_mul(std::mem::size_of::<[f32; 2]>() as u64),
             32,
         ),
         ProcessorKind::Reverb => (reverb_heap_bytes(sample_rate), 160),
         ProcessorKind::Limiter => {
-            let lookahead = setting(processor, "lookahead")
-                .and_then(|literal| Unit::Seconds.parse_value(literal).ok())
+            let lookahead = settings
+                .as_ref()
+                .and_then(|settings| settings.numeric("lookahead"))
                 .unwrap_or(0.005);
             let frames = (lookahead.max(0.0) * f64::from(sample_rate)).round() as usize;
             (limiter_heap_bytes(frames), limiter_work_units(frames))
         }
         ProcessorKind::Eq => {
-            let bands = eq_band_count(processor) as u64;
+            let bands = settings.as_ref().map_or(0, eq_band_count) as u64;
             (
                 bands.saturating_mul(std::mem::size_of::<StereoBiquad>() as u64),
                 bands.saturating_mul(24),
@@ -658,33 +594,13 @@ pub(crate) fn authored_processor_estimate(
     (fixed_and_declared.saturating_add(algorithm_heap), work)
 }
 
-fn authored_delay_maximum_frames(processor: &Processor, sample_rate: u32, tempo_bpm: f64) -> u64 {
-    if setting(processor, "tempo_sync") == Some("true") {
-        let division = setting(processor, "division").unwrap_or("1/4");
-        let seconds = delay_division_seconds(division, tempo_bpm).unwrap_or(4.0);
+fn delay_maximum_frames(settings: &ResolvedProcessorSettings, sample_rate: u32) -> u64 {
+    if settings.choice("tempo_sync") == Some("true") {
+        let seconds = settings.numeric("time").unwrap_or(4.0);
         (seconds * f64::from(sample_rate)).ceil() as u64 + 2
     } else {
         u64::from(sample_rate).saturating_mul(4).saturating_add(2)
     }
-}
-
-fn discrete_setting_supported(kind: ProcessorKind, key: &str, value: &str) -> bool {
-    matches!(
-        (kind, key, value),
-        (ProcessorKind::Utility, "polarity", "normal" | "invert")
-            | (ProcessorKind::Utility, "mono", "true" | "false")
-            | (ProcessorKind::Compressor, "detector", "peak" | "rms")
-            | (ProcessorKind::Delay, "tempo_sync", "true" | "false")
-            | (ProcessorKind::Delay, "mode", "stereo" | "ping_pong")
-            | (
-                ProcessorKind::Saturation,
-                "mode",
-                "soft_clip" | "tanh" | "tape"
-            )
-    ) || (kind == ProcessorKind::Delay
-        && key == "division"
-        && crate::model::delay_division_beats(value).is_some())
-        || (kind == ProcessorKind::Latency && key == "frames" && value.parse::<u32>().is_ok())
 }
 
 /// Mutable preallocated state for one shared stereo processor instance.
@@ -2958,11 +2874,9 @@ mod tests {
             assert!(thd > 0.01, "{mode:?}: THD={thd:e}");
             signatures.push(thd);
         }
-        assert!(
-            signatures
-                .windows(2)
-                .all(|pair| (pair[0] - pair[1]).abs() > 1.0e-4)
-        );
+        assert!(signatures
+            .windows(2)
+            .all(|pair| (pair[0] - pair[1]).abs() > 1.0e-4));
     }
 
     #[test]
@@ -3176,12 +3090,10 @@ mod tests {
             let sample = if frame == 0 { [2.0, -2.0] } else { [0.0, 0.0] };
             outputs.push(limiter.process(sample, 0.8, 0.1, 48_000));
         }
-        assert!(
-            outputs
-                .iter()
-                .flatten()
-                .all(|sample| sample.abs() <= 0.800_1)
-        );
+        assert!(outputs
+            .iter()
+            .flatten()
+            .all(|sample| sample.abs() <= 0.800_1));
         assert!(outputs.iter().flatten().any(|sample| sample.abs() > 0.78));
     }
 }

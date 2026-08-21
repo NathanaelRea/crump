@@ -11,7 +11,10 @@ use crate::{
         AutomationInterpolation, ChannelStrip, ClipMode, Graph, Instrument, InstrumentKind,
         ModulationOperator, ModulationRate, ModulationScope, NodeKind, OutputTarget, Panner,
         ParameterTarget, Pattern, PatternEvent, Processor, ProcessorKind, Project, SettingValue,
-        Unit, processor_setting_contract, processor_structural_setting_contract,
+        Unit,
+    },
+    processor_semantics::{
+        ProcessorSettingError, validate_authored_setting, validate_relationships,
     },
 };
 
@@ -1461,13 +1464,7 @@ fn pattern_variation_has_cycle(start: &str, patterns: &BTreeMap<&str, &Pattern>)
 }
 
 fn validate_automations(project: &Project, diagnostics: &mut Diagnostics) {
-    let control_targets = project
-        .song
-        .instruments
-        .iter()
-        .map(|instrument| instrument.parameters.len())
-        .sum::<usize>()
-        .saturating_add(project.mix_parameter_specs().len());
+    let control_targets = project.parameter_specs().len();
     if control_targets > MAX_CONTROL_TARGETS {
         diagnostics.push(Diagnostic::error(
             "CRV118",
@@ -2690,34 +2687,36 @@ fn validate_processor<'a>(
             );
             continue;
         }
-        if let Some((unit, minimum, maximum)) =
-            processor_setting_contract(processor.kind, &setting.key)
-                .or_else(|| processor_structural_setting_contract(processor.kind, &setting.key))
-        {
-            match unit.parse_value(&setting.value) {
-                Ok(value) if value.is_finite() && (minimum..=maximum).contains(&value) => {}
-                Ok(_) => source_site_error(
-                    diagnostics,
-                    "CRV122",
-                    format!(
-                        "processor `{}` setting `{}` must be within {}..={} {:?}",
-                        processor.id, setting.key, minimum, maximum, unit
-                    ),
-                    &setting.value_site,
+        match validate_authored_setting(processor.kind, &setting.key, &setting.value) {
+            Ok(_) => {}
+            Err(ProcessorSettingError::OutOfRange {
+                unit,
+                minimum,
+                maximum,
+                ..
+            }) => source_site_error(
+                diagnostics,
+                "CRV122",
+                format!(
+                    "processor `{}` setting `{}` must be within {}..={} {:?}",
+                    processor.id, setting.key, minimum, maximum, unit
                 ),
-                Err(error) => source_site_error(
-                    diagnostics,
-                    "CRV123",
-                    format!(
-                        "processor `{}` setting `{}` has an invalid physical literal: {error}",
-                        processor.id, setting.key
-                    ),
-                    &setting.value_site,
+                &setting.value_site,
+            ),
+            Err(ProcessorSettingError::InvalidPhysical { source, .. }) => source_site_error(
+                diagnostics,
+                "CRV123",
+                format!(
+                    "processor `{}` setting `{}` has an invalid physical literal: {source}",
+                    processor.id, setting.key
                 ),
-            }
-        } else if !validate_discrete_processor_setting(processor.kind, &setting.key, &setting.value)
-        {
-            source_site_error(
+                &setting.value_site,
+            ),
+            Err(
+                ProcessorSettingError::Unsupported { .. }
+                | ProcessorSettingError::Conflict(_)
+                | ProcessorSettingError::InvalidTempoDivision { .. },
+            ) => source_site_error(
                 diagnostics,
                 "CRV124",
                 format!(
@@ -2725,45 +2724,20 @@ fn validate_processor<'a>(
                     processor.id, processor.kind, setting.key, setting.value
                 ),
                 &setting.value_site,
-            );
+            ),
         }
     }
-    if processor.kind == ProcessorKind::Delay {
-        let tempo_sync = processor
+    for conflict in validate_relationships(processor) {
+        if let Some(setting) = processor
             .settings
             .iter()
-            .find(|setting| setting.key == "tempo_sync")
-            .is_some_and(|setting| setting.value == "true");
-        if tempo_sync
-            && let Some(time) = processor
-                .settings
-                .iter()
-                .find(|setting| setting.key == "time")
+            .find(|setting| setting.key == conflict.key())
         {
             source_site_error(
                 diagnostics,
                 "CRV136",
-                format!(
-                    "delay `{}` cannot author `time` while tempo sync is enabled",
-                    processor.id
-                ),
-                &time.value_site,
-            );
-        }
-        if !tempo_sync
-            && let Some(division) = processor
-                .settings
-                .iter()
-                .find(|setting| setting.key == "division")
-        {
-            source_site_error(
-                diagnostics,
-                "CRV136",
-                format!(
-                    "delay `{}` cannot author `division` unless tempo sync is enabled",
-                    processor.id
-                ),
-                &division.value_site,
+                format!("delay `{}` {conflict}", processor.id),
+                &setting.value_site,
             );
         }
     }
@@ -2802,22 +2776,6 @@ fn validate_processor<'a>(
                 &processor.location,
             );
         }
-    }
-}
-
-fn validate_discrete_processor_setting(kind: ProcessorKind, key: &str, value: &str) -> bool {
-    match (kind, key, value) {
-        (ProcessorKind::Utility, "polarity", "normal" | "invert")
-        | (ProcessorKind::Utility, "mono", "true" | "false")
-        | (ProcessorKind::Compressor, "detector", "peak" | "rms")
-        | (ProcessorKind::Delay, "tempo_sync", "true" | "false")
-        | (ProcessorKind::Delay, "mode", "stereo" | "ping_pong")
-        | (ProcessorKind::Saturation, "mode", "soft_clip" | "tanh" | "tape") => true,
-        (ProcessorKind::Delay, "division", value) => {
-            crate::model::delay_division_beats(value).is_some()
-        }
-        (ProcessorKind::Latency, "frames", value) => value.parse::<u32>().is_ok(),
-        _ => false,
     }
 }
 

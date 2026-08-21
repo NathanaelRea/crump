@@ -192,30 +192,16 @@ pub fn apply_project_mutation(
         .iter()
         .map(|replacement| replacement.file.clone())
         .collect::<Vec<_>>();
-    store.begin_source_transaction(&current, &candidate)?;
-    let write_result = write_asset_changes(
-        &candidate.root,
-        &mutation.asset_writes,
-        &mutation.asset_removals,
-    )
-    .and_then(|()| write_changed_sources(&candidate.root, &changed_source_paths, &changed_sources));
-    if let Err(error) = write_result {
-        if let Err(rollback) = store.abort_source_transaction() {
-            return Err(EditError::History(rollback));
-        }
-        return Err(error);
-    }
-    let entry = match store.publish(&candidate, publication) {
-        Ok(entry) => entry,
-        Err(error) => {
-            if let Err(rollback) = store.abort_source_transaction() {
-                return Err(EditError::History(rollback));
-            }
-            return Err(EditError::History(error));
-        }
-    };
-    store.finish_source_transaction()?;
-    Ok(entry)
+    store.commit_source_transaction(&current, &candidate, publication, || {
+        write_asset_changes(
+            &candidate.root,
+            &mutation.asset_writes,
+            &mutation.asset_removals,
+        )
+        .and_then(|()| {
+            write_changed_sources(&candidate.root, &changed_source_paths, &changed_sources)
+        })
+    })
 }
 
 /// Copies one external WAV into `media/`, declares it, and publishes atomically.

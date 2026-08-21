@@ -8,6 +8,7 @@ pub mod engine;
 pub mod history;
 pub mod media;
 pub mod model;
+mod processor_semantics;
 pub mod project;
 pub mod realtime;
 pub mod time;
