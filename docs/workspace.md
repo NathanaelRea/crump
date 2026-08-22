@@ -18,15 +18,18 @@ Short Candidate and Active hashes are shown side by side. During playback the sa
 
 | Key | Action |
 | --- | --- |
-| `1`–`9`, `0`, `?` | Select Timeline, Mixer, Event Grid, Faceplate, Parameters, Automation, Graph, Source, Diagnostics, History, or Help |
+| `1`–`9`, `0` | Select Timeline, Mixer, Processing, Event Grid, Faceplate, Parameters, Automation, Graph, Source, or Diagnostics |
+| `H` / `?` | Open History / keyboard Help |
 | `Tab` / `Shift-Tab` | Next / previous view |
 | `↑` / `↓` | Move the current selection |
 | `Page Up` / `Page Down` | Move by eight rows |
 | `←` / `→` | Make the view's bounded adjustment or change the Source/Graph context |
 | `[` / `]` | Previous / next Pattern, Instrument, or Automation lane where applicable |
 | `Enter` | Open an exact-value editor or selected History diff |
-| `Space` | Start or stop the exact Active Revision |
-| `L` in Event Grid | Arm or disable the selected Pattern's looping Audition Phrase |
+| `Space` | Start, pause, or resume the armed Audition Plan against the exact Active Revision |
+| `S` | Stop playback while retaining the armed target, range, path, transient bypasses, Solo, and cue |
+| `A` in Timeline/Event Grid | Arm the selected Track, Pattern, or sample occurrence for audition |
+| `L` in Event Grid | Arm or disable the selected Pattern's exact half-open loop |
 | `P` | Publish an inspected valid Candidate with a History summary |
 | `r` | Reload Project and History immediately |
 | `e` in Source | Suspend the workspace and open the selected file in `$VISUAL`, `$EDITOR`, or `vi` |
@@ -57,7 +60,20 @@ Mixer enumerates stable Track, Group, Return, Send, processor, and Master target
 - `s` toggles transient Solo for the owning Track, Group, or Return.
 - `c` toggles a post-fader cue; `C` toggles a pre-fader cue. Only one cue tap is active at a time.
 
-Solo and cue are callback-safe Audition State. They are retained across compatible workspace publications, affect monitoring only, and never alter source, History, or offline renders. A processor shared by multiple Instrument instances has no singular mixer channel for these commands.
+Solo and cue are callback-safe Audition State owned by the same `AuditionPlan` as target, path, range, and processor overrides. They are retained across compatible workspace publications, affect monitoring only, and never alter source, History, or offline renders. A processor shared by multiple Instrument instances has no singular mixer channel for these commands.
+
+## Processing and unified audition
+
+Processing displays the ordered compiled processor route for the armed Audition Plan. The header keeps Active Revision, durable target, monitoring path, exact resolved half-open frame range, loop state, transport, and pause state visible. Each processor row shows owner and stable ID, kind, durable/transient/effective bypass, click-guard blend, input/output activity, current/maximum gain reduction, complete output latency, and every resolved setting. Bypassed processors continue processing silently and the dry path retains complete output latency.
+
+- `A` enters `song`, `track/ID`, `clip/[TRACK/]ID`, `pattern/ID[/TRACK]`, `asset/ID[/START/END]`, `mapping/INSTRUMENT/MAPPING[/TRACK]`, or `occurrence/PATTERN/ID[/TRACK]`.
+- `a` cycles paths valid for the target: raw asset, sampler mapping, selected pre/post-fader Track channel, or complete Master routing.
+- `F` enters exact `FROM TO` Musical Time or Locator IDs; blank restores the target's natural bounds.
+- `L` toggles the current exact half-open range loop.
+- `b` toggles a monitoring-only transient bypass override. It changes neither source, Active identity, History, nor offline rendering.
+- `B` toggles durable source-backed `bypass`; `Enter` edits an exact `KEY VALUE`; `K`/`J` moves the complete processor block one position earlier/later in the same owner chain. These checked operations validate, publish, and record History.
+
+Target/range/path changes prepare and deterministically preroll a replacement runtime off the callback, then use the bounded publication transition. Compatible source publication retains the durable target, range, transient bypass/Solo/cue state, and relative transport frame when still valid. If a referenced ID or range disappears, the workspace reports the rejection and leaves the prior runtime audible.
 
 ## Event Grid
 
@@ -72,9 +88,10 @@ Event Grid shows one Pattern's source Events with exact onset, type, pitch/voice
 - `v` enters an exact velocity for every Event kind.
 - `x` edits a sample occurrence's half-open original-source `START:END` region.
 - `f` edits sample source-edge fade frames as `IN:OUT`; `g` edits occurrence gain; `p` edits occurrence pan.
-- `L` arms or disables an Audition Phrase spanning one full selected Pattern occurrence at its first Timeline Clip. `Space` starts an armed phrase; pressing `L` during playback changes mode through the same bounded runtime-publication seam.
+- `A` arms the selected sample occurrence through its mapping path, or otherwise arms the selected Pattern through Master.
+- `L` arms or disables an exact Audition Plan spanning the selected Pattern's natural occurrence range. `Space` starts it; pressing `L` during playback publishes the newly prepared loop through the same bounded seam.
 
-The header labels `LOOP:<pattern>` while this non-authoritative transport mode is active. At each half-open loop boundary schedule cursors rewind and active notes release, while bounded DSP effect state can decay naturally. An Event Grid or Faceplate publication recompiles off-thread and preserves the phrase. The loop changes no source or History and is never used by offline rendering.
+At each half-open loop boundary schedule cursors rewind and active notes release, while bounded shared processor state continues so effect tails can decay naturally. An Event Grid or processor publication recompiles off-thread and preserves the plan when its durable IDs remain valid. Looping changes no source or History and is never used by offline rendering.
 
 Percussion hits have no pitch or duration. Sample occurrences use durable IDs and non-destructive regions rather than pitch stepping; place, duplicate, split, and slip are also available through checked CLI commands. Groove, Variation, and Parameter-lock creation or transformation use the checked `edit groove-*`, `pattern-variation-*`, and `parameter-lock-*` CLI commands. Every displayed value remains source-backed.
 
@@ -133,14 +150,14 @@ Restoring never deletes or rewrites earlier entries.
 
 ## Playback and publication
 
-Space compiles the Active snapshot before creating PipeWire streams. Candidate source or media is never used implicitly. Exact declared media is stored in Active snapshots and sampler Instruments decode/resample it off the callback before playback; Media Track playback remains deferred. When another process publishes a revision while playback is running, the workspace:
+Space compiles and prerolls the armed Audition Plan from the Active snapshot before creating PipeWire streams. While running, Space pauses or resumes without destroying transport, voices, processor tails, loop state, or prepared runtime state; `S` explicitly stops. Candidate source or media is never used implicitly. Exact declared media is stored in Active snapshots and sampler Instruments decode/resample it off the callback before playback; Media Track playback remains deferred. When another process publishes a revision while playback is running, the workspace:
 
 1. loads and validates the exact Active snapshot from History;
-2. compiles and initializes a replacement runtime off the audio thread at the current transport frame;
-3. publishes it through a bounded lock-free queue; and
-4. realigns it to the callback's exact current frame and begins a bounded 10 ms protective transition at an audio block boundary.
+2. resolves the retained audition target/range and deterministically initializes a replacement runtime off the audio thread from the latest observed frame offset;
+3. reapplies transient path, bypass, Solo, and cue state and publishes through a bounded lock-free queue; and
+4. at the audio block boundary, uses the callback's exact current offset or loop phase to realign into the newly resolved bounds (clamped only when the range became shorter), then begins a bounded 10 ms protective transition.
 
-Tracks with unchanged schedule/topology semantics retain running voice state. A compatible compiled mix graph also retains shared processor and compensation state and executes once during publication. In a wholly compatible scalar publication, only changed continuous targets receive a monitoring-only 10 ms handoff ramp; unrelated linear/step Automation stays exact and boolean Mute stays discrete. Configuration/topology changes use the aligned equal-power old/new transition. If publication cannot be queued immediately, the old runtime continues. Invalid source never enters this path. If PipeWire stops or disconnects after playback began, the workspace reports the failure and offers `Space` to restart.
+Tracks with unchanged schedule/topology semantics retain running voice state when publication stays at the same absolute timeline point. A range-relative jump does not import processor state from a different old timeline point. A compatible compiled mix graph otherwise retains shared processor and compensation state and executes once during publication. In a wholly compatible scalar publication, only changed continuous targets receive a monitoring-only 10 ms handoff ramp; unrelated linear/step Automation stays exact and boolean Mute stays discrete. Configuration/topology changes use the aligned equal-power old/new transition. If publication cannot be queued immediately, the old runtime continues. Invalid source never enters this path. If PipeWire stops or disconnects after playback began, the workspace reports the failure and offers `Space` to restart.
 
 ## Note Audition
 

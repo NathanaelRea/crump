@@ -224,6 +224,45 @@ project "Sampler CLI" {{
     fs::write(root.path().join("project.crump"), source).expect("sampler source");
     publish(&root);
 
+    let raw_plan = invoke(
+        &root,
+        &[
+            "play",
+            "--target",
+            "asset/source",
+            "--path",
+            "raw",
+            "--plan",
+        ],
+    );
+    assert!(
+        raw_plan.status.success(),
+        "{}",
+        String::from_utf8_lossy(&raw_plan.stdout)
+    );
+    let raw_plan = response(&raw_plan);
+    assert_eq!(raw_plan["data"]["audition"]["status"]["start_frame"], 0);
+    assert_eq!(raw_plan["data"]["audition"]["status"]["end_frame"], 512);
+
+    let routed_asset = invoke(
+        &root,
+        &[
+            "play",
+            "--target",
+            "asset/source",
+            "--path",
+            "master",
+            "--plan",
+        ],
+    );
+    assert_eq!(routed_asset.status.code(), Some(2));
+    assert!(
+        response(&routed_asset)["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("supports only the raw audition path")
+    );
+
     let collected = invoke(&root, &["asset", "collect"]);
     assert!(
         collected.status.success(),
@@ -284,9 +323,11 @@ project "Sampler CLI" {{
     assert_eq!(rendered["command"], "render");
     let mut reader =
         hound::WavReader::open(root.path().join("master/master.wav")).expect("rendered master WAV");
-    assert!(reader
-        .samples::<f32>()
-        .any(|sample| sample.expect("rendered sample").abs() > 1.0e-5));
+    assert!(
+        reader
+            .samples::<f32>()
+            .any(|sample| sample.expect("rendered sample").abs() > 1.0e-5)
+    );
 }
 
 #[test]
@@ -393,10 +434,11 @@ fn render_plan_is_non_mutating_and_no_replace_is_a_conflict() {
         rendered_response["data"]["render"]["manifest"]["analysis"]["non_finite_sample_count"],
         0
     );
-    assert!(root
-        .path()
-        .join("master/stem-track-lead-post_fader.wav")
-        .is_file());
+    assert!(
+        root.path()
+            .join("master/stem-track-lead-post_fader.wav")
+            .is_file()
+    );
     let wav_before = fs::read(root.path().join("master/master.wav")).unwrap();
     let conflict = invoke(&root, &["render", "--output", "master", "--no-replace"]);
     assert_eq!(conflict.status.code(), Some(3));
@@ -791,9 +833,11 @@ fn inspect_exposes_resolved_processor_contracts_and_admission_facts() {
         .find(|setting| setting["key"] == "lookahead")
         .expect("resolved lookahead");
     assert_eq!(lookahead["parameter_target"], false);
-    assert!(mix_graph["resources"]["processor_meter_bytes"]
-        .as_u64()
-        .is_some_and(|bytes| bytes > 0));
+    assert!(
+        mix_graph["resources"]["processor_meter_bytes"]
+            .as_u64()
+            .is_some_and(|bytes| bytes > 0)
+    );
 }
 
 #[test]
@@ -1057,9 +1101,11 @@ fn parameter_lock_cli_is_source_backed_snapped_and_inspectable() {
         &["edit", "parameter-lock-delete", "melody", "opened"],
     );
     assert!(delete.status.success());
-    assert!(!fs::read_to_string(project_path)
-        .expect("deleted lock source")
-        .contains("lock opened "));
+    assert!(
+        !fs::read_to_string(project_path)
+            .expect("deleted lock source")
+            .contains("lock opened ")
+    );
 }
 
 #[test]
@@ -1167,9 +1213,11 @@ fn pattern_variation_cli_preserves_lineage_and_checks_references() {
             String::from_utf8_lossy(&output.stdout)
         );
     }
-    assert!(!fs::read_to_string(project_path)
-        .expect("deleted Variation source")
-        .contains("pattern answer "));
+    assert!(
+        !fs::read_to_string(project_path)
+            .expect("deleted Variation source")
+            .contains("pattern answer ")
+    );
 }
 
 #[test]
@@ -1322,6 +1370,217 @@ fn automation_cli_edits_and_effective_value_inspection_are_source_backed() {
 }
 
 #[test]
+fn audition_and_processor_cli_workflows_are_source_backed_and_inspectable() {
+    let root = fixture_named("production_mix.crump");
+    publish(&root);
+
+    let plan = invoke(
+        &root,
+        &[
+            "play",
+            "--target",
+            "track/drums",
+            "--path",
+            "channel-post",
+            "--from",
+            "0bar",
+            "--to",
+            "1bar",
+            "--bypass",
+            "drum_latency",
+            "--plan",
+        ],
+    );
+    assert!(
+        plan.status.success(),
+        "{}",
+        String::from_utf8_lossy(&plan.stdout)
+    );
+    let plan = response(&plan);
+    assert_eq!(
+        plan["data"]["audition"]["status"]["target"]["kind"],
+        "track"
+    );
+    assert_eq!(
+        plan["data"]["audition"]["status"]["target"]["track"],
+        "drums"
+    );
+    assert_eq!(
+        plan["data"]["audition"]["status"]["path"]["kind"],
+        "channel"
+    );
+    let latency = plan["data"]["audition"]["processors"]
+        .as_array()
+        .expect("processors")
+        .iter()
+        .find(|processor| processor["id"] == "drum_latency")
+        .expect("drum latency processor");
+    assert_eq!(latency["transient_bypass"], true);
+    assert_eq!(latency["effective_bypass"], true);
+
+    for arguments in [
+        vec![
+            "edit",
+            "processor-setting",
+            "master_saturation",
+            "drive",
+            "1.75",
+        ],
+        vec!["edit", "processor-bypass", "master_saturation", "true"],
+        vec!["edit", "processor-move", "master_limiter", "earlier"],
+    ] {
+        let output = invoke(&root, &arguments);
+        assert!(
+            output.status.success(),
+            "{}: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stdout)
+        );
+    }
+    let source = fs::read_to_string(root.path().join("project.crump")).expect("edited source");
+    assert!(source.contains("setting drive 1.75"));
+    assert!(source.contains("bypass true"));
+    assert!(
+        source.find("processor master_limiter").unwrap()
+            < source.find("processor master_saturation").unwrap()
+    );
+
+    let inspected = invoke(&root, &["inspect"]);
+    assert!(inspected.status.success());
+    let inspected = response(&inspected);
+    let saturation = inspected["data"]["mix_graph"]["processors"]
+        .as_array()
+        .expect("processors")
+        .iter()
+        .find(|processor| processor["id"] == "master_saturation")
+        .expect("master saturation");
+    assert_eq!(saturation["authored_bypass"], true);
+    assert_eq!(saturation["state_policy"], "continue");
+}
+
+#[test]
+fn audition_state_isolated_while_durable_processor_choices_change_history_and_render() {
+    let root = fixture_named("production_mix.crump");
+    let published = publish(&root);
+    let baseline_revision = published["data"]["revision"]
+        .as_str()
+        .expect("published revision")
+        .to_owned();
+    let source_path = root.path().join("project.crump");
+    let baseline_source = fs::read(&source_path).expect("baseline source");
+    let baseline_history = invoke(&root, &["history", "list"]);
+    assert!(baseline_history.status.success());
+    let baseline_history = response(&baseline_history);
+
+    let baseline_render = invoke(&root, &["render", "--output", "baseline-master"]);
+    assert!(
+        baseline_render.status.success(),
+        "{}",
+        String::from_utf8_lossy(&baseline_render.stdout)
+    );
+    let baseline_wav =
+        fs::read(root.path().join("baseline-master/master.wav")).expect("baseline Master");
+
+    let audition = invoke(
+        &root,
+        &[
+            "play",
+            "--target",
+            "track/drums",
+            "--path",
+            "channel-post",
+            "--from",
+            "intro",
+            "--to",
+            "2bar",
+            "--loop-range",
+            "--bypass",
+            "drum_latency",
+            "--plan",
+        ],
+    );
+    assert!(
+        audition.status.success(),
+        "{}",
+        String::from_utf8_lossy(&audition.stdout)
+    );
+    let audition = response(&audition);
+    assert_eq!(audition["data"]["audition"]["status"]["looping"], true);
+    assert_eq!(
+        audition["data"]["audition"]["status"]["active_revision"],
+        baseline_revision
+    );
+    assert_eq!(
+        fs::read(&source_path).expect("source after transient audition"),
+        baseline_source
+    );
+
+    let status_after_audition = invoke(&root, &["status"]);
+    assert!(status_after_audition.status.success());
+    assert_eq!(
+        response(&status_after_audition)["data"]["active_revision"],
+        baseline_revision
+    );
+    let history_after_audition = invoke(&root, &["history", "list"]);
+    assert!(history_after_audition.status.success());
+    assert_eq!(response(&history_after_audition), baseline_history);
+
+    let transient_render = invoke(&root, &["render", "--output", "transient-master"]);
+    assert!(transient_render.status.success());
+    assert_eq!(
+        fs::read(root.path().join("transient-master/master.wav")).expect("post-audition Master"),
+        baseline_wav,
+        "monitoring-only target/path/range/loop/bypass state must not enter offline render"
+    );
+
+    for arguments in [
+        vec![
+            "edit",
+            "processor-setting",
+            "master_saturation",
+            "drive",
+            "2.0",
+        ],
+        vec!["edit", "processor-move", "master_limiter", "earlier"],
+        vec!["edit", "processor-bypass", "master_saturation", "true"],
+    ] {
+        let edited = invoke(&root, &arguments);
+        assert!(
+            edited.status.success(),
+            "{}: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&edited.stdout)
+        );
+    }
+
+    let durable_source = fs::read_to_string(&source_path).expect("durably edited source");
+    assert!(durable_source.contains("setting drive 2.0"));
+    assert!(durable_source.contains("bypass true"));
+    assert!(
+        durable_source.find("processor master_limiter").unwrap()
+            < durable_source.find("processor master_saturation").unwrap()
+    );
+    let durable_status = invoke(&root, &["status"]);
+    assert!(durable_status.status.success());
+    let durable_revision = response(&durable_status)["data"]["active_revision"]
+        .as_str()
+        .expect("durable Active revision")
+        .to_owned();
+    assert_ne!(durable_revision, baseline_revision);
+    let durable_history = invoke(&root, &["history", "list"]);
+    assert!(durable_history.status.success());
+    assert_ne!(response(&durable_history), baseline_history);
+
+    let durable_render = invoke(&root, &["render", "--output", "durable-master"]);
+    assert!(durable_render.status.success());
+    assert_ne!(
+        fs::read(root.path().join("durable-master/master.wav")).expect("durable Master"),
+        baseline_wav,
+        "committed bypass/order/setting choices must change the authoritative render"
+    );
+}
+
+#[test]
 fn workspace_json_is_rejected_without_terminal_control_bytes() {
     let root = fixture_project();
     let output = invoke(&root, &["workspace"]);
@@ -1360,10 +1619,12 @@ fn oversized_modules_are_rejected_before_parsing_or_installation() {
     );
     assert_eq!(output.status.code(), Some(2));
     assert_eq!(response(&output)["error"]["code"], "module_too_large");
-    assert!(!root
-        .path()
-        .join("xdg-data/Crump/instruments/oversized.crump")
-        .exists());
+    assert!(
+        !root
+            .path()
+            .join("xdg-data/Crump/instruments/oversized.crump")
+            .exists()
+    );
 }
 
 #[test]
@@ -1402,11 +1663,13 @@ fn module_export_is_validated_atomic_and_conflict_safe() {
     assert_eq!(invalid_output.status.code(), Some(2));
     let rejected = response(&invalid_output);
     assert_eq!(rejected["error"]["code"], "invalid_module");
-    assert!(rejected["error"]["diagnostics"]
-        .as_array()
-        .expect("diagnostics")
-        .iter()
-        .any(|diagnostic| diagnostic["code"] == "CRV024"));
+    assert!(
+        rejected["error"]["diagnostics"]
+            .as_array()
+            .expect("diagnostics")
+            .iter()
+            .any(|diagnostic| diagnostic["code"] == "CRV024")
+    );
 
     let consumer = tempfile::tempdir().expect("consumer Project");
     let consumer_source = r#"crump 1
@@ -1439,11 +1702,13 @@ project "Library Consumer" {
         String::from_utf8_lossy(&validate.stdout)
     );
     let inspect = response(&invoke_with_data(&consumer, &data_home, &["inspect"]));
-    assert!(inspect["data"]["source_files"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|path| path == "library/test-lead.crump"));
+    assert!(
+        inspect["data"]["source_files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|path| path == "library/test-lead.crump")
+    );
 
     let publication = invoke_with_data(
         &consumer,

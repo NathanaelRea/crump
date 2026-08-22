@@ -33,7 +33,7 @@ pub const MAX_AUTOMATION_POINTS_PER_LANE: usize = 1_024;
 /// Maximum points across every Song Automation lane.
 pub const MAX_AUTOMATION_POINTS: usize = 8_192;
 /// Maximum dense effective-value slots evaluated on every authored sample frame.
-pub const MAX_CONTROL_TARGETS: usize = 512;
+pub const MAX_CONTROL_TARGETS: usize = 1_024;
 /// Maximum authored Modulation routes evaluated per sample.
 pub const MAX_MODULATION_ROUTES: usize = 256;
 /// Maximum route-local arithmetic operations per Modulation route.
@@ -3841,7 +3841,7 @@ project "Validation" {
         let document = parse_project(Path::new("project.crump"), VALID);
         let mut project = document.project.expect("Project");
         let template = project.song.instruments[0].parameters[0].clone();
-        for index in 0..510 {
+        for index in 0..MAX_CONTROL_TARGETS {
             let mut parameter = template.clone();
             parameter.key = format!("extra-{index}");
             parameter.name = format!("Extra {index}");

@@ -169,6 +169,36 @@ impl SamplerRuntime {
         (self.voices.capacity() as u64).saturating_mul(std::mem::size_of::<SamplerVoice>() as u64)
     }
 
+    pub(crate) fn mapping_index(&self, mapping_id: &str) -> Option<u16> {
+        self.program
+            .mappings
+            .iter()
+            .position(|mapping| mapping.id == mapping_id)
+            .and_then(|index| u16::try_from(index).ok())
+    }
+
+    pub(crate) fn mapping_on(&mut self, note_id: u64, mapping_index: u16, velocity: f32) -> bool {
+        let mapping_index = usize::from(mapping_index);
+        let Some(mapping) = self.program.mappings.get(mapping_index) else {
+            return false;
+        };
+        self.start_voice(
+            note_id,
+            mapping_index,
+            mapping.start,
+            mapping.end,
+            0.0,
+            mapping.gain_db,
+            mapping.pan,
+            mapping.fade_in,
+            mapping.fade_out,
+            velocity,
+            false,
+            ClipEnvelope::TRANSPARENT,
+        );
+        true
+    }
+
     pub(crate) fn note_on(
         &mut self,
         note_id: u64,

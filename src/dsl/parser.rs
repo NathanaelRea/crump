@@ -1642,12 +1642,25 @@ impl Parser<'_> {
                 return None;
             }
         };
+        let mut bypass = false;
+        let mut bypass_site = None;
         let mut settings = Vec::new();
         let mut sidechain_inputs = Vec::new();
         let mut latency_frames = 0;
         let mut latency_site = None;
         for child in &statement.children {
             match child.keyword() {
+                Some("bypass") if child.tokens.len() == 2 && bypass_site.is_none() => {
+                    if let Some(value) = self.parse_bool(&child.tokens[1], "processor bypass") {
+                        bypass = value;
+                        bypass_site = Some(self.site(&child.tokens[1]));
+                    }
+                }
+                Some("bypass") => self.error_at(
+                    "CRP236",
+                    "bypass syntax is `bypass true|false` and may be declared once",
+                    child,
+                ),
                 Some("setting") if child.tokens.len() == 3 => settings.push(ProcessorSetting {
                     key: child.tokens[1].value.clone(),
                     value: child.tokens[2].value.clone(),
@@ -1680,6 +1693,8 @@ impl Parser<'_> {
         Some(Processor {
             id: statement.tokens[1].value.clone(),
             kind,
+            bypass,
+            bypass_site,
             settings,
             sidechain_inputs,
             latency_frames,

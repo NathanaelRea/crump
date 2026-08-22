@@ -696,6 +696,8 @@ mod tests {
         Processor {
             id: "processor".to_owned(),
             kind,
+            bypass: false,
+            bypass_site: None,
             settings: settings
                 .iter()
                 .map(|(key, value)| ProcessorSetting {
@@ -754,7 +756,9 @@ mod tests {
                     SettingContract::Choice { choices, default } => {
                         assert!(choices.contains(&default));
                         for choice in choices {
-                            assert!(validate_authored_setting(kind, descriptor.key, choice).is_ok());
+                            assert!(
+                                validate_authored_setting(kind, descriptor.key, choice).is_ok()
+                            );
                         }
                     }
                     SettingContract::DelayDivision { default } => {

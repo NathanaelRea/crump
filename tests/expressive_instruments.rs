@@ -64,7 +64,7 @@ fn expressive_fixture_is_deterministic_finite_stereo_and_admitted() {
     assert_eq!(resources.graph_voices, 27);
     assert_eq!(resources.graph_node_instances, 506);
     assert_eq!(resources.processors, 6);
-    assert_eq!(resources.work_units_per_frame, 2_431);
+    assert_eq!(resources.work_units_per_frame, 2_437);
     assert_eq!(resources.publication_runtime_slots, 2);
     assert!(resources.graph_voice_state_bytes > 100_000);
     assert!(resources.processor_state_bytes > 1_000_000);

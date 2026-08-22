@@ -107,7 +107,17 @@ crump --project ./song --json edit locator-create intro "Intro" 0bar
 crump --project ./song --json edit locator-create build "Build" 8bar
 crump --project ./song --json edit locator-move build 15/2bar --snap --grid 1bar
 crump --project ./song --json edit automation-point-time lead-cutoff open build
-crump --project ./song --json play --from intro --to build --loop-range --plan
+crump --project ./song --json play --target track/lead --path channel-post \
+  --from intro --to build --loop-range --bypass lead_delay --plan
+crump --project ./song --json play --target asset/snare --path raw \
+  --sample-start-frame 120 --sample-end-frame 24000 --plan
+crump --project ./song --json play --target mapping/kit/snare/drums --path mapping --plan
+crump --project ./song --json play --target occurrence/beat/snare-2/drums --path master --plan
+
+# Exact processor decisions and ordered-chain changes.
+crump --project ./song --json edit processor-setting lead_delay feedback 0.42
+crump --project ./song --json edit processor-bypass lead_delay true
+crump --project ./song --json edit processor-move lead_delay earlier
 
 # Reusable Groove Templates and placement-local Clip treatment.
 crump --project ./song --json edit groove-create shuffle \
@@ -160,6 +170,10 @@ Timing edits are exact and grid-free by default. `--free` makes that intent expl
 Groove Templates, Pattern Variations, and Parameter locks remain readable procedural source. Variations require all transform operands and cannot be deleted while referenced. A lock resolves its Parameter key against each consuming Track's Instrument, overrides Automation as a step value, still receives additive Modulation, and resets at the Clip end. Conflicting overlapping lock-bearing Clips are rejected rather than assigned hidden precedence. `inspect --at TIME` exposes the active `parameter_lock` value in effective-Parameter provenance.
 
 Sample place, move, duplicate, split/chop, trim, slip, fade, gain, and pan commands resolve durable occurrence IDs and publish checked source transformations. Multi-literal region/fade edits commit atomically. The Event Grid also exposes exact duration, velocity, source-region (`x`), fade (`f`), gain (`g`), and pan (`p`) dialogs for sample occurrences.
+
+`play --target` accepts Song, Track, Clip, Pattern, Asset, sampler Mapping, and durable sample Occurrence identities. `--path raw|mapping|channel-pre|channel-post|master`, exact Musical Time/Locator `--from` and `--to`, optional looping, repeatable transient `--bypass`, and asset source-frame bounds form one inspectable Audition Plan. A raw target without an explicit end uses the selected project-rate source region's natural length rather than Song end. `--plan` performs off-callback compilation and deterministic preroll but opens no audio device. Audition selection and transient bypass never publish source or History.
+
+Processor setting, durable bypass, and one-position move commands are checked source operations. A setting edit validates against the native processor schema and may insert a supported missing setting. Bypass inserts `bypass true|false` when absent. Move retains the stable ID and complete source block with attached comments and rejects crossing owner chains. Each successful command creates one History Entry; invalid resulting sidechain, latency, or setting semantics reject the edit before publication.
 
 Arbitrary graph topology and other unsupported multi-file transforms may be made directly in source. The Agent must then run `validate`, inspect diagnostics, and call `publish`; file writes alone never alter Active playback.
 

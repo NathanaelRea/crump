@@ -42,6 +42,8 @@ pub(crate) struct ProcessorProgram {
     pub(crate) id: String,
     pub(crate) kind: ProcessorKind,
     pub(crate) sidechain_inputs: Vec<String>,
+    bypass: Scalar,
+    authored_bypass: bool,
     authored_latency_frames: u32,
     declared_latency_frames: u32,
     config: ProcessorConfig,
@@ -189,6 +191,7 @@ fn stereo_delay_heap_bytes(delay_frames: u32) -> u64 {
 /// Fixed detector headroom used to cover reconstruction error during gain movement.
 pub(crate) const LIMITER_TRUE_PEAK_SAFETY_DB: f64 = 0.1;
 const LIMITER_TRUE_PEAK_SAFETY_RATIO: f32 = 0.988_553_1;
+const BYPASS_GUARD_FRAMES: f32 = 64.0;
 
 fn limiter_heap_bytes(lookahead_frames: usize) -> u64 {
     let audio_frames = lookahead_frames
@@ -235,6 +238,18 @@ impl ProcessorProgram {
             )));
         }
         let scalar = |key: &str| processor_scalar(processor, controls, &settings, key);
+        let bypass = controls
+            .index(&ParameterTarget::Processor {
+                processor: processor.id.clone(),
+                parameter: "bypass".to_owned(),
+            })
+            .map(Scalar::Control)
+            .ok_or_else(|| {
+                EngineError::Compile(format!(
+                    "processor `{}` is missing its compiled bypass Parameter",
+                    processor.id
+                ))
+            })?;
         let config = match processor.kind {
             ProcessorKind::Utility => ProcessorConfig::Utility {
                 gain: scalar("gain")?,
@@ -362,6 +377,8 @@ impl ProcessorProgram {
             id: processor.id.clone(),
             kind: processor.kind,
             sidechain_inputs: processor.sidechain_inputs.clone(),
+            bypass,
+            authored_bypass: processor.bypass,
             authored_latency_frames: processor.latency_frames,
             declared_latency_frames: processor.latency_frames.saturating_add(configured_latency),
             config,
@@ -467,6 +484,7 @@ impl ProcessorProgram {
         (std::mem::size_of::<ProcessorRuntime>() as u64)
             .saturating_add(algorithm_heap)
             .saturating_add(stereo_delay_heap_bytes(self.declared_latency_frames))
+            .saturating_add(stereo_delay_heap_bytes(self.output_latency_frames()))
     }
 
     pub(crate) fn work_units(&self) -> u64 {
@@ -493,6 +511,7 @@ impl ProcessorProgram {
             && self.kind == other.kind
             && self.output_latency_frames() == other.output_latency_frames()
             && self.sidechain_inputs == other.sidechain_inputs
+            && self.bypass == other.bypass
             && self.config == other.config
     }
 }
@@ -552,8 +571,25 @@ pub(crate) fn authored_processor_estimate(
         .and_then(|settings| settings.unsigned("frames"))
         .unwrap_or(0);
     let declared_latency = processor.latency_frames.saturating_add(configured_latency);
+    let intrinsic_latency = match processor.kind {
+        ProcessorKind::Saturation => {
+            u32::try_from(OVERSAMPLING_ROUND_TRIP_LATENCY_FRAMES).unwrap_or(u32::MAX)
+        }
+        ProcessorKind::Limiter => {
+            let lookahead = settings
+                .as_ref()
+                .and_then(|settings| settings.numeric("lookahead"))
+                .unwrap_or(0.005);
+            let frames = (lookahead.max(0.0) * f64::from(sample_rate)).round() as usize;
+            u32::try_from(frames.saturating_add(OVERSAMPLING_INTERPOLATOR_LATENCY_FRAMES))
+                .unwrap_or(u32::MAX)
+        }
+        _ => 0,
+    };
+    let output_latency = declared_latency.saturating_add(intrinsic_latency);
     let fixed_and_declared = (std::mem::size_of::<ProcessorRuntime>() as u64)
-        .saturating_add(stereo_delay_heap_bytes(declared_latency));
+        .saturating_add(stereo_delay_heap_bytes(declared_latency))
+        .saturating_add(stereo_delay_heap_bytes(output_latency));
     let (algorithm_heap, work) = match processor.kind {
         ProcessorKind::Delay => (
             settings
@@ -609,6 +645,10 @@ pub(crate) struct ProcessorRuntime {
     program: ProcessorProgram,
     state: ProcessorState,
     declared_delay: StereoDelay,
+    bypass_delay: StereoDelay,
+    transient_bypass: Option<bool>,
+    transient_bypass_guard_active: bool,
+    bypass_mix: f32,
 }
 
 // Large fixed FIR histories stay inline so callback state has no hidden heap owner.
@@ -656,19 +696,37 @@ impl ProcessorRuntime {
             ProcessorConfig::Latency => ProcessorState::Latency,
         };
         let declared_delay = StereoDelay::new(program.declared_latency_frames as usize);
+        let bypass_delay = StereoDelay::new(program.output_latency_frames() as usize);
+        let bypass_mix = if program.authored_bypass { 1.0 } else { 0.0 };
         Self {
             program,
             state,
             declared_delay,
+            bypass_delay,
+            transient_bypass: None,
+            transient_bypass_guard_active: false,
+            bypass_mix,
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn process(
         &mut self,
         sample: [f32; 2],
         sidechain: Option<[f32; 2]>,
         controls: &[f64],
     ) -> [f32; 2] {
+        self.process_with_audition(sample, sidechain, controls, false)
+    }
+
+    pub(crate) fn process_with_audition(
+        &mut self,
+        sample: [f32; 2],
+        sidechain: Option<[f32; 2]>,
+        controls: &[f64],
+        audition: bool,
+    ) -> [f32; 2] {
+        let dry = self.bypass_delay.process(sample);
         let processed = match (&self.program.config, &mut self.state) {
             (
                 ProcessorConfig::Utility {
@@ -832,7 +890,61 @@ impl ProcessorRuntime {
             (ProcessorConfig::Latency, ProcessorState::Latency) => sample,
             _ => sample,
         };
-        self.declared_delay.process(processed)
+        let wet = self.declared_delay.process(processed);
+        let authored_bypass = self.program.bypass.value(controls) >= 0.5;
+        let effective_bypass = if audition {
+            self.transient_bypass.unwrap_or(authored_bypass)
+        } else {
+            authored_bypass
+        };
+        let target = if effective_bypass { 1.0 } else { 0.0 };
+        if !audition || !self.transient_bypass_guard_active {
+            self.bypass_mix = target;
+            self.transient_bypass_guard_active = false;
+        } else if self.bypass_mix < target {
+            self.bypass_mix = (self.bypass_mix + 1.0 / BYPASS_GUARD_FRAMES).min(target);
+            self.transient_bypass_guard_active = self.bypass_mix < target;
+        } else if self.bypass_mix > target {
+            self.bypass_mix = (self.bypass_mix - 1.0 / BYPASS_GUARD_FRAMES).max(target);
+            self.transient_bypass_guard_active = self.bypass_mix > target;
+        } else {
+            self.transient_bypass_guard_active = false;
+        }
+        if self.bypass_mix <= 0.0 {
+            wet
+        } else if self.bypass_mix >= 1.0 {
+            dry
+        } else {
+            [
+                wet[0] + (dry[0] - wet[0]) * self.bypass_mix,
+                wet[1] + (dry[1] - wet[1]) * self.bypass_mix,
+            ]
+        }
+    }
+
+    pub(crate) fn id(&self) -> &str {
+        &self.program.id
+    }
+
+    pub(crate) fn set_transient_bypass(&mut self, bypass: Option<bool>) {
+        if self.transient_bypass != bypass {
+            self.transient_bypass = bypass;
+            self.transient_bypass_guard_active = true;
+        }
+    }
+
+    pub(crate) fn bypass_state(
+        &self,
+        controls: &[f64],
+        audition: bool,
+    ) -> (bool, Option<bool>, bool, f32) {
+        let authored = self.program.bypass.value(controls) >= 0.5;
+        let effective = if audition {
+            self.transient_bypass.unwrap_or(authored)
+        } else {
+            authored
+        };
+        (authored, self.transient_bypass, effective, self.bypass_mix)
     }
 
     pub(crate) fn reset(&mut self) {
@@ -854,6 +966,12 @@ impl ProcessorRuntime {
             ProcessorState::Limiter(state) => state.reset(),
         }
         self.declared_delay.reset();
+        self.bypass_delay.reset();
+        let bypass = self
+            .transient_bypass
+            .unwrap_or(self.program.authored_bypass);
+        self.bypass_mix = if bypass { 1.0 } else { 0.0 };
+        self.transient_bypass_guard_active = false;
     }
 
     #[cfg(test)]
@@ -865,6 +983,11 @@ impl ProcessorRuntime {
             0xCBF2_9CE4_8422_2325,
             self.declared_delay.buffer.as_ptr().cast(),
             self.declared_delay.buffer.capacity(),
+        );
+        fingerprint = include(
+            fingerprint,
+            self.bypass_delay.buffer.as_ptr().cast(),
+            self.bypass_delay.buffer.capacity(),
         );
         match &self.state {
             ProcessorState::Eq(states) => {
@@ -1621,6 +1744,8 @@ mod tests {
             id: "test".to_owned(),
             kind,
             sidechain_inputs: Vec::new(),
+            bypass: Scalar::Constant(0.0),
+            authored_bypass: false,
             authored_latency_frames: 0,
             declared_latency_frames: 0,
             config,
@@ -2217,6 +2342,207 @@ mod tests {
     }
 
     #[test]
+    fn transient_bypass_is_latency_aligned_smoothed_and_monitoring_only() {
+        let mut program = test_program(
+            ProcessorKind::Utility,
+            ProcessorConfig::Utility {
+                gain: Scalar::Constant(-12.0),
+                width: Scalar::Constant(1.0),
+                invert: false,
+                mono: false,
+            },
+        );
+        program.authored_latency_frames = 5;
+        program.declared_latency_frames = 5;
+        let mut runtime = program.clone().runtime();
+        runtime.set_transient_bypass(Some(true));
+        for _ in 0..BYPASS_GUARD_FRAMES as usize {
+            assert_eq!(
+                runtime.process_with_audition([0.0, 0.0], None, &[], true),
+                [0.0, 0.0]
+            );
+        }
+        let (_, transient, effective, mix) = runtime.bypass_state(&[], true);
+        assert_eq!(transient, Some(true));
+        assert!(effective);
+        assert_eq!(mix, 1.0);
+        for frame in 0..=5 {
+            let input = if frame == 0 { [1.0, -1.0] } else { [0.0, 0.0] };
+            let output = runtime.process_with_audition(input, None, &[], true);
+            if frame < 5 {
+                assert_eq!(output, [0.0, 0.0]);
+            } else {
+                assert_eq!(output, [1.0, -1.0]);
+            }
+        }
+
+        for _ in 0..8 {
+            let _ = runtime.process_with_audition([1.0, 1.0], None, &[], true);
+        }
+        runtime.set_transient_bypass(None);
+        let mut previous = runtime.process_with_audition([1.0, 1.0], None, &[], true)[0];
+        for _ in 1..BYPASS_GUARD_FRAMES as usize + 8 {
+            let next = runtime.process_with_audition([1.0, 1.0], None, &[], true)[0];
+            assert!((next - previous).abs() <= 0.02, "{previous} -> {next}");
+            previous = next;
+        }
+        let (_, transient, effective, mix) = runtime.bypass_state(&[], true);
+        assert_eq!(transient, None);
+        assert!(!effective);
+        assert_eq!(mix, 0.0);
+
+        let mut offline = program.runtime();
+        offline.set_transient_bypass(Some(true));
+        for _ in 0..5 {
+            assert_eq!(
+                offline.process_with_audition([0.0, 0.0], None, &[], false),
+                [0.0, 0.0]
+            );
+        }
+        let output = offline.process_with_audition([1.0, 1.0], None, &[], false);
+        assert_eq!(output, [0.0, 0.0]);
+        let output = offline.process_with_audition([0.0, 0.0], None, &[], false);
+        assert_eq!(output, [0.0, 0.0]);
+        for _ in 0..3 {
+            let _ = offline.process_with_audition([0.0, 0.0], None, &[], false);
+        }
+        let output = offline.process_with_audition([0.0, 0.0], None, &[], false);
+        let wet = db_gain(-12.0);
+        assert_eq!(output, [wet, wet]);
+    }
+
+    #[test]
+    fn durable_bypass_control_is_sample_exact_without_the_monitoring_guard() {
+        let mut program = test_program(
+            ProcessorKind::Utility,
+            ProcessorConfig::Utility {
+                gain: Scalar::Constant(-12.0),
+                width: Scalar::Constant(1.0),
+                invert: false,
+                mono: false,
+            },
+        );
+        program.bypass = Scalar::Control(ControlIndex(0));
+        let wet = db_gain(-12.0);
+        for audition in [false, true] {
+            let mut runtime = program.clone().runtime();
+            assert_eq!(
+                runtime.process_with_audition([1.0, -1.0], None, &[0.0], audition),
+                [wet, -wet]
+            );
+            assert_eq!(
+                runtime.process_with_audition([1.0, -1.0], None, &[1.0], audition),
+                [1.0, -1.0]
+            );
+            assert_eq!(
+                runtime.process_with_audition([1.0, -1.0], None, &[0.0], audition),
+                [wet, -wet]
+            );
+        }
+    }
+
+    #[test]
+    fn algorithmic_latency_bypass_is_exact_across_supported_quanta() {
+        let program = test_program(
+            ProcessorKind::Saturation,
+            ProcessorConfig::Saturation {
+                drive: Scalar::Constant(6.0),
+                mix: Scalar::Constant(1.0),
+                output: Scalar::Constant(0.0),
+                mode: SaturationMode::Tape,
+            },
+        );
+        let latency = program.output_latency_frames() as usize;
+        assert!(latency > 0);
+        let input = (0..1_024)
+            .map(|frame| {
+                let left = ((frame as f32 + 1.0) / 1_025.0) * 0.8;
+                [left, -left]
+            })
+            .collect::<Vec<_>>();
+        let render = |quantum: usize| {
+            let mut runtime = program.clone().runtime();
+            let mut output = Vec::with_capacity(input.len());
+            for block in input.chunks(quantum) {
+                for sample in block {
+                    let frame = output.len();
+                    if frame == 256 {
+                        runtime.set_transient_bypass(Some(true));
+                    } else if frame == 512 {
+                        runtime.set_transient_bypass(Some(false));
+                    }
+                    output.push(runtime.process_with_audition(*sample, None, &[], true));
+                }
+            }
+            output
+        };
+        let reference = render(64);
+        assert_eq!(reference[400], input[400 - latency]);
+        for quantum in [128, 256] {
+            assert_eq!(render(quantum), reference, "callback quantum {quantum}");
+        }
+    }
+
+    #[test]
+    fn delay_and_reverb_tails_continue_while_transiently_bypassed() {
+        let programs = [
+            test_program(
+                ProcessorKind::Delay,
+                ProcessorConfig::Delay {
+                    time: Scalar::Constant(0.002),
+                    feedback: Scalar::Constant(0.95),
+                    mix: Scalar::Constant(1.0),
+                    low_pass: Scalar::Constant(23_520.0),
+                    high_pass: Scalar::Constant(10.0),
+                    time_crossfade: Scalar::Constant(0.001),
+                    mode: DelayMode::Stereo,
+                    maximum_frames: 512,
+                },
+            ),
+            test_program(
+                ProcessorKind::Reverb,
+                ProcessorConfig::Reverb {
+                    pre_delay: Scalar::Constant(0.0),
+                    diffusion: Scalar::Constant(0.7),
+                    decay: Scalar::Constant(0.9),
+                    damping: Scalar::Constant(0.25),
+                    modulation: Scalar::Constant(0.1),
+                    width: Scalar::Constant(1.0),
+                    mix: Scalar::Constant(1.0),
+                },
+            ),
+        ];
+        for program in programs {
+            let mut baseline = program.clone().runtime();
+            let mut audition = program.runtime();
+            let mut heard_retained_tail = false;
+            for frame in 0..20_000 {
+                let input = if frame % 37 == 0 {
+                    [0.35, -0.2]
+                } else {
+                    [0.0, 0.0]
+                };
+                if frame == 64 {
+                    audition.set_transient_bypass(Some(true));
+                } else if frame == 192 {
+                    audition.set_transient_bypass(Some(false));
+                }
+                let expected = baseline.process_with_audition(input, None, &[], true);
+                let actual = audition.process_with_audition(input, None, &[], true);
+                if frame >= 256 {
+                    assert_eq!(actual, expected, "{:?} frame {frame}", program.kind);
+                    heard_retained_tail |= expected.into_iter().any(|sample| sample.abs() > 1.0e-6);
+                }
+            }
+            assert!(
+                heard_retained_tail,
+                "{:?} tail must remain active after re-enable",
+                program.kind
+            );
+        }
+    }
+
+    #[test]
     fn declared_delay_is_exact() {
         let mut delay = StereoDelay::new(3);
         assert_eq!(delay.process([1.0, -1.0]), [0.0, 0.0]);
@@ -2298,7 +2624,7 @@ mod tests {
             program.state_bytes(),
             std::mem::size_of::<ProcessorRuntime>() as u64
                 + allocated_bytes
-                + std::mem::size_of::<[f32; 2]>() as u64
+                + 2 * std::mem::size_of::<[f32; 2]>() as u64
         );
         assert_eq!(program.work_units(), 160);
 
@@ -2626,6 +2952,8 @@ mod tests {
             id: "delay".to_owned(),
             kind: ProcessorKind::Delay,
             sidechain_inputs: Vec::new(),
+            bypass: Scalar::Constant(0.0),
+            authored_bypass: false,
             authored_latency_frames: 3,
             declared_latency_frames: 3,
             config: ProcessorConfig::Delay {
@@ -2647,6 +2975,8 @@ mod tests {
         };
         let allocated = std::mem::size_of::<ProcessorRuntime>() as u64
             + runtime.declared_delay.buffer.capacity() as u64
+                * std::mem::size_of::<[f32; 2]>() as u64
+            + runtime.bypass_delay.buffer.capacity() as u64
                 * std::mem::size_of::<[f32; 2]>() as u64
             + delay.buffer.capacity() as u64 * std::mem::size_of::<[f32; 2]>() as u64;
         assert_eq!(expected, allocated);
@@ -2769,6 +3099,8 @@ mod tests {
                 id: "compressor".to_owned(),
                 kind: ProcessorKind::Compressor,
                 sidechain_inputs: Vec::new(),
+                bypass: Scalar::Constant(0.0),
+                authored_bypass: false,
                 authored_latency_frames: 0,
                 declared_latency_frames: 0,
                 config: ProcessorConfig::Compressor {
@@ -2898,6 +3230,8 @@ mod tests {
         let mut runtime = program.runtime();
         let allocated = std::mem::size_of::<ProcessorRuntime>() as u64
             + runtime.declared_delay.buffer.capacity() as u64
+                * std::mem::size_of::<[f32; 2]>() as u64
+            + runtime.bypass_delay.buffer.capacity() as u64
                 * std::mem::size_of::<[f32; 2]>() as u64
             + match &runtime.state {
                 ProcessorState::Saturation(state) => {
@@ -3075,6 +3409,8 @@ mod tests {
         };
         let allocated = std::mem::size_of::<ProcessorRuntime>() as u64
             + runtime.declared_delay.buffer.capacity() as u64
+                * std::mem::size_of::<[f32; 2]>() as u64
+            + runtime.bypass_delay.buffer.capacity() as u64
                 * std::mem::size_of::<[f32; 2]>() as u64
             + state.audio_buffer.capacity() as u64 * std::mem::size_of::<[f32; 2]>() as u64
             + state.peak_buffer.capacity() as u64 * std::mem::size_of::<f32>() as u64;

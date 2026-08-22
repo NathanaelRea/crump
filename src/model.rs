@@ -503,6 +503,11 @@ pub struct Processor {
     pub id: String,
     /// Native processor implementation.
     pub kind: ProcessorKind,
+    /// Source-backed durable bypass state.
+    pub bypass: bool,
+    /// Explicit bypass literal when one was authored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bypass_site: Option<ValueSite>,
     /// Kind-defined settings in declaration order.
     pub settings: Vec<ProcessorSetting>,
     /// Named auxiliary stereo Audio input ports.
@@ -1028,6 +1033,20 @@ impl Project {
             }
         }
         for processor in all_processors(&self.song) {
+            targets.push((
+                ParameterTarget::Processor {
+                    processor: processor.id.clone(),
+                    parameter: "bypass".to_owned(),
+                },
+                ParameterSpec {
+                    unit: Unit::Boolean,
+                    minimum: 0.0,
+                    maximum: 1.0,
+                    base: f64::from(processor.bypass),
+                    automatable: true,
+                    modulatable: false,
+                },
+            ));
             for setting in &processor.settings {
                 if let Some(spec) =
                     processor_setting_spec(processor.kind, &setting.key, &setting.value)
@@ -2104,9 +2123,11 @@ mod tests {
                 if instrument == "drums" && parameter == "tone"
         )));
         let mix_inventory = project.mix_parameter_specs();
-        assert!(mix_inventory
-            .iter()
-            .all(|(target, _)| !matches!(target, ParameterTarget::Instrument { .. })));
+        assert!(
+            mix_inventory
+                .iter()
+                .all(|(target, _)| !matches!(target, ParameterTarget::Instrument { .. }))
+        );
         assert_eq!(
             inventory
                 .iter()
@@ -2116,9 +2137,11 @@ mod tests {
         );
 
         assert!("send/drum_room/gain".parse::<ParameterTarget>().is_err());
-        assert!(project
-            .parameter_spec(&"group/missing/level".parse().expect("target"))
-            .is_none());
+        assert!(
+            project
+                .parameter_spec(&"group/missing/level".parse().expect("target"))
+                .is_none()
+        );
         let limiter_lookahead = "processor/master_limiter/lookahead"
             .parse()
             .expect("structural processor path");

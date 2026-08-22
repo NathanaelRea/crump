@@ -1,6 +1,7 @@
 //! Stable human and JSON command surface for external Authoring Agents and scripts.
 
 use std::{
+    collections::BTreeMap,
     ffi::OsString,
     fs::{self, File, OpenOptions},
     io::{IsTerminal, Write},
@@ -16,29 +17,33 @@ use crate::{
     dsl::parse_module,
     edit::{
         ArrangementAutomation, ClipPlacement, EditError, GroovePlacement, ParameterLockPlacement,
-        PatternVariationPlacement, SamplePlacement, apply_structured_edit, collect_media_assets,
-        create_automation_lane, create_automation_point, create_clip, create_groove,
-        create_locator, create_parameter_lock, create_pattern_variation, delete_arrangement_time,
-        delete_automation_lane, delete_automation_point, delete_clip, delete_groove,
-        delete_locator, delete_parameter_lock, delete_pattern_variation,
+        PatternVariationPlacement, ProcessorMove, SamplePlacement, apply_structured_edit,
+        collect_media_assets, create_automation_lane, create_automation_point, create_clip,
+        create_groove, create_locator, create_parameter_lock, create_pattern_variation,
+        delete_arrangement_time, delete_automation_lane, delete_automation_point, delete_clip,
+        delete_groove, delete_locator, delete_parameter_lock, delete_pattern_variation,
         duplicate_arrangement_time, duplicate_clip, duplicate_sample_occurrence,
         fade_sample_occurrence, import_media_asset, insert_arrangement_time, move_clip,
-        move_locator, move_sample_occurrence, place_sample_occurrence, resize_clip,
+        move_locator, move_processor, move_sample_occurrence, place_sample_occurrence, resize_clip,
         set_automation_point_at, set_automation_point_interpolation, set_automation_point_value,
         set_clip_fades, set_clip_gain, set_clip_groove, set_clip_source_offset, set_clip_transpose,
         set_event_at, set_event_velocity, set_hit_voice, set_note_duration, set_note_pitch,
-        set_parameter, set_parameter_target, set_sample_occurrence_gain, set_sample_occurrence_pan,
-        set_track_level, set_track_pan, slip_sample_occurrence, split_clip,
-        split_sample_occurrence, trim_sample_occurrence, update_groove, update_parameter_lock,
-        update_pattern_variation,
+        set_parameter, set_parameter_target, set_processor_setting, set_sample_occurrence_gain,
+        set_sample_occurrence_pan, set_track_level, set_track_pan, slip_sample_occurrence,
+        split_clip, split_sample_occurrence, trim_sample_occurrence, update_groove,
+        update_parameter_lock, update_pattern_variation,
     },
     engine::{
         CompiledProject, QualificationOptions, RenderOptions, RenderStemRequest,
-        inspect_render_destination, plan_render_stems, qualification::qualify_compiled_project,
+        audition::{
+            AuditionPath, AuditionPlan, AuditionRange, AuditionTarget, inspection_from_parts,
+        },
+        inspect_render_destination, plan_render_stems,
+        qualification::qualify_compiled_project,
         render_project,
     },
     history::{ChangeOrigin, HistoryError, HistoryStore, Publication},
-    model::{AutomationInterpolation, ClipMode, DrumVoice, ParameterTarget, parse_pitch},
+    model::{AutomationInterpolation, ClipMode, DrumVoice, ParameterTarget, TapPoint, parse_pitch},
     project::{MAX_SOURCE_BYTES, ProjectBundle, instrument_library_dir, load_project},
     project_picker::{ProjectSelection, select_project},
     realtime::{PipeWirePlayer, StreamStatus},
@@ -168,21 +173,76 @@ struct InspectArgs {
 
 #[derive(Debug, Args)]
 struct PlayArgs {
-    /// Stop after this many seconds instead of the complete Render Range.
+    /// Stop after this many seconds instead of the complete audition range.
     #[arg(long)]
     seconds: Option<f64>,
-    /// Start at this named Song Locator after deterministic preroll.
+    /// Target: song, track/ID, clip/ID, pattern/ID, asset/ID, mapping/I/M, or occurrence/P/O.
+    #[arg(long, default_value = "song")]
+    target: String,
+    /// Explicit monitoring path.
+    #[arg(long, value_enum, default_value_t = AuditionPathArg::Master)]
+    path: AuditionPathArg,
+    /// Start at this named Song Locator or exact musical time after deterministic preroll.
     #[arg(long)]
     from: Option<String>,
-    /// Stop at this named Song Locator.
+    /// Stop at this named Song Locator or exact musical time.
     #[arg(long)]
     to: Option<String>,
-    /// Loop the explicit --from/--to Locator range transiently.
+    /// Loop the explicit --from/--to range transiently.
     #[arg(long, requires_all = ["from", "to"])]
     loop_range: bool,
-    /// Resolve and report the audition range without opening audio.
+    /// Inclusive original-source-frame start for an asset target.
+    #[arg(long)]
+    sample_start_frame: Option<u64>,
+    /// Exclusive original-source-frame end for an asset target.
+    #[arg(long)]
+    sample_end_frame: Option<u64>,
+    /// Bypass one stable processor ID for this audition only. Repeat as needed.
+    #[arg(long = "bypass", value_name = "PROCESSOR")]
+    bypass: Vec<String>,
+    /// Resolve and report the audition plan without opening audio.
     #[arg(long)]
     plan: bool,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum AuditionPathArg {
+    Raw,
+    Mapping,
+    ChannelPre,
+    ChannelPost,
+    Master,
+}
+
+impl From<AuditionPathArg> for AuditionPath {
+    fn from(value: AuditionPathArg) -> Self {
+        match value {
+            AuditionPathArg::Raw => Self::Raw,
+            AuditionPathArg::Mapping => Self::Mapping,
+            AuditionPathArg::ChannelPre => Self::Channel {
+                tap: TapPoint::PreFader,
+            },
+            AuditionPathArg::ChannelPost => Self::Channel {
+                tap: TapPoint::PostFader,
+            },
+            AuditionPathArg::Master => Self::Master,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ProcessorMoveArg {
+    Earlier,
+    Later,
+}
+
+impl From<ProcessorMoveArg> for ProcessorMove {
+    fn from(value: ProcessorMoveArg) -> Self {
+        match value {
+            ProcessorMoveArg::Earlier => Self::Earlier,
+            ProcessorMoveArg::Later => Self::Later,
+        }
+    }
 }
 
 #[derive(Debug, Args, Default)]
@@ -299,6 +359,30 @@ enum EditCommand {
         #[arg(allow_hyphen_values = true)]
         value: f64,
         #[arg(long, default_value = "Change Track pan")]
+        summary: String,
+    },
+    /// Set one processor setting from an exact source literal.
+    ProcessorSetting {
+        processor: String,
+        setting: String,
+        #[arg(allow_hyphen_values = true)]
+        value: String,
+        #[arg(long, default_value = "Change processor setting")]
+        summary: String,
+    },
+    /// Set one durable source-backed processor bypass value.
+    ProcessorBypass {
+        processor: String,
+        #[arg(action = clap::ArgAction::Set)]
+        bypass: bool,
+        #[arg(long, default_value = "Change processor bypass")]
+        summary: String,
+    },
+    /// Move one processor by one position in its authored chain.
+    ProcessorMove {
+        processor: String,
+        direction: ProcessorMoveArg,
+        #[arg(long, default_value = "Reorder processor chain")]
         summary: String,
     },
     /// Create one absolute Song Automation lane with its required zero point.
@@ -1154,6 +1238,26 @@ fn command_inspect(cli: &Cli, args: &InspectArgs) -> Result<Success, Failure> {
     } else {
         (None, None, None)
     };
+    let audition = if active_revision.as_ref() == Some(&bundle.revision)
+        && let Some(project) = project
+        && !bundle.diagnostics.has_errors()
+    {
+        Some(
+            AuditionPlan::default()
+                .prepare(&bundle.revision, project, &bundle.assets)
+                .map_err(|error| {
+                    Failure::blocked(
+                        "inspect",
+                        "audition_compile_failed",
+                        error.to_string(),
+                        json!([]),
+                    )
+                })?
+                .inspection(),
+        )
+    } else {
+        None
+    };
     Ok(Success {
         command: "inspect",
         human: if let Some(project) = project {
@@ -1180,6 +1284,7 @@ fn command_inspect(cli: &Cli, args: &InspectArgs) -> Result<Success, Failure> {
             "control_frame": control_frame,
             "effective_parameters": effective_parameters,
             "mix_graph": mix_graph,
+            "audition": audition,
             "diagnostics": bundle.diagnostics.as_slice(),
         }),
     })
@@ -1321,6 +1426,117 @@ fn play_stop_key(key: crossterm::event::KeyEvent) -> bool {
             .contains(crossterm::event::KeyModifiers::CONTROL)
 }
 
+fn audition_plan(args: &PlayArgs) -> Result<AuditionPlan, Failure> {
+    let parts = args.target.split('/').collect::<Vec<_>>();
+    let target = match parts.as_slice() {
+        ["song"] => AuditionTarget::Song,
+        ["track", track] if !track.is_empty() => AuditionTarget::Track {
+            track: (*track).to_owned(),
+        },
+        ["clip", clip] if !clip.is_empty() => AuditionTarget::Clip {
+            clip: (*clip).to_owned(),
+            track: None,
+        },
+        ["clip", track, clip] if !track.is_empty() && !clip.is_empty() => AuditionTarget::Clip {
+            clip: (*clip).to_owned(),
+            track: Some((*track).to_owned()),
+        },
+        ["pattern", pattern] if !pattern.is_empty() => AuditionTarget::Pattern {
+            pattern: (*pattern).to_owned(),
+            track: None,
+        },
+        ["pattern", pattern, track] if !pattern.is_empty() && !track.is_empty() => {
+            AuditionTarget::Pattern {
+                pattern: (*pattern).to_owned(),
+                track: Some((*track).to_owned()),
+            }
+        }
+        ["asset", asset] if !asset.is_empty() => AuditionTarget::Asset {
+            asset: (*asset).to_owned(),
+            start_frame: args.sample_start_frame,
+            end_frame: args.sample_end_frame,
+        },
+        ["mapping", instrument, mapping] if !instrument.is_empty() && !mapping.is_empty() => {
+            AuditionTarget::Mapping {
+                instrument: (*instrument).to_owned(),
+                mapping: (*mapping).to_owned(),
+                track: None,
+            }
+        }
+        ["mapping", instrument, mapping, track]
+            if !instrument.is_empty() && !mapping.is_empty() && !track.is_empty() =>
+        {
+            AuditionTarget::Mapping {
+                instrument: (*instrument).to_owned(),
+                mapping: (*mapping).to_owned(),
+                track: Some((*track).to_owned()),
+            }
+        }
+        ["occurrence", pattern, occurrence] if !pattern.is_empty() && !occurrence.is_empty() => {
+            AuditionTarget::Occurrence {
+                pattern: (*pattern).to_owned(),
+                occurrence: (*occurrence).to_owned(),
+                track: None,
+            }
+        }
+        ["occurrence", pattern, occurrence, track]
+            if !pattern.is_empty() && !occurrence.is_empty() && !track.is_empty() =>
+        {
+            AuditionTarget::Occurrence {
+                pattern: (*pattern).to_owned(),
+                occurrence: (*occurrence).to_owned(),
+                track: Some((*track).to_owned()),
+            }
+        }
+        _ => {
+            return Err(Failure::blocked(
+                "play",
+                "invalid_audition_target",
+                "--target must be song, track/ID, clip/[TRACK/]ID, pattern/ID[/TRACK], asset/ID, mapping/INSTRUMENT/MAPPING[/TRACK], or occurrence/PATTERN/ID[/TRACK]",
+                json!([]),
+            ));
+        }
+    };
+    if !matches!(target, AuditionTarget::Asset { .. })
+        && (args.sample_start_frame.is_some() || args.sample_end_frame.is_some())
+    {
+        return Err(Failure::blocked(
+            "play",
+            "invalid_audition_target",
+            "--sample-start-frame and --sample-end-frame require an asset target",
+            json!([]),
+        ));
+    }
+    if let (Some(start), Some(end)) = (args.sample_start_frame, args.sample_end_frame)
+        && start >= end
+    {
+        return Err(Failure::blocked(
+            "play",
+            "invalid_audition_target",
+            "sample region start must precede its exclusive end",
+            json!([]),
+        ));
+    }
+    let transient_bypass = args
+        .bypass
+        .iter()
+        .cloned()
+        .map(|processor| (processor, true))
+        .collect::<BTreeMap<_, _>>();
+    Ok(AuditionPlan {
+        target,
+        path: args.path.into(),
+        range: AuditionRange {
+            from: args.from.clone(),
+            to: args.to.clone(),
+            looping: args.loop_range,
+        },
+        transient_bypass,
+        soloed_channels: Default::default(),
+        cue: None,
+    })
+}
+
 fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
     if args
         .seconds
@@ -1357,58 +1573,48 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
             json!([]),
         )
     })?;
-    let locator_frame = |locator_id: &str| {
-        project
-            .song
-            .locators
-            .iter()
-            .find(|locator| locator.id == locator_id)
-            .ok_or_else(|| {
-                Failure::blocked(
-                    "play",
-                    "unknown_locator",
-                    format!("unknown Song Locator `{locator_id}`"),
-                    json!([]),
-                )
-            })?
-            .at
-            .to_frames(project.song.tempo_bpm, project.sample_rate)
-            .map_err(|error| {
-                Failure::blocked("play", "invalid_range", error.to_string(), json!([]))
-            })
-    };
-    let compiled = CompiledProject::compile_with_assets(project, &active.assets)
-        .map_err(|error| Failure::operational("play", "compile_failed", error))?;
-    let total_frames = compiled.total_frames();
-    let start_frame = args.from.as_deref().map_or(Ok(0), locator_frame)?;
-    let end_frame = args.to.as_deref().map_or(Ok(total_frames), locator_frame)?;
-    if start_frame >= end_frame {
-        return Err(Failure::blocked(
-            "play",
-            "invalid_range",
-            "the audition start Locator must precede its end Locator",
-            json!([]),
-        ));
-    }
+    let audition_plan = audition_plan(args)?;
+    let prepared = audition_plan
+        .prepare(&active.revision, project, &active.assets)
+        .map_err(|error| {
+            Failure::blocked(
+                "play",
+                "audition_prepare_failed",
+                error.to_string(),
+                json!([]),
+            )
+        })?;
+    let audition_status = prepared.status().clone();
+    let mix_graph = prepared.mix_graph_inspection().clone();
+    let initial_inspection = prepared.inspection();
+    let start_frame = audition_status.start_frame;
+    let end_frame = audition_status.end_frame;
     let range_data = json!({
         "from_locator": args.from,
         "to_locator": args.to,
         "start_frame": start_frame,
         "end_frame": end_frame,
-        "loop": args.loop_range,
+        "loop": audition_status.looping,
     });
     if args.plan {
         return Ok(Success {
             command: "play",
             human: format!(
-                "Audition range [{start_frame}, {end_frame}) frames{}",
-                if args.loop_range { " · looped" } else { "" }
+                "Audition {:?} via {:?} over [{start_frame}, {end_frame}) frames{}",
+                audition_status.target,
+                audition_status.path,
+                if audition_status.looping {
+                    " · looped"
+                } else {
+                    ""
+                }
             ),
             data: json!({
                 "active_revision": active.revision,
                 "candidate_revision": candidate.revision,
                 "candidate_was_active": candidate.revision == active.revision,
                 "range": range_data,
+                "audition": initial_inspection,
             }),
         });
     }
@@ -1422,18 +1628,7 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
             json!([]),
         ));
     }
-    let mut runtime = compiled.runtime();
-    runtime
-        .advance_to(start_frame)
-        .map_err(|error| Failure::operational("play", "preroll_failed", error))?;
-    if args.loop_range {
-        runtime
-            .enable_audition_loop(start_frame, end_frame)
-            .map_err(|error| {
-                Failure::blocked("play", "invalid_range", error.to_string(), json!([]))
-            })?;
-    }
-    let mut player = PipeWirePlayer::start(runtime)
+    let mut player = PipeWirePlayer::start(prepared.into_runtime())
         .map_err(|error| Failure::operational("play", "audio_unavailable", error))?;
     let raw_mode = RawModeGuard::new(interactive);
     let started = std::time::Instant::now();
@@ -1465,7 +1660,7 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
             ));
             break;
         }
-        if !args.loop_range && report.engine.frame.saturating_add(1) >= end_frame {
+        if !audition_status.looping && report.engine.frame.saturating_add(1) >= end_frame {
             break;
         }
         if args
@@ -1490,6 +1685,12 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
     if let Some((code, message)) = stream_failure {
         return Err(Failure::operational("play", code, message));
     }
+    let audition_inspection = inspection_from_parts(
+        audition_status,
+        &mix_graph,
+        report.engine,
+        &audition_plan.transient_bypass,
+    );
     Ok(Success {
         command: "play",
         human: format!(
@@ -1504,6 +1705,7 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
             "candidate_was_active": candidate.revision == active.revision,
             "elapsed_seconds": started.elapsed().as_secs_f64(),
             "range": range_data,
+            "audition": audition_inspection,
             "telemetry": report,
         }),
     })
@@ -2615,6 +2817,58 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             set_track_pan(&bundle, track, *value).map_err(|error| {
                 Failure::blocked(
                     "edit.track_pan",
+                    "edit_rejected",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?,
+            summary,
+        ),
+        EditCommand::ProcessorSetting {
+            processor,
+            setting,
+            value,
+            summary,
+        } => (
+            set_processor_setting(&bundle, processor, setting, value).map_err(|error| {
+                Failure::blocked(
+                    "edit.processor_setting",
+                    "edit_rejected",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?,
+            summary,
+        ),
+        EditCommand::ProcessorBypass {
+            processor,
+            bypass,
+            summary,
+        } => {
+            let target = ParameterTarget::Processor {
+                processor: processor.clone(),
+                parameter: "bypass".to_owned(),
+            };
+            (
+                set_parameter_target(&bundle, &target, f64::from(*bypass)).map_err(|error| {
+                    Failure::blocked(
+                        "edit.processor_bypass",
+                        "edit_rejected",
+                        error.to_string(),
+                        json!([]),
+                    )
+                })?,
+                summary,
+            )
+        }
+        EditCommand::ProcessorMove {
+            processor,
+            direction,
+            summary,
+        } => (
+            move_processor(&bundle, processor, (*direction).into()).map_err(|error| {
+                Failure::blocked(
+                    "edit.processor_move",
                     "edit_rejected",
                     error.to_string(),
                     json!([]),

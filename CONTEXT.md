@@ -212,7 +212,27 @@ A delivery WAV captured from an explicitly selected Track or Group at its `pre_f
 
 ### Audition State
 
-Transient workspace state used to Solo, cue, or monitor part of the running project without changing the authored mix. It is not Authoritative Source and does not affect offline rendering; Solo preserves the upstream and Return paths needed to hear the selected material.
+Transient workspace state used to play, pause, seek, loop, Solo, cue, bypass, or monitor part of the Active Revision without changing the authored mix. It is not Authoritative Source, Project History, or offline-render state. Referenced Durable Domain IDs are re-resolved when a runtime is published; a missing or invalid target is reported while the prior audible runtime continues.
+
+### Audition Plan
+
+One inspectable request naming an Active Revision target, an Audition Path, an exact half-open range, loop policy, and monitoring-only processor-bypass, Solo, and cue overrides. Track, Clip, Pattern, Media Asset, sampler Mapping, and durable sample Occurrence targets use source identities rather than runtime indexes. Correct seek preparation and deterministic preroll happen away from the audio callback before the prepared runtime is published at a block boundary.
+
+### Audition Path
+
+The explicit depth at which selected material is monitored before the common non-authoritative monitoring safety stage: `raw` is the decoded and Project-rate-converted asset region; `mapping` includes sampler mapping/occurrence behavior and the Instrument post chain; `channel` selects a Track's pre- or post-fader Channel Strip tap; and `master` follows the complete authored route. Selecting a path does not rewrite routing or create a render dependency.
+
+### Transient Processor Bypass
+
+An Audition State override addressed by a processor's song-wide Durable Domain ID. It affects Monitoring only, is excluded from Authoritative Source, Project History, and offline rendering, and uses a short guarded transition to a full-output-latency-aligned dry path. The wet processor continues to run silently so detector, delay, and tail state survive re-enable.
+
+### Durable Processor Bypass
+
+The source-backed boolean `bypass` value on a processor. It is a step Parameter, affects playback and offline rendering after Project Publication, preserves the processor's declared output latency, and is changed only through a checked source edit. A missing directive means `false` and may be inserted by that edit.
+
+### Processor Chain Order
+
+The authoritative declaration order of processor blocks within one Instrument, Track, Group, Return, or Master owner. A checked adjacent move retains the processor ID and complete block with attached leading comments; moving across owner chains is invalid. Reorder is a topology change and uses protective runtime publication.
 
 ### Event
 

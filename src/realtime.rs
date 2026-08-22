@@ -66,6 +66,10 @@ enum AuditionCommand {
         identity: Option<AuditionChannelIdentity>,
         tap: crate::model::TapPoint,
     },
+    SetProcessorBypass {
+        identity: AuditionChannelIdentity,
+        bypass: Option<bool>,
+    },
 }
 
 /// Realtime playback health sampled without locking the callback.
@@ -87,6 +91,8 @@ pub struct PlayerTelemetry {
     pub processing_errors: u64,
     /// True while old/new revisions are crossfading.
     pub transition_active: bool,
+    /// True while the callback emits silence without advancing transport.
+    pub paused: bool,
     /// Whether a PipeWire MIDI source is currently streaming.
     pub midi_connected: bool,
     /// MIDI messages consumed by the audio callback.
@@ -238,6 +244,7 @@ mod native {
     enum AudioCommand {
         Publish(Box<SongRuntime>),
         Audition(AuditionCommand),
+        SetPaused(bool),
         Stop,
     }
 
@@ -264,6 +271,7 @@ mod native {
         processing_errors: u64,
         midi_events: u64,
         midi_was_connected: bool,
+        paused: bool,
         stopping: bool,
         stream_status: Arc<AtomicU8>,
         midi_connected: Arc<AtomicBool>,
@@ -318,6 +326,7 @@ mod native {
                 ),
                 processing_errors: self.processing_errors,
                 transition_active: self.transition.is_some(),
+                paused: self.paused,
                 midi_connected: self.midi_was_connected,
                 midi_events: self.midi_events,
                 midi_dropped: self.midi_dropped.load(Ordering::Relaxed),
@@ -327,6 +336,9 @@ mod native {
         }
 
         fn process_frame(&mut self) -> [f32; 2] {
+            if self.paused {
+                return [0.0, 0.0];
+            }
             let Some(transition) = self.transition.as_mut() else {
                 return match self.current.process_frame(ProcessingMode::Monitoring) {
                     Ok(sample) => sample,
@@ -383,12 +395,10 @@ mod native {
                 self.stopping = true;
                 return;
             }
-            // The producer admits at most one replacement until its predecessor
-            // has been retired off the Active slot. Waiting here also prevents a
-            // callback from ever owning current + next + queued replacement.
-            if self.transition.is_some() || self.pending_reclaim.is_some() {
-                return;
-            }
+            // The producer-side reservation prevents another Publish while a
+            // transition or retired runtime is resident. Continue draining
+            // callback-local controls so pause/resume and Stop cannot deadlock
+            // behind a transition that is itself paused.
             while let Ok(command) = self.commands.pop() {
                 match command {
                     AudioCommand::Publish(runtime) => {
@@ -396,6 +406,7 @@ mod native {
                         break;
                     }
                     AudioCommand::Audition(command) => self.audition(command),
+                    AudioCommand::SetPaused(paused) => self.paused = paused,
                     AudioCommand::Stop => {
                         self.current.all_notes_off();
                         if let Some(transition) = self.transition.as_mut() {
@@ -467,6 +478,9 @@ mod native {
             AuditionCommand::SetChannelCue { identity, tap } => {
                 let _ = runtime
                     .set_channel_cue(identity.as_ref().map(AuditionChannelIdentity::as_str), tap);
+            }
+            AuditionCommand::SetProcessorBypass { identity, bypass } => {
+                let _ = runtime.set_processor_bypass(identity.as_str(), bypass);
             }
         }
     }
@@ -773,6 +787,27 @@ mod native {
             })
         }
 
+        /// Sets or clears one monitoring-only processor bypass override.
+        pub fn set_processor_bypass(
+            &mut self,
+            processor_id: &str,
+            bypass: Option<bool>,
+        ) -> Result<(), RealtimeError> {
+            self.push_audition(AuditionCommand::SetProcessorBypass {
+                identity: AuditionChannelIdentity::new(processor_id)?,
+                bypass,
+            })
+        }
+
+        /// Pauses or resumes without destroying the runtime or advancing transport.
+        pub fn set_paused(&mut self, paused: bool) -> Result<(), RealtimeError> {
+            self.commands
+                .as_mut()
+                .ok_or(RealtimeError::ThreadStopped)?
+                .push(AudioCommand::SetPaused(paused))
+                .map_err(|PushError::Full(_)| RealtimeError::QueueFull)
+        }
+
         /// Selects the zero-based Track that receives transient PipeWire MIDI.
         pub fn set_audition_track(&mut self, track_index: usize) {
             self.selected_track.store(track_index, Ordering::Release);
@@ -921,6 +956,7 @@ mod native {
             processing_errors: 0,
             midi_events: 0,
             midi_was_connected: false,
+            paused: false,
             stopping: false,
             stream_status: Arc::clone(&stream_status),
             midi_connected: Arc::clone(&midi_connected),
@@ -1136,6 +1172,52 @@ mod native {
         }
 
         #[test]
+        fn pause_resume_commands_are_consumed_during_a_publication_transition() {
+            let document = crate::dsl::parse_project(
+                std::path::Path::new("project.crump"),
+                include_str!("../tests/fixtures/minimal.crump"),
+            );
+            let project = document.project.expect("parsed fixture");
+            let compiled = crate::engine::CompiledProject::compile(&project).expect("compile");
+            let (mut commands, command_consumer) = RingBuffer::new(4);
+            let (_midi, midi_consumer) = RingBuffer::new(4);
+            let (reclaimed, _reclaim_consumer) = RingBuffer::new(2);
+            let (telemetry, _telemetry_consumer) = RingBuffer::new(2);
+            let mut callback = CallbackState {
+                current: Box::new(compiled.runtime()),
+                transition: None,
+                pending_reclaim: None,
+                publication_in_flight: Arc::new(AtomicBool::new(true)),
+                commands: command_consumer,
+                midi: midi_consumer,
+                reclaimed,
+                telemetry,
+                callbacks: 0,
+                late_callbacks: 0,
+                callback_utilization: 0.0,
+                peak_callback_utilization: 0.0,
+                utilization_histogram: [0; 256],
+                processing_errors: 0,
+                midi_events: 0,
+                midi_was_connected: false,
+                paused: true,
+                stopping: false,
+                stream_status: Arc::new(AtomicU8::new(encode_status(StreamStatus::Streaming))),
+                midi_connected: Arc::new(AtomicBool::new(false)),
+                midi_dropped: Arc::new(AtomicU64::new(0)),
+                midi_panic: Arc::new(AtomicBool::new(false)),
+            };
+            callback.begin_transition(Box::new(compiled.runtime()));
+            assert!(callback.transition.is_some());
+
+            commands.push(AudioCommand::SetPaused(false)).unwrap();
+            callback.consume_commands();
+
+            assert!(!callback.paused);
+            assert!(callback.transition.is_some());
+        }
+
+        #[test]
         fn output_frames_respect_pipewire_request_and_capacity() {
             assert_eq!(requested_output_frames(12_288 * FRAME_BYTES, 1_024), 1_024);
             assert_eq!(requested_output_frames(12_288 * FRAME_BYTES, 0), 12_288);
@@ -1307,6 +1389,20 @@ impl PipeWirePlayer {
         _identity: Option<&str>,
         _tap: crate::model::TapPoint,
     ) -> Result<(), RealtimeError> {
+        Err(RealtimeError::Unavailable)
+    }
+
+    /// Reports that this build lacks transient processor bypass control.
+    pub fn set_processor_bypass(
+        &mut self,
+        _processor_id: &str,
+        _bypass: Option<bool>,
+    ) -> Result<(), RealtimeError> {
+        Err(RealtimeError::Unavailable)
+    }
+
+    /// Reports that this build lacks native pause control.
+    pub fn set_paused(&mut self, _paused: bool) -> Result<(), RealtimeError> {
         Err(RealtimeError::Unavailable)
     }
 

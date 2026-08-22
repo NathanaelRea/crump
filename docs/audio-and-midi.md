@@ -19,18 +19,37 @@ PipeWire/WirePlumber selects and routes the default stereo sink. Use the normal 
 
 ```bash
 crump --project ./song play
-crump --project ./song play --seconds 10
+crump --project ./song play --target pattern/verse --from intro --to chorus --loop-range
+crump --project ./song play --target asset/snare --path raw \
+  --sample-start-frame 120 --sample-end-frame 24000 --seconds 2
+crump --project ./song play --target mapping/kit/snare/drums --path mapping \
+  --bypass drum_bus_comp --plan
 ```
 
 `play` compiles the exact Active Revision. In a terminal, `Ctrl-C`, `q`, or Escape stops early. Native setup and first-callback waits are each bounded to 10 seconds; a backend error, premature stop/disconnect, or callback timeout exits as an operational failure instead of waiting indefinitely. The JSON result reports Active/Candidate identity, elapsed time, peak, callback count, late-callback count, processing errors, transition state, voice count, MIDI state, and dropped MIDI count.
 
-The Production Workspace uses the same adapter and can publish new Active runtimes while playing.
+The Production Workspace uses the same audition planner and adapter and can publish new Active runtimes while playing. `--plan` resolves, compiles, prerolls, and reports the complete audition inspection without opening audio.
+
+## Audition targets, paths, ranges, and bypass
+
+One `engine::audition` interface serves CLI, workspace, and tests. Targets are stable source identities: Song, Track, Clip, Pattern, Media Asset, sampler Mapping, or durable sample Occurrence. An optional Track disambiguates Clip, Pattern, Mapping, or Occurrence targets when needed. Exact `--from` and `--to` operands accept Musical Time or Locator IDs and resolve to a validated half-open frame range. A raw target without an explicit end uses the selected resampled source region's natural frame length, even when it is shorter or longer than the Song. `--loop-range` is monitoring-only.
+
+Monitoring depth is explicit:
+
+- `raw` reads only the decoded, Project-rate-converted asset region before the common non-authoritative monitoring safety stage;
+- `mapping` applies sampler mapping or occurrence treatment plus the Instrument post chain;
+- `channel-pre` / `channel-post` select the consuming Track's Channel Strip tap; and
+- `master` follows the complete authored routing graph, including Sends, Returns, Groups, sidechains, and Master.
+
+Correct seek is not a callback cursor jump. Crump compiles and deterministically prerolls from Song zero away from the callback, applies target/path/range plus transient bypass, Solo, and cue state, and publishes the prepared runtime at a block boundary. Loop rewinds scheduled voices at the exact exclusive end while shared processor state continues. Compatible publication retains the complete Audition Plan when the referenced IDs still resolve; the callback maps its publication-time offset or loop phase into any moved valid bounds rather than trusting earlier controller telemetry.
+
+A repeatable `--bypass PROCESSOR_ID` and the workspace `b` key set monitoring-only transient bypass. The workspace `B` key and `edit processor-bypass ID true|false` change the durable source value and Project History. Both paths retain the processor's complete output latency and keep wet DSP running silently. A fixed 64-frame dry/wet guard protects monitoring-only transient toggles; authored durable bypass remains sample-exact step state in both realtime and offline processing. Transient state is ignored by offline rendering.
 
 ## Real-time callback contract
 
 Before connecting a stream, Crump parses, validates, compiles schedules/topology, allocates all graph voices and delay/reverb buffers, and constructs the complete runtime. The PipeWire process callback performs only:
 
-- bounded pops from fixed-capacity single-producer/single-consumer rings;
+- bounded pops from fixed-capacity single-producer/single-consumer rings, including pause and transient bypass commands;
 - bounded point-Automation and effective-value evaluation at the authored sample frame;
 - fixed Track/voice/Node DSP work;
 - writes into PipeWire's mapped output buffer;
@@ -66,7 +85,7 @@ Candidate bytes never enter playback directly. On a successful publication while
 
 1. the controller loads the exact committed Active snapshot;
 2. validates and compiles it away from the process callback;
-3. initializes it at the controller's latest transport frame;
+3. re-resolves the active Audition Plan and deterministically prepares it at the retained transport frame or exact range start;
 4. sends one boxed, fully allocated runtime through a bounded queue; and
 5. realigns it to the callback's exact current frame and runs a bounded 10 ms protective transition.
 

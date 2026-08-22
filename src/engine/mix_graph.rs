@@ -160,6 +160,10 @@ pub struct CompiledProcessorInspection {
     pub kind: ProcessorKind,
     /// Owning Instrument or channel identity.
     pub owner: String,
+    /// Durable source-backed bypass state.
+    pub authored_bypass: bool,
+    /// Bypassed processors continue processing so tails and detector state survive re-enable.
+    pub state_policy: ProcessorStatePolicy,
     /// Every effective runtime setting, including explicit defaults.
     pub settings: Vec<CompiledProcessorSettingInspection>,
     /// Named auxiliary stereo inputs.
@@ -182,6 +186,14 @@ pub struct CompiledProcessorInspection {
     pub state_bytes: u64,
     /// Abstract callback work units per rendered frame used by admission.
     pub work_units_per_frame: u64,
+}
+
+/// Mutable-state policy while a processor's output follows its aligned dry path.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProcessorStatePolicy {
+    /// The wet processor continues receiving Audio while bypassed.
+    Continue,
 }
 
 /// One complete source-to-Master signal path.
@@ -1631,6 +1643,7 @@ pub(crate) struct MixGraphRuntime {
 
 #[derive(Debug, Clone, Copy, Default)]
 struct ChannelTapSamples {
+    source: [f32; 2],
     pre_fader: [f32; 2],
     post_fader: [f32; 2],
 }
@@ -1690,8 +1703,10 @@ impl MixGraphRuntime {
                     auxiliary_inputs,
                     controls,
                     processor_meters,
+                    audition,
                 );
             }
+            let source = sample;
             for processor in &mut state.inserts {
                 sample = process_processor(
                     processor,
@@ -1699,6 +1714,7 @@ impl MixGraphRuntime {
                     auxiliary_inputs,
                     controls,
                     processor_meters,
+                    audition,
                 );
             }
             let pre_fader = sample;
@@ -1713,6 +1729,7 @@ impl MixGraphRuntime {
             }
             let post_fader = sample;
             channel_taps[index] = ChannelTapSamples {
+                source,
                 pre_fader,
                 post_fader,
             };
@@ -1831,6 +1848,38 @@ impl MixGraphRuntime {
         true
     }
 
+    /// Sets or clears a monitoring-only bypass override on every runtime instance
+    /// of one song-wide durable processor ID.
+    pub(crate) fn set_processor_bypass(
+        &mut self,
+        id: &str,
+        bypass: Option<bool>,
+        controls: &[f64],
+    ) -> usize {
+        let mut changed = 0;
+        let meters = &mut self.processor_meters;
+        for processor in self.channels.iter_mut().flat_map(|channel| {
+            channel
+                .source_processors
+                .iter_mut()
+                .chain(&mut channel.inserts)
+        }) {
+            if processor.processor.id() == id {
+                processor.processor.set_transient_bypass(bypass);
+                let (authored, transient, effective, mix) =
+                    processor.processor.bypass_state(controls, true);
+                if let Some(meter) = meters.get_mut(processor.telemetry_index) {
+                    meter.authored_bypass = authored;
+                    meter.transient_bypass = transient;
+                    meter.effective_bypass = effective;
+                    meter.bypass_mix = mix;
+                }
+                changed += 1;
+            }
+        }
+        changed
+    }
+
     /// Moves compatible shared DSP, compensation, meter, and audition state.
     #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn adopt_state_from(&mut self, current: &mut Self) {
@@ -1847,11 +1896,22 @@ impl MixGraphRuntime {
         std::mem::swap(&mut self.cue, &mut current.cue);
     }
 
+    pub(crate) fn channel_index(&self, identity: &str) -> Option<usize> {
+        self.program
+            .channels
+            .iter()
+            .position(|channel| channel.identity == identity)
+    }
+
     pub(crate) fn channel_tap(&self, index: usize, tap: TapPoint) -> Option<[f32; 2]> {
         self.channel_taps.get(index).map(|samples| match tap {
             TapPoint::PreFader => samples.pre_fader,
             TapPoint::PostFader => samples.post_fader,
         })
+    }
+
+    pub(crate) fn source_tap(&self, index: usize) -> Option<[f32; 2]> {
+        self.channel_taps.get(index).map(|samples| samples.source)
     }
 
     pub(crate) fn channel_activity(&self) -> ([ChannelMeter; MAX_MIX_CHANNELS], usize) {
@@ -1972,6 +2032,7 @@ fn process_processor(
     auxiliary_inputs: &[[f32; 2]],
     controls: &[f64],
     processor_meters: &mut [ProcessorMeter],
+    audition: bool,
 ) -> [f32; 2] {
     let mut sidechain: Option<[f32; 2]> = None;
     for slot in &processor.auxiliary_slots {
@@ -1983,11 +2044,16 @@ fn process_processor(
             sidechain = Some(input);
         }
     }
-    let output = processor.processor.process(sample, sidechain, controls);
-    if let Some(gain_reduction_db) = processor.processor.gain_reduction_db()
-        && let Some(meter) = processor_meters.get_mut(processor.telemetry_index)
-    {
-        meter.observe_gain_reduction(gain_reduction_db);
+    let output = processor
+        .processor
+        .process_with_audition(sample, sidechain, controls, audition);
+    if let Some(meter) = processor_meters.get_mut(processor.telemetry_index) {
+        if let Some(gain_reduction_db) = processor.processor.gain_reduction_db() {
+            meter.observe_gain_reduction(gain_reduction_db);
+        }
+        let (authored, transient, effective, mix) =
+            processor.processor.bypass_state(controls, audition);
+        meter.observe_processing(sample, output, authored, transient, effective, mix);
     }
     output
 }
@@ -2031,12 +2097,41 @@ pub struct ProcessorMeter {
     pub gain_reduction_db: f32,
     /// Maximum compressor gain reduction observed since runtime creation.
     pub maximum_gain_reduction_db: f32,
+    /// Current absolute stereo input peak.
+    pub input_peak: f32,
+    /// Current absolute stereo output peak.
+    pub output_peak: f32,
+    /// Authored bypass value at the current control frame.
+    pub authored_bypass: bool,
+    /// Monitoring-only override, when active.
+    pub transient_bypass: Option<bool>,
+    /// Effective bypass target for the current processing mode.
+    pub effective_bypass: bool,
+    /// Click-guard blend, where zero is wet and one is latency-aligned dry.
+    pub bypass_mix: f32,
 }
 
 impl ProcessorMeter {
     fn observe_gain_reduction(&mut self, gain_reduction_db: f32) {
         self.gain_reduction_db = gain_reduction_db.max(0.0);
         self.maximum_gain_reduction_db = self.maximum_gain_reduction_db.max(self.gain_reduction_db);
+    }
+
+    fn observe_processing(
+        &mut self,
+        input: [f32; 2],
+        output: [f32; 2],
+        authored: bool,
+        transient: Option<bool>,
+        effective: bool,
+        mix: f32,
+    ) {
+        self.input_peak = input[0].abs().max(input[1].abs());
+        self.output_peak = output[0].abs().max(output[1].abs());
+        self.authored_bypass = authored;
+        self.transient_bypass = transient;
+        self.effective_bypass = effective;
+        self.bypass_mix = mix;
     }
 }
 
@@ -2169,6 +2264,8 @@ fn compile_processor_chain(
                 id: processor.id.clone(),
                 kind: processor.kind,
                 owner: owner.to_owned(),
+                authored_bypass: processor.bypass,
+                state_policy: ProcessorStatePolicy::Continue,
                 settings: resolved_processor_settings(processor, tempo_bpm)?,
                 sidechain_inputs: processor.sidechain_inputs.clone(),
                 authored_latency_frames: program.authored_latency_frames(),
@@ -3197,7 +3294,7 @@ mod tests {
             delay.state_bytes,
             std::mem::size_of::<ProcessorRuntime>() as u64
                 + (18_000_u64 + 2) * std::mem::size_of::<[f32; 2]>() as u64
-                + std::mem::size_of::<[f32; 2]>() as u64
+                + 2 * std::mem::size_of::<[f32; 2]>() as u64
         );
 
         let conflicting = source.replace(

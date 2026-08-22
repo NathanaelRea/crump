@@ -17,8 +17,10 @@ use crate::{
     media::{AssetReadError, MAX_MEDIA_ASSET_BYTES, read_regular_asset_bytes, valid_asset_path},
     model::{
         AutomationInterpolation, AutomationLane, AutomationPoint, Clip, ClipMode, DrumVoice,
-        ParameterTarget, PatternEvent, Track, Unit, ValueSite, format_pitch,
+        ParameterTarget, PatternEvent, Processor, ProcessorSetting, Track, Unit, ValueSite,
+        format_pitch,
     },
+    processor_semantics::resolve_settings,
     project::{
         ProjectBundle, ProjectIoError, RevisionId, load_project, load_project_sources_with_assets,
     },
@@ -402,6 +404,20 @@ pub fn set_parameter_target(
     if let Some(site) = parameter_target_site(project, target) {
         return Ok(CheckedReplacement::at(site, spec.unit.format_value(value)));
     }
+    if let ParameterTarget::Processor {
+        processor,
+        parameter,
+    } = target
+        && parameter == "bypass"
+    {
+        return insert_processor_value(
+            bundle,
+            project,
+            processor,
+            "bypass",
+            if value >= 0.5 { "true" } else { "false" },
+        );
+    }
     if matches!(
         target,
         ParameterTarget::Track {
@@ -418,6 +434,167 @@ pub fn set_parameter_target(
         return insert_channel_mute(bundle, project, target, value >= 0.5);
     }
     Err(EditError::UnknownTarget(target.to_string()))
+}
+
+/// Builds a checked exact-literal edit for one processor setting.
+///
+/// Existing settings replace only their value token. Missing supported settings are inserted at
+/// the end of the processor block without rewriting neighboring source or comments.
+pub fn set_processor_setting(
+    bundle: &ProjectBundle,
+    processor_id: &str,
+    key: &str,
+    value: &str,
+) -> Result<CheckedReplacement, EditError> {
+    if value.is_empty() || value.chars().any(char::is_whitespace) {
+        return Err(EditError::InvalidValue(
+            "processor setting values must be one non-empty source token".to_owned(),
+        ));
+    }
+    let project = bundle.project.as_ref().ok_or(EditError::InvalidBase)?;
+    let processor = project_processors(project)
+        .find(|candidate| candidate.id == processor_id)
+        .ok_or_else(|| EditError::UnknownTarget(format!("Processor `{processor_id}`")))?;
+    let mut candidate = processor.clone();
+    if let Some(setting) = candidate
+        .settings
+        .iter_mut()
+        .find(|setting| setting.key == key)
+    {
+        setting.value = value.to_owned();
+    } else {
+        candidate.settings.push(ProcessorSetting {
+            key: key.to_owned(),
+            value: value.to_owned(),
+            value_site: ValueSite::new(
+                processor.location.file.clone(),
+                processor.location.start,
+                processor.location.start,
+                value,
+            ),
+            location: processor.location.clone(),
+        });
+    }
+    resolve_settings(&candidate, project.song.tempo_bpm)
+        .map_err(|error| EditError::InvalidValue(error.compile_message(&candidate)))?;
+    if let Some(setting) = processor.settings.iter().find(|setting| setting.key == key) {
+        Ok(CheckedReplacement::at(&setting.value_site, value))
+    } else {
+        insert_processor_value(
+            bundle,
+            project,
+            processor_id,
+            "setting",
+            &format!("{key} {value}"),
+        )
+    }
+}
+
+/// Direction of a one-position processor-chain move.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessorMove {
+    /// Move toward the start of the authored chain.
+    Earlier,
+    /// Move toward the end of the authored chain.
+    Later,
+}
+
+/// Moves one processor block by one position while retaining its exact block text and immediately
+/// attached leading comments.
+pub fn move_processor(
+    bundle: &ProjectBundle,
+    processor_id: &str,
+    direction: ProcessorMove,
+) -> Result<CheckedReplacement, EditError> {
+    let project = bundle.project.as_ref().ok_or(EditError::InvalidBase)?;
+    let (chain, index) = processor_chain(project, processor_id)
+        .ok_or_else(|| EditError::UnknownTarget(format!("Processor `{processor_id}`")))?;
+    let neighbor_index = match direction {
+        ProcessorMove::Earlier => index.checked_sub(1),
+        ProcessorMove::Later => (index + 1 < chain.len()).then_some(index + 1),
+    }
+    .ok_or_else(|| {
+        EditError::InvalidValue(format!(
+            "Processor `{processor_id}` is already at that end of its chain"
+        ))
+    })?;
+    let current = source_block_with_attached_comments(bundle, &chain[index].location)?;
+    let neighbor = source_block_with_attached_comments(bundle, &chain[neighbor_index].location)?;
+    if current.file != neighbor.file {
+        return Err(EditError::InvalidValue(
+            "one processor chain cannot be reordered across source files".to_owned(),
+        ));
+    }
+    let source = bundle
+        .sources
+        .get(&current.file)
+        .ok_or_else(|| EditError::UnknownSource(current.file.clone()))?;
+    let (first, second) = if current.start < neighbor.start {
+        (&current, &neighbor)
+    } else {
+        (&neighbor, &current)
+    };
+    if first.end > second.start {
+        return Err(EditError::OverlappingOrInvalidRange(current.file));
+    }
+    let first_text = &source[first.start..first.end];
+    let gap = &source[first.end..second.start];
+    let second_text = &source[second.start..second.end];
+    Ok(CheckedReplacement {
+        file: first.file.clone(),
+        start: first.start,
+        end: second.end,
+        expected: source[first.start..second.end].to_owned(),
+        replacement: format!("{second_text}{gap}{first_text}"),
+    })
+}
+
+fn processor_chain<'a>(
+    project: &'a crate::model::Project,
+    processor_id: &str,
+) -> Option<(&'a [Processor], usize)> {
+    for chain in project
+        .song
+        .instruments
+        .iter()
+        .map(|instrument| instrument.post_processors.as_slice())
+        .chain(
+            project
+                .song
+                .tracks
+                .iter()
+                .map(|track| track.channel.inserts.as_slice()),
+        )
+        .chain(
+            project
+                .song
+                .groups
+                .iter()
+                .map(|group| group.channel.inserts.as_slice()),
+        )
+        .chain(
+            project
+                .song
+                .returns
+                .iter()
+                .map(|channel| channel.channel.inserts.as_slice()),
+        )
+        .chain(
+            project
+                .song
+                .master
+                .iter()
+                .map(|master| master.inserts.as_slice()),
+        )
+    {
+        if let Some(index) = chain
+            .iter()
+            .position(|processor| processor.id == processor_id)
+        {
+            return Some((chain, index));
+        }
+    }
+    None
 }
 
 fn parameter_target_site<'a>(
@@ -480,50 +657,85 @@ fn parameter_target_site<'a>(
         ParameterTarget::Processor {
             processor,
             parameter,
-        } => project
-            .song
-            .instruments
-            .iter()
-            .flat_map(|instrument| &instrument.post_processors)
-            .chain(
-                project
-                    .song
-                    .tracks
+        } => {
+            let processor =
+                project_processors(project).find(|candidate| candidate.id == *processor)?;
+            if parameter == "bypass" {
+                processor.bypass_site.as_ref()
+            } else {
+                processor
+                    .settings
                     .iter()
-                    .flat_map(|track| &track.channel.inserts),
-            )
-            .chain(
-                project
-                    .song
-                    .groups
-                    .iter()
-                    .flat_map(|group| &group.channel.inserts),
-            )
-            .chain(
-                project
-                    .song
-                    .returns
-                    .iter()
-                    .flat_map(|channel| &channel.channel.inserts),
-            )
-            .chain(
-                project
-                    .song
-                    .master
-                    .iter()
-                    .flat_map(|master| &master.inserts),
-            )
-            .find(|candidate| candidate.id == *processor)?
-            .settings
-            .iter()
-            .find(|setting| setting.key == *parameter)
-            .map(|setting| &setting.value_site),
+                    .find(|setting| setting.key == *parameter)
+                    .map(|setting| &setting.value_site)
+            }
+        }
         ParameterTarget::Master => project
             .song
             .master
             .as_ref()
             .map(|master| &master.level_site),
     }
+}
+
+fn project_processors(project: &crate::model::Project) -> impl Iterator<Item = &Processor> {
+    project
+        .song
+        .instruments
+        .iter()
+        .flat_map(|instrument| &instrument.post_processors)
+        .chain(
+            project
+                .song
+                .tracks
+                .iter()
+                .flat_map(|track| &track.channel.inserts),
+        )
+        .chain(
+            project
+                .song
+                .groups
+                .iter()
+                .flat_map(|group| &group.channel.inserts),
+        )
+        .chain(
+            project
+                .song
+                .returns
+                .iter()
+                .flat_map(|channel| &channel.channel.inserts),
+        )
+        .chain(
+            project
+                .song
+                .master
+                .iter()
+                .flat_map(|master| &master.inserts),
+        )
+}
+
+fn insert_processor_value(
+    bundle: &ProjectBundle,
+    project: &crate::model::Project,
+    processor_id: &str,
+    key: &str,
+    value: &str,
+) -> Result<CheckedReplacement, EditError> {
+    let processor = project_processors(project)
+        .find(|candidate| candidate.id == processor_id)
+        .ok_or_else(|| EditError::UnknownTarget(format!("Processor `{processor_id}`")))?;
+    let (file, start, indentation) = block_insertion(
+        bundle,
+        &processor.location,
+        &format!("Processor `{processor_id}`"),
+    )?;
+    Ok(CheckedReplacement {
+        file,
+        start,
+        end: start,
+        expected: String::new(),
+        replacement: format!("{indentation}{key} {value}\n"),
+    })
 }
 
 fn insert_channel_mute(
@@ -3220,6 +3432,37 @@ fn block_insertion(
     ))
 }
 
+fn source_block_with_attached_comments(
+    bundle: &ProjectBundle,
+    location: &SourceLocation,
+) -> Result<CheckedReplacement, EditError> {
+    let source = bundle
+        .sources
+        .get(&location.file)
+        .ok_or_else(|| EditError::UnknownSource(location.file.clone()))?;
+    let (mut start, end) = line_bounds(source, location)?;
+    while start > 0 {
+        let previous_end = start - 1;
+        let previous_start = source[..previous_end]
+            .rfind('\n')
+            .map_or(0, |index| index + 1);
+        if !source[previous_start..previous_end]
+            .trim_start()
+            .starts_with('#')
+        {
+            break;
+        }
+        start = previous_start;
+    }
+    Ok(CheckedReplacement {
+        file: location.file.clone(),
+        start,
+        end,
+        expected: source[start..end].to_owned(),
+        replacement: String::new(),
+    })
+}
+
 fn line_replacement(
     bundle: &ProjectBundle,
     location: &SourceLocation,
@@ -4429,6 +4672,86 @@ project "Sampler Edits" {{
                 .expect("edited target");
             assert_eq!(spec.base, value, "{target}");
         }
+    }
+
+    #[test]
+    fn processor_edits_preserve_exact_blocks_comments_and_history() {
+        let directory = tempdir().unwrap();
+        let source = include_str!("../tests/fixtures/production_mix.crump").replace(
+            "      processor master_limiter limiter {",
+            "      # mastering ceiling\n      processor master_limiter limiter {",
+        );
+        fs::write(directory.path().join("project.crump"), source).unwrap();
+        let publication = |summary| {
+            Publication::new(
+                ChangeOrigin::human("tester"),
+                summary,
+                "Processing View change",
+            )
+        };
+
+        let bundle = load_project(directory.path()).unwrap();
+        apply_structured_edit(
+            directory.path(),
+            &bundle.revision,
+            vec![set_processor_setting(&bundle, "master_saturation", "drive", "1.75").unwrap()],
+            publication("Set exact processor setting"),
+        )
+        .unwrap();
+
+        let bundle = load_project(directory.path()).unwrap();
+        let target = ParameterTarget::Processor {
+            processor: "master_saturation".to_owned(),
+            parameter: "bypass".to_owned(),
+        };
+        apply_structured_edit(
+            directory.path(),
+            &bundle.revision,
+            vec![set_parameter_target(&bundle, &target, 1.0).unwrap()],
+            publication("Bypass processor"),
+        )
+        .unwrap();
+
+        let bundle = load_project(directory.path()).unwrap();
+        apply_structured_edit(
+            directory.path(),
+            &bundle.revision,
+            vec![move_processor(&bundle, "master_limiter", ProcessorMove::Earlier).unwrap()],
+            publication("Reorder mastering processors"),
+        )
+        .unwrap();
+
+        let changed = fs::read_to_string(directory.path().join("project.crump")).unwrap();
+        assert!(changed.contains("setting drive 1.75"));
+        assert!(changed.contains("bypass true"));
+        let limiter = changed.find("processor master_limiter").unwrap();
+        let comment = changed.find("# mastering ceiling").unwrap();
+        let saturation = changed.find("processor master_saturation").unwrap();
+        assert!(comment < limiter && limiter < saturation);
+
+        let bundle = load_project(directory.path()).unwrap();
+        let project = bundle.project.expect("edited Project");
+        let master = project.song.master.expect("Master");
+        assert_eq!(master.inserts[0].id, "master_limiter");
+        assert_eq!(master.inserts[1].id, "master_saturation");
+        assert!(master.inserts[1].bypass);
+        assert_eq!(
+            master.inserts[1]
+                .settings
+                .iter()
+                .find(|setting| setting.key == "drive")
+                .unwrap()
+                .value,
+            "1.75"
+        );
+        assert_eq!(
+            HistoryStore::open(directory.path())
+                .unwrap()
+                .list()
+                .unwrap()
+                .len(),
+            3
+        );
     }
 
     #[test]

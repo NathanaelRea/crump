@@ -1,7 +1,7 @@
 //! Ratatui production workspace over the terminal-independent Project model.
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     io::{self, Stdout},
     path::{Path, PathBuf},
     process::Command,
@@ -31,13 +31,17 @@ use ratatui::{
 use crate::{
     diagnostic::Severity,
     edit::{
-        apply_structured_edit, fade_sample_occurrence, set_automation_point_at,
-        set_automation_point_interpolation, set_automation_point_value, set_event_at,
-        set_event_velocity, set_hit_voice, set_note_duration, set_note_pitch, set_parameter,
-        set_parameter_target, set_sample_occurrence_gain, set_sample_occurrence_pan,
-        set_track_level, set_track_pan, trim_sample_occurrence,
+        ProcessorMove, apply_structured_edit, fade_sample_occurrence, move_processor,
+        set_automation_point_at, set_automation_point_interpolation, set_automation_point_value,
+        set_event_at, set_event_velocity, set_hit_voice, set_note_duration, set_note_pitch,
+        set_parameter, set_parameter_target, set_processor_setting, set_sample_occurrence_gain,
+        set_sample_occurrence_pan, set_track_level, set_track_pan, trim_sample_occurrence,
     },
-    engine::CompiledProject,
+    engine::audition::{
+        AuditionCue, AuditionPath, AuditionPlan, AuditionPrepareOptions, AuditionRange,
+        AuditionStatus, AuditionTarget,
+    },
+    engine::{CompiledProject, mix_graph::MixGraphInspection},
     history::{ChangeOrigin, HistoryEntry, HistoryStore, Publication, write_atomic},
     model::{
         AutomationInterpolation, AutomationLane, AutomationPoint, DrumVoice, InstrumentKind,
@@ -50,9 +54,10 @@ use crate::{
 const TICK_RATE: Duration = Duration::from_millis(40);
 const REFRESH_RATE: Duration = Duration::from_millis(400);
 const AUDITION_TIMEOUT: Duration = Duration::from_millis(700);
-const VIEWS: [View; 11] = [
+const VIEWS: [View; 12] = [
     View::Timeline,
     View::Mixer,
+    View::Processing,
     View::EventGrid,
     View::Faceplate,
     View::Parameters,
@@ -200,6 +205,7 @@ impl Drop for TerminalSession {
 enum View {
     Timeline,
     Mixer,
+    Processing,
     EventGrid,
     Faceplate,
     Parameters,
@@ -216,6 +222,7 @@ impl View {
         match self {
             Self::Timeline => "Timeline",
             Self::Mixer => "Mixer",
+            Self::Processing => "Processing",
             Self::EventGrid => "Event Grid",
             Self::Faceplate => "Faceplate",
             Self::Parameters => "Parameters",
@@ -239,6 +246,7 @@ struct Workspace {
     view: View,
     selected_track: usize,
     selected_mixer_parameter: usize,
+    selected_processor: usize,
     selected_pattern: usize,
     selected_event: usize,
     selected_instrument: usize,
@@ -253,11 +261,13 @@ struct Workspace {
     status: String,
     quit: bool,
     player: Option<PipeWirePlayer>,
+    playback_paused: bool,
     pending_audio_revision: Option<RevisionId>,
     telemetry: PlayerTelemetry,
     mix_channel_identities: Vec<String>,
-    soloed_channels: BTreeSet<String>,
-    cue_channel: Option<(String, TapPoint)>,
+    processing_graph: Option<MixGraphInspection>,
+    audition_plan: AuditionPlan,
+    audition_status: Option<AuditionStatus>,
     held_notes: BTreeMap<char, HeldNote>,
     next_note_id: u64,
     audition_loop: Option<String>,
@@ -304,6 +314,11 @@ enum InputAction {
     TrackPan {
         track: String,
     },
+    ProcessorSetting {
+        processor: String,
+    },
+    AuditionTarget,
+    AuditionRange,
     AutomationValue {
         lane: String,
         point: String,
@@ -360,6 +375,7 @@ impl Workspace {
         let bundle = load_project(path)?;
         let root = bundle.root.clone();
         let (active_entry, active_revision, history, active_project) = history_state(&root)?;
+        let processing_graph = candidate_processing_graph(&bundle);
         let mut workspace = Self {
             root,
             bundle,
@@ -370,6 +386,7 @@ impl Workspace {
             view: View::Timeline,
             selected_track: 0,
             selected_mixer_parameter: 0,
+            selected_processor: 0,
             selected_pattern: 0,
             selected_event: 0,
             selected_instrument: 0,
@@ -384,11 +401,13 @@ impl Workspace {
             status: "Ready · ? opens keyboard help".to_owned(),
             quit: false,
             player: None,
+            playback_paused: false,
             pending_audio_revision: None,
             telemetry: PlayerTelemetry::default(),
             mix_channel_identities: Vec::new(),
-            soloed_channels: BTreeSet::new(),
-            cue_channel: None,
+            processing_graph,
+            audition_plan: AuditionPlan::default(),
+            audition_status: None,
             held_notes: BTreeMap::new(),
             next_note_id: 1 << 32,
             audition_loop: None,
@@ -416,7 +435,7 @@ impl Workspace {
         let active_changed = state.1 != self.active_revision;
         let runtime_publication_attempted = active_changed && self.player.is_some();
         if active_changed {
-            self.publish_runtime_for_active(state.1.as_ref());
+            self.publish_runtime_for_active(state.1.as_ref(), false);
         }
         let candidate_changed = candidate.revision != self.bundle.revision;
         self.bundle = candidate;
@@ -424,6 +443,9 @@ impl Workspace {
         self.active_revision = state.1;
         self.history = state.2;
         self.active_project = state.3;
+        if self.player.is_none() {
+            self.processing_graph = candidate_processing_graph(&self.bundle);
+        }
         self.clamp_selections();
         if candidate_changed {
             if self.bundle.diagnostics.has_errors() {
@@ -441,7 +463,7 @@ impl Workspace {
         }
     }
 
-    fn publish_runtime_for_active(&mut self, revision: Option<&RevisionId>) {
+    fn publish_runtime_for_active(&mut self, revision: Option<&RevisionId>, explicit_seek: bool) {
         let Some(revision) = revision else {
             return;
         };
@@ -480,44 +502,53 @@ impl Workspace {
             self.status = "Active Revision snapshot is invalid".to_owned();
             return;
         };
-        let compiled = match CompiledProject::compile_with_assets(project, &active.assets) {
-            Ok(compiled) => compiled,
+        let previous_range = self
+            .audition_status
+            .as_ref()
+            .map(|status| (status.start_frame, status.end_frame));
+        let resume_range_offset = if explicit_seek {
+            None
+        } else {
+            self.audition_status.as_ref().map(|status| {
+                let next_frame = self.telemetry.engine.frame.saturating_add(1);
+                if status.looping {
+                    let length = status.end_frame.saturating_sub(status.start_frame).max(1);
+                    next_frame.saturating_sub(status.start_frame) % length
+                } else {
+                    next_frame
+                        .clamp(status.start_frame, status.end_frame.saturating_sub(1))
+                        .saturating_sub(status.start_frame)
+                }
+            })
+        };
+        let prepared = match self.audition_plan.prepare_with_options(
+            &active.revision,
+            project,
+            &active.assets,
+            AuditionPrepareOptions {
+                initial_frame: None,
+                initial_range_offset: resume_range_offset,
+                explicit_seek,
+            },
+        ) {
+            Ok(prepared) => prepared,
             Err(error) => {
-                self.status = format!("Audio compile failed: {error}");
+                self.status = format!(
+                    "Active audition target no longer compiles; prior revision remains audible: {error}"
+                );
                 return;
             }
         };
-        let mix_channel_identities = compiled
-            .mix_graph_inspection()
+        let status = prepared.status().clone();
+        let range_moved =
+            previous_range.is_some_and(|range| range != (status.start_frame, status.end_frame));
+        let processing_graph = prepared.mix_graph_inspection().clone();
+        let mix_channel_identities = processing_graph
             .channels
             .iter()
             .map(|channel| channel.identity.clone())
             .collect::<Vec<_>>();
-        let mut runtime = compiled.runtime();
-        self.apply_mixer_audition_state(&mut runtime);
-        let loop_range = self.audition_loop.as_deref().and_then(|pattern_id| {
-            match audition_loop_range(project, pattern_id) {
-                Ok(range) => Some(range),
-                Err(error) => {
-                    self.status = format!("Audition loop disabled: {error}");
-                    None
-                }
-            }
-        });
-        if self.audition_loop.is_some() && loop_range.is_none() {
-            self.audition_loop = None;
-        }
-        let target = loop_range.map_or_else(
-            || self.telemetry.engine.frame.saturating_add(1),
-            |(start, end)| self.telemetry.engine.frame.clamp(start, end - 1),
-        );
-        runtime.seek_transport(target);
-        if let Some((start, end)) = loop_range
-            && let Err(error) = runtime.enable_audition_loop(start, end)
-        {
-            self.status = format!("Audition loop preparation failed: {error}");
-            return;
-        }
+        let runtime = prepared.into_runtime();
         let Some(player) = self.player.as_mut() else {
             self.status = "Playback stopped before publication could be queued".to_owned();
             return;
@@ -526,9 +557,15 @@ impl Workspace {
             Ok(()) => {
                 self.pending_audio_revision = None;
                 self.mix_channel_identities = mix_channel_identities;
-                self.status =
-                    "Active Revision queued · compatible controls ramp; topology changes fade"
+                self.processing_graph = Some(processing_graph);
+                self.audition_status = Some(status);
+                self.status = if range_moved {
+                    "Active audition queued · moved range will map the callback's exact relative offset"
                         .to_owned()
+                } else {
+                    "Active audition queued · range-relative transport retained; compatible controls ramp"
+                        .to_owned()
+                };
             }
             Err(RealtimeError::QueueFull) => {
                 self.pending_audio_revision = Some(revision.clone());
@@ -560,16 +597,7 @@ impl Workspace {
             false
         };
         if publication_ready && let Some(revision) = self.pending_audio_revision.clone() {
-            self.publish_runtime_for_active(Some(&revision));
-        }
-    }
-
-    fn apply_mixer_audition_state(&self, runtime: &mut crate::engine::SongRuntime) {
-        for identity in &self.soloed_channels {
-            let _ = runtime.set_channel_solo(identity, true);
-        }
-        if let Some((identity, tap)) = &self.cue_channel {
-            let _ = runtime.set_channel_cue(Some(identity), *tap);
+            self.publish_runtime_for_active(Some(&revision), false);
         }
     }
 
@@ -586,7 +614,7 @@ impl Workspace {
             self.status = "Master Solo is undefined; Solo a Track, Group, or Return".to_owned();
             return;
         }
-        let enabled = !self.soloed_channels.contains(&identity);
+        let enabled = !self.audition_plan.soloed_channels.contains(&identity);
         if let Some(player) = self.player.as_mut()
             && let Err(error) = player.set_channel_solo(&identity, enabled)
         {
@@ -594,9 +622,9 @@ impl Workspace {
             return;
         }
         if enabled {
-            self.soloed_channels.insert(identity.clone());
+            self.audition_plan.soloed_channels.insert(identity.clone());
         } else {
-            self.soloed_channels.remove(&identity);
+            self.audition_plan.soloed_channels.remove(&identity);
         }
         self.status = format!(
             "Solo {} for `{identity}` (transient monitoring only)",
@@ -614,25 +642,34 @@ impl Workspace {
             return;
         };
         let next = if self
-            .cue_channel
+            .audition_plan
+            .cue
             .as_ref()
-            .is_some_and(|(current, current_tap)| current == &identity && *current_tap == tap)
+            .is_some_and(|current| current.channel == identity && current.tap == tap)
         {
             None
         } else {
-            Some((identity.clone(), tap))
+            Some(AuditionCue {
+                channel: identity.clone(),
+                tap,
+            })
         };
         if let Some(player) = self.player.as_mut()
             && let Err(error) =
-                player.set_channel_cue(next.as_ref().map(|(identity, _)| identity.as_str()), tap)
+                player.set_channel_cue(next.as_ref().map(|cue| cue.channel.as_str()), tap)
         {
             self.status = format!("Cue command delayed: {error}");
             return;
         }
-        self.cue_channel = next;
-        self.status = self.cue_channel.as_ref().map_or_else(
+        self.audition_plan.cue = next;
+        self.status = self.audition_plan.cue.as_ref().map_or_else(
             || "Cue cleared (transient monitoring only)".to_owned(),
-            |(identity, tap)| format!("Cue {:?} for `{identity}` (transient monitoring only)", tap),
+            |cue| {
+                format!(
+                    "Cue {:?} for `{}` (transient monitoring only)",
+                    cue.tap, cue.channel
+                )
+            },
         );
     }
 
@@ -657,13 +694,310 @@ impl Workspace {
         );
     }
 
+    fn selected_processor_inspection(
+        &self,
+    ) -> Option<&crate::engine::mix_graph::CompiledProcessorInspection> {
+        self.processing_graph
+            .as_ref()?
+            .processors
+            .get(self.selected_processor)
+    }
+
+    fn open_processor_setting(&mut self) {
+        let Some(inspection) = self.selected_processor_inspection() else {
+            self.status = "Select a processor before editing settings".to_owned();
+            return;
+        };
+        let processor_id = inspection.id.clone();
+        let authored = self
+            .bundle
+            .project
+            .as_ref()
+            .and_then(|project| project_processor(project, &processor_id))
+            .and_then(|processor| processor.settings.first())
+            .map(|setting| format!("{} {}", setting.key, setting.value));
+        let resolved = inspection.settings.first().map(|setting| {
+            let value = setting.choice.clone().unwrap_or_else(|| {
+                setting
+                    .unit
+                    .zip(setting.value)
+                    .map_or_else(|| "0".to_owned(), |(unit, value)| unit.format_value(value))
+            });
+            format!("{} {value}", setting.key)
+        });
+        let Some(value) = authored.or(resolved) else {
+            self.status = format!("Processor `{processor_id}` has no editable settings");
+            return;
+        };
+        self.modal = Some(Modal::Input {
+            title: format!("Processor Setting · {processor_id}"),
+            prompt: "Enter exact `KEY VALUE`; missing supported keys are inserted".to_owned(),
+            value,
+            replace_on_type: false,
+            action: InputAction::ProcessorSetting {
+                processor: processor_id,
+            },
+        });
+    }
+
+    fn toggle_transient_processor_bypass(&mut self) {
+        if self.player.is_none() && !self.candidate_is_active() {
+            self.status =
+                "Publish the Candidate before changing transient Active audition state".to_owned();
+            return;
+        }
+        let Some(inspection) = self.selected_processor_inspection() else {
+            self.status = "Select a processor before changing audition bypass".to_owned();
+            return;
+        };
+        let processor = inspection.id.clone();
+        let authored = inspection.authored_bypass;
+        let next =
+            (!self.audition_plan.transient_bypass.contains_key(&processor)).then_some(!authored);
+        if let Some(player) = self.player.as_mut()
+            && let Err(error) = player.set_processor_bypass(&processor, next)
+        {
+            self.status = format!("Transient bypass command delayed: {error}");
+            return;
+        }
+        if let Some(bypass) = next {
+            self.audition_plan
+                .transient_bypass
+                .insert(processor.clone(), bypass);
+            self.status = format!(
+                "Processor `{processor}` transient bypass override = {bypass} · source unchanged"
+            );
+        } else {
+            self.audition_plan.transient_bypass.remove(&processor);
+            self.status = format!(
+                "Processor `{processor}` follows durable bypass = {authored} · source unchanged"
+            );
+        }
+    }
+
+    fn toggle_durable_processor_bypass(&mut self) {
+        let Some(inspection) = self.selected_processor_inspection() else {
+            self.status = "Select a processor before changing durable bypass".to_owned();
+            return;
+        };
+        let processor = inspection.id.clone();
+        let bypass = !inspection.authored_bypass;
+        let target = ParameterTarget::Processor {
+            processor: processor.clone(),
+            parameter: "bypass".to_owned(),
+        };
+        self.apply_replacement(
+            set_parameter_target(&self.bundle, &target, f64::from(bypass)),
+            format!("Set Processor {processor} durable bypass to {bypass}"),
+        );
+    }
+
+    fn move_selected_processor(&mut self, direction: ProcessorMove) {
+        let Some(processor) = self
+            .selected_processor_inspection()
+            .map(|processor| processor.id.clone())
+        else {
+            self.status = "Select a processor before reordering the chain".to_owned();
+            return;
+        };
+        self.apply_replacement(
+            move_processor(&self.bundle, &processor, direction),
+            format!("Move Processor {processor} {direction:?}"),
+        );
+    }
+
+    fn activate_audition_plan(&mut self, plan: AuditionPlan) {
+        let active = match HistoryStore::open(&self.root).and_then(|store| store.active_bundle()) {
+            Ok(Some(active)) => active,
+            Ok(None) => {
+                self.status = "Publish a valid Candidate before selecting an audition".to_owned();
+                return;
+            }
+            Err(error) => {
+                self.status = format!("Cannot load Active Revision: {error}");
+                return;
+            }
+        };
+        let Some(project) = active.publishable() else {
+            self.status = "Active Revision snapshot is invalid".to_owned();
+            return;
+        };
+        let prepared = match plan.prepare_with_options(
+            &active.revision,
+            project,
+            &active.assets,
+            AuditionPrepareOptions {
+                initial_frame: None,
+                initial_range_offset: None,
+                explicit_seek: true,
+            },
+        ) {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                self.status = format!("Audition selection rejected: {error}");
+                return;
+            }
+        };
+        let status = prepared.status().clone();
+        let graph = prepared.mix_graph_inspection().clone();
+        self.mix_channel_identities = graph
+            .channels
+            .iter()
+            .map(|channel| channel.identity.clone())
+            .collect();
+        self.processing_graph = Some(graph);
+        self.audition_status = Some(status.clone());
+        self.audition_plan = plan;
+        self.audition_loop = match (&status.target, status.looping) {
+            (AuditionTarget::Pattern { pattern, .. }, true) => Some(pattern.clone()),
+            _ => None,
+        };
+        self.clamp_selections();
+        if self.player.is_some() {
+            let revision = self.active_revision.clone();
+            self.publish_runtime_for_active(revision.as_ref(), true);
+        } else {
+            self.status = format!(
+                "Audition armed: {:?} via {:?} · frames {}..{}{}",
+                status.target,
+                status.path,
+                status.start_frame,
+                status.end_frame,
+                if status.looping { " · looped" } else { "" }
+            );
+        }
+    }
+
+    fn cycle_audition_path(&mut self) {
+        let paths: &[AuditionPath] = match &self.audition_plan.target {
+            AuditionTarget::Song => &[AuditionPath::Master],
+            AuditionTarget::Track { .. } | AuditionTarget::Clip { .. } => &[
+                AuditionPath::Master,
+                AuditionPath::Channel {
+                    tap: TapPoint::PreFader,
+                },
+                AuditionPath::Channel {
+                    tap: TapPoint::PostFader,
+                },
+            ],
+            AuditionTarget::Pattern { track: Some(_), .. } => &[
+                AuditionPath::Master,
+                AuditionPath::Channel {
+                    tap: TapPoint::PreFader,
+                },
+                AuditionPath::Channel {
+                    tap: TapPoint::PostFader,
+                },
+            ],
+            AuditionTarget::Pattern { track: None, .. } => &[AuditionPath::Master],
+            AuditionTarget::Asset { .. } => &[AuditionPath::Raw],
+            AuditionTarget::Mapping { track: Some(_), .. }
+            | AuditionTarget::Occurrence { track: Some(_), .. } => &[
+                AuditionPath::Raw,
+                AuditionPath::Mapping,
+                AuditionPath::Channel {
+                    tap: TapPoint::PreFader,
+                },
+                AuditionPath::Channel {
+                    tap: TapPoint::PostFader,
+                },
+                AuditionPath::Master,
+            ],
+            AuditionTarget::Mapping { track: None, .. }
+            | AuditionTarget::Occurrence { track: None, .. } => &[
+                AuditionPath::Raw,
+                AuditionPath::Mapping,
+                AuditionPath::Master,
+            ],
+        };
+        let current = paths
+            .iter()
+            .position(|path| *path == self.audition_plan.path)
+            .unwrap_or(0);
+        let mut plan = self.audition_plan.clone();
+        plan.path = paths[(current + 1) % paths.len()];
+        self.activate_audition_plan(plan);
+    }
+
+    fn arm_selected_audition(&mut self) {
+        if !self.candidate_is_active() {
+            self.status = "Publish the selected Candidate before auditioning it".to_owned();
+            return;
+        }
+        let Some(project) = self.bundle.project.as_ref() else {
+            return;
+        };
+        let mut plan = self.audition_plan.clone();
+        plan.range = AuditionRange::default();
+        match self.view {
+            View::Timeline => {
+                let Some(track) = project.song.tracks.get(self.selected_track) else {
+                    self.status = "Select a Track before auditioning".to_owned();
+                    return;
+                };
+                plan.target = AuditionTarget::Track {
+                    track: track.id.clone(),
+                };
+                plan.path = AuditionPath::Channel {
+                    tap: TapPoint::PostFader,
+                };
+            }
+            View::EventGrid => {
+                let Some(pattern) = project.song.patterns.get(self.selected_pattern) else {
+                    self.status = "Select a Pattern before auditioning".to_owned();
+                    return;
+                };
+                if let Some(PatternEvent::Sample { id, mapping, .. }) =
+                    pattern.events.get(self.selected_event)
+                {
+                    let mut matching_tracks = project.song.tracks.iter().filter(|track| {
+                        track.clips.iter().any(|clip| clip.pattern == pattern.id)
+                            && project.song.instruments.iter().any(|instrument| {
+                                instrument.id == track.instrument
+                                    && instrument.sampler.as_ref().is_some_and(|sampler| {
+                                        sampler
+                                            .mappings
+                                            .iter()
+                                            .any(|candidate| candidate.id == *mapping)
+                                    })
+                            })
+                    });
+                    let track = matching_tracks.next().and_then(|first| {
+                        matching_tracks.next().is_none().then(|| first.id.clone())
+                    });
+                    plan.target = AuditionTarget::Occurrence {
+                        pattern: pattern.id.clone(),
+                        occurrence: id.clone(),
+                        track,
+                    };
+                    plan.path = AuditionPath::Mapping;
+                } else {
+                    plan.target = AuditionTarget::Pattern {
+                        pattern: pattern.id.clone(),
+                        track: None,
+                    };
+                    plan.path = AuditionPath::Master;
+                }
+            }
+            _ => return,
+        }
+        self.activate_audition_plan(plan);
+    }
+
     fn toggle_playback(&mut self) {
-        if let Some(player) = self.player.take() {
-            let _ = player.shutdown();
-            self.pending_audio_revision = None;
-            self.telemetry = PlayerTelemetry::default();
-            self.held_notes.clear();
-            self.status = "Playback stopped".to_owned();
+        if let Some(player) = self.player.as_mut() {
+            let paused = !self.playback_paused;
+            match player.set_paused(paused) {
+                Ok(()) => {
+                    self.playback_paused = paused;
+                    self.status = if paused {
+                        "Audition paused · Space resumes; S stops".to_owned()
+                    } else {
+                        "Audition resumed".to_owned()
+                    };
+                }
+                Err(error) => self.status = format!("Pause command delayed: {error}"),
+            }
             return;
         }
         let active = match HistoryStore::open(&self.root).and_then(|store| store.active_bundle()) {
@@ -681,51 +1015,55 @@ impl Workspace {
             self.status = "Active Revision snapshot is invalid".to_owned();
             return;
         };
-        let compiled = match CompiledProject::compile_with_assets(project, &active.assets) {
-            Ok(compiled) => compiled,
+        let prepared = match self
+            .audition_plan
+            .prepare(&active.revision, project, &active.assets)
+        {
+            Ok(prepared) => prepared,
             Err(error) => {
-                self.status = format!("Audio compile failed: {error}");
+                self.status = format!("Cannot prepare audition: {error}");
                 return;
             }
         };
-        let mix_channel_identities = compiled
-            .mix_graph_inspection()
+        let status = prepared.status().clone();
+        let processing_graph = prepared.mix_graph_inspection().clone();
+        let mix_channel_identities = processing_graph
             .channels
             .iter()
             .map(|channel| channel.identity.clone())
             .collect::<Vec<_>>();
-        let mut runtime = compiled.runtime();
-        self.apply_mixer_audition_state(&mut runtime);
-        let loop_label = if let Some(pattern_id) = self.audition_loop.as_deref() {
-            let (start, end) = match audition_loop_range(project, pattern_id) {
-                Ok(range) => range,
-                Err(error) => {
-                    self.status = format!("Cannot start audition loop: {error}");
-                    return;
-                }
-            };
-            runtime.seek_transport(start);
-            if let Err(error) = runtime.enable_audition_loop(start, end) {
-                self.status = format!("Cannot prepare audition loop: {error}");
-                return;
-            }
-            Some(pattern_id.to_owned())
-        } else {
-            None
-        };
+        let runtime = prepared.into_runtime();
         match PipeWirePlayer::start(runtime) {
             Ok(mut player) => {
                 player.set_audition_track(self.audition_track());
                 self.pending_audio_revision = None;
+                self.playback_paused = false;
                 self.mix_channel_identities = mix_channel_identities;
+                self.processing_graph = Some(processing_graph);
+                self.audition_status = Some(status.clone());
                 self.player = Some(player);
-                self.status = loop_label.map_or_else(
-                    || "Playing Active Revision · PipeWire MIDI audition enabled".to_owned(),
-                    |pattern| format!("Looping Audition Phrase `{pattern}` · L disables"),
+                self.status = format!(
+                    "Auditioning {:?} via {:?}{} · Space pauses; S stops",
+                    status.target,
+                    status.path,
+                    if status.looping { " · looped" } else { "" }
                 );
             }
             Err(error) => self.status = format!("Playback unavailable: {error}"),
         }
+    }
+
+    fn stop_playback(&mut self) {
+        let Some(player) = self.player.take() else {
+            self.status = "Audition is already stopped".to_owned();
+            return;
+        };
+        let _ = player.shutdown();
+        self.playback_paused = false;
+        self.pending_audio_revision = None;
+        self.telemetry = PlayerTelemetry::default();
+        self.held_notes.clear();
+        self.status = "Audition stopped · target, range, and bypass state remain armed".to_owned();
     }
 
     fn toggle_audition_loop(&mut self) {
@@ -734,8 +1072,9 @@ impl Workspace {
                 "Publish the selected Candidate before arming its Audition Phrase".to_owned();
             return;
         }
-        let next = if self.audition_loop.is_some() {
-            None
+        if self.audition_loop.is_some() {
+            self.audition_loop = None;
+            self.audition_plan.range.looping = false;
         } else {
             let Some(pattern_id) = self
                 .bundle
@@ -747,38 +1086,26 @@ impl Workspace {
                 self.status = "Select a Pattern before enabling an Audition Phrase loop".to_owned();
                 return;
             };
-            let active =
-                match HistoryStore::open(&self.root).and_then(|store| store.active_bundle()) {
-                    Ok(Some(active)) => active,
-                    Ok(None) => {
-                        self.status = "Publish a valid Candidate before looping".to_owned();
-                        return;
-                    }
-                    Err(error) => {
-                        self.status = format!("Cannot load Active Revision: {error}");
-                        return;
-                    }
-                };
-            let Some(project) = active.publishable() else {
-                self.status = "Active Revision snapshot is invalid".to_owned();
-                return;
+            self.audition_loop = Some(pattern_id.clone());
+            self.audition_plan.target = AuditionTarget::Pattern {
+                pattern: pattern_id,
+                track: None,
             };
-            if let Err(error) = audition_loop_range(project, &pattern_id) {
-                self.status = format!("Cannot loop selected Pattern: {error}");
-                return;
-            }
-            Some(pattern_id)
-        };
+            self.audition_plan.path = AuditionPath::Master;
+            self.audition_plan.range = AuditionRange {
+                looping: true,
+                ..AuditionRange::default()
+            };
+        }
 
-        self.audition_loop = next;
         if self.player.is_some() {
             let revision = self.active_revision.clone();
-            self.publish_runtime_for_active(revision.as_ref());
+            self.publish_runtime_for_active(revision.as_ref(), true);
         } else if let Some(pattern) = self.audition_loop.as_deref() {
             self.status =
-                format!("Audition Phrase `{pattern}` armed · Space starts looped playback");
+                format!("Pattern audition `{pattern}` armed · exact loop starts with Space");
         } else {
-            self.status = "Audition Phrase loop disabled".to_owned();
+            self.status = "Audition loop disabled; target remains armed".to_owned();
         }
     }
 
@@ -798,6 +1125,7 @@ impl Workspace {
                 self.quit = true
             }
             (KeyCode::Char('?'), _) => self.view = View::Help,
+            (KeyCode::Char('H'), _) => self.view = View::History,
             (KeyCode::Tab, KeyModifiers::SHIFT) | (KeyCode::BackTab, _) => self.change_view(-1),
             (KeyCode::Tab, _) => self.change_view(1),
             (KeyCode::Char(character @ '1'..='9'), _) => {
@@ -807,7 +1135,29 @@ impl Workspace {
             (KeyCode::Char('r'), _) => self.refresh(),
             (KeyCode::Char('P'), _) => self.open_publish(),
             (KeyCode::Char(' '), _) => self.toggle_playback(),
+            (KeyCode::Char('S'), _) => self.stop_playback(),
             (KeyCode::Char('L'), _) if self.view == View::EventGrid => self.toggle_audition_loop(),
+            (KeyCode::Char('A'), _) if matches!(self.view, View::Timeline | View::EventGrid) => {
+                self.arm_selected_audition()
+            }
+            (KeyCode::Char('a'), _) if self.view == View::Processing => self.cycle_audition_path(),
+            (KeyCode::Char('A'), _) if self.view == View::Processing => self.open_audition_target(),
+            (KeyCode::Char('F'), _) if self.view == View::Processing => self.open_audition_range(),
+            (KeyCode::Char('L'), _) if self.view == View::Processing => {
+                self.toggle_current_audition_loop()
+            }
+            (KeyCode::Char('b'), _) if self.view == View::Processing => {
+                self.toggle_transient_processor_bypass()
+            }
+            (KeyCode::Char('B'), _) if self.view == View::Processing => {
+                self.toggle_durable_processor_bypass()
+            }
+            (KeyCode::Char('K'), _) if self.view == View::Processing => {
+                self.move_selected_processor(ProcessorMove::Earlier)
+            }
+            (KeyCode::Char('J'), _) if self.view == View::Processing => {
+                self.move_selected_processor(ProcessorMove::Later)
+            }
             (KeyCode::Char('m'), _) if self.view == View::Mixer => self.toggle_mixer_mute(),
             (KeyCode::Char('s'), _) if self.view == View::Mixer => self.toggle_mixer_solo(),
             (KeyCode::Char('c'), _) if self.view == View::Mixer => {
@@ -964,6 +1314,13 @@ impl Workspace {
                     delta,
                 );
             }
+            View::Processing => {
+                let count = self
+                    .processing_graph
+                    .as_ref()
+                    .map_or(0, |graph| graph.processors.len());
+                self.selected_processor = wrap_selection(self.selected_processor, count, delta);
+            }
             View::EventGrid => {
                 self.selected_event = wrap_selection(self.selected_event, self.event_count(), delta)
             }
@@ -999,6 +1356,7 @@ impl Workspace {
         match self.view {
             View::Timeline => self.step_track_level(direction as f64),
             View::Mixer => self.step_mixer_parameter(direction as f64),
+            View::Processing => {}
             View::EventGrid => self.step_note(direction),
             View::Faceplate | View::Parameters => self.step_parameter(direction as f64),
             View::Automation => self.step_automation(direction as f64),
@@ -1017,10 +1375,43 @@ impl Workspace {
         }
     }
 
+    fn open_audition_target(&mut self) {
+        self.modal = Some(Modal::Input {
+            title: "Audition Target".to_owned(),
+            prompt: "song | track/ID | clip/[TRACK/]ID | pattern/ID[/TRACK] | asset/ID[/START/END] | mapping/INSTRUMENT/MAPPING[/TRACK] | occurrence/PATTERN/ID[/TRACK]".to_owned(),
+            value: audition_target_spec(&self.audition_plan.target),
+            replace_on_type: true,
+            action: InputAction::AuditionTarget,
+        });
+    }
+
+    fn open_audition_range(&mut self) {
+        let value = match (&self.audition_plan.range.from, &self.audition_plan.range.to) {
+            (Some(from), Some(to)) => format!("{from} {to}"),
+            _ => String::new(),
+        };
+        self.modal = Some(Modal::Input {
+            title: "Exact Audition Range".to_owned(),
+            prompt:
+                "Enter exact `FROM TO` musical times or Locator IDs; blank restores target bounds"
+                    .to_owned(),
+            value,
+            replace_on_type: true,
+            action: InputAction::AuditionRange,
+        });
+    }
+
+    fn toggle_current_audition_loop(&mut self) {
+        let mut plan = self.audition_plan.clone();
+        plan.range.looping = !plan.range.looping;
+        self.activate_audition_plan(plan);
+    }
+
     fn open_exact_edit(&mut self) {
         match self.view {
             View::Timeline => self.open_track_level(),
             View::Mixer => self.open_mixer_parameter(),
+            View::Processing => self.open_processor_setting(),
             View::EventGrid => self.open_event_primary(),
             View::Faceplate | View::Parameters => self.open_parameter(),
             View::Automation => self.open_automation_value(),
@@ -1565,6 +1956,42 @@ impl Workspace {
                 }
                 Err(error) => self.status = format!("Invalid pan: {error}"),
             },
+            InputAction::ProcessorSetting { processor } => {
+                if let Some((setting, value)) = value.trim().split_once(char::is_whitespace) {
+                    let replacement =
+                        set_processor_setting(&self.bundle, &processor, setting, value.trim());
+                    self.apply_replacement(replacement, format!("Set {processor}.{setting}"));
+                } else {
+                    self.status = "Enter a processor setting as `KEY VALUE`".to_owned();
+                }
+            }
+            InputAction::AuditionTarget => match parse_audition_target(value.trim()) {
+                Ok(target) => {
+                    let mut plan = self.audition_plan.clone();
+                    plan.path = default_audition_path(&target);
+                    plan.target = target;
+                    plan.range = AuditionRange::default();
+                    self.activate_audition_plan(plan);
+                }
+                Err(error) => self.status = error,
+            },
+            InputAction::AuditionRange => {
+                let trimmed = value.trim();
+                let mut plan = self.audition_plan.clone();
+                if trimmed.is_empty() {
+                    plan.range.from = None;
+                    plan.range.to = None;
+                } else {
+                    let values = trimmed.split_whitespace().collect::<Vec<_>>();
+                    if values.len() != 2 {
+                        self.status = "Audition range requires exact `FROM TO` values".to_owned();
+                        return;
+                    }
+                    plan.range.from = Some(values[0].to_owned());
+                    plan.range.to = Some(values[1].to_owned());
+                }
+                self.activate_audition_plan(plan);
+            }
             InputAction::AutomationValue { lane, point } => {
                 let replacement =
                     set_automation_point_value(&self.bundle, &lane, &point, value.trim());
@@ -2053,6 +2480,12 @@ impl Workspace {
         self.selected_track = clamp_index(self.selected_track, self.track_count());
         self.selected_mixer_parameter =
             clamp_index(self.selected_mixer_parameter, self.mixer_parameter_count());
+        self.selected_processor = clamp_index(
+            self.selected_processor,
+            self.processing_graph
+                .as_ref()
+                .map_or(0, |graph| graph.processors.len()),
+        );
         self.selected_pattern = clamp_index(self.selected_pattern, self.pattern_count());
         self.selected_event = clamp_index(self.selected_event, self.event_count());
         self.selected_instrument = clamp_index(self.selected_instrument, self.instrument_count());
@@ -2198,6 +2631,7 @@ fn render(frame: &mut Frame<'_>, app: &Workspace) {
     match app.view {
         View::Timeline => render_timeline(frame, app, regions[2]),
         View::Mixer => render_mixer(frame, app, regions[2]),
+        View::Processing => render_processing(frame, app, regions[2]),
         View::EventGrid => render_event_grid(frame, app, regions[2]),
         View::Faceplate => render_faceplate(frame, app, regions[2]),
         View::Parameters => render_parameters(frame, app, regions[2]),
@@ -2244,12 +2678,21 @@ fn render_header(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         let transport = format!(
             "{}{}",
             transport_label(app),
-            app.audition_loop
-                .as_deref()
-                .map_or_else(String::new, |pattern| format!(" LOOP:{pattern}"))
+            if app.playback_paused { " PAUSED" } else { "" }
         );
+        let audition = app
+            .audition_status
+            .as_ref()
+            .map_or_else(String::new, |status| {
+                format!(
+                    " {} via {:?}{}",
+                    audition_target_spec(&status.target),
+                    status.path,
+                    if status.looping { " LOOP" } else { "" }
+                )
+            });
         format!(
-            " {transport}  {:?}{}  peak {:>5.2}  voices {:>2}  MIDI {}",
+            " {transport}{audition}  {:?}{}  peak {:>5.2}  voices {:>2}  MIDI {}",
             app.telemetry.stream_state,
             if app.telemetry.transition_active {
                 " XFADE/RESTART"
@@ -2265,7 +2708,11 @@ fn render_header(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
             }
         )
     } else {
-        " stopped".to_owned()
+        format!(
+            " stopped · armed {} via {:?}",
+            audition_target_spec(&app.audition_plan.target),
+            app.audition_plan.path
+        )
     };
     let line = Line::from(vec![
         Span::styled(
@@ -2293,6 +2740,7 @@ fn render_tabs(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
             let key = match index {
                 0..=8 => (index + 1).to_string(),
                 9 => "0".to_owned(),
+                10 => "H".to_owned(),
                 _ => "?".to_owned(),
             };
             Line::from(format!("{key} {}", view.title()))
@@ -2457,15 +2905,16 @@ fn render_mixer(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
                 format!(
                     "{}{}{}",
                     if muted { 'M' } else { '·' },
-                    if app.soloed_channels.contains(identity) {
+                    if app.audition_plan.soloed_channels.contains(identity) {
                         'S'
                     } else {
                         '·'
                     },
                     if app
-                        .cue_channel
+                        .audition_plan
+                        .cue
                         .as_ref()
-                        .is_some_and(|(cue, _)| cue == identity)
+                        .is_some_and(|cue| cue.channel == *identity)
                     {
                         'C'
                     } else {
@@ -2539,6 +2988,177 @@ fn render_mixer(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     .highlight_symbol("▶ ");
     let mut state = TableState::default().with_selected(Some(app.selected_mixer_parameter));
     frame.render_stateful_widget(table, area, &mut state);
+}
+
+fn render_processing(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
+    let Some(graph) = app.processing_graph.as_ref() else {
+        render_unavailable(
+            frame,
+            area,
+            "Processing inspection unavailable while the selected Project cannot compile",
+        );
+        return;
+    };
+    let regions = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(6), Constraint::Min(5)])
+        .split(area);
+    let status = app.audition_status.as_ref();
+    let target = status
+        .map(|status| format!("{:?}", status.target))
+        .unwrap_or_else(|| format!("{:?}", app.audition_plan.target));
+    let path = status
+        .map(|status| format!("{:?}", status.path))
+        .unwrap_or_else(|| format!("{:?}", app.audition_plan.path));
+    let range = status.map_or_else(
+        || "target default".to_owned(),
+        |status| {
+            format!(
+                "{}..{} ({} frames){}",
+                status.start_frame,
+                status.end_frame,
+                status.end_frame.saturating_sub(status.start_frame),
+                if status.looping { " loop" } else { "" }
+            )
+        },
+    );
+    let revision = status
+        .map(|status| status.active_revision.to_string())
+        .or_else(|| app.active_revision.as_ref().map(ToString::to_string))
+        .unwrap_or_else(|| "none".to_owned());
+    frame.render_widget(
+        Paragraph::new(vec![
+            Line::from(format!("Target {target}  ·  Path {path}")),
+            Line::from(format!(
+                "Active Revision {revision}  ·  Range {range}  ·  Transport {}{}",
+                transport_label(app),
+                if app.playback_paused { " paused" } else { "" }
+            )),
+            Line::from(
+                "A target · a path · F exact range · L loop · b transient bypass · B durable bypass · Enter setting · K/J reorder",
+            ),
+        ])
+        .block(
+            Block::default()
+                .title(" Unified Audition ")
+                .borders(Borders::ALL),
+        )
+        .wrap(Wrap { trim: true }),
+        regions[0],
+    );
+
+    let rows = graph.processors.iter().map(|processor| {
+        let meter = (processor.index < app.telemetry.engine.processor_count)
+            .then(|| app.telemetry.engine.processor_activity[processor.index]);
+        let transient = app
+            .audition_plan
+            .transient_bypass
+            .get(&processor.id)
+            .copied();
+        let effective = meter.map_or_else(
+            || transient.unwrap_or(processor.authored_bypass),
+            |meter| meter.effective_bypass,
+        );
+        let bypass = format!(
+            "D:{} T:{} E:{}{}",
+            bool_mark(processor.authored_bypass),
+            transient.map_or("—", bool_mark),
+            bool_mark(effective),
+            meter.map_or_else(String::new, |meter| format!(
+                " {:.0}%",
+                meter.bypass_mix * 100.0
+            ))
+        );
+        let settings = processor
+            .settings
+            .iter()
+            .map(|setting| {
+                let value = setting.choice.clone().unwrap_or_else(|| {
+                    setting
+                        .unit
+                        .zip(setting.value)
+                        .map_or_else(|| "—".to_owned(), |(unit, value)| unit.format_value(value))
+                });
+                format!(
+                    "{}={}{}",
+                    setting.key,
+                    value,
+                    if setting.authored { "*" } else { "" }
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        Row::new(vec![
+            processor.index.to_string(),
+            format!("{} / {}", processor.owner, processor.id),
+            format!("{:?}", processor.kind).to_lowercase(),
+            bypass,
+            meter.map_or_else(
+                || "—".to_owned(),
+                |meter| format!("{:.3}", meter.input_peak),
+            ),
+            meter.map_or_else(
+                || "—".to_owned(),
+                |meter| format!("{:.3}", meter.output_peak),
+            ),
+            meter.map_or_else(
+                || "—".to_owned(),
+                |meter| {
+                    format!(
+                        "{:.1}/{:.1}",
+                        meter.gain_reduction_db, meter.maximum_gain_reduction_db
+                    )
+                },
+            ),
+            processor.output_latency_frames.to_string(),
+            settings,
+        ])
+    });
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(4),
+            Constraint::Percentage(22),
+            Constraint::Length(11),
+            Constraint::Length(24),
+            Constraint::Length(7),
+            Constraint::Length(7),
+            Constraint::Length(10),
+            Constraint::Length(7),
+            Constraint::Min(18),
+        ],
+    )
+    .header(
+        Row::new([
+            "#",
+            "Owner / durable ID",
+            "Kind",
+            "Bypass D/T/E",
+            "Input",
+            "Output",
+            "GR now/max",
+            "Latency",
+            "Resolved settings (* authored)",
+        ])
+        .style(Style::default().fg(Color::Cyan)),
+    )
+    .block(
+        Block::default()
+            .title(format!(
+                " Processing chain · {} instances · state continues while bypassed · aligned dry path ",
+                graph.processors.len()
+            ))
+            .borders(Borders::ALL),
+    )
+    .row_highlight_style(selected_style())
+    .highlight_symbol("▶ ");
+    let mut state = TableState::default()
+        .with_selected((!graph.processors.is_empty()).then_some(app.selected_processor));
+    frame.render_stateful_widget(table, regions[1], &mut state);
+}
+
+fn bool_mark(value: bool) -> &'static str {
+    if value { "on" } else { "off" }
 }
 
 fn render_event_grid(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
@@ -3304,9 +3924,9 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from("1–9/0 views · Tab / Shift-Tab next/previous · ↑/↓ select · q quit · r reload"),
+        Line::from("1–9/0 views · H History · ? Help · Tab / Shift-Tab next/previous · ↑/↓ select"),
         Line::from(
-            "Space play/stop exact Active Revision · P inspect/publish valid Candidate · ? help",
+            "Space start/pause/resume exact Active Revision · S stop · P inspect/publish Candidate",
         ),
         Line::from(""),
         Line::from(Span::styled(
@@ -3315,10 +3935,19 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from("Timeline: ←/→ level ±1 dB · Enter/l exact level · p exact pan"),
         Line::from(
-            "Event Grid: t onset · u duration · v velocity · sample x region/f fade/g gain/p pan · L loop",
+            "Timeline: ←/→ level ±1 dB · Enter/l exact level · p exact pan · A Track audition",
         ),
+        Line::from(
+            "Processing: A target · a path · F exact range · L loop · b transient/B durable bypass",
+        ),
+        Line::from(
+            "Processing: Enter exact setting · K/J move processor earlier/later · meters show D/T/E",
+        ),
+        Line::from(
+            "Event Grid: A Pattern/sample audition · t onset · u duration · v velocity · L loop",
+        ),
+        Line::from("Sample occurrence: x region · f fade · g gain · p pan"),
         Line::from("Faceplate / Parameters: ←/→ bounded step · Enter exact physical value"),
         Line::from("Automation: [/] lane · ↑/↓ point · ←/→ value · Enter exact · t time · c curve"),
         Line::from(
@@ -3337,7 +3966,9 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         Line::from(
             "PipeWire MIDI Note On/Off targets the selected Instrument. Disconnect releases all notes.",
         ),
-        Line::from("Audition never edits source and never creates Project History."),
+        Line::from(
+            "Transient bypass and audition selection never edit source; B/settings/reorder are historical edits.",
+        ),
         Line::from(""),
         Line::from(Span::styled(
             "SAFETY",
@@ -3499,46 +4130,205 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
         .split(vertical[1])[1]
 }
 
-fn audition_loop_range(
-    project: &crate::model::Project,
-    pattern_id: &str,
-) -> Result<(u64, u64), String> {
-    let pattern = project
-        .song
-        .patterns
-        .iter()
-        .find(|pattern| pattern.id == pattern_id)
-        .ok_or_else(|| format!("Pattern `{pattern_id}` is not present in the Active Revision"))?;
-    let clip = project
-        .song
-        .tracks
-        .iter()
-        .flat_map(|track| &track.clips)
-        .find(|clip| clip.pattern == pattern_id)
-        .ok_or_else(|| format!("Pattern `{pattern_id}` has no Timeline Clip"))?;
-    let duration = pattern.span.min(clip.duration);
-    let end = clip
-        .start
-        .checked_add(duration)
-        .map_err(|error| error.to_string())?;
-    let start_frame = clip
-        .start
-        .to_frames(project.song.tempo_bpm, project.sample_rate)
-        .map_err(|error| error.to_string())?;
-    let end_frame = end
-        .to_frames(project.song.tempo_bpm, project.sample_rate)
-        .map_err(|error| error.to_string())?;
-    let arrangement_end = project
-        .song
-        .end
-        .to_frames(project.song.tempo_bpm, project.sample_rate)
-        .map_err(|error| error.to_string())?;
-    if start_frame >= end_frame || end_frame > arrangement_end {
-        return Err(format!(
-            "Pattern `{pattern_id}` does not define a positive in-range phrase"
-        ));
+fn audition_target_spec(target: &AuditionTarget) -> String {
+    match target {
+        AuditionTarget::Song => "song".to_owned(),
+        AuditionTarget::Track { track } => format!("track/{track}"),
+        AuditionTarget::Clip { clip, track: None } => format!("clip/{clip}"),
+        AuditionTarget::Clip {
+            clip,
+            track: Some(track),
+        } => format!("clip/{track}/{clip}"),
+        AuditionTarget::Pattern {
+            pattern,
+            track: None,
+        } => format!("pattern/{pattern}"),
+        AuditionTarget::Pattern {
+            pattern,
+            track: Some(track),
+        } => format!("pattern/{pattern}/{track}"),
+        AuditionTarget::Asset {
+            asset,
+            start_frame: None,
+            end_frame: None,
+        } => format!("asset/{asset}"),
+        AuditionTarget::Asset {
+            asset,
+            start_frame,
+            end_frame,
+        } => format!(
+            "asset/{asset}/{}/{}",
+            start_frame.map_or_else(|| "*".to_owned(), |frame| frame.to_string()),
+            end_frame.map_or_else(|| "*".to_owned(), |frame| frame.to_string())
+        ),
+        AuditionTarget::Mapping {
+            instrument,
+            mapping,
+            track: None,
+        } => format!("mapping/{instrument}/{mapping}"),
+        AuditionTarget::Mapping {
+            instrument,
+            mapping,
+            track: Some(track),
+        } => format!("mapping/{instrument}/{mapping}/{track}"),
+        AuditionTarget::Occurrence {
+            pattern,
+            occurrence,
+            track: None,
+        } => format!("occurrence/{pattern}/{occurrence}"),
+        AuditionTarget::Occurrence {
+            pattern,
+            occurrence,
+            track: Some(track),
+        } => format!("occurrence/{pattern}/{occurrence}/{track}"),
     }
-    Ok((start_frame, end_frame))
+}
+
+fn parse_audition_target(value: &str) -> Result<AuditionTarget, String> {
+    let parts = value.split('/').collect::<Vec<_>>();
+    let target = match parts.as_slice() {
+        ["song"] => AuditionTarget::Song,
+        ["track", track] if !track.is_empty() => AuditionTarget::Track {
+            track: (*track).to_owned(),
+        },
+        ["clip", clip] if !clip.is_empty() => AuditionTarget::Clip {
+            clip: (*clip).to_owned(),
+            track: None,
+        },
+        ["clip", track, clip] if !track.is_empty() && !clip.is_empty() => AuditionTarget::Clip {
+            clip: (*clip).to_owned(),
+            track: Some((*track).to_owned()),
+        },
+        ["pattern", pattern] if !pattern.is_empty() => AuditionTarget::Pattern {
+            pattern: (*pattern).to_owned(),
+            track: None,
+        },
+        ["pattern", pattern, track] if !pattern.is_empty() && !track.is_empty() => {
+            AuditionTarget::Pattern {
+                pattern: (*pattern).to_owned(),
+                track: Some((*track).to_owned()),
+            }
+        }
+        ["asset", asset] if !asset.is_empty() => AuditionTarget::Asset {
+            asset: (*asset).to_owned(),
+            start_frame: None,
+            end_frame: None,
+        },
+        ["asset", asset, start, end] if !asset.is_empty() => {
+            let parse_bound = |bound: &str| -> Result<Option<u64>, String> {
+                if bound == "*" {
+                    Ok(None)
+                } else {
+                    bound.parse::<u64>().map(Some).map_err(|_| {
+                        format!("Asset source-frame bound `{bound}` is not an unsigned integer")
+                    })
+                }
+            };
+            let start_frame = parse_bound(start)?;
+            let end_frame = parse_bound(end)?;
+            if let (Some(start), Some(end)) = (start_frame, end_frame)
+                && start >= end
+            {
+                return Err("Asset source-frame start must precede its exclusive end".to_owned());
+            }
+            AuditionTarget::Asset {
+                asset: (*asset).to_owned(),
+                start_frame,
+                end_frame,
+            }
+        }
+        ["mapping", instrument, mapping] if !instrument.is_empty() && !mapping.is_empty() => {
+            AuditionTarget::Mapping {
+                instrument: (*instrument).to_owned(),
+                mapping: (*mapping).to_owned(),
+                track: None,
+            }
+        }
+        ["mapping", instrument, mapping, track]
+            if !instrument.is_empty() && !mapping.is_empty() && !track.is_empty() =>
+        {
+            AuditionTarget::Mapping {
+                instrument: (*instrument).to_owned(),
+                mapping: (*mapping).to_owned(),
+                track: Some((*track).to_owned()),
+            }
+        }
+        ["occurrence", pattern, occurrence] if !pattern.is_empty() && !occurrence.is_empty() => {
+            AuditionTarget::Occurrence {
+                pattern: (*pattern).to_owned(),
+                occurrence: (*occurrence).to_owned(),
+                track: None,
+            }
+        }
+        ["occurrence", pattern, occurrence, track]
+            if !pattern.is_empty() && !occurrence.is_empty() && !track.is_empty() =>
+        {
+            AuditionTarget::Occurrence {
+                pattern: (*pattern).to_owned(),
+                occurrence: (*occurrence).to_owned(),
+                track: Some((*track).to_owned()),
+            }
+        }
+        _ => {
+            return Err("Invalid audition target; use song, track/ID, clip/[TRACK/]ID, pattern/ID[/TRACK], asset/ID[/START/END], mapping/INSTRUMENT/MAPPING[/TRACK], or occurrence/PATTERN/ID[/TRACK]".to_owned());
+        }
+    };
+    Ok(target)
+}
+
+fn default_audition_path(target: &AuditionTarget) -> AuditionPath {
+    match target {
+        AuditionTarget::Asset { .. } => AuditionPath::Raw,
+        AuditionTarget::Mapping { .. } | AuditionTarget::Occurrence { .. } => AuditionPath::Mapping,
+        _ => AuditionPath::Master,
+    }
+}
+
+fn project_processor<'a>(
+    project: &'a Project,
+    processor_id: &str,
+) -> Option<&'a crate::model::Processor> {
+    project
+        .song
+        .instruments
+        .iter()
+        .flat_map(|instrument| &instrument.post_processors)
+        .chain(
+            project
+                .song
+                .tracks
+                .iter()
+                .flat_map(|track| &track.channel.inserts),
+        )
+        .chain(
+            project
+                .song
+                .groups
+                .iter()
+                .flat_map(|group| &group.channel.inserts),
+        )
+        .chain(
+            project
+                .song
+                .returns
+                .iter()
+                .flat_map(|channel| &channel.channel.inserts),
+        )
+        .chain(
+            project
+                .song
+                .master
+                .iter()
+                .flat_map(|master| &master.inserts),
+        )
+        .find(|processor| processor.id == processor_id)
+}
+
+fn candidate_processing_graph(bundle: &ProjectBundle) -> Option<MixGraphInspection> {
+    let project = bundle.publishable()?;
+    CompiledProject::compile_with_assets(project, &bundle.assets)
+        .ok()
+        .map(|compiled| compiled.mix_graph_inspection().clone())
 }
 
 fn mixer_channel_identity(project: &Project, target: &ParameterTarget) -> Option<String> {
@@ -3946,6 +4736,100 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn audition_target_text_round_trips_every_workspace_target() {
+        let targets = [
+            AuditionTarget::Song,
+            AuditionTarget::Track {
+                track: "drums".to_owned(),
+            },
+            AuditionTarget::Clip {
+                clip: "verse".to_owned(),
+                track: None,
+            },
+            AuditionTarget::Clip {
+                clip: "verse".to_owned(),
+                track: Some("drums".to_owned()),
+            },
+            AuditionTarget::Pattern {
+                pattern: "beat".to_owned(),
+                track: Some("drums".to_owned()),
+            },
+            AuditionTarget::Asset {
+                asset: "snare".to_owned(),
+                start_frame: Some(12),
+                end_frame: Some(240),
+            },
+            AuditionTarget::Mapping {
+                instrument: "kit".to_owned(),
+                mapping: "snare".to_owned(),
+                track: Some("drums".to_owned()),
+            },
+            AuditionTarget::Occurrence {
+                pattern: "beat".to_owned(),
+                occurrence: "snare-2".to_owned(),
+                track: None,
+            },
+        ];
+        for target in targets {
+            let spec = audition_target_spec(&target);
+            assert_eq!(parse_audition_target(&spec), Ok(target), "{spec}");
+        }
+        assert!(parse_audition_target("asset/snare/20/10").is_err());
+    }
+
+    #[test]
+    fn processing_view_exposes_source_settings_and_transient_bypass_without_editing() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join("project.crump"),
+            include_str!("../tests/fixtures/production_mix.crump"),
+        )
+        .unwrap();
+        let mut workspace = Workspace::load(directory.path()).unwrap();
+        workspace.view = View::Processing;
+        let source_before = fs::read_to_string(directory.path().join("project.crump")).unwrap();
+        let processor = workspace
+            .selected_processor_inspection()
+            .expect("compiled processor")
+            .id
+            .clone();
+
+        workspace.toggle_transient_processor_bypass();
+        assert!(workspace.audition_plan.transient_bypass.is_empty());
+        assert!(workspace.status.contains("Publish the Candidate"));
+        workspace.commit_input("Initial publication".to_owned(), InputAction::Publish);
+        assert!(workspace.candidate_is_active());
+
+        workspace.open_exact_edit();
+        assert!(matches!(
+            workspace.modal,
+            Some(Modal::Input {
+                action: InputAction::ProcessorSetting { .. },
+                ..
+            })
+        ));
+        workspace.modal = None;
+        workspace.toggle_transient_processor_bypass();
+        assert!(
+            workspace
+                .audition_plan
+                .transient_bypass
+                .contains_key(&processor)
+        );
+        assert_eq!(
+            fs::read_to_string(directory.path().join("project.crump")).unwrap(),
+            source_before
+        );
+        workspace.toggle_transient_processor_bypass();
+        assert!(
+            !workspace
+                .audition_plan
+                .transient_bypass
+                .contains_key(&processor)
+        );
     }
 
     #[test]

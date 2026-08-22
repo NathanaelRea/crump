@@ -299,7 +299,7 @@ mod tests {
     fn parses_the_index_prefix_from_fzf_output() {
         assert_eq!(parse_fzf_index(b"2\t./nested/beta\0"), Some(1));
         assert_eq!(
-            parse_fzf_index(b"query\0enter\02\t./nested/beta\0"),
+            parse_fzf_index(b"query\x00enter\x002\t./nested/beta\x00"),
             Some(1)
         );
         assert_eq!(parse_fzf_index(b"./nested/beta\0"), None);

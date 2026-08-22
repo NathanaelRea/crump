@@ -29,21 +29,27 @@ fn production_fixture_is_portable_three_minute_and_admitted() {
     );
     assert_eq!(duration_seconds, 192.0);
     assert_eq!(bundle.assets.iter().count(), 1);
-    assert!(project
-        .song
-        .instruments
-        .iter()
-        .any(|instrument| instrument.kind == InstrumentKind::Sampler));
-    assert!(project
-        .song
-        .instruments
-        .iter()
-        .any(|instrument| instrument.kind == InstrumentKind::Graph));
-    assert!(project
-        .song
-        .instruments
-        .iter()
-        .any(|instrument| instrument.kind == InstrumentKind::StockDrums));
+    assert!(
+        project
+            .song
+            .instruments
+            .iter()
+            .any(|instrument| instrument.kind == InstrumentKind::Sampler)
+    );
+    assert!(
+        project
+            .song
+            .instruments
+            .iter()
+            .any(|instrument| instrument.kind == InstrumentKind::Graph)
+    );
+    assert!(
+        project
+            .song
+            .instruments
+            .iter()
+            .any(|instrument| instrument.kind == InstrumentKind::StockDrums)
+    );
 
     let compiled = CompiledProject::compile_with_assets(project, &bundle.assets)
         .expect("compile production fixture");

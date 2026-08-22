@@ -134,7 +134,7 @@ A crash after an exchange can leave an unreferenced sibling `.rendering-*` direc
 
 ## Determinism domain
 
-Playback and render use the same semantic schedule and DSP implementation. Stable Event identities and random seeds derive from semantic Project/Event content; authored Track presentation order does not alter those identities. Event sorting, graph topology, voice stealing, drum/noise generation, sampler decode/resampling, finalized-file analysis, and WAV/manifest serialization are deterministic. Portable media identity/history and sampler playback are implemented; Media Tracks and time stretching remain deferred.
+Playback and render use the same semantic schedule and DSP implementation. Stable Event identities and random seeds derive from semantic Project/Event content; authored Track presentation order does not alter those identities. Event sorting, graph topology, voice stealing, drum/noise generation, sampler decode/resampling, finalized-file analysis, and WAV/manifest serialization are deterministic. Durable processor order, settings, and bypass are Authoritative Source and therefore affect both Active playback and render after publication. Audition target/path/range/loop, Solo, cue, pause, and transient processor bypass remain session-only monitoring state and are ignored by offline processing; repeated render tests prove that these overrides do not enter artifact identity. Portable media identity/history and sampler playback are implemented; Media Tracks and time stretching remain deferred.
 
 The byte-identity promise is intentionally bounded. Repeated unchanged renders are expected to produce byte-identical WAV and manifest files only for the same:
 

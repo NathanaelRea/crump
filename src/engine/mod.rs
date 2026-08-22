@@ -1,6 +1,7 @@
 //! Deterministic audio compilation and runtime shared by playback and rendering.
 
 mod analysis;
+pub mod audition;
 pub mod control;
 mod drums;
 mod graph;
@@ -36,7 +37,7 @@ use self::{
         ChannelMeter, CompiledMixGraph, MAX_MIX_CHANNELS, MAX_PROCESSOR_INSTANCES, MixGraphRuntime,
         ProcessorMeter,
     },
-    sample::CompiledSampleLibrary,
+    sample::{CompiledSampleLibrary, CompiledSampleSource},
     sampler::{CompiledSamplerProgram, SamplerRuntime},
     schedule::{ClipEnvelope, MAX_RUNTIME_TRACKS, RuntimeEvent, TrackSchedule, compile_schedules},
 };
@@ -195,7 +196,13 @@ impl CompiledProject {
             arrangement_frames: self.arrangement_frames,
             total_frames: self.total_frames,
             frame: 0,
+            audition_range: None,
             audition_loop: None,
+            audition_output: AuditionMonitorOutput::Master,
+            raw_audition: None,
+            mapping_audition: None,
+            #[cfg(any(feature = "pipewire", test))]
+            audition_seek_requested: false,
             controls: self.controls.runtime(),
             #[cfg(any(feature = "pipewire", test))]
             scalar_control_handoff: false,
@@ -435,6 +442,47 @@ struct TransitionFrame {
     frame: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AuditionMonitorOutput {
+    Master,
+    Channel { index: usize, tap: TapPoint },
+    Source { index: usize },
+    Raw,
+}
+
+#[derive(Debug, Clone)]
+struct RawAuditionRuntime {
+    source: CompiledSampleSource,
+    start: usize,
+    end: usize,
+    cursor: usize,
+}
+
+impl RawAuditionRuntime {
+    fn process(&mut self) -> [f32; 2] {
+        let output = self.source.frame(self.cursor).unwrap_or([0.0, 0.0]);
+        self.cursor = self.cursor.saturating_add(1).min(self.end);
+        output
+    }
+
+    fn rewind(&mut self) {
+        self.cursor = self.start;
+    }
+
+    fn realign(&mut self, range_offset: u64) {
+        let offset = usize::try_from(range_offset).unwrap_or(usize::MAX);
+        self.cursor = self.start.saturating_add(offset).min(self.end);
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct MappingAuditionTrigger {
+    track_index: usize,
+    mapping_index: u16,
+    note_id: u64,
+    velocity: f32,
+}
+
 /// Mutable audio runtime. All vectors and DSP buffers are allocated at creation.
 pub struct SongRuntime {
     project_id: String,
@@ -442,7 +490,13 @@ pub struct SongRuntime {
     arrangement_frames: u64,
     total_frames: u64,
     frame: u64,
+    audition_range: Option<(u64, u64)>,
     audition_loop: Option<(u64, u64)>,
+    audition_output: AuditionMonitorOutput,
+    raw_audition: Option<RawAuditionRuntime>,
+    mapping_audition: Option<MappingAuditionTrigger>,
+    #[cfg(any(feature = "pipewire", test))]
+    audition_seek_requested: bool,
     controls: ControlRuntime,
     #[cfg(any(feature = "pipewire", test))]
     scalar_control_handoff: bool,
@@ -464,12 +518,9 @@ impl SongRuntime {
         if let Some((start, end)) = self.audition_loop
             && self.frame >= end
         {
-            self.frame = start;
-            for track in &mut self.tracks {
-                track.rewind_loop();
-            }
+            self.rewind_audition(start);
         }
-        if self.frame >= self.total_frames {
+        if self.frame >= self.playback_end() {
             self.telemetry.current_peak = 0.0;
             self.telemetry.active_voices = 0;
             self.mix.clear_current_activity();
@@ -492,11 +543,16 @@ impl SongRuntime {
             self.track_sources[index] = sample;
             active_voices += voices;
         }
-        let mut master = self.mix.process(
+        let routed = self.mix.process(
             &self.track_sources[..self.tracks.len()],
             control_values,
             mode == ProcessingMode::Monitoring,
         );
+        let mut master = if mode == ProcessingMode::Monitoring {
+            self.monitor_output(routed)
+        } else {
+            routed
+        };
         if !master.into_iter().all(f32::is_finite) {
             let frame = self.frame;
             if mode == ProcessingMode::Monitoring {
@@ -531,6 +587,52 @@ impl SongRuntime {
 
     pub(crate) fn channel_tap_sample(&self, index: usize, tap: TapPoint) -> Option<[f32; 2]> {
         self.mix.channel_tap(index, tap)
+    }
+
+    fn playback_end(&self) -> u64 {
+        self.audition_range
+            .map_or(self.total_frames, |(_, end)| end.min(self.total_frames))
+    }
+
+    fn monitor_output(&mut self, master: [f32; 2]) -> [f32; 2] {
+        match self.audition_output {
+            AuditionMonitorOutput::Master => master,
+            AuditionMonitorOutput::Channel { index, tap } => {
+                self.mix.channel_tap(index, tap).unwrap_or([0.0, 0.0])
+            }
+            AuditionMonitorOutput::Source { index } => {
+                self.mix.source_tap(index).unwrap_or([0.0, 0.0])
+            }
+            AuditionMonitorOutput::Raw => self
+                .raw_audition
+                .as_mut()
+                .map_or([0.0, 0.0], RawAuditionRuntime::process),
+        }
+    }
+
+    fn rewind_audition(&mut self, start: u64) {
+        self.frame = start;
+        for track in &mut self.tracks {
+            track.rewind_loop();
+        }
+        if let Some(raw) = &mut self.raw_audition {
+            raw.rewind();
+        }
+        if let Some(trigger) = self.mapping_audition {
+            self.fire_mapping_audition(trigger);
+        }
+    }
+
+    fn fire_mapping_audition(&mut self, trigger: MappingAuditionTrigger) -> bool {
+        self.tracks
+            .get_mut(trigger.track_index)
+            .is_some_and(|track| {
+                track.instrument.sampler_mapping_on(
+                    trigger.note_id,
+                    trigger.mapping_index,
+                    trigger.velocity,
+                )
+            })
     }
 
     /// Advances deterministically without retaining output.
@@ -568,7 +670,9 @@ impl SongRuntime {
     /// Clears a replacement on the controller thread before queue ownership moves.
     #[cfg(feature = "pipewire")]
     pub(crate) fn prime_for_publication(&mut self) {
-        self.seek_transport(self.frame);
+        if !self.audition_seek_requested {
+            self.seek_transport(self.frame);
+        }
     }
 
     /// Realigns an already-cleared replacement with bounded cursor-only callback work.
@@ -579,6 +683,9 @@ impl SongRuntime {
         self.telemetry.frame = self.frame;
         for track in &mut self.tracks {
             track.realign_pristine_transport(self.frame);
+        }
+        if let (Some((start, _)), Some(raw)) = (self.audition_range, &mut self.raw_audition) {
+            raw.realign(self.frame.saturating_sub(start));
         }
     }
 
@@ -598,19 +705,46 @@ impl SongRuntime {
             track.transition_unchanged = false;
         }
 
-        // Enabling or changing a loop is an explicit transport jump selected by
-        // the musician. Every other publication continues at the callback's exact
-        // current frame, regardless of how old the latest UI telemetry is.
-        let requested_loop_jump =
-            next.audition_loop.is_some() && self.audition_loop != next.audition_loop;
-        let target_frame = if requested_loop_jump {
+        // Explicit musician seeks retain their controller-prepared frame. Ordinary
+        // publication resolves transport from the callback's current frame so slow
+        // compilation cannot make UI telemetry authoritative. If valid range bounds
+        // moved, preserve the exact old range offset (or loop phase) in the new range.
+        let explicit_transport_jump = next.audition_seek_requested;
+        let target_frame = if explicit_transport_jump {
             next.frame
+        } else if self.audition_range != next.audition_range {
+            match (self.audition_range, next.audition_range) {
+                (Some((old_start, old_end)), Some((new_start, new_end))) => {
+                    let old_length = old_end.saturating_sub(old_start).max(1);
+                    let new_length = new_end.saturating_sub(new_start).max(1);
+                    let old_offset = if self.audition_loop.is_some() {
+                        self.frame.saturating_sub(old_start) % old_length
+                    } else {
+                        self.frame
+                            .clamp(old_start, old_end.saturating_sub(1))
+                            .saturating_sub(old_start)
+                    };
+                    new_start.saturating_add(old_offset.min(new_length.saturating_sub(1)))
+                }
+                _ => self.frame,
+            }
         } else {
             self.frame
         };
-        next.realign_pristine_publication(target_frame);
+        if !explicit_transport_jump {
+            next.realign_pristine_publication(target_frame);
+            if let Some(trigger) = next.mapping_audition {
+                next.fire_mapping_audition(trigger);
+            }
+            // A mapped frame is a transport jump even though the callback, rather
+            // than the controller, resolved it. Do not overwrite its prepared mix
+            // state with state from a different absolute point at handoff.
+            next.audition_seek_requested = target_frame != self.frame;
+        }
 
-        if requested_loop_jump || self.sample_rate != next.sample_rate || target_frame != self.frame
+        if explicit_transport_jump
+            || self.sample_rate != next.sample_rate
+            || target_frame != self.frame
         {
             return;
         }
@@ -656,12 +790,17 @@ impl SongRuntime {
             source[0] += affected[0];
             source[1] += affected[1];
         }
-        let mut master = if all_tracks_shared && self.mix.topology_compatible(&next.mix) {
-            self.mix.process(
+        let raw_output = matches!(self.audition_output, AuditionMonitorOutput::Raw)
+            || matches!(next.audition_output, AuditionMonitorOutput::Raw);
+        let shared_mix =
+            all_tracks_shared && self.mix.topology_compatible(&next.mix) && !raw_output;
+        let mut master = if shared_mix {
+            let routed = self.mix.process(
                 &old_sources[..self.tracks.len()],
                 self.controls.values(),
                 true,
-            )
+            );
+            self.monitor_output(routed)
         } else {
             let mut next_sources = new.affected_sources;
             for (current_index, current) in self.tracks.iter().enumerate() {
@@ -676,19 +815,21 @@ impl SongRuntime {
                     next_sources[replacement_index] = old.common_sources[current_index];
                 }
             }
-            let old_master = self.mix.process(
+            let old_routed = self.mix.process(
                 &old_sources[..self.tracks.len()],
                 self.controls.values(),
                 true,
             );
-            let new_master = next.mix.process(
+            let new_routed = next.mix.process(
                 &next_sources[..next.tracks.len()],
                 next.controls.values(),
                 true,
             );
+            let old_output = self.monitor_output(old_routed);
+            let new_output = next.monitor_output(new_routed);
             [
-                old_master[0] * old_gain + new_master[0] * new_gain,
-                old_master[1] * old_gain + new_master[1] * new_gain,
+                old_output[0] * old_gain + new_output[0] * new_gain,
+                old_output[1] * old_gain + new_output[1] * new_gain,
             ]
         };
         let frame = old.frame;
@@ -706,6 +847,12 @@ impl SongRuntime {
             .saturating_add(new.affected_voices);
         self.record_transition_output(frame, master, active_voices);
         next.record_transition_output(new.frame, master, active_voices);
+        if shared_mix {
+            next.telemetry.channel_activity = self.telemetry.channel_activity;
+            next.telemetry.channel_count = self.telemetry.channel_count;
+            next.telemetry.processor_activity = self.telemetry.processor_activity;
+            next.telemetry.processor_count = self.telemetry.processor_count;
+        }
         Ok(master)
     }
 
@@ -728,7 +875,10 @@ impl SongRuntime {
             std::mem::swap(&mut self.controls, &mut next.controls);
             self.scalar_control_handoff = false;
         }
-        next.mix.adopt_state_from(&mut self.mix);
+        if !next.audition_seek_requested {
+            next.mix.adopt_state_from(&mut self.mix);
+        }
+        next.audition_seek_requested = false;
         for track in &mut self.tracks {
             track.transition_unchanged = false;
         }
@@ -753,13 +903,10 @@ impl SongRuntime {
         if let Some((start, end)) = self.audition_loop
             && self.frame >= end
         {
-            self.frame = start;
-            for track in &mut self.tracks {
-                track.rewind_loop();
-            }
+            self.rewind_audition(start);
         }
         let frame = self.frame;
-        if frame >= self.total_frames {
+        if frame >= self.playback_end() {
             return TransitionFrame {
                 frame,
                 ..TransitionFrame::default()
@@ -796,7 +943,115 @@ impl SongRuntime {
         self.telemetry.peak = self.telemetry.peak.max(peak);
         self.telemetry.current_peak = peak;
         self.telemetry.active_voices = active_voices;
+        let (channel_activity, channel_count) = self.mix.channel_activity();
+        self.telemetry.channel_activity = channel_activity;
+        self.telemetry.channel_count = channel_count;
+        self.telemetry.processor_count = self
+            .mix
+            .copy_processor_activity(&mut self.telemetry.processor_activity);
         self.telemetry.frame = frame;
+    }
+
+    pub(crate) fn set_audition_range(&mut self, start: u64, end: u64) -> Result<(), EngineError> {
+        if start >= end || end > self.arrangement_frames || self.frame < start || self.frame >= end
+        {
+            return Err(EngineError::Compile(format!(
+                "audition range [{start}, {end}) does not contain runtime frame {} within arrangement {}",
+                self.frame, self.arrangement_frames
+            )));
+        }
+        self.audition_range = Some((start, end));
+        Ok(())
+    }
+
+    pub(crate) fn set_audition_master_output(&mut self) {
+        self.audition_output = AuditionMonitorOutput::Master;
+        self.raw_audition = None;
+    }
+
+    pub(crate) fn set_audition_channel_output(&mut self, identity: &str, tap: TapPoint) -> bool {
+        let Some(index) = self.mix.channel_index(identity) else {
+            return false;
+        };
+        self.audition_output = AuditionMonitorOutput::Channel { index, tap };
+        self.raw_audition = None;
+        true
+    }
+
+    pub(crate) fn set_audition_source_output(&mut self, identity: &str) -> bool {
+        let Some(index) = self.mix.channel_index(identity) else {
+            return false;
+        };
+        self.audition_output = AuditionMonitorOutput::Source { index };
+        self.raw_audition = None;
+        true
+    }
+
+    pub(crate) fn set_raw_audition(
+        &mut self,
+        source: CompiledSampleSource,
+        start: usize,
+        end: usize,
+        cursor: usize,
+        audition_end: u64,
+    ) -> Result<(), EngineError> {
+        if start >= end || end > source.len() || cursor < start || cursor > end {
+            return Err(EngineError::Compile(
+                "raw audition region is outside the compiled sample source".to_owned(),
+            ));
+        }
+        self.raw_audition = Some(RawAuditionRuntime {
+            source,
+            start,
+            end,
+            cursor,
+        });
+        self.audition_output = AuditionMonitorOutput::Raw;
+        self.arrangement_frames = self.arrangement_frames.max(audition_end);
+        self.total_frames = self.total_frames.max(audition_end);
+        Ok(())
+    }
+
+    pub(crate) fn audition_mapping_on_track(
+        &mut self,
+        track_index: usize,
+        mapping_id: &str,
+        velocity: f32,
+    ) -> bool {
+        let Some(mapping_index) = self
+            .tracks
+            .get(track_index)
+            .and_then(|track| track.instrument.sampler_mapping_index(mapping_id))
+        else {
+            return false;
+        };
+        let trigger = MappingAuditionTrigger {
+            track_index,
+            mapping_index,
+            note_id: 0xa409_3822_299f_31d0,
+            velocity,
+        };
+        self.mapping_audition = Some(trigger);
+        self.fire_mapping_audition(trigger)
+    }
+
+    pub(crate) fn advance_audition_to(&mut self, target_frame: u64) -> Result<(), EngineError> {
+        let target = target_frame.min(self.playback_end());
+        while self.frame < target {
+            let _ = self.process_frame(ProcessingMode::Monitoring)?;
+        }
+        Ok(())
+    }
+
+    #[cfg(any(feature = "pipewire", test))]
+    pub(crate) fn request_audition_seek(&mut self) {
+        self.audition_seek_requested = true;
+    }
+
+    /// Sets or clears a monitoring-only override by stable processor ID.
+    pub fn set_processor_bypass(&mut self, processor_id: &str, bypass: Option<bool>) -> usize {
+        self.mix
+            .set_processor_bypass(processor_id, bypass, self.controls.values())
     }
 
     /// Enables a non-authoritative transport loop over an arrangement frame range.
@@ -918,7 +1173,7 @@ impl SongRuntime {
         output: &mut [[f32; 2]],
         mode: ProcessingMode,
     ) -> Result<usize, EngineError> {
-        let available = self.total_frames.saturating_sub(self.frame);
+        let available = self.playback_end().saturating_sub(self.frame);
         let count = if self.audition_loop.is_some() {
             output.len()
         } else {
@@ -933,8 +1188,8 @@ impl SongRuntime {
 
     /// True after arrangement plus authored tail has been processed.
     #[must_use]
-    pub const fn finished(&self) -> bool {
-        self.audition_loop.is_none() && self.frame >= self.total_frames
+    pub fn finished(&self) -> bool {
+        self.audition_loop.is_none() && self.frame >= self.playback_end()
     }
 
     /// Current absolute frame.
@@ -1211,6 +1466,20 @@ impl InstrumentRuntime {
                 std::mem::swap(replacement, current);
             }
             _ => {}
+        }
+    }
+
+    fn sampler_mapping_index(&self, mapping_id: &str) -> Option<u16> {
+        match self {
+            Self::Sampler(sampler) => sampler.mapping_index(mapping_id),
+            Self::Graph { .. } | Self::Drums { .. } => None,
+        }
+    }
+
+    fn sampler_mapping_on(&mut self, note_id: u64, mapping_index: u16, velocity: f32) -> bool {
+        match self {
+            Self::Sampler(sampler) => sampler.mapping_on(note_id, mapping_index, velocity),
+            Self::Graph { .. } | Self::Drums { .. } => false,
         }
     }
 
@@ -1873,6 +2142,36 @@ mod tests {
     }
 
     #[test]
+    fn audition_loop_is_deterministic_across_supported_callback_grouping() {
+        let project = fixture(include_str!("../../tests/fixtures/minimal.crump"));
+        let compiled = CompiledProject::compile(&project).expect("compile loop fixture");
+        let mut reference = None;
+        for quantum in super::mix_graph::SUPPORTED_QUANTA {
+            let mut runtime = compiled.runtime();
+            runtime
+                .enable_audition_loop(0, 512)
+                .expect("enable exact audition loop");
+            let mut rendered = Vec::with_capacity(4_096);
+            for _ in 0..(4_096 / quantum) {
+                let mut block = vec![[0.0_f32; 2]; quantum];
+                assert_eq!(
+                    runtime
+                        .process_block(&mut block, ProcessingMode::Monitoring)
+                        .expect("loop callback block"),
+                    quantum
+                );
+                rendered.extend(block);
+            }
+            assert_eq!(runtime.frame(), 512);
+            if let Some(expected) = &reference {
+                assert_eq!(&rendered, expected, "callback quantum {quantum}");
+            } else {
+                reference = Some(rendered);
+            }
+        }
+    }
+
+    #[test]
     fn production_routing_monitoring_matches_offline_at_supported_quanta() {
         let project = fixture(include_str!("../../tests/fixtures/production_mix.crump"));
         let compiled = CompiledProject::compile(&project).expect("compiled Project");
@@ -1983,6 +2282,27 @@ mod tests {
     }
 
     #[test]
+    fn publication_transition_refreshes_processor_telemetry_for_both_runtimes() {
+        let project = fixture(include_str!("../../tests/fixtures/production_mix.crump"));
+        let compiled = CompiledProject::compile(&project).expect("compile production mix");
+        let expected_processors = compiled.mix_graph_inspection().processors.len();
+        let mut current = compiled.runtime();
+        let mut next = compiled.runtime();
+        current.advance_to(5_000).expect("advance current");
+        current.prepare_transition(&mut next);
+        current
+            .process_transition_frame(&mut next, 0.75, 0.25)
+            .expect("publication frame");
+
+        assert_eq!(current.telemetry.processor_count, expected_processors);
+        assert_eq!(next.telemetry.processor_count, expected_processors);
+        assert_eq!(
+            next.telemetry.processor_activity,
+            current.telemetry.processor_activity
+        );
+    }
+
+    #[test]
     fn compatible_processor_graph_state_runs_once_and_survives_publication() {
         let source = include_str!("../../tests/fixtures/production_mix.crump");
         let compiled = CompiledProject::compile(&fixture(source)).expect("compile production mix");
@@ -2064,6 +2384,60 @@ mod tests {
     }
 
     #[test]
+    fn compatible_publication_retains_loop_and_relative_transport_exactly() {
+        let source = include_str!("../../tests/fixtures/minimal.crump");
+        let compiled = CompiledProject::compile(&fixture(source)).expect("compile loop fixture");
+        let shifted =
+            CompiledProject::compile(&fixture(&format!("# display-only change\n{source}")))
+                .expect("compile replacement loop fixture");
+        let mut baseline = compiled.runtime();
+        let mut current = compiled.runtime();
+        let mut next = shifted.runtime();
+        for runtime in [&mut baseline, &mut current] {
+            runtime.advance_to(100).expect("advance loop start");
+            runtime
+                .enable_audition_loop(100, 500)
+                .expect("enable retained loop");
+            for _ in 0..250 {
+                runtime
+                    .process_frame(ProcessingMode::Monitoring)
+                    .expect("advance inside loop");
+            }
+        }
+        next.seek_transport(300);
+        next.enable_audition_loop(100, 500)
+            .expect("enable replacement loop");
+        next.prime_for_publication();
+        current.prepare_transition(&mut next);
+        assert_eq!(next.frame(), current.frame());
+
+        for position in 1..=480_u64 {
+            let expected = baseline
+                .process_frame(ProcessingMode::Monitoring)
+                .expect("baseline loop frame");
+            let phase = position as f64 / 480.0;
+            let actual = current
+                .process_transition_frame(
+                    &mut next,
+                    (phase * std::f64::consts::FRAC_PI_2).cos() as f32,
+                    (phase * std::f64::consts::FRAC_PI_2).sin() as f32,
+                )
+                .expect("loop publication frame");
+            assert_eq!(actual, expected, "transition frame {position}");
+        }
+        current.complete_transition(&mut next);
+        for _ in 0..256 {
+            assert_eq!(
+                next.process_frame(ProcessingMode::Monitoring)
+                    .expect("replacement loop continuation"),
+                baseline
+                    .process_frame(ProcessingMode::Monitoring)
+                    .expect("baseline loop continuation")
+            );
+        }
+    }
+
+    #[test]
     fn explicit_loop_enable_seeks_without_preserving_old_track_state() {
         let project = fixture(include_str!("../../tests/fixtures/minimal.crump"));
         let compiled = CompiledProject::compile(&project).expect("compile");
@@ -2072,6 +2446,7 @@ mod tests {
         current.advance_to(1_000).expect("advance current");
         next.seek_transport(100);
         next.enable_audition_loop(100, 500).expect("enable loop");
+        next.request_audition_seek();
 
         current.prepare_transition(&mut next);
 
