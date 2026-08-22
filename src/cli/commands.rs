@@ -125,7 +125,8 @@ fn command_inspect(cli: &Cli, args: &InspectArgs) -> Result<Success, Failure> {
         .map(|path| path.display().to_string())
         .collect();
     let assets = portable_asset_data(&bundle);
-    let (control_frame, effective_parameters, mix_graph) = if let Some(project) = project
+    let (control_frame, effective_parameters, mix_graph, envelope_followers) = if let Some(project) =
+        project
         && !bundle.diagnostics.has_errors()
     {
         let at =
@@ -171,9 +172,10 @@ fn command_inspect(cli: &Cli, args: &InspectArgs) -> Result<Success, Failure> {
             Some(frame),
             Some(compiled.control_snapshot_at_frame(frame)),
             Some(compiled.mix_graph_inspection().clone()),
+            Some(compiled.envelope_follower_inspection()),
         )
     } else {
-        (None, None, None)
+        (None, None, None, None)
     };
     let audition = if active_revision.as_ref() == Some(&bundle.revision)
         && let Some(project) = project
@@ -221,6 +223,7 @@ fn command_inspect(cli: &Cli, args: &InspectArgs) -> Result<Success, Failure> {
             "control_frame": control_frame,
             "effective_parameters": effective_parameters,
             "mix_graph": mix_graph,
+            "envelope_followers": envelope_followers,
             "audition": audition,
             "diagnostics": bundle.diagnostics.as_slice(),
         }),
@@ -1601,9 +1604,46 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                             fade_in_frames: *fade_in,
                             fade_out_frames: *fade_out,
                             velocity: *velocity,
+                            direction: None,
+                            loop_region: None,
                         },
                     )
                     .map_err(|error| sample_edit_failure("edit.sample_place", error))?,
+                ],
+                summary.as_str(),
+            ))
+        }
+        EditCommand::SampleSliceMap {
+            instrument,
+            asset,
+            prefix,
+            start_key,
+            boundaries,
+            direction,
+            summary,
+        } => {
+            let start_key = parse_pitch(start_key).map_err(|error| {
+                Failure::blocked(
+                    "edit.sample_slice_map",
+                    "invalid_pitch",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?;
+            Some((
+                vec![
+                    create_sample_slice_map(
+                        &bundle,
+                        &SampleSliceMapPlacement {
+                            instrument: instrument.clone(),
+                            asset: asset.clone(),
+                            id_prefix: prefix.clone(),
+                            start_key,
+                            boundaries: boundaries.clone(),
+                            direction: crate::model::SampleDirection::from(*direction),
+                        },
+                    )
+                    .map_err(|error| sample_edit_failure("edit.sample_slice_map", error))?,
                 ],
                 summary.as_str(),
             ))
@@ -1671,6 +1711,9 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             summary.as_str(),
         )),
         EditCommand::SampleFade { .. }
+        | EditCommand::SampleDirection { .. }
+        | EditCommand::SampleLoop { .. }
+        | EditCommand::SampleLoopClear { .. }
         | EditCommand::SampleGain { .. }
         | EditCommand::SamplePan { .. } => unreachable!("shared operation returned above"),
         _ => None,
@@ -1807,12 +1850,16 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
         | EditCommand::ClipGain { .. }
         | EditCommand::ClipFade { .. }
         | EditCommand::SamplePlace { .. }
+        | EditCommand::SampleSliceMap { .. }
         | EditCommand::SampleMove { .. }
         | EditCommand::SampleDuplicate { .. }
         | EditCommand::SampleSplit { .. }
         | EditCommand::SampleTrim { .. }
         | EditCommand::SampleSlip { .. }
         | EditCommand::SampleFade { .. }
+        | EditCommand::SampleDirection { .. }
+        | EditCommand::SampleLoop { .. }
+        | EditCommand::SampleLoopClear { .. }
         | EditCommand::SampleGain { .. }
         | EditCommand::SamplePan { .. } => unreachable!("multi-replacement edits returned above"),
     };
@@ -2064,6 +2111,50 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.sample_fade",
         ),
+        EditCommand::SampleDirection {
+            pattern,
+            id,
+            direction,
+            summary,
+        } => (
+            ProductionViewOperation::SetSampleDirection {
+                pattern: pattern.clone(),
+                occurrence: id.clone(),
+                direction: crate::model::SampleDirection::from(*direction).to_string(),
+            },
+            summary.as_str(),
+            "edit.sample_direction",
+        ),
+        EditCommand::SampleLoop {
+            pattern,
+            id,
+            start_frame,
+            end_frame,
+            crossfade,
+            summary,
+        } => (
+            ProductionViewOperation::SetSampleLoop {
+                pattern: pattern.clone(),
+                occurrence: id.clone(),
+                start_frame: *start_frame,
+                end_frame: *end_frame,
+                crossfade_frames: *crossfade,
+            },
+            summary.as_str(),
+            "edit.sample_loop",
+        ),
+        EditCommand::SampleLoopClear {
+            pattern,
+            id,
+            summary,
+        } => (
+            ProductionViewOperation::ClearSampleLoop {
+                pattern: pattern.clone(),
+                occurrence: id.clone(),
+            },
+            summary.as_str(),
+            "edit.sample_loop_clear",
+        ),
         EditCommand::SampleGain {
             pattern,
             id,
@@ -2141,6 +2232,7 @@ fn production_view_failure(command: &'static str, error: ProductionViewError) ->
                 Some(ProductionViewValueKind::AutomationCurve) => "invalid_curve",
                 Some(ProductionViewValueKind::Pitch) => "invalid_pitch",
                 Some(ProductionViewValueKind::DrumVoice) => "invalid_drum_voice",
+                Some(ProductionViewValueKind::SampleDirection) => "invalid_sample_direction",
                 Some(ProductionViewValueKind::MusicalTime) => "invalid_time",
                 Some(ProductionViewValueKind::TimeGrid) => "invalid_grid",
                 Some(ProductionViewValueKind::PhysicalValue) | None => "edit_rejected",
@@ -2312,6 +2404,275 @@ fn command_asset(cli: &Cli, command: &AssetCommand) -> Result<Success, Failure> 
                 command: "asset.import",
                 human: format!("Imported media asset {id} as history entry {}", entry.id),
                 data: json!({ "asset_id": id, "history_entry": entry }),
+            })
+        }
+        AssetCommand::Bounce {
+            source,
+            from,
+            to,
+            tail_seconds,
+            id,
+            name,
+            origin,
+            actor,
+            summary,
+            explanation,
+        } => {
+            if !tail_seconds.is_finite() || *tail_seconds < 0.0 {
+                return Err(Failure::blocked(
+                    "asset.bounce",
+                    "invalid_tail",
+                    "--tail-seconds must be finite and non-negative",
+                    json!([]),
+                ));
+            }
+            let candidate = load(cli, "asset.bounce")?;
+            let store = HistoryStore::open(&candidate.root)
+                .map_err(|error| Failure::operational("asset.bounce", "history_error", error))?;
+            let active = store
+                .active_bundle()
+                .map_err(|error| Failure::operational("asset.bounce", "history_error", error))?
+                .ok_or_else(|| {
+                    Failure::blocked(
+                        "asset.bounce",
+                        "no_active_revision",
+                        "Project has no Active Revision; publish a valid Candidate first",
+                        json!([]),
+                    )
+                })?;
+            drop(store);
+            if candidate.revision != active.revision {
+                return Err(Failure::conflict(
+                    "asset.bounce",
+                    "candidate_not_active",
+                    "bounce publication requires the current Candidate to equal the exact Active Revision",
+                ));
+            }
+            let project = active.publishable().ok_or_else(|| {
+                Failure::blocked(
+                    "asset.bounce",
+                    "invalid_active_revision",
+                    "Active Revision is invalid",
+                    json!([]),
+                )
+            })?;
+            let resolve_frame = |value: &str| {
+                let time = project
+                    .song
+                    .locators
+                    .iter()
+                    .find(|locator| locator.id == value)
+                    .map(|locator| Ok(locator.at))
+                    .unwrap_or_else(|| parse_musical_time(value, project.song.meter))
+                    .map_err(|error| {
+                        Failure::blocked(
+                            "asset.bounce",
+                            "invalid_range",
+                            error.to_string(),
+                            json!([]),
+                        )
+                    })?;
+                time.to_frames(project.song.tempo_bpm, project.sample_rate)
+                    .map_err(|error| {
+                        Failure::blocked(
+                            "asset.bounce",
+                            "invalid_range",
+                            error.to_string(),
+                            json!([]),
+                        )
+                    })
+            };
+            let start_frame = resolve_frame(from)?;
+            let end_frame = resolve_frame(to)?;
+            let source = if source == "master" {
+                BounceSource::Master
+            } else {
+                let (owner, tap) = source.rsplit_once(':').ok_or_else(|| {
+                    Failure::blocked(
+                        "asset.bounce",
+                        "invalid_source",
+                        "bounce source must be `master` or `OWNER:TAP`",
+                        json!([]),
+                    )
+                })?;
+                BounceSource::Channel {
+                    owner: owner.parse::<ChannelRef>().map_err(|error| {
+                        Failure::blocked(
+                            "asset.bounce",
+                            "invalid_source",
+                            error.to_string(),
+                            json!([]),
+                        )
+                    })?,
+                    tap: tap.parse::<TapPoint>().map_err(|error| {
+                        Failure::blocked(
+                            "asset.bounce",
+                            "invalid_source",
+                            error.to_string(),
+                            json!([]),
+                        )
+                    })?,
+                }
+            };
+            let tail_frames = (*tail_seconds * f64::from(project.sample_rate)).round();
+            if tail_frames > u64::MAX as f64 {
+                return Err(Failure::blocked(
+                    "asset.bounce",
+                    "invalid_tail",
+                    "bounce tail is too long",
+                    json!([]),
+                ));
+            }
+            let request = BounceRequest {
+                active_revision: active.revision.clone(),
+                source,
+                start_frame,
+                end_frame,
+                tail: if tail_frames == 0.0 {
+                    BounceTailPolicy::None
+                } else {
+                    BounceTailPolicy::Frames(tail_frames as u64)
+                },
+                format: BounceFormatPolicy::StereoFloat32Wav,
+                asset_id: id.clone(),
+                asset_name: name.clone().unwrap_or_else(|| id.clone()),
+            };
+            let artifact = bounce_revision(&active, &request).map_err(|error| {
+                Failure::blocked(
+                    "asset.bounce",
+                    "bounce_rejected",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?;
+            let origin = match origin {
+                OriginArg::Human => ChangeOrigin::human(actor),
+                OriginArg::Agent => ChangeOrigin::agent(actor),
+                OriginArg::System => ChangeOrigin::system(actor),
+            };
+            let entry = publish_bounce_asset(
+                &candidate.root,
+                &candidate.revision,
+                &artifact,
+                Publication::new(origin, summary, explanation),
+            )
+            .map_err(|error| {
+                let mut failure = edit_transaction_failure(error);
+                failure.command = "asset.bounce";
+                failure
+            })?;
+            Ok(Success {
+                command: "asset.bounce",
+                human: format!(
+                    "Bounced {} frames to {} as history entry {}\nWAV SHA-256: {}",
+                    artifact.frame_count(),
+                    artifact.path().display(),
+                    entry.id,
+                    artifact.sha256()
+                ),
+                data: json!({
+                    "asset_id": id,
+                    "path": artifact.path(),
+                    "sha256": artifact.sha256(),
+                    "sample_rate": artifact.sample_rate(),
+                    "frame_count": artifact.frame_count(),
+                    "provenance": artifact.provenance(),
+                    "history_entry": entry,
+                }),
+            })
+        }
+        AssetCommand::Prepare {
+            source,
+            from_frame,
+            to_frame,
+            output_frames,
+            pitch_semitones,
+            formants,
+            quality,
+            id,
+            name,
+            origin,
+            actor,
+            summary,
+            explanation,
+        } => {
+            let candidate = load(cli, "asset.prepare")?;
+            let store = HistoryStore::open(&candidate.root)
+                .map_err(|error| Failure::operational("asset.prepare", "history_error", error))?;
+            let active = store
+                .active_bundle()
+                .map_err(|error| Failure::operational("asset.prepare", "history_error", error))?
+                .ok_or_else(|| {
+                    Failure::blocked(
+                        "asset.prepare",
+                        "no_active_revision",
+                        "Project has no Active Revision; publish a valid Candidate first",
+                        json!([]),
+                    )
+                })?;
+            drop(store);
+            if candidate.revision != active.revision {
+                return Err(Failure::conflict(
+                    "asset.prepare",
+                    "candidate_not_active",
+                    "sample preparation requires the current Candidate to equal the exact Active Revision",
+                ));
+            }
+            let request = SampleTransformRequest {
+                active_revision: active.revision.clone(),
+                source_asset: source.clone(),
+                source_start_frame: *from_frame,
+                source_end_frame: *to_frame,
+                output_frames: *output_frames,
+                pitch_semitones: *pitch_semitones,
+                formants: (*formants).into(),
+                quality: (*quality).into(),
+                format: SampleTransformFormatPolicy::StereoFloat32Wav,
+                asset_id: id.clone(),
+                asset_name: name.clone().unwrap_or_else(|| id.clone()),
+            };
+            let artifact = transform_sample_revision(&active, &request).map_err(|error| {
+                Failure::blocked(
+                    "asset.prepare",
+                    "transform_rejected",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?;
+            let origin = match origin {
+                OriginArg::Human => ChangeOrigin::human(actor),
+                OriginArg::Agent => ChangeOrigin::agent(actor),
+                OriginArg::System => ChangeOrigin::system(actor),
+            };
+            let entry = publish_sample_transform_asset(
+                &candidate.root,
+                &candidate.revision,
+                &artifact,
+                Publication::new(origin, summary, explanation),
+            )
+            .map_err(|error| {
+                let mut failure = edit_transaction_failure(error);
+                failure.command = "asset.prepare";
+                failure
+            })?;
+            Ok(Success {
+                command: "asset.prepare",
+                human: format!(
+                    "Prepared {} frames to {} as history entry {}\nWAV SHA-256: {}",
+                    artifact.frame_count(),
+                    artifact.path().display(),
+                    entry.id,
+                    artifact.sha256()
+                ),
+                data: json!({
+                    "asset_id": id,
+                    "path": artifact.path(),
+                    "sha256": artifact.sha256(),
+                    "sample_rate": artifact.sample_rate(),
+                    "frame_count": artifact.frame_count(),
+                    "provenance": artifact.provenance(),
+                    "history_entry": entry,
+                }),
             })
         }
         AssetCommand::Collect { summary } => {

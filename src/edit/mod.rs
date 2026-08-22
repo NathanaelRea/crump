@@ -17,8 +17,8 @@ use crate::{
     media::{AssetReadError, MAX_MEDIA_ASSET_BYTES, read_regular_asset_bytes, valid_asset_path},
     model::{
         AutomationInterpolation, AutomationLane, AutomationPoint, Clip, ClipMode, DrumVoice,
-        ParameterTarget, PatternEvent, Processor, ProcessorSetting, Track, Unit, ValueSite,
-        format_pitch,
+        ParameterTarget, PatternEvent, Processor, ProcessorSetting, SampleDirection,
+        SampleLoopRegion, Track, Unit, ValueSite, format_pitch,
     },
     processor_semantics::resolve_settings,
     project::{

@@ -180,6 +180,7 @@ pub(super) fn validate_patterns(project: &Project, diagnostics: &mut Diagnostics
                     fade_in_frames,
                     fade_out_frames,
                     velocity,
+                    loop_region,
                     ..
                 } => {
                     if !valid_id(id) || !sample_ids.insert(id.as_str()) {
@@ -224,6 +225,24 @@ pub(super) fn validate_patterns(project: &Project, diagnostics: &mut Diagnostics
                             "sample occurrence fades cannot exceed its source region",
                             event.site(),
                         );
+                    }
+                    if let Some(loop_region) = loop_region {
+                        let loop_frames = loop_region
+                            .end_frame
+                            .saturating_sub(loop_region.start_frame);
+                        if loop_region.start_frame < *start_frame
+                            || loop_region.end_frame > *end_frame
+                            || loop_region.start_frame >= loop_region.end_frame
+                            || u64::from(loop_region.crossfade_frames).saturating_mul(2)
+                                > loop_frames
+                        {
+                            source_site_error(
+                                diagnostics,
+                                "CRV070",
+                                "sample occurrence loop must be inside its source region with a crossfade no longer than half the loop",
+                                event.site(),
+                            );
+                        }
                     }
                     validate_velocity(*velocity, event.site(), diagnostics);
                 }

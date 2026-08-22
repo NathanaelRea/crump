@@ -10,6 +10,7 @@ pub(crate) struct ProcessorRuntime {
     pub(super) transient_bypass: Option<bool>,
     pub(super) transient_bypass_guard_active: bool,
     pub(super) bypass_mix: f32,
+    pub(super) transport_frame: u64,
 }
 
 // Large fixed FIR histories stay inline so callback state has no hidden heap owner.
@@ -19,9 +20,13 @@ pub(super) enum ProcessorState {
     Utility,
     Eq(Vec<StereoBiquad>),
     Compressor(CompressorState),
+    Gate(GateState),
     Delay(DelayState),
     Reverb(ReverbState),
     Saturation(SaturationState),
+    ModulationDelay(ModulationDelayState),
+    Crusher(CrusherState),
+    Stutter(StutterState),
     Limiter(LimiterState),
     Latency,
 }
@@ -36,6 +41,7 @@ impl ProcessorRuntime {
             ProcessorConfig::Compressor { .. } => {
                 ProcessorState::Compressor(CompressorState::new())
             }
+            ProcessorConfig::Gate { .. } => ProcessorState::Gate(GateState::new()),
             ProcessorConfig::Delay { maximum_frames, .. } => {
                 ProcessorState::Delay(DelayState::new(*maximum_frames))
             }
@@ -44,6 +50,13 @@ impl ProcessorRuntime {
             }
             ProcessorConfig::Saturation { .. } => {
                 ProcessorState::Saturation(SaturationState::new())
+            }
+            ProcessorConfig::ModulationDelay { maximum_frames, .. } => {
+                ProcessorState::ModulationDelay(ModulationDelayState::new(*maximum_frames))
+            }
+            ProcessorConfig::Crusher { .. } => ProcessorState::Crusher(CrusherState::new()),
+            ProcessorConfig::Stutter { slice_frames, .. } => {
+                ProcessorState::Stutter(StutterState::new(*slice_frames))
             }
             ProcessorConfig::Limiter {
                 lookahead_frames, ..
@@ -61,6 +74,7 @@ impl ProcessorRuntime {
             transient_bypass: None,
             transient_bypass_guard_active: false,
             bypass_mix,
+            transport_frame: 0,
         }
     }
 
@@ -138,6 +152,35 @@ impl ProcessorRuntime {
                 self.program.sample_rate,
             ),
             (
+                ProcessorConfig::Gate {
+                    mode,
+                    threshold,
+                    ratio,
+                    attack,
+                    hold,
+                    release,
+                    range,
+                    hysteresis,
+                    rms,
+                    mix,
+                },
+                ProcessorState::Gate(state),
+            ) => state.process(
+                sample,
+                sidechain,
+                *mode,
+                threshold.value(controls),
+                ratio.value(controls),
+                attack.value(controls),
+                hold.value(controls),
+                release.value(controls),
+                range.value(controls),
+                hysteresis.value(controls),
+                *rms,
+                mix.value(controls),
+                self.program.sample_rate,
+            ),
+            (
                 ProcessorConfig::Delay {
                     time,
                     feedback,
@@ -199,6 +242,70 @@ impl ProcessorRuntime {
                 *mode,
             ),
             (
+                ProcessorConfig::ModulationDelay {
+                    delay,
+                    depth,
+                    rate,
+                    feedback,
+                    mix,
+                    width,
+                    mode,
+                    ..
+                },
+                ProcessorState::ModulationDelay(state),
+            ) => state.process(
+                sample,
+                delay.value(controls),
+                depth.value(controls),
+                rate.value(controls),
+                feedback.value(controls),
+                mix.value(controls),
+                width.value(controls),
+                *mode,
+                self.program.sample_rate,
+            ),
+            (
+                ProcessorConfig::Crusher {
+                    bit_depth,
+                    sample_rate,
+                    reconstruction,
+                    mix,
+                    output,
+                },
+                ProcessorState::Crusher(state),
+            ) => state.process(
+                sample,
+                bit_depth.value(controls),
+                sample_rate.value(controls),
+                reconstruction.value(controls),
+                mix.value(controls),
+                output.value(controls),
+                self.program.sample_rate,
+            ),
+            (
+                ProcessorConfig::Stutter {
+                    trigger,
+                    chance,
+                    crossfade,
+                    mix,
+                    repeats,
+                    interval_frames,
+                    seed,
+                    ..
+                },
+                ProcessorState::Stutter(state),
+            ) => state.process(
+                sample,
+                trigger.value(controls),
+                chance.value(controls),
+                crossfade.value(controls),
+                mix.value(controls),
+                self.transport_frame,
+                *repeats,
+                *interval_frames,
+                *seed,
+            ),
+            (
                 ProcessorConfig::Limiter {
                     ceiling, release, ..
                 },
@@ -232,7 +339,7 @@ impl ProcessorRuntime {
         } else {
             self.transient_bypass_guard_active = false;
         }
-        if self.bypass_mix <= 0.0 {
+        let output = if self.bypass_mix <= 0.0 {
             wet
         } else if self.bypass_mix >= 1.0 {
             dry
@@ -241,7 +348,13 @@ impl ProcessorRuntime {
                 wet[0] + (dry[0] - wet[0]) * self.bypass_mix,
                 wet[1] + (dry[1] - wet[1]) * self.bypass_mix,
             ]
-        }
+        };
+        self.transport_frame = self.transport_frame.saturating_add(1);
+        output
+    }
+
+    pub(crate) fn set_transport_frame(&mut self, frame: u64) {
+        self.transport_frame = frame;
     }
 
     pub(crate) fn id(&self) -> &str {
@@ -274,11 +387,16 @@ impl ProcessorRuntime {
             ProcessorState::Utility | ProcessorState::Latency => {}
             ProcessorState::Eq(states) => states.fill(StereoBiquad::default()),
             ProcessorState::Compressor(state) => state.reset(),
+            ProcessorState::Gate(state) => state.reset(),
             ProcessorState::Delay(state) => state.reset(),
             ProcessorState::Reverb(state) => state.reset(),
             ProcessorState::Saturation(state) => state.reset(),
+            ProcessorState::ModulationDelay(state) => state.reset(),
+            ProcessorState::Crusher(state) => state.reset(),
+            ProcessorState::Stutter(state) => state.reset(),
             ProcessorState::Limiter(state) => state.reset(),
         }
+        self.transport_frame = 0;
         self.declared_delay.reset();
         self.bypass_delay.reset();
         let bypass = self
@@ -342,6 +460,20 @@ impl ProcessorRuntime {
                     state.dry_delay.buffer.capacity(),
                 );
             }
+            ProcessorState::Stutter(state) => {
+                fingerprint = include(
+                    fingerprint,
+                    state.buffer.as_ptr().cast(),
+                    state.buffer.capacity(),
+                );
+            }
+            ProcessorState::ModulationDelay(state) => {
+                fingerprint = include(
+                    fingerprint,
+                    state.buffer.as_ptr().cast(),
+                    state.buffer.capacity(),
+                );
+            }
             ProcessorState::Limiter(state) => {
                 fingerprint = include(
                     fingerprint,
@@ -354,14 +486,26 @@ impl ProcessorRuntime {
                     state.peak_buffer.capacity(),
                 );
             }
-            ProcessorState::Utility | ProcessorState::Compressor(_) | ProcessorState::Latency => {}
+            ProcessorState::Utility
+            | ProcessorState::Compressor(_)
+            | ProcessorState::Gate(_)
+            | ProcessorState::Crusher(_)
+            | ProcessorState::Latency => {}
         }
         fingerprint
+    }
+
+    pub(crate) fn stutter_status(&self) -> Option<(bool, u64)> {
+        match &self.state {
+            ProcessorState::Stutter(state) => Some((state.repeating(), state.ignored_triggers())),
+            _ => None,
+        }
     }
 
     pub(crate) fn gain_reduction_db(&self) -> Option<f32> {
         match &self.state {
             ProcessorState::Compressor(state) => Some(state.gain_reduction_db()),
+            ProcessorState::Gate(state) => Some(state.gain_reduction_db()),
             _ => None,
         }
     }

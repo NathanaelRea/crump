@@ -2,8 +2,11 @@
 
 mod analysis;
 pub mod audition;
+pub mod bounce;
 pub mod control;
 mod drums;
+mod follower;
+pub(crate) mod generated_audio;
 mod graph;
 pub mod mix_graph;
 mod oversampling;
@@ -11,6 +14,7 @@ mod processors;
 pub(crate) mod qualification;
 mod render;
 pub mod sample;
+pub mod sample_transform;
 mod sampler;
 pub(crate) mod schedule;
 
@@ -32,6 +36,10 @@ use crate::{
 use self::{
     control::{CompiledControlProgram, ControlIndex, ControlRuntime, ControlValueSnapshot},
     drums::DrumSynth,
+    follower::{
+        CompiledEnvelopeFollowerProgram, EnvelopeFollowerInspection, EnvelopeFollowerMeter,
+        EnvelopeFollowerRuntime, MAX_ENVELOPE_FOLLOWERS,
+    },
     graph::{CompiledGraph, GraphVoice},
     mix_graph::{
         ChannelMeter, CompiledMixGraph, MAX_MIX_CHANNELS, MAX_PROCESSOR_INSTANCES, MixGraphRuntime,
@@ -43,6 +51,7 @@ use self::{
 };
 
 pub use analysis::FinalizedAudioAnalysis;
+pub(crate) use generated_audio::GeneratedAudioArtifact;
 pub use qualification::{
     QualificationHost, QualificationOptions, QualificationReport, qualify_project,
 };
@@ -66,6 +75,7 @@ pub struct CompiledProject {
     controls: CompiledControlProgram,
     tracks: Vec<CompiledTrack>,
     mix_graph: CompiledMixGraph,
+    envelope_followers: Arc<CompiledEnvelopeFollowerProgram>,
 }
 
 impl CompiledProject {
@@ -144,6 +154,12 @@ impl CompiledProject {
         }
         let mut mix_graph =
             CompiledMixGraph::compile_with_topology(project, &controls, &topology, true)?;
+        let envelope_followers = Arc::new(CompiledEnvelopeFollowerProgram::compile(
+            project,
+            &controls,
+            &mix_graph,
+            project.sample_rate,
+        )?);
         let schedule_program_bytes = tracks
             .iter()
             .map(|track| track.schedule.allocation_bytes())
@@ -162,13 +178,17 @@ impl CompiledProject {
                 (tracks.capacity() as u64)
                     .saturating_mul(std::mem::size_of::<TrackRuntime>() as u64),
             )
-            .saturating_add(controls.runtime_state_bytes());
+            .saturating_add(controls.runtime_state_bytes())
+            .saturating_add(envelope_followers.runtime_state_bytes());
         mix_graph.include_song_runtime_state(
-            controls.allocation_bytes(),
+            controls
+                .allocation_bytes()
+                .saturating_add(envelope_followers.allocation_bytes()),
             schedule_program_bytes,
             instrument_program_bytes,
             song_runtime_structure_bytes,
         )?;
+        mix_graph.include_additional_callback_work(envelope_followers.work_units_per_frame())?;
         let arrangement_frames = project
             .song
             .end
@@ -185,6 +205,7 @@ impl CompiledProject {
             controls,
             tracks,
             mix_graph,
+            envelope_followers,
         })
     }
 
@@ -205,6 +226,7 @@ impl CompiledProject {
             #[cfg(any(feature = "pipewire", test))]
             audition_seek_requested: false,
             controls: self.controls.runtime(),
+            envelope_followers: self.envelope_followers.runtime(),
             #[cfg(any(feature = "pipewire", test))]
             scalar_control_handoff: false,
             #[cfg(any(feature = "pipewire", test))]
@@ -249,6 +271,12 @@ impl CompiledProject {
     #[must_use]
     pub fn mix_graph_inspection(&self) -> &mix_graph::MixGraphInspection {
         self.mix_graph.inspection()
+    }
+
+    /// Static Audio-derived control routes aligned to runtime follower telemetry indexes.
+    #[must_use]
+    pub fn envelope_follower_inspection(&self) -> Vec<EnvelopeFollowerInspection> {
+        self.envelope_followers.inspection()
     }
 }
 
@@ -328,6 +356,8 @@ fn track_semantic_hash(
                 pan,
                 fade_in_frames,
                 fade_out_frames,
+                direction,
+                loop_region,
                 velocity,
                 clip_envelope,
             } => {
@@ -340,6 +370,15 @@ fn track_semantic_hash(
                 hasher.update(pan.to_bits().to_le_bytes());
                 hasher.update(fade_in_frames.to_le_bytes());
                 hasher.update(fade_out_frames.to_le_bytes());
+                hasher.update([direction.map_or(0, |direction| direction as u8 + 1)]);
+                if let Some(loop_region) = loop_region {
+                    hasher.update([1]);
+                    hasher.update(loop_region.start_frame.to_le_bytes());
+                    hasher.update(loop_region.end_frame.to_le_bytes());
+                    hasher.update(loop_region.crossfade_frames.to_le_bytes());
+                } else {
+                    hasher.update([0]);
+                }
                 hasher.update(velocity.to_bits().to_le_bytes());
                 hash_clip_envelope(&mut hasher, clip_envelope);
             }
@@ -499,6 +538,7 @@ pub struct SongRuntime {
     #[cfg(any(feature = "pipewire", test))]
     audition_seek_requested: bool,
     controls: ControlRuntime,
+    envelope_followers: EnvelopeFollowerRuntime,
     #[cfg(any(feature = "pipewire", test))]
     scalar_control_handoff: bool,
     #[cfg(any(feature = "pipewire", test))]
@@ -523,6 +563,10 @@ impl SongRuntime {
         }
         if self.frame >= self.playback_end() {
             self.telemetry.current_peak = 0.0;
+            self.telemetry.follower_count = self.envelope_followers.route_count();
+            self.telemetry
+                .follower_activity
+                .fill(EnvelopeFollowerMeter::default());
             self.telemetry.active_voices = 0;
             self.mix.clear_current_activity();
             let (channel_activity, channel_count) = self.mix.channel_activity();
@@ -566,6 +610,11 @@ impl SongRuntime {
             }
             return Err(EngineError::NonFinite { frame });
         }
+        self.telemetry.follower_count = self.envelope_followers.process(
+            &self.mix,
+            &mut self.controls,
+            &mut self.telemetry.follower_activity,
+        );
         if mode == ProcessingMode::Monitoring {
             for channel in &mut master {
                 *channel = monitor_sample(*channel);
@@ -588,6 +637,17 @@ impl SongRuntime {
 
     pub(crate) fn channel_tap_sample(&self, index: usize, tap: TapPoint) -> Option<[f32; 2]> {
         self.mix.channel_tap(index, tap)
+    }
+
+    /// Stops future source dispatch while retaining bounded voice, processor, and route tails.
+    pub(crate) fn begin_isolated_tail(&mut self, tail_frames: u64) {
+        for track in &mut self.tracks {
+            track.cursor = track.schedule.events.len();
+            track.instrument.all_notes_off();
+        }
+        self.total_frames = self.frame.saturating_add(tail_frames);
+        self.audition_range = None;
+        self.audition_loop = None;
     }
 
     fn playback_end(&self) -> u64 {
@@ -613,12 +673,15 @@ impl SongRuntime {
 
     fn rewind_audition(&mut self, start: u64) {
         self.frame = start;
+        self.mix.set_transport_frame(start);
         for track in &mut self.tracks {
             track.rewind_loop();
         }
         if let Some(raw) = &mut self.raw_audition {
             raw.rewind();
         }
+        self.envelope_followers.reset();
+        self.controls.clear_future_modulation();
         if let Some(trigger) = self.mapping_audition {
             self.fire_mapping_audition(trigger);
         }
@@ -662,6 +725,9 @@ impl SongRuntime {
             track.seek_transport(self.frame);
         }
         self.mix.reset();
+        self.mix.set_transport_frame(self.frame);
+        self.envelope_followers.reset();
+        self.controls.clear_future_modulation();
         #[cfg(any(feature = "pipewire", test))]
         {
             self.publication_pristine = true;
@@ -682,6 +748,7 @@ impl SongRuntime {
         debug_assert!(self.publication_pristine);
         self.frame = target_frame.min(self.total_frames);
         self.telemetry.frame = self.frame;
+        self.mix.set_transport_frame(self.frame);
         for track in &mut self.tracks {
             track.realign_pristine_transport(self.frame);
         }
@@ -749,6 +816,8 @@ impl SongRuntime {
         {
             return;
         }
+        next.envelope_followers
+            .adopt_compatible_state(&mut self.envelope_followers);
         for current in &mut self.tracks {
             if let Some(replacement) = next
                 .tracks
@@ -801,6 +870,16 @@ impl SongRuntime {
                 self.controls.values(),
                 true,
             );
+            self.telemetry.follower_count = self.envelope_followers.process(
+                &self.mix,
+                &mut self.controls,
+                &mut self.telemetry.follower_activity,
+            );
+            next.telemetry.follower_count = next.envelope_followers.process(
+                &self.mix,
+                &mut next.controls,
+                &mut next.telemetry.follower_activity,
+            );
             self.monitor_output(routed)
         } else {
             let mut next_sources = new.affected_sources;
@@ -825,6 +904,16 @@ impl SongRuntime {
                 &next_sources[..next.tracks.len()],
                 next.controls.values(),
                 true,
+            );
+            self.telemetry.follower_count = self.envelope_followers.process(
+                &self.mix,
+                &mut self.controls,
+                &mut self.telemetry.follower_activity,
+            );
+            next.telemetry.follower_count = next.envelope_followers.process(
+                &next.mix,
+                &mut next.controls,
+                &mut next.telemetry.follower_activity,
             );
             let old_output = self.monitor_output(old_routed);
             let new_output = next.monitor_output(new_routed);
@@ -1553,6 +1642,8 @@ impl InstrumentRuntime {
                     pan,
                     fade_in_frames,
                     fade_out_frames,
+                    direction,
+                    loop_region,
                     velocity,
                     clip_envelope,
                 },
@@ -1565,6 +1656,8 @@ impl InstrumentRuntime {
                 pan,
                 fade_in_frames,
                 fade_out_frames,
+                direction,
+                loop_region,
                 velocity,
                 clip_envelope,
             ),
@@ -1704,6 +1797,11 @@ pub struct RuntimeTelemetry {
     /// Identities and roles are published by `MixGraphInspection::channels` at the same indexes.
     #[serde(with = "channel_meter_array_serde")]
     pub channel_activity: [ChannelMeter; MAX_MIX_CHANNELS],
+    /// Number of valid compiled Envelope Follower entries in `follower_activity`.
+    pub follower_count: usize,
+    /// Fixed-capacity Audio-derived control telemetry aligned to follower inspection indexes.
+    #[serde(with = "follower_meter_array_serde")]
+    pub follower_activity: [EnvelopeFollowerMeter; MAX_ENVELOPE_FOLLOWERS],
     /// Number of valid compiled processor entries in `processor_activity`.
     pub processor_count: usize,
     /// Fixed-capacity processor telemetry aligned to `CompiledProcessorInspection::index`.
@@ -1720,6 +1818,8 @@ impl Default for RuntimeTelemetry {
             active_voices: 0,
             channel_count: 0,
             channel_activity: [ChannelMeter::default(); MAX_MIX_CHANNELS],
+            follower_count: 0,
+            follower_activity: [EnvelopeFollowerMeter::default(); MAX_ENVELOPE_FOLLOWERS],
             processor_count: 0,
             processor_activity: [ProcessorMeter::default(); MAX_PROCESSOR_INSTANCES],
         }
@@ -1755,6 +1855,40 @@ mod channel_meter_array_serde {
             ));
         }
         let mut activity = [ChannelMeter::default(); MAX_MIX_CHANNELS];
+        activity.copy_from_slice(&values);
+        Ok(activity)
+    }
+}
+
+mod follower_meter_array_serde {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
+
+    use super::{EnvelopeFollowerMeter, MAX_ENVELOPE_FOLLOWERS};
+
+    pub(super) fn serialize<S>(
+        value: &[EnvelopeFollowerMeter; MAX_ENVELOPE_FOLLOWERS],
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        value.as_slice().serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<[EnvelopeFollowerMeter; MAX_ENVELOPE_FOLLOWERS], D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let values = Vec::<EnvelopeFollowerMeter>::deserialize(deserializer)?;
+        if values.len() != MAX_ENVELOPE_FOLLOWERS {
+            return Err(D::Error::invalid_length(
+                values.len(),
+                &"the fixed Envelope Follower telemetry capacity",
+            ));
+        }
+        let mut activity = [EnvelopeFollowerMeter::default(); MAX_ENVELOPE_FOLLOWERS];
         activity.copy_from_slice(&values);
         Ok(activity)
     }
@@ -2217,6 +2351,14 @@ mod tests {
                 telemetry.processor_activity[compressor.index].maximum_gain_reduction_db > 0.0,
                 "sidechain compressor telemetry must reach the runtime status seam"
             );
+            let stutter = processors
+                .iter()
+                .find(|processor| processor.id == "bus_stutter")
+                .expect("stutter inspection");
+            assert!(
+                telemetry.processor_activity[stutter.index].stutter_ignored_triggers > 0,
+                "warm-up and active-repeat trigger policy must be observable"
+            );
         }
     }
 
@@ -2663,5 +2805,72 @@ mod tests {
                 .expect("lead Track")
                 .transition_unchanged
         );
+    }
+
+    #[test]
+    fn envelope_follower_has_one_sample_latency_provenance_and_stable_storage() {
+        let source = include_str!("../../tests/fixtures/minimal.crump")
+            .replace(
+                "parameter tone \"Tone\" hz 100hz 10000hz 3000hz 3200hz",
+                "parameter tone \"Tone\" hz 100hz 10000hz 3000hz 3200hz modulatable",
+            )
+            .replace(
+                "    track lead \"Lead\"",
+                "    follower lead_follow from track/lead tap post detector peak attack 1ms release 20ms floor -60db ceiling -6db target instrument/lead/tone depth 100hz {\n      clamp 0 1\n    }\n    track lead \"Lead\"",
+            );
+        let project = fixture(&source);
+        let compiled = CompiledProject::compile(&project).expect("compile follower fixture");
+        let inspection = compiled.envelope_follower_inspection();
+        assert_eq!(inspection.len(), 1);
+        assert_eq!(inspection[0].id, "lead_follow");
+        assert_eq!(inspection[0].source, "track/lead");
+        assert_eq!(inspection[0].control_latency_frames, 1);
+        assert_eq!(inspection[0].unit, crate::model::Unit::Hertz);
+        assert_eq!(inspection[0].depth, 100.0);
+
+        let target = compiled
+            .controls
+            .index(&crate::model::ParameterTarget::Instrument {
+                instrument: "lead".to_owned(),
+                parameter: "tone".to_owned(),
+            })
+            .expect("follower target");
+        let mut runtime = compiled.runtime();
+        let fingerprint = runtime.envelope_followers.storage_fingerprint();
+        let mut observed = None;
+        for _ in 0..2_000 {
+            let value_before = runtime.controls.value(target);
+            runtime
+                .process_frame(ProcessingMode::Offline)
+                .expect("follower source frame");
+            let telemetry = runtime.telemetry();
+            assert_eq!(telemetry.follower_count, 1);
+            let contribution = f64::from(telemetry.follower_activity[0].contribution);
+            if contribution > 0.0 {
+                assert_eq!(value_before, 3_200.0);
+                assert_eq!(runtime.controls.value(target), value_before);
+                observed = Some(contribution);
+                break;
+            }
+        }
+        let contribution = observed.expect("audible source must drive follower");
+        runtime
+            .process_frame(ProcessingMode::Offline)
+            .expect("follower contribution frame");
+        assert!(
+            (runtime.controls.value(target) - (3_200.0 + contribution)).abs() < 1.0e-4,
+            "Audio from frame N must contribute exactly at N+1"
+        );
+        let frame_zero_value = 3_200.0;
+        assert_eq!(
+            runtime.envelope_followers.storage_fingerprint(),
+            fingerprint
+        );
+
+        runtime.seek_transport(0);
+        runtime
+            .process_frame(ProcessingMode::Offline)
+            .expect("reset follower source frame");
+        assert_eq!(runtime.controls.value(target), frame_zero_value);
     }
 }

@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     model::{
         ClipMode, GrooveTemplate, InstrumentKind, ParameterLock, ParameterTarget, Pattern,
-        PatternEvent, Project,
+        PatternEvent, Project, SampleDirection, SampleLoopRegion,
     },
     time::MusicalTime,
 };
@@ -140,6 +140,8 @@ pub(crate) enum RuntimeEvent {
         pan: f32,
         fade_in_frames: u32,
         fade_out_frames: u32,
+        direction: Option<SampleDirection>,
+        loop_region: Option<SampleLoopRegion>,
         velocity: f32,
         clip_envelope: ClipEnvelope,
     },
@@ -373,6 +375,8 @@ pub(crate) fn compile_schedules(project: &Project) -> Result<Vec<TrackSchedule>,
                             fade_in_frames,
                             fade_out_frames,
                             velocity,
+                            direction,
+                            loop_region,
                             ..
                         } => {
                             let mapping_index =
@@ -404,6 +408,8 @@ pub(crate) fn compile_schedules(project: &Project) -> Result<Vec<TrackSchedule>,
                                     pan: *pan as f32,
                                     fade_in_frames: *fade_in_frames,
                                     fade_out_frames: *fade_out_frames,
+                                    direction: *direction,
+                                    loop_region: *loop_region,
                                     velocity: groove_velocity(*velocity, groove, stable),
                                     clip_envelope,
                                 },

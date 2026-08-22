@@ -1,0 +1,2269 @@
+{
+  "schema_version": 1,
+  "source": "https://www.youtube.com/watch?v=D5dc7mQ30hU",
+  "support_counts": {
+    "direct": 64,
+    "approximation": 21,
+    "blocked": 14,
+    "intentional-non-goal": 1
+  },
+  "recipes": [
+    {
+      "id": 1,
+      "slug": "halftime",
+      "title": "Halftime",
+      "support": "direct",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "prepared-sample-transform"
+      ],
+      "workaround": "Prepare the duplicate to an exact 2x frame count with -12 semitones, high-pass it, and blend it while retaining the original.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 2,
+      "slug": "haunting-melodies",
+      "title": "Haunting Melodies",
+      "support": "direct",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "pitch-transposition",
+        "arrangement-transforms",
+        "reverse-sample-playback",
+        "source-backed-bounce",
+        "prepared-sample-transform"
+      ],
+      "workaround": "Reverse and bounce the wet layer, prepare its exact stretched duration and -12-semitone pitch, reverse it back, align it, and band-pass it.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 3,
+      "slug": "ambitextures",
+      "title": "Ambitextures",
+      "support": "approximation",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "eq",
+        "source-backed-bounce"
+      ],
+      "workaround": "Bounce a wet reverb tail, trim it with sampler regions, and band-pass it; Crump cannot reproduce the demonstrated roughly 60-second decay under current bounded tail settings.",
+      "missing_primitives": [
+        "long-reverb-tail"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 4,
+      "slug": "bass-booster",
+      "title": "Bass Booster",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "native-instrument",
+        "return"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "saturation",
+        "send-return-routing"
+      ],
+      "workaround": "Route the bass to an explicit parallel Return containing EQ then Saturation, and level-match the Return against the dry path; do not infer the caption-conflicted filter direction.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": "docs/cookbook/recipes/04-bass-booster.md",
+      "fixture": "fixtures/cookbook/04-bass-booster"
+    },
+    {
+      "id": 5,
+      "slug": "layers",
+      "title": "Layers",
+      "support": "approximation",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "arrangement-transforms",
+        "clip-fades",
+        "reverse-sample-playback",
+        "prepared-sample-transform"
+      ],
+      "workaround": "Reverse note regions, add fades, bounce, prepare the 2x/+12 layer, and disclose that Complex-Pro-style formant adjustment remains unavailable.",
+      "missing_primitives": [
+        "formant-preserving-or-adjustable-policy"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 6,
+      "slug": "revcrush",
+      "title": "RevCrush",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "automation",
+        "arrangement-transforms",
+        "clip-fades",
+        "reverse-sample-playback",
+        "crusher"
+      ],
+      "workaround": "Reverse selected fragments, add short fades, automate Crusher bypass over those regions, and set explicit bit depth/sample rate/mix.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 7,
+      "slug": "simples",
+      "title": "Simples",
+      "support": "direct",
+      "source_assumptions": [
+        "track"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition"
+      ],
+      "workaround": "Duplicate the authored melody, transpose it +12 semitones, and offset its Clip by one measure; no proprietary warp/formant equivalence is claimed.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 8,
+      "slug": "talking-synth",
+      "title": "Talking Synth",
+      "support": "blocked",
+      "source_assumptions": [
+        "vocal"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "pitch-transposition",
+        "sidechain-routing"
+      ],
+      "workaround": "EQ and pitch a duplicated source if useful, but do not represent sidechain filtering as a vocoder: the carrier/modulator transformation is unavailable.",
+      "missing_primitives": [
+        "vocoder"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 9,
+      "slug": "big-bass",
+      "title": "Big Bass",
+      "support": "direct",
+      "source_assumptions": [
+        "native-instrument"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "saturation",
+        "pitch-transposition"
+      ],
+      "workaround": "Author a curved pitch Parameter lane on the bass source and follow it with Saturation, keeping the sub and output level bounded.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 10,
+      "slug": "distortion-fun",
+      "title": "Distortion Fun",
+      "support": "direct",
+      "source_assumptions": [
+        "track"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "delay",
+        "saturation"
+      ],
+      "workaround": "Place a triplet Delay before Saturation, drive the latter explicitly, and compensate output gain rather than copying a proprietary one-knob value.",
+      "missing_primitives": [],
+      "packaging_layer": "effect-module-candidate",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": "docs/cookbook/recipes/10-distortion-fun.md",
+      "fixture": "fixtures/cookbook/10-distortion-fun"
+    },
+    {
+      "id": 11,
+      "slug": "chops",
+      "title": "Chops",
+      "support": "direct",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "sampler-regions",
+        "sampler",
+        "source-backed-bounce",
+        "checked-slice-map"
+      ],
+      "workaround": "Bounce the exact song range, create a checked half-note slice map, repitch the mappings -12 semitones, raise attack, and author a new Pattern without replacing the source.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 12,
+      "slug": "lfo-synth",
+      "title": "LFO Synth",
+      "support": "approximation",
+      "source_assumptions": [
+        "track"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "automation",
+        "lfo-modulation"
+      ],
+      "workaround": "Use fixed-rate routed LFO modulation for cutoff and ordinary Automation where possible; route depth, offset, and synchronized rate are not themselves automatable targets.",
+      "missing_primitives": [
+        "automatable-modulation-route-settings"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 13,
+      "slug": "1234",
+      "title": "1234",
+      "support": "direct",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "arrangement-transforms",
+        "sampler",
+        "reverse-sample-playback",
+        "source-backed-bounce",
+        "checked-slice-map"
+      ],
+      "workaround": "Bounce dry and wet pluck layers, create note-sized reverse mappings, and arrange chosen measures explicitly; use a declared seed only if probability transforms are desired.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 14,
+      "slug": "vibe",
+      "title": "Vibe",
+      "support": "direct",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "delay",
+        "arrangement-transforms",
+        "reverse-sample-playback",
+        "source-backed-bounce"
+      ],
+      "workaround": "Author the reversed note order explicitly, process two Delay layers, bounce each, reverse their sample traversal, align them, and band-pass them.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 15,
+      "slug": "melody-trip",
+      "title": "Melody Trip",
+      "support": "direct",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "prepared-sample-transform",
+        "modulation-delay"
+      ],
+      "workaround": "High-pass the melody, apply Chorus and long Reverb, bounce it, prepare the exact 2x duration, trim, and low-pass it.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 16,
+      "slug": "ez-songstarter",
+      "title": "EZ Songstarter",
+      "support": "direct",
+      "source_assumptions": [
+        "native-instrument"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "arrangement-transforms"
+      ],
+      "workaround": "Create explicit derived Patterns for the reversed octave counterline and edited bass line, preserving lineage where a Pattern Variation can express it.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 17,
+      "slug": "bass-drop",
+      "title": "Bass Drop",
+      "support": "direct",
+      "source_assumptions": [
+        "native-instrument"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "automation"
+      ],
+      "workaround": "Automate the bass EQ processor bypass with a step point exactly at the drop after setting the pre-drop pass band.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": "docs/cookbook/recipes/17-bass-drop.md",
+      "fixture": "fixtures/cookbook/17-bass-drop"
+    },
+    {
+      "id": 18,
+      "slug": "reverse-stutters",
+      "title": "Reverse Stutters",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "eq",
+        "sidechain-routing",
+        "arrangement-transforms",
+        "reverse-sample-playback",
+        "source-backed-bounce",
+        "bounded-stutter"
+      ],
+      "workaround": "Reverse, reverberate, bounce, and reverse-align the vocal, then use bounded Stutter at the selected grid before sidechain Compression and EQ.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 19,
+      "slug": "glitched-vocals",
+      "title": "Glitched Vocals",
+      "support": "blocked",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "send-return-routing",
+        "arrangement-transforms",
+        "reverse-sample-playback",
+        "prepared-sample-transform"
+      ],
+      "workaround": "Exact stretching and reverse are available, but the demonstrated Ableton Beats warp artifact mode has no Crump equivalent.",
+      "missing_primitives": [
+        "warp-artifact-mode"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 20,
+      "slug": "delayed-vox",
+      "title": "Delayed Vox",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "delay",
+        "pitch-transposition",
+        "prepared-sample-transform"
+      ],
+      "workaround": "Prepare each selected word to its original exact duration at the intended 0/+7/+2 pitch, then apply Delay, Reverb, and band-pass EQ.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 21,
+      "slug": "elegant",
+      "title": "Elegant",
+      "support": "blocked",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "automation",
+        "clip-fades"
+      ],
+      "workaround": "Manual syllable repeats, fades, and Reverb Automation are available, but formant Automation is central and unsupported.",
+      "missing_primitives": [
+        "formant-aware-pitch-processing"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 22,
+      "slug": "reverse-reverb",
+      "title": "Reverse Reverb",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "eq",
+        "arrangement-transforms",
+        "clip-fades",
+        "reverse-sample-playback",
+        "source-backed-bounce"
+      ],
+      "workaround": "Reverse the syllable mapping, render its wet Reverb to a declared asset, reverse that generated mapping, align it before the source, and retain both assets.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 23,
+      "slug": "bouncy-stutters",
+      "title": "Bouncy Stutters",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb"
+      ],
+      "workaround": "Approximate each stutter with explicit repeated sample Events at the stated grids and place Reverb before one layer; no named stutter-plugin equivalence is claimed.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 24,
+      "slug": "whispers",
+      "title": "Whispers",
+      "support": "blocked",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "arrangement-transforms",
+        "reverse-sample-playback"
+      ],
+      "workaround": "Reverse and realign a duplicate if useful, but stop because no typed vocoder carrier/modulator processor exists.",
+      "missing_primitives": [
+        "vocoder"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 25,
+      "slug": "haunting-pad",
+      "title": "Haunting Pad",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "arrangement-transforms",
+        "reverse-sample-playback",
+        "bounded-loop-playback",
+        "prepared-sample-transform"
+      ],
+      "workaround": "Prepare the vocal to the intended stretched duration, reverse and loop a selected region, then add Reverb and band-pass EQ.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 26,
+      "slug": "demon-time",
+      "title": "Demon Time",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "sidechain-routing",
+        "prepared-sample-transform"
+      ],
+      "workaround": "Prepare a -5-semitone copy at the original exact duration, then apply Saturation and light sidechain Compression from the lead.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 27,
+      "slug": "grainy-vocals",
+      "title": "Grainy Vocals",
+      "support": "blocked",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "automation"
+      ],
+      "workaround": "Reverb and ordinary Automation cannot reproduce Texture-warp grain scheduling, so retain the source and report granular processing as missing.",
+      "missing_primitives": [
+        "granular-or-spectral-processing"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 28,
+      "slug": "pretty-vocal",
+      "title": "Pretty Vocal",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "delay",
+        "pitch-transposition",
+        "modulation-delay"
+      ],
+      "workaround": "Prepare selected words at -4 semitones, then apply Reverb, Chorus, half-note Delay, and broad band-pass EQ.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 29,
+      "slug": "vocal-rewind",
+      "title": "Vocal Rewind",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "sampler-regions",
+        "reverse-sample-playback",
+        "source-backed-bounce",
+        "checked-slice-map"
+      ],
+      "workaround": "Create a checked slice map, author a new Pattern, bounce when useful, and set selected occurrences to reverse while preserving the original vocal asset.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 30,
+      "slug": "vocal-pad",
+      "title": "Vocal Pad",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "arrangement-transforms",
+        "reverse-sample-playback",
+        "source-backed-bounce"
+      ],
+      "workaround": "Render a wet vocal fragment, trim it with sampler regions, duplicate it, reverse one occurrence, band-pass both, and blend them explicitly.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 31,
+      "slug": "delay-pitch",
+      "title": "Delay Pitch",
+      "support": "approximation",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "delay",
+        "pitch-transposition",
+        "automation",
+        "clip-fades"
+      ],
+      "workaround": "Reverb, high-feedback Delay, fades, and EQ are available, but automating independent pitch over the routed delay tail is unavailable.",
+      "missing_primitives": [
+        "routed-audio-pitch-shift"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 32,
+      "slug": "pad-kick",
+      "title": "Pad Kick",
+      "support": "blocked",
+      "source_assumptions": [
+        "drums",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "eq",
+        "pitch-transposition",
+        "sampler",
+        "group-routing"
+      ],
+      "workaround": "Pitch and sequence kicks and add Reverb/EQ if useful, but do not substitute algorithmic Reverb for the required sample-impulse convolution.",
+      "missing_primitives": [
+        "convolution"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 33,
+      "slug": "snare-slaps",
+      "title": "Snare Slaps",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "clip-fades"
+      ],
+      "workaround": "Place a tiny source-frame sample occurrence before each snare and give it an explicit fast fade-in.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 34,
+      "slug": "bouncy-vocoder",
+      "title": "Bouncy Vocoder",
+      "support": "blocked",
+      "source_assumptions": [
+        "drums"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "sampler-regions"
+      ],
+      "workaround": "Manually slice and resequence percussion, but the external carrier/modulator vocoder contract is unavailable.",
+      "missing_primitives": [
+        "vocoder"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 35,
+      "slug": "hat-roll",
+      "title": "Hat Roll",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "delay",
+        "clip-fades",
+        "eq",
+        "sampler"
+      ],
+      "workaround": "Author progressively denser hat Events, then apply fade, low-pass EQ, Reverb, and synchronized Delay with source-specific values.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": "docs/cookbook/recipes/35-hat-roll.md",
+      "fixture": "fixtures/cookbook/35-hat-roll"
+    },
+    {
+      "id": 36,
+      "slug": "kick-2-808",
+      "title": "Kick 2 808",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "native-instrument"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "saturation",
+        "send-return-routing",
+        "sampler",
+        "source-backed-bounce"
+      ],
+      "workaround": "Apply Saturation to the kick, optionally bounce the exact processed range, and map the generated asset without deleting the synthesized source.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 37,
+      "slug": "alien-drums",
+      "title": "Alien Drums",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "arrangement-transforms",
+        "reverse-sample-playback",
+        "modulation-delay"
+      ],
+      "workaround": "Reverse selected percussion regions and apply bounded Flanger time/feedback/mix settings by ear.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 38,
+      "slug": "reverse-delays",
+      "title": "Reverse Delays",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "delay",
+        "arrangement-transforms",
+        "reverse-sample-playback",
+        "source-backed-bounce"
+      ],
+      "workaround": "Reverse the vocal mapping, render the fully wet Delay, reverse the generated asset, and align it before the original.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 39,
+      "slug": "slappy-chorus",
+      "title": "Slappy Chorus",
+      "support": "direct",
+      "source_assumptions": [
+        "track",
+        "return"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "delay",
+        "send-return-routing",
+        "modulation-delay"
+      ],
+      "workaround": "Build the Return as Delay, Saturation, Chorus, and band-pass EQ, then raise the source Send under level-matched audition.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 40,
+      "slug": "grainy",
+      "title": "Grainy",
+      "support": "blocked",
+      "source_assumptions": [
+        "vocal",
+        "sample",
+        "return"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "delay",
+        "pitch-transposition",
+        "send-return-routing"
+      ],
+      "workaround": "A Return can provide Reverb, Delay, filtering, and repitch-like sample layers, but no grain-delay scheduler exists.",
+      "missing_primitives": [
+        "granular-or-spectral-processing"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 41,
+      "slug": "aesthetic-slaps",
+      "title": "Aesthetic Slaps",
+      "support": "direct",
+      "source_assumptions": [
+        "track",
+        "return"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "delay",
+        "saturation",
+        "send-return-routing"
+      ],
+      "workaround": "Build the Return as 20ms Delay into Saturation, Reverb, and band-pass EQ, then raise its Send while level-matching.",
+      "missing_primitives": [],
+      "packaging_layer": "effect-module-candidate",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 42,
+      "slug": "reverb-swells",
+      "title": "Reverb Swells",
+      "support": "direct",
+      "source_assumptions": [
+        "track"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "automation"
+      ],
+      "workaround": "Automate Reverb mix with smooth source points over the selected range and inspect the resulting physical-unit values before publishing.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": "docs/cookbook/recipes/42-reverb-swells.md",
+      "fixture": "fixtures/cookbook/42-reverb-swells"
+    },
+    {
+      "id": 43,
+      "slug": "slow-stutters",
+      "title": "Slow Stutters",
+      "support": "approximation",
+      "source_assumptions": [
+        "track"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "automation",
+        "lfo-modulation"
+      ],
+      "workaround": "Automate filter cutoff and use one fixed synchronized LFO route; the demonstrated continuously changing synced LFO rate is unavailable.",
+      "missing_primitives": [
+        "automatable-synchronized-lfo-rate"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 44,
+      "slug": "double-delays",
+      "title": "Double Delays",
+      "support": "direct",
+      "source_assumptions": [
+        "track",
+        "return"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "delay",
+        "send-return-routing"
+      ],
+      "workaround": "Create two Returns with explicit straight and triplet Delay divisions and independently level their Sends.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": "docs/cookbook/recipes/44-double-delays.md",
+      "fixture": "fixtures/cookbook/44-double-delays"
+    },
+    {
+      "id": 45,
+      "slug": "delay-swells",
+      "title": "Delay Swells",
+      "support": "direct",
+      "source_assumptions": [
+        "track"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "delay",
+        "automation"
+      ],
+      "workaround": "Use a high-feedback short Delay and automate its wet mix with bounded smooth points where the swell should occur.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 46,
+      "slug": "ghostly",
+      "title": "Ghostly",
+      "support": "approximation",
+      "source_assumptions": [
+        "vocal",
+        "sample",
+        "return"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "pitch-transposition",
+        "send-return-routing"
+      ],
+      "workaround": "A source-specific repitched sample Return with Reverb and pan Modulation can approximate the ambience, but routed-audio octave shifting is unavailable.",
+      "missing_primitives": [
+        "routed-audio-pitch-shift"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 47,
+      "slug": "blur",
+      "title": "Blur",
+      "support": "approximation",
+      "source_assumptions": [
+        "sample",
+        "return"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "delay",
+        "eq",
+        "pitch-transposition",
+        "send-return-routing"
+      ],
+      "workaround": "Use narrow EQ, Reverb, and a separately repitched sample layer on a Return; the routed 50%-wet pitch window is unavailable.",
+      "missing_primitives": [
+        "routed-audio-pitch-shift"
+      ],
+      "packaging_layer": "effect-module-candidate",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 48,
+      "slug": "split-delays",
+      "title": "Split Delays",
+      "support": "direct",
+      "source_assumptions": [
+        "track",
+        "return"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "delay",
+        "send-return-routing",
+        "eq"
+      ],
+      "workaround": "Split two Returns around an explicit EQ crossover, assign distinct Delay divisions, and blend their post-fader Sends.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": "docs/cookbook/recipes/48-split-delays.md",
+      "fixture": "fixtures/cookbook/48-split-delays"
+    },
+    {
+      "id": 49,
+      "slug": "video-game",
+      "title": "Video Game",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "crusher"
+      ],
+      "workaround": "Apply Crusher sample-rate/bit reduction and blend a separately prepared -12-semitone layer at the stated low mix.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 50,
+      "slug": "flanger-delays",
+      "title": "Flanger Delays",
+      "support": "direct",
+      "source_assumptions": [
+        "sample",
+        "return"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "delay",
+        "send-return-routing",
+        "modulation-delay"
+      ],
+      "workaround": "Build a Return with high-pass EQ, Delay, Flanger, and Reverb, then set the source Send explicitly.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 51,
+      "slug": "open-stutter",
+      "title": "Open Stutter",
+      "support": "approximation",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "automation"
+      ],
+      "workaround": "Automate low-pass cutoff and author repeated Events for a fixed stutter approximation; variable-rate bounded stutter is unavailable.",
+      "missing_primitives": [
+        "bounded-stutter"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 52,
+      "slug": "nice-delay",
+      "title": "Nice Delay",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample",
+        "return"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "delay",
+        "send-return-routing"
+      ],
+      "workaround": "Build an eighth-note Delay, Saturation, and band-pass EQ Return, then set the source Send by level-matched audition.",
+      "missing_primitives": [],
+      "packaging_layer": "effect-module-candidate",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 53,
+      "slug": "disenchanted",
+      "title": "Disenchanted",
+      "support": "direct",
+      "source_assumptions": [
+        "track"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "delay",
+        "eq"
+      ],
+      "workaround": "Duplicate the source, use filtered high-feedback Delay followed by Reverb, and blend the duplicate at explicit level.",
+      "missing_primitives": [],
+      "packaging_layer": "effect-module-candidate",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 54,
+      "slug": "tails",
+      "title": "Tails",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "sampler",
+        "source-backed-bounce",
+        "sampler-regions"
+      ],
+      "workaround": "Render the wet vocal tail to a declared asset, map a nonverbal region with attack, add Reverb, and play it while preserving the source revision.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 55,
+      "slug": "telephone",
+      "title": "Telephone",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "crusher"
+      ],
+      "workaround": "Reproduce the telephone band-pass with explicit EQ, then set Crusher sample rate, bit depth, and wet mix.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 56,
+      "slug": "glitches",
+      "title": "Glitches",
+      "support": "approximation",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "delay",
+        "lfo-modulation"
+      ],
+      "workaround": "Combine Reverb, Delay, Saturation, deterministic LFO routes, and filter movement; seeded random pan/jitter remains unavailable.",
+      "missing_primitives": [
+        "seeded-random-modulation"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 57,
+      "slug": "radio",
+      "title": "Radio",
+      "support": "approximation",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "saturation"
+      ],
+      "workaround": "Use telephone EQ, Saturation, and Crusher coloration; disclose that the demonstrated vinyl crackle/noise source is unavailable.",
+      "missing_primitives": [
+        "vinyl-noise-or-crackle"
+      ],
+      "packaging_layer": "effect-module-candidate",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 58,
+      "slug": "broken-game",
+      "title": "Broken Game",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "automation",
+        "crusher"
+      ],
+      "workaround": "Automate prepared/sample pitch, Crusher sample rate, and low-pass cutoff over the transition while keeping bit depth explicit.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 59,
+      "slug": "movements",
+      "title": "Movements",
+      "support": "approximation",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "pitch-transposition",
+        "automation"
+      ],
+      "workaround": "Automate Reverb and low-pass oppositely and use a separately repitched sample layer; a routed pitch-mix lane is unavailable.",
+      "missing_primitives": [
+        "routed-audio-pitch-shift"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 60,
+      "slug": "slowed-reverb",
+      "title": "Slowed & Reverb",
+      "support": "direct",
+      "source_assumptions": [
+        "sample",
+        "master"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "pitch-transposition",
+        "source-backed-bounce",
+        "prepared-sample-transform"
+      ],
+      "workaround": "Prepare the section to twice its frame count, create a parallel -12-semitone prepared layer for the stated blend, and add Reverb.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 61,
+      "slug": "tape-stop",
+      "title": "Tape Stop",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "automation"
+      ],
+      "workaround": "Automate a sampler tune Parameter over the isolated word with a steep curve, accepting source-specific repitch semantics.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 62,
+      "slug": "lfo-vibes",
+      "title": "LFO Vibes",
+      "support": "approximation",
+      "source_assumptions": [
+        "track"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "eq",
+        "automation",
+        "lfo-modulation"
+      ],
+      "workaround": "Route phase-aligned fixed-rate LFOs to filter and Reverb mix and automate available targets; LFO route depth itself cannot follow the demonstrated triangle.",
+      "missing_primitives": [
+        "automatable-modulation-route-settings"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 63,
+      "slug": "specter",
+      "title": "Specter",
+      "support": "blocked",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "clip-fades"
+      ],
+      "workaround": "A repitched, faded copy can suggest the transition, but Spectral Time freeze/retrigger processing is unavailable.",
+      "missing_primitives": [
+        "granular-or-spectral-processing"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 64,
+      "slug": "crush-transition",
+      "title": "Crush Transition",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "sample",
+        "master"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "automation",
+        "group-routing",
+        "crusher"
+      ],
+      "workaround": "Group the transition sources, apply Crusher and high-pass EQ, and automate their durable bypass only over the transition.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 65,
+      "slug": "intro-suspense",
+      "title": "Intro Suspense",
+      "support": "blocked",
+      "source_assumptions": [
+        "master"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "automation"
+      ],
+      "workaround": "Filter and pitch Automation can be authored, but fixed Song tempo prevents the quarter-to-full tempo ramp.",
+      "missing_primitives": [
+        "tempo-map"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 66,
+      "slug": "build-up",
+      "title": "Build Up",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "pitch-transposition",
+        "automation"
+      ],
+      "workaround": "Repeat a vocal sample at explicit grid positions and automate tune plus Reverb settings, leaving the tail in the declared render range.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 67,
+      "slug": "shifty-transition",
+      "title": "Shifty Transition",
+      "support": "blocked",
+      "source_assumptions": [
+        "sample",
+        "master"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "pitch-transposition",
+        "automation"
+      ],
+      "workaround": "Master EQ Automation is available, but the +12/-24 routed pitch pattern cannot be expressed without a Master pitch processor.",
+      "missing_primitives": [
+        "routed-audio-pitch-shift"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 68,
+      "slug": "dj",
+      "title": "DJ",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "sample",
+        "master",
+        "group"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "automation",
+        "bounded-stutter"
+      ],
+      "workaround": "Automate Master low-pass and Stutter mix/trigger, using an exact structural slice and finite repeat count for each section.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 69,
+      "slug": "rev-pitch",
+      "title": "Rev Pitch",
+      "support": "direct",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "automation",
+        "arrangement-transforms",
+        "sampler",
+        "reverse-sample-playback",
+        "source-backed-bounce"
+      ],
+      "workaround": "Bounce the transition, reverse its mapping, repitch it +12 semitones, and automate high-pass EQ while preserving the original section.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 70,
+      "slug": "autobots",
+      "title": "Autobots",
+      "support": "blocked",
+      "source_assumptions": [
+        "master"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "automation"
+      ],
+      "workaround": "Master high-pass Automation is available, but the -24-to-0 routed Master pitch sweep is unavailable.",
+      "missing_primitives": [
+        "routed-audio-pitch-shift"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 71,
+      "slug": "sweepy",
+      "title": "Sweepy",
+      "support": "direct",
+      "source_assumptions": [
+        "master"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "automation"
+      ],
+      "workaround": "Automate Master Reverb mix and high-pass cutoff over explicit bars, with a step or curve release at the drop.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 72,
+      "slug": "ez-risers",
+      "title": "EZ Risers",
+      "support": "approximation",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "automation",
+        "clip-fades",
+        "prepared-sample-transform"
+      ],
+      "workaround": "Exact duration preparation, fade, filter, and Reverb are available, but the demonstrated Tones grain-warp texture remains unavailable.",
+      "missing_primitives": [
+        "grain-warp-mode"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 73,
+      "slug": "subby-transition",
+      "title": "Subby Transition",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "native-instrument",
+        "sample",
+        "group"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "automation",
+        "arrangement-transforms",
+        "clip-fades",
+        "group-routing",
+        "reverse-sample-playback"
+      ],
+      "workaround": "Group and filter drums, duplicate the sub-drop sample with one reverse occurrence, and crossfade the explicit regions.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 74,
+      "slug": "cut-transition",
+      "title": "Cut Transition",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "group"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "automation",
+        "group-routing"
+      ],
+      "workaround": "Create octave layers as explicit sources, repeat the kick segment with Events, and automate Group/device bypass for hard cuts.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 75,
+      "slug": "rev-transition",
+      "title": "Rev Transition",
+      "support": "direct",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "arrangement-transforms",
+        "clip-fades",
+        "reverse-sample-playback"
+      ],
+      "workaround": "Copy incoming source regions into the gap, set them to reverse, add fades, and retain forward/reverse boom occurrences separately.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 76,
+      "slug": "cut-move",
+      "title": "Cut & Move",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "group"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "automation"
+      ],
+      "workaround": "Use explicit arrangement cuts, staggered Events, high-pass Automation, and pan Automation across the transition fragments.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 77,
+      "slug": "tran-flange",
+      "title": "Tran Flange",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "group"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "automation",
+        "group-routing",
+        "modulation-delay"
+      ],
+      "workaround": "Author the transition high-pass lane and automate Flanger delay time with explicit rate/feedback/mix, enabled only in the section.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 78,
+      "slug": "slow-down",
+      "title": "Slow Down",
+      "support": "direct",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "pitch-transposition",
+        "sampler-regions",
+        "sampler",
+        "source-backed-bounce",
+        "checked-slice-map"
+      ],
+      "workaround": "Bounce the section, create quarter-note slice mappings, perform a new Pattern, repitch it down an octave, and add Reverb.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 79,
+      "slug": "one-at-a-time",
+      "title": "One At A Time",
+      "support": "direct",
+      "source_assumptions": [
+        "master"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "eq",
+        "pitch-transposition",
+        "automation"
+      ],
+      "workaround": "Place four ordinary processors on Master and automate their durable bypass states in non-overlapping quarter-note steps.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 80,
+      "slug": "get-gated",
+      "title": "Get Gated",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "drums",
+        "group"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "sidechain-routing",
+        "group-routing",
+        "sidechain-gate-expander"
+      ],
+      "workaround": "Route the chopped trigger to one named Gate sidechain on the melody Group and set explicit threshold, hysteresis, hold, attack, release, range, and mix.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 81,
+      "slug": "foley-fun",
+      "title": "Foley Fun",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "sampler",
+        "source-backed-bounce"
+      ],
+      "workaround": "Use resonant EQ to isolate harmonics, bounce the result, map the generated asset at its declared root, and play it through a band-pass.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 82,
+      "slug": "lead-bounce",
+      "title": "Lead Bounce",
+      "support": "approximation",
+      "source_assumptions": [
+        "drums",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "delay",
+        "lfo-modulation"
+      ],
+      "workaround": "Use fast Delay, deterministic level Modulation, Compressor/Saturation, and high-pass EQ as an approximation; rhythmic gate and multiband behavior differ.",
+      "missing_primitives": [
+        "rhythmic-gate",
+        "multiband-compression"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 83,
+      "slug": "oneshot-bonanza",
+      "title": "Oneshot Bonanza",
+      "support": "direct",
+      "source_assumptions": [
+        "drums",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "saturation"
+      ],
+      "workaround": "Drive a short one-shot through Saturation, long Reverb, and band-pass EQ with explicit output compensation.",
+      "missing_primitives": [],
+      "packaging_layer": "effect-module-candidate",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 84,
+      "slug": "club-toilet",
+      "title": "Club Toilet",
+      "support": "direct",
+      "source_assumptions": [
+        "master"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "eq"
+      ],
+      "workaround": "Automate or set Master low-pass EQ before Reverb and compare at matched loudness.",
+      "missing_primitives": [],
+      "packaging_layer": "effect-module-candidate",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": "docs/cookbook/recipes/84-club-toilet.md",
+      "fixture": "fixtures/cookbook/84-club-toilet"
+    },
+    {
+      "id": 85,
+      "slug": "low-slow",
+      "title": "Low & Slow",
+      "support": "direct",
+      "source_assumptions": [
+        "sample",
+        "master"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "sampler",
+        "source-backed-bounce",
+        "prepared-sample-transform"
+      ],
+      "workaround": "Bounce the section and prepare it to twice the exact frame count at -12 semitones while retaining the original section.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 86,
+      "slug": "ona",
+      "title": "ONA",
+      "support": "direct",
+      "source_assumptions": [
+        "track"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "pitch-transposition"
+      ],
+      "workaround": "Create explicit parallel pitch layers at -12/-5/-3 semitones and feed the blended source to long Reverb; values remain source-specific.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 87,
+      "slug": "re-resampled",
+      "title": "Re-Resampled",
+      "support": "direct",
+      "source_assumptions": [
+        "sample",
+        "master"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition",
+        "arrangement-transforms",
+        "sampler",
+        "reverse-sample-playback",
+        "source-backed-bounce",
+        "checked-slice-map"
+      ],
+      "workaround": "Bounce the section, slice it into durable mappings, reverse/duplicate/repitch micro-regions, and alternate explicit Clips without replacing the original.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 88,
+      "slug": "voice-gate",
+      "title": "Voice Gate",
+      "support": "intentional-non-goal",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "sidechain-routing"
+      ],
+      "workaround": "Live microphone input is outside the product direction; only an already recorded, explicitly imported Project asset can be used for a different offline task.",
+      "missing_primitives": [
+        "live-microphone-input"
+      ],
+      "packaging_layer": "intentional-non-goal",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 89,
+      "slug": "trip",
+      "title": "Trip",
+      "support": "blocked",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "arrangement-transforms",
+        "reverse-sample-playback",
+        "prepared-sample-transform"
+      ],
+      "workaround": "Exact stretching and reverse are available, but the repeated consolidate/Beats-warp artifact process remains unavailable.",
+      "missing_primitives": [
+        "warp-artifact-mode"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 90,
+      "slug": "counter-melody",
+      "title": "Counter Melody",
+      "support": "approximation",
+      "source_assumptions": [
+        "track"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "pitch-transposition"
+      ],
+      "workaround": "Transpose and manually author a counter-melody or use bounded existing Pattern transforms; there is no checked pitch-shuffle generator.",
+      "missing_primitives": [
+        "checked-melodic-shuffle-generation"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 91,
+      "slug": "vocal-repeat",
+      "title": "Vocal Repeat",
+      "support": "direct",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "bounded-stutter"
+      ],
+      "workaround": "Configure bounded Stutter with the intended interval/slice/repeat count and chance 100%, then add an explicit filter and output gain stage.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 92,
+      "slug": "drum-extraction",
+      "title": "Drum Extraction",
+      "support": "approximation",
+      "source_assumptions": [
+        "drums",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "sampler-regions",
+        "checked-slice-map"
+      ],
+      "workaround": "Create a manual checked slice map from inspected frame boundaries and sequence it; transient analysis and the named drum preset are unavailable.",
+      "missing_primitives": [
+        "transient-slice-analysis"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 93,
+      "slug": "granulator-3",
+      "title": "Granulator 3",
+      "support": "blocked",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "automation",
+        "sampler"
+      ],
+      "workaround": "Sampler regions are fixed and playable, but no bounded granular cloud with Position/Grain Size scheduling exists.",
+      "missing_primitives": [
+        "granular-or-spectral-processing"
+      ],
+      "packaging_layer": "native-capability",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 94,
+      "slug": "melody-repeater",
+      "title": "Melody Repeater",
+      "support": "direct",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "eq",
+        "pitch-transposition",
+        "bounded-stutter"
+      ],
+      "workaround": "Configure bounded Stutter at the intended interval and 1/16-style slice, add a prepared -12-semitone layer/filter, and keep repeats finite.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 95,
+      "slug": "ableton-ez-stuts",
+      "title": "Ableton EZ Stuts",
+      "support": "approximation",
+      "source_assumptions": [
+        "drums",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing"
+      ],
+      "workaround": "Use bounded preceding-audio Stutter at one explicit slice and repeat count; disclose that Beats-warp transient-loop envelope semantics differ.",
+      "missing_primitives": [
+        "warp-transient-loop-mode"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 96,
+      "slug": "ez-chops",
+      "title": "EZ Chops",
+      "support": "approximation",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "sampler-regions",
+        "checked-slice-map"
+      ],
+      "workaround": "Create a checked vocal slice map and author or manually vary Patterns; no seeded multi-voice chop generator exists.",
+      "missing_primitives": [
+        "seeded-pattern-generation"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 97,
+      "slug": "ez-chops-97",
+      "title": "EZ Chops",
+      "support": "approximation",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "pitch-transposition"
+      ],
+      "workaround": "Process a manually authored chop variation with parallel repitch, high-pass EQ, and Reverb; seeded chop generation and multiband compression remain unavailable.",
+      "missing_primitives": [
+        "seeded-pattern-generation",
+        "multiband-compression"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 98,
+      "slug": "evolving-tremelo",
+      "title": "Evolving Tremelo",
+      "support": "direct",
+      "source_assumptions": [
+        "track"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "automation"
+      ],
+      "workaround": "Draw deterministic level Automation that follows the intended inverted tremolo shape; no Auto Pan preset equivalence is claimed.",
+      "missing_primitives": [],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 99,
+      "slug": "ping-pong-ball",
+      "title": "Ping Pong Ball",
+      "support": "approximation",
+      "source_assumptions": [
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "reverb",
+        "eq",
+        "automation",
+        "sampler",
+        "bounded-loop-playback"
+      ],
+      "workaround": "Use a gated looped mapping, attack/release, filter Automation, and Reverb at one fixed loop length; loop length is not an automatable target.",
+      "missing_primitives": [
+        "automatable-sample-loop-length"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    },
+    {
+      "id": 100,
+      "slug": "sample-offset",
+      "title": "Sample Offset",
+      "support": "approximation",
+      "source_assumptions": [
+        "vocal",
+        "sample"
+      ],
+      "current_primitives": [
+        "source-editing",
+        "automation",
+        "sampler"
+      ],
+      "workaround": "Use checked fixed sample slips and sampler tune Automation as a coarse approximation; per-frame sample offset and occurrence transpose are not automatable targets.",
+      "missing_primitives": [
+        "automatable-sample-offset-and-tune"
+      ],
+      "packaging_layer": "project-recipe",
+      "minimum_crump_version": "0.1.0",
+      "cookbook_page": null,
+      "fixture": null
+    }
+  ]
+}

@@ -18,15 +18,15 @@ The First Public Release is deliberately narrower than a general DAW: it makes, 
 - Native stereo 48 kHz PipeWire playback and transient MIDI 1.0/UMP Note Audition
 - Checked source-preserving edits with stale-revision protection
 - Explicit Candidate → Active publication and append-only exact Project History
-- Portable WAV declaration/import/collection, exact content-addressed History ownership, deterministic off-callback decode/resampling, and sampler playback
-- Native Track/Group/Return/Master routing with Sends, sidechains, latency compensation, and a bounded processor floor
+- Portable WAV declaration/import/collection, exact content-addressed History ownership, deterministic off-callback decode/resampling, sampler playback, bounce, and exact-frame sample preparation
+- Native Track/Group/Return/Master routing with Sends, sidechains, latency compensation, and bounded Chorus/Flanger, Crusher, Gate/Expander, and finite Stutter processors plus one-sample Envelope Follower control
 - Checked Clip, Locator, arrangement-time, Groove, Variation, and Parameter-lock edits without procedural flattening
 - Safe Active publication through aligned 10 ms transitions: changed-target scalar handoff or equal-power topology fade
 - Deterministic stereo IEEE 32-bit-float Master/Stem bundles with hashes and finalized-file peak, loudness, DC, clipping, and non-finite analysis
 - Versioned exact-range offline workload reports that keep PipeWire, callback-safety, and named-hardware evidence explicitly external
 - Stable one-response JSON commands for external Authoring Agents
 
-The implemented engineering baseline remains **Production Control Foundation 1A**; this is not completion of the production roadmap or a newly certified release. Later roadmap engineering now includes routed LFO Modulation, the compiled mix graph and native processor floor, Slice 4 sampler playback, Slice 5 expressive-device contracts, Slice 6 linear arrangement/groove workflows, and Slice 7 finalized delivery plus offline workload characterization. Plug-ins, recording, Media Tracks and time stretching, generated Rust DSP, realtime complete-track qualification, named-hardware evidence, listening gates, and every Slice acceptance gate remain open.
+The implemented engineering baseline remains **Production Control Foundation 1A**; this is not completion of the production roadmap or a newly certified release. Later roadmap engineering now includes routed LFO Modulation, the compiled mix graph and native processor floor, Slice 4 forward/reverse bounded-loop sampler playback plus exact-Revision bounce and exact-frame offline sample preparation, Slice 5 expressive-device contracts, Slice 6 linear arrangement/groove workflows, and Slice 7 finalized delivery plus offline workload characterization. Plug-ins, recording, Media Tracks, formant preservation, realtime routed pitch, generated Rust DSP, realtime complete-track qualification, named-hardware evidence, listening gates, and every Slice acceptance gate remain open.
 
 ## Install from source
 
@@ -126,6 +126,7 @@ Every non-interactive command supports `--json` and emits exactly one response w
 - [Production Workspace](docs/workspace.md)
 - [Project language](docs/language.md)
 - [CLI and Authoring Agents](docs/cli-and-agents.md)
+- [Production cookbook and capability matrix](docs/cookbook/README.md)
 - [Provider-neutral Crump Authoring skill](skills/crump-authoring/SKILL.md)
 - [Audio, revision transitions, and MIDI](docs/audio-and-midi.md)
 - [History and deterministic rendering](docs/history-and-rendering.md)

@@ -2,7 +2,10 @@
 
 use std::fmt;
 
-use crate::model::{Processor, ProcessorKind, Unit, ValueError};
+use crate::{
+    model::{Processor, ProcessorKind, Unit, ValueError},
+    time::{Meter, MusicalTime, parse_musical_time},
+};
 
 /// The complete value contract for one native processor setting.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -28,6 +31,18 @@ pub(crate) enum SettingContract {
     },
     /// A structural frame count represented as an unsigned integer.
     UnsignedFrames { default: u32 },
+    /// A bounded structural unsigned integer.
+    Unsigned {
+        minimum: u32,
+        maximum: u32,
+        default: u32,
+    },
+    /// An exact positive structural duration measured in quarter notes.
+    MusicalDuration {
+        minimum_quarter_notes: f64,
+        maximum_quarter_notes: f64,
+        default: &'static str,
+    },
     /// A tempo-relative Delay division.
     DelayDivision { default: &'static str },
 }
@@ -107,6 +122,38 @@ const fn structural_numeric(
     }
 }
 
+const fn unsigned(
+    key: &'static str,
+    minimum: u32,
+    maximum: u32,
+    default: u32,
+) -> SettingDescriptor {
+    SettingDescriptor {
+        key,
+        contract: SettingContract::Unsigned {
+            minimum,
+            maximum,
+            default,
+        },
+    }
+}
+
+const fn musical_duration(
+    key: &'static str,
+    minimum_quarter_notes: f64,
+    maximum_quarter_notes: f64,
+    default: &'static str,
+) -> SettingDescriptor {
+    SettingDescriptor {
+        key,
+        contract: SettingContract::MusicalDuration {
+            minimum_quarter_notes,
+            maximum_quarter_notes,
+            default,
+        },
+    }
+}
+
 const fn choice(
     key: &'static str,
     choices: &'static [&'static str],
@@ -121,8 +168,10 @@ const fn choice(
 const BOOLEAN_CHOICES: &[&str] = &["false", "true"];
 const UTILITY_POLARITY_CHOICES: &[&str] = &["normal", "invert"];
 const COMPRESSOR_DETECTOR_CHOICES: &[&str] = &["peak", "rms"];
+const GATE_MODE_CHOICES: &[&str] = &["gate", "expander"];
 const DELAY_MODE_CHOICES: &[&str] = &["stereo", "ping_pong"];
 const SATURATION_MODE_CHOICES: &[&str] = &["soft_clip", "tanh", "tape"];
+const MODULATION_DELAY_MODE_CHOICES: &[&str] = &["chorus", "flanger"];
 
 const UTILITY_SETTINGS: &[SettingDescriptor] = &[
     continuous("gain", Unit::Decibels, -96.0, 24.0, 0.0),
@@ -157,6 +206,19 @@ const COMPRESSOR_SETTINGS: &[SettingDescriptor] = &[
     choice("detector", COMPRESSOR_DETECTOR_CHOICES, "peak"),
 ];
 
+const GATE_SETTINGS: &[SettingDescriptor] = &[
+    choice("mode", GATE_MODE_CHOICES, "gate"),
+    continuous("threshold", Unit::Decibels, -96.0, 0.0, -30.0),
+    continuous("ratio", Unit::Ratio, 1.0, 20.0, 4.0),
+    continuous("attack", Unit::Seconds, 0.000_01, 1.0, 0.002),
+    continuous("hold", Unit::Seconds, 0.0, 2.0, 0.02),
+    continuous("release", Unit::Seconds, 0.000_01, 10.0, 0.08),
+    continuous("range", Unit::Decibels, 0.0, 96.0, 48.0),
+    continuous("hysteresis", Unit::Decibels, 0.0, 24.0, 3.0),
+    choice("detector", COMPRESSOR_DETECTOR_CHOICES, "peak"),
+    continuous("mix", Unit::Ratio, 0.0, 1.0, 1.0),
+];
+
 const DELAY_SETTINGS: &[SettingDescriptor] = &[
     continuous("time", Unit::Seconds, 1.0 / 48_000.0, 4.0, 0.25),
     choice("tempo_sync", BOOLEAN_CHOICES, "false"),
@@ -189,6 +251,35 @@ const SATURATION_SETTINGS: &[SettingDescriptor] = &[
     choice("mode", SATURATION_MODE_CHOICES, "soft_clip"),
 ];
 
+const MODULATION_DELAY_SETTINGS: &[SettingDescriptor] = &[
+    choice("mode", MODULATION_DELAY_MODE_CHOICES, "chorus"),
+    continuous("delay", Unit::Seconds, 0.000_1, 0.05, 0.012),
+    continuous("depth", Unit::Seconds, 0.0, 0.02, 0.003),
+    continuous("rate", Unit::Hertz, 0.01, 20.0, 0.5),
+    continuous("feedback", Unit::Ratio, -0.95, 0.95, 0.0),
+    continuous("mix", Unit::Ratio, 0.0, 1.0, 0.5),
+    continuous("width", Unit::Ratio, 0.0, 1.0, 1.0),
+];
+
+const CRUSHER_SETTINGS: &[SettingDescriptor] = &[
+    continuous("bit_depth", Unit::Bits, 1.0, 24.0, 12.0),
+    continuous("sample_rate", Unit::Hertz, 100.0, 23_520.0, 12_000.0),
+    continuous("reconstruction", Unit::Ratio, 0.0, 1.0, 0.0),
+    continuous("mix", Unit::Ratio, 0.0, 1.0, 1.0),
+    continuous("output", Unit::Decibels, -24.0, 24.0, 0.0),
+];
+
+const STUTTER_SETTINGS: &[SettingDescriptor] = &[
+    musical_duration("slice", 1.0 / 64.0, 4.0, "1/4beat"),
+    unsigned("repeats", 1, 64, 4),
+    continuous("trigger", Unit::Boolean, 0.0, 1.0, 0.0),
+    continuous("chance", Unit::Ratio, 0.0, 1.0, 0.0),
+    musical_duration("interval", 1.0 / 64.0, 16.0, "1beat"),
+    unsigned("seed", 0, u32::MAX, 0),
+    continuous("crossfade", Unit::Ratio, 0.0, 0.5, 0.05),
+    continuous("mix", Unit::Ratio, 0.0, 1.0, 1.0),
+];
+
 const LIMITER_SETTINGS: &[SettingDescriptor] = &[
     continuous("ceiling", Unit::Decibels, -24.0, 0.0, -1.0),
     continuous("release", Unit::Seconds, 0.0, 2.0, 0.08),
@@ -206,9 +297,13 @@ pub(crate) const fn descriptors(kind: ProcessorKind) -> &'static [SettingDescrip
         ProcessorKind::Utility => UTILITY_SETTINGS,
         ProcessorKind::Eq => EQ_SETTINGS,
         ProcessorKind::Compressor => COMPRESSOR_SETTINGS,
+        ProcessorKind::Gate => GATE_SETTINGS,
         ProcessorKind::Delay => DELAY_SETTINGS,
         ProcessorKind::Reverb => REVERB_SETTINGS,
         ProcessorKind::Saturation => SATURATION_SETTINGS,
+        ProcessorKind::ModulationDelay => MODULATION_DELAY_SETTINGS,
+        ProcessorKind::Crusher => CRUSHER_SETTINGS,
+        ProcessorKind::Stutter => STUTTER_SETTINGS,
         ProcessorKind::Limiter => LIMITER_SETTINGS,
         ProcessorKind::Latency => LATENCY_SETTINGS,
     }
@@ -396,6 +491,30 @@ pub(crate) fn validate_authored_setting(
                 key: key.to_owned(),
                 literal: literal.to_owned(),
             }),
+        SettingContract::Unsigned {
+            minimum, maximum, ..
+        } => literal
+            .parse::<u32>()
+            .ok()
+            .filter(|value| (minimum..=maximum).contains(value))
+            .map(ResolvedSettingValue::Unsigned)
+            .ok_or_else(|| ProcessorSettingError::Unsupported {
+                key: key.to_owned(),
+                literal: literal.to_owned(),
+            }),
+        SettingContract::MusicalDuration {
+            minimum_quarter_notes,
+            maximum_quarter_notes,
+            ..
+        } => parse_generic_musical_duration(literal)
+            .filter(|duration| {
+                (minimum_quarter_notes..=maximum_quarter_notes).contains(&duration.as_f64())
+            })
+            .map(|_| ResolvedSettingValue::Choice(literal.to_owned()))
+            .ok_or_else(|| ProcessorSettingError::Unsupported {
+                key: key.to_owned(),
+                literal: literal.to_owned(),
+            }),
         SettingContract::Choice { .. } | SettingContract::DelayDivision { .. } => {
             Err(ProcessorSettingError::Unsupported {
                 key: key.to_owned(),
@@ -498,10 +617,14 @@ fn default_value(contract: SettingContract) -> ResolvedSettingValue {
         | SettingContract::StructuralNumeric { default, .. } => {
             ResolvedSettingValue::Numeric(default)
         }
-        SettingContract::Choice { default, .. } | SettingContract::DelayDivision { default } => {
+        SettingContract::Choice { default, .. }
+        | SettingContract::DelayDivision { default }
+        | SettingContract::MusicalDuration { default, .. } => {
             ResolvedSettingValue::Choice(default.to_owned())
         }
-        SettingContract::UnsignedFrames { default } => ResolvedSettingValue::Unsigned(default),
+        SettingContract::UnsignedFrames { default } | SettingContract::Unsigned { default, .. } => {
+            ResolvedSettingValue::Unsigned(default)
+        }
     }
 }
 
@@ -597,6 +720,22 @@ pub(crate) fn resolve_settings(
                 push_descriptor(&mut resolved, processor, key)?;
             }
         }
+        ProcessorKind::Gate => {
+            for key in [
+                "mode",
+                "threshold",
+                "ratio",
+                "attack",
+                "hold",
+                "release",
+                "range",
+                "hysteresis",
+                "detector",
+                "mix",
+            ] {
+                push_descriptor(&mut resolved, processor, key)?;
+            }
+        }
         ProcessorKind::Delay => {
             let tempo_sync = setting_literal(processor, "tempo_sync") == Some("true");
             if tempo_sync {
@@ -649,6 +788,36 @@ pub(crate) fn resolve_settings(
                 push_descriptor(&mut resolved, processor, key)?;
             }
         }
+        ProcessorKind::ModulationDelay => {
+            for key in ["mode", "delay", "depth", "rate", "feedback", "mix", "width"] {
+                push_descriptor(&mut resolved, processor, key)?;
+            }
+        }
+        ProcessorKind::Crusher => {
+            for key in [
+                "bit_depth",
+                "sample_rate",
+                "reconstruction",
+                "mix",
+                "output",
+            ] {
+                push_descriptor(&mut resolved, processor, key)?;
+            }
+        }
+        ProcessorKind::Stutter => {
+            for key in [
+                "slice",
+                "repeats",
+                "trigger",
+                "chance",
+                "interval",
+                "seed",
+                "crossfade",
+                "mix",
+            ] {
+                push_descriptor(&mut resolved, processor, key)?;
+            }
+        }
         ProcessorKind::Limiter => {
             for key in ["ceiling", "release", "lookahead"] {
                 push_descriptor(&mut resolved, processor, key)?;
@@ -657,6 +826,16 @@ pub(crate) fn resolve_settings(
         ProcessorKind::Latency => push_descriptor(&mut resolved, processor, "frames")?,
     }
     Ok(ResolvedProcessorSettings(resolved))
+}
+
+/// Parses a non-bar exact structural musical duration.
+pub(crate) fn parse_generic_musical_duration(literal: &str) -> Option<MusicalTime> {
+    if literal.contains("bar") {
+        return None;
+    }
+    parse_musical_time(literal, Meter::default())
+        .ok()
+        .filter(|duration| duration.is_positive())
 }
 
 /// Resolves one tempo-synchronized Delay division to quarter-note beats.
@@ -720,9 +899,13 @@ mod tests {
             ProcessorKind::Utility,
             ProcessorKind::Eq,
             ProcessorKind::Compressor,
+            ProcessorKind::Gate,
             ProcessorKind::Delay,
             ProcessorKind::Reverb,
             ProcessorKind::Saturation,
+            ProcessorKind::ModulationDelay,
+            ProcessorKind::Crusher,
+            ProcessorKind::Stutter,
             ProcessorKind::Limiter,
             ProcessorKind::Latency,
         ] {
@@ -768,6 +951,35 @@ mod tests {
                         validate_authored_setting(kind, descriptor.key, &default.to_string())
                             .is_ok()
                     ),
+                    SettingContract::Unsigned {
+                        minimum,
+                        maximum,
+                        default,
+                    } => {
+                        for value in [minimum, default, maximum] {
+                            assert!(
+                                validate_authored_setting(kind, descriptor.key, &value.to_string())
+                                    .is_ok()
+                            );
+                        }
+                    }
+                    SettingContract::MusicalDuration {
+                        minimum_quarter_notes,
+                        maximum_quarter_notes,
+                        default,
+                    } => {
+                        for literal in [
+                            format!("{minimum_quarter_notes}beat"),
+                            default.to_owned(),
+                            format!("{maximum_quarter_notes}beat"),
+                        ] {
+                            assert!(
+                                validate_authored_setting(kind, descriptor.key, &literal).is_ok(),
+                                "{kind:?}/{} value {literal}",
+                                descriptor.key
+                            );
+                        }
+                    }
                 }
             }
         }

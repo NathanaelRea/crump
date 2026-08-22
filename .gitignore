@@ -2,6 +2,7 @@
 .crump/
 /renders/
 *.wav
+!fixtures/cookbook/**/*.wav
 *.deb
 .DS_Store
 

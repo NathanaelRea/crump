@@ -11,8 +11,23 @@ Crump is agent-ready, not agent-owning. Work beside the application through Proj
 
 1. Read the target Project's `project.crump` and every declared `import` before changing it.
 2. Read the installed Project Language and CLI guides (`docs/language.md` and `docs/cli-and-agents.md` in a source checkout; `/usr/share/doc/crump/docs/language.md` and `/usr/share/doc/crump/docs/cli-and-agents.md` in the Debian package).
-3. Keep certification and implementation distinct. The certified Reference gate remains a 30–60 second no-sample Musical Sketch. Documented roadmap engineering may additionally use portable sampler Instruments, the compiled mix graph/processors, expressive native devices, checked Clip/Locator/arrangement operations, Groove Templates, procedural Pattern Variations, and Pattern Parameter locks when the musician asks for them; never describe those workflows as Slice-accepted. Point Automation and routed sine/triangle LFO Modulation use topology-stable physical-unit targets. Do not invent plugins, recording, Media Tracks, warping/time stretching, non-LFO routed sources, or Rust extensions.
-4. Source is authoritative. IDs are durable references, physical units are explicit, graph Buses are typed, and bounds are enforced.
+3. For production-recipe requests, use the shared cookbook matrix and linked page (`docs/cookbook/feasibility.json` and `docs/cookbook/README.md` in a source checkout; `/usr/share/doc/crump/docs/cookbook/` in the Debian package). Do not maintain a private recipe or support list in this skill.
+4. Keep certification and implementation distinct. The certified Reference gate remains a 30–60 second no-sample Musical Sketch. Documented roadmap engineering may additionally use portable sampler Instruments, the compiled mix graph/processors, expressive native devices, checked Clip/Locator/arrangement operations, Groove Templates, procedural Pattern Variations, and Pattern Parameter locks when the musician asks for them; never describe those workflows as Slice-accepted. Point Automation and routed sine/triangle LFO Modulation use topology-stable physical-unit targets. Do not invent plugins, recording, Media Tracks, unversioned warp modes, formant preservation, realtime routed pitch, control sources beyond routed LFO and the documented Envelope Follower, or Rust extensions.
+5. Source is authoritative. IDs are durable references, physical units are explicit, graph Buses are typed, and bounds are enforced.
+
+## Cookbook recipe preflight
+
+Before applying a named or analogous production recipe:
+
+1. Resolve the exact row in `feasibility.json`; use its recipe ID to avoid confusing duplicate titles such as the two **EZ Chops** chapters.
+2. Confirm the Project material and intended owner match the row's `source_assumptions`. A recipe for a vocal, sample, native Instrument, drums, Track, Return, Group, or Master is not automatically transferable to another source kind.
+3. For `direct`, open the linked cookbook page when present and author its explicit Project changes through the normal source path. An unlinked `direct` row is feasibility evidence only: do not invent its ordered procedure; require explicit musician instructions until a reviewed page exists.
+4. For `approximation`, state the missing direct behavior and proposed workaround before editing, and continue only when the musician accepts that difference.
+5. For `blocked`, stop and report the row's `missing_primitives`; do not invent a plug-in, transform, setting, generated asset, or unsupported command.
+6. For `intentional-non-goal`, explain the product boundary and offer only a genuinely different supported task, such as importing an already owned recording.
+7. Check `minimum_crump_version`, follow the page's audition/A-B and gain-staging procedure, and ask the musician to judge the level-matched result. Engineering support never establishes proprietary-device equivalence or musical quality.
+
+The matrix owns support and packaging facts; linked pages own recipe actions and listening checks. This skill owns only safe orchestration, validation, publication provenance, and honest diagnostics handling.
 
 ## Safe authoring loop
 
@@ -61,6 +76,59 @@ crump --project /path/to/project --json status
 ```
 
 `validate` proves syntax, references, units/domains, graph topology/types, and resource limits. `check` proves objective Musical Sketch shape. Neither proves musical taste, expressive range, control quality, or sound quality; ask the musician to listen.
+
+## Sample transport, bounce, and preparation
+
+Reverse traversal, bounded loops, deterministic slice maps, and exact-range bounce are ordinary source-backed operations. Inspect the asset's verified frame count and the target occurrence before issuing them:
+
+```bash
+crump --project /path/to/project --json edit sample-direction phrase reverse-word reverse \
+  --summary "Reverse the selected word"
+crump --project /path/to/project --json edit sample-loop phrase pad-bed 9600 38400 \
+  --crossfade 256 --summary "Loop the stable vocal tail"
+crump --project /path/to/project --json edit sample-loop-clear phrase pad-bed \
+  --summary "Restore mapping loop inheritance"
+crump --project /path/to/project --json edit sample-slice-map sampler stem chops C5 \
+  --boundaries 0,12000,24000,36000 --direction reverse \
+  --summary "Map reviewed stem boundaries"
+```
+
+A loop must remain inside the occurrence or mapping's half-open source region, and its crossfade cannot exceed half the loop. Reverse changes traversal only; it does not stretch time. Slice boundaries are exact original-source frames and must be reviewed rather than guessed.
+
+Bounce only when `status` shows the Candidate equals the exact Active Revision. It renders the named Master or `OWNER:TAP`, publishes a new generated WAV and readable provenance atomically, and never places or replaces a Clip:
+
+```bash
+crump --project /path/to/project --json asset bounce \
+  --source track/vocal:post_fader --from verse --to chorus --tail-seconds 1.5 \
+  --id vocal-tail --name "Vocal tail" --origin agent --actor "$AGENT_NAME" \
+  --summary "Render the approved wet vocal tail" \
+  --explanation "Create a reversible generated asset for audition; retain every source Clip and processor"
+```
+
+After bounce, inspect the generated hash, source Revision, owner/tap, range, tail, algorithm, and build. Audition the asset raw and in context. Place it only through a separate checked edit after the musician chooses it.
+
+For independent offline duration and pitch, use only the versioned prepared-asset path, again from an exact Active Candidate:
+
+```bash
+crump --project /path/to/project --json asset prepare --source phrase \
+  --from-frame 0 --to-frame 48000 --output-frames 96000 \
+  --pitch-semitones 0 --formants shift --quality effect-v1 \
+  --id slowed-phrase --name "Slowed phrase" --origin agent --actor "$AGENT_NAME" \
+  --summary "Prepare a two-second phrase" \
+  --explanation "Create an exact-duration effect-quality asset while retaining the original bytes"
+```
+
+Treat `output-frames` as authoritative; calculate it explicitly from the intended duration and Project sample rate. The first mode is `crump-wsola-effect-v1` in deterministic domain `x86_64-linux`, bounded to ±24 semitones, with formants `shift` only. It is effect-quality engineering, not exposed-vocal certification. `preserve`, named DAW warp modes, realtime Track/Group pitch Automation, and cross-platform byte identity remain unsupported. Inspect source asset/hash/range, output frames, pitch, policy, quality, algorithm, domain, build, and output hash. Preparation never places or replaces a Clip; audition and use a separate checked edit.
+
+Never describe reverse, loop, slice map, bounce, or preparation as formant preservation, a routed pitch shifter, destructive freeze, automatic replacement, or proprietary warp equivalence.
+
+## Audio-derived movement and bounded repeat
+
+Use `gate` for explicit program- or sidechain-driven cleanup/rhythmic opening. Name at most one sidechain input and route, then set detector, threshold, hysteresis, hold, attack, release, range, ratio/mode, and mix in physical units. Do not substitute Compressor threshold behavior for Gate semantics.
+
+An Envelope Follower must be authored as the documented `follower` source directive. It is additive physical-unit Modulation: frame N Audio affects frame N+1 controls. Confirm source/tap and destination `modulatable` capability, use finite floor below ceiling, inspect normalized/contribution telemetry, and never promise same-frame feedback.
+
+Use `stutter` only when explicit repeated Events are not clearer. `slice` and `interval` are structural exact musical durations; `interval >= slice`, repeats are finite, crossfade is at most 50%, and `trigger` is rising-edge. Seeded chance is absolute-grid deterministic. Warm-up and active-repeat triggers are ignored and reported; they do not restart or queue. This is preceding-audio capture, not lookahead or proprietary transient warping. Ask the musician to judge the result; engineering timing tests do not establish usefulness.
 
 ## Publication boundary
 

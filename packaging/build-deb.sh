@@ -30,10 +30,33 @@ install -Dm644 "$repo_root/README.md" "$package_root/usr/share/doc/crump/README.
 install -Dm644 "$repo_root/CONTEXT.md" "$package_root/usr/share/doc/crump/CONTEXT.md"
 install -Dm644 "$repo_root/requirements/product-contract.md" \
   "$package_root/usr/share/doc/crump/requirements/product-contract.md"
+if git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  while IFS= read -r -d '' relative; do
+    install -Dm644 "$repo_root/$relative" "$package_root/usr/share/doc/crump/$relative"
+  done < <(git -C "$repo_root" ls-files -z -- 'docs/*.md')
+else
+  while IFS= read -r -d '' document; do
+    relative=${document#"$repo_root/"}
+    install -Dm644 "$document" "$package_root/usr/share/doc/crump/$relative"
+  done < <(find "$repo_root/docs" -type f -name '*.md' -print0)
+fi
 while IFS= read -r -d '' document; do
   relative=${document#"$repo_root/"}
   install -Dm644 "$document" "$package_root/usr/share/doc/crump/$relative"
-done < <(find "$repo_root/docs" -type f -name '*.md' -print0)
+done < <(find "$repo_root/docs/cookbook" -type f -name '*.md' -print0)
+for relative in \
+  docs/adr/0012-prepared-sample-transform-contract.md \
+  docs/adr/0013-audio-derived-control-and-stutter.md \
+  docs/capability-roadmap-status.md; do
+  install -Dm644 "$repo_root/$relative" "$package_root/usr/share/doc/crump/$relative"
+done
+install -Dm644 "$repo_root/docs/cookbook/feasibility.json" \
+  "$package_root/usr/share/doc/crump/docs/cookbook/feasibility.json"
+while IFS= read -r -d '' fixture; do
+  relative=${fixture#"$repo_root/fixtures/cookbook/"}
+  install -Dm644 "$fixture" \
+    "$package_root/usr/share/doc/crump/fixtures/cookbook/$relative"
+done < <(find "$repo_root/fixtures/cookbook" -type f -print0)
 install -Dm644 "$repo_root/fixtures/reference/project.crump" \
   "$package_root/usr/share/doc/crump/fixtures/reference/project.crump"
 install -Dm644 "$repo_root/fixtures/reference/project.crump" \

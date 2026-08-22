@@ -1,0 +1,57 @@
+crump 1
+project "Cookbook 44 Double Delays" {
+  id cookbook-44-double-delays
+  seed 4044
+  sample_rate 48000
+  render_tail 500ms
+  song {
+    tempo 240bpm
+    meter 4/4
+    end 1bar
+    instrument drums "Source" stock_drums {
+      polyphony 8
+      parameter tone "Tone" ratio 0 1 0.5 0.58
+      parameter punch "Punch" ratio 0 1 0.5 0.7
+      faceplate {
+        control tone "Tone" "Controls source brightness" maps tone
+        control punch "Punch" "Controls source impact" maps punch
+      }
+    }
+    pattern accents 1bar {
+      hit 0beat clap 0.78
+      hit 2beat snare 0.72
+    }
+    track source "Delay Source" instrument drums level -10db pan 0 {
+      send quarter-send target return/quarter tap post level -12db
+      send triplet-send target return/triplet tap post level -12db
+      output master
+      clip accents-loop pattern accents start 0bar duration 1bar mode loop
+    }
+    return quarter "Quarter Delay" level -7db {
+      processor quarter-echo delay {
+        setting tempo_sync true
+        setting division 1/4
+        setting feedback 0.3
+        setting mix 0.999
+      }
+      output master
+    }
+    return triplet "Triplet Delay" level -7db {
+      processor triplet-echo delay {
+        setting tempo_sync true
+        setting division 1/4t
+        setting feedback 0.3
+        setting mix 0.999
+        setting mode ping_pong
+      }
+      output master
+    }
+    master level -1db {
+      processor ceiling limiter {
+        setting ceiling -1db
+        setting release 80ms
+        setting lookahead 5ms
+      }
+    }
+  }
+}

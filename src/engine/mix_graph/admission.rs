@@ -294,6 +294,13 @@ impl RuntimeResourceEstimate {
         self.recalculate_memory_and_admission();
     }
 
+    pub(super) fn include_additional_callback_work(&mut self, work_units_per_frame: u64) {
+        self.work_units_per_frame = self
+            .work_units_per_frame
+            .saturating_add(work_units_per_frame);
+        self.recalculate_memory_and_admission();
+    }
+
     pub(super) fn include_song_runtime_state(
         &mut self,
         control_program_bytes: u64,

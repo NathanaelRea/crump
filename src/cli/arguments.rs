@@ -101,6 +101,49 @@ pub(super) enum ArrangementAutomationArg {
     Locked,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub(super) enum SampleDirectionArg {
+    Forward,
+    Reverse,
+}
+
+impl From<SampleDirectionArg> for crate::model::SampleDirection {
+    fn from(value: SampleDirectionArg) -> Self {
+        match value {
+            SampleDirectionArg::Forward => Self::Forward,
+            SampleDirectionArg::Reverse => Self::Reverse,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub(super) enum FormantPolicyArg {
+    Shift,
+    Preserve,
+}
+
+impl From<FormantPolicyArg> for crate::model::FormantPolicy {
+    fn from(value: FormantPolicyArg) -> Self {
+        match value {
+            FormantPolicyArg::Shift => Self::Shift,
+            FormantPolicyArg::Preserve => Self::Preserve,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub(super) enum SampleTransformQualityArg {
+    EffectV1,
+}
+
+impl From<SampleTransformQualityArg> for crate::model::SampleTransformQuality {
+    fn from(value: SampleTransformQualityArg) -> Self {
+        match value {
+            SampleTransformQualityArg::EffectV1 => Self::EffectV1,
+        }
+    }
+}
+
 impl From<ArrangementAutomationArg> for ArrangementAutomation {
     fn from(value: ArrangementAutomationArg) -> Self {
         match value {
@@ -735,6 +778,19 @@ pub(super) enum EditCommand {
         #[arg(long, default_value = "Place sample occurrence")]
         summary: String,
     },
+    /// Create adjacent one-key mappings from exact source-frame boundaries.
+    SampleSliceMap {
+        instrument: String,
+        asset: String,
+        prefix: String,
+        start_key: String,
+        #[arg(long, value_delimiter = ',', num_args = 1..)]
+        boundaries: Vec<u64>,
+        #[arg(long, value_enum, default_value_t = SampleDirectionArg::Forward)]
+        direction: SampleDirectionArg,
+        #[arg(long, default_value = "Create sample slice map")]
+        summary: String,
+    },
     /// Move one durable sample occurrence.
     SampleMove {
         pattern: String,
@@ -795,6 +851,32 @@ pub(super) enum EditCommand {
         #[arg(long, default_value = "Fade sample occurrence")]
         summary: String,
     },
+    /// Set one occurrence-local sample traversal direction.
+    SampleDirection {
+        pattern: String,
+        id: String,
+        direction: SampleDirectionArg,
+        #[arg(long, default_value = "Change sample direction")]
+        summary: String,
+    },
+    /// Set one bounded occurrence-local sample loop.
+    SampleLoop {
+        pattern: String,
+        id: String,
+        start_frame: u64,
+        end_frame: u64,
+        #[arg(long, default_value_t = 0)]
+        crossfade: u32,
+        #[arg(long, default_value = "Change sample loop")]
+        summary: String,
+    },
+    /// Clear an occurrence-local sample loop and inherit the mapping.
+    SampleLoopClear {
+        pattern: String,
+        id: String,
+        #[arg(long, default_value = "Clear sample loop")]
+        summary: String,
+    },
     /// Set one durable sample occurrence gain trim.
     SampleGain {
         pattern: String,
@@ -830,6 +912,81 @@ pub(super) enum AssetCommand {
         /// History summary.
         #[arg(long, default_value = "Import portable WAV asset")]
         summary: String,
+    },
+    /// Bounce one exact Active Revision range and publish a generated WAV asset atomically.
+    Bounce {
+        /// `master` or `OWNER:TAP`, for example `track/lead:post_fader`.
+        #[arg(long, default_value = "master")]
+        source: String,
+        /// Inclusive Song Locator ID or exact musical time.
+        #[arg(long)]
+        from: String,
+        /// Exclusive Song Locator ID or exact musical time.
+        #[arg(long)]
+        to: String,
+        /// Isolated post-range tail length in seconds.
+        #[arg(long, default_value_t = 0.0)]
+        tail_seconds: f64,
+        /// New durable generated asset identity.
+        #[arg(long)]
+        id: String,
+        /// Human-facing asset name; defaults to the ID.
+        #[arg(long)]
+        name: Option<String>,
+        /// Publication origin class.
+        #[arg(long, value_enum, default_value_t = OriginArg::Human)]
+        origin: OriginArg,
+        /// Human or Agent identity.
+        #[arg(long, default_value = "cli")]
+        actor: String,
+        /// History summary.
+        #[arg(long, default_value = "Bounce source range to portable asset")]
+        summary: String,
+        /// Durable rationale; required for Agent publications.
+        #[arg(long, default_value = "")]
+        explanation: String,
+    },
+    /// Prepare one exact asset region with independent output duration and pitch.
+    Prepare {
+        /// Existing durable source asset identity.
+        #[arg(long)]
+        source: String,
+        /// Inclusive original-WAV source frame.
+        #[arg(long)]
+        from_frame: u64,
+        /// Exclusive original-WAV source frame.
+        #[arg(long)]
+        to_frame: u64,
+        /// Exact generated frame count at the Project sample rate.
+        #[arg(long)]
+        output_frames: u64,
+        /// Independent pitch displacement in semitones.
+        #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+        pitch_semitones: f64,
+        /// Explicit formant behavior; preserve is currently rejected as unavailable.
+        #[arg(long, value_enum, default_value_t = FormantPolicyArg::Shift)]
+        formants: FormantPolicyArg,
+        /// Versioned transform quality contract.
+        #[arg(long, value_enum, default_value_t = SampleTransformQualityArg::EffectV1)]
+        quality: SampleTransformQualityArg,
+        /// New durable generated asset identity.
+        #[arg(long)]
+        id: String,
+        /// Human-facing asset name; defaults to the ID.
+        #[arg(long)]
+        name: Option<String>,
+        /// Publication origin class.
+        #[arg(long, value_enum, default_value_t = OriginArg::Human)]
+        origin: OriginArg,
+        /// Human or Agent identity.
+        #[arg(long, default_value = "cli")]
+        actor: String,
+        /// History summary.
+        #[arg(long, default_value = "Prepare independent-duration sample asset")]
+        summary: String,
+        /// Durable rationale; required for Agent publications.
+        #[arg(long, default_value = "")]
+        explanation: String,
     },
     /// Collect declared WAVs into canonical `media/<asset-id>.wav` paths.
     Collect {

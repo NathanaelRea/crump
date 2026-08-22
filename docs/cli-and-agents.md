@@ -57,7 +57,7 @@ crump --project ./song --json check
 
 - `status` succeeds even for an invalid Candidate and reports Candidate/Active identity and state.
 - `validate` exits `2` when blocking diagnostics exist.
-- `inspect` returns the recoverable typed Candidate model, source-file inventory, verified portable-media metadata/hashes, diagnostics, revision state, and effective Parameter provenance at `--at TIME` (default Song time zero) when the Candidate is valid. The requested frame must lie at or before the inclusive Render Range boundary; out-of-range requests are rejected rather than silently clamped.
+- `inspect` returns the recoverable typed Candidate model, source-file inventory, verified portable-media metadata/hashes, diagnostics, revision state, effective Parameter provenance, compiled processor tail/resource facts, and static Envelope Follower source/tap/target/depth/operator/one-sample-latency contracts at `--at TIME` (default Song time zero) when the Candidate is valid. The requested frame must lie at or before the inclusive Render Range boundary; out-of-range requests are rejected rather than silently clamped.
 - `check` applies the narrower objective 30–60 second Musical Sketch acceptance fixture.
 
 Diagnostics include stable code, severity, source location, byte range, message, and optional help. An Agent should report those facts rather than replacing them with a vague parse failure.
@@ -169,7 +169,7 @@ Timing edits are exact and grid-free by default. `--free` makes that intent expl
 
 Groove Templates, Pattern Variations, and Parameter locks remain readable procedural source. Variations require all transform operands and cannot be deleted while referenced. A lock resolves its Parameter key against each consuming Track's Instrument, overrides Automation as a step value, still receives additive Modulation, and resets at the Clip end. Conflicting overlapping lock-bearing Clips are rejected rather than assigned hidden precedence. `inspect --at TIME` exposes the active `parameter_lock` value in effective-Parameter provenance.
 
-Sample place, move, duplicate, split/chop, trim, slip, fade, gain, and pan commands resolve durable occurrence IDs and publish checked source transformations. Multi-literal region/fade edits commit atomically. The Event Grid also exposes exact duration, velocity, source-region (`x`), fade (`f`), gain (`g`), and pan (`p`) dialogs for sample occurrences.
+Sample place, move, duplicate, split/chop, trim, slip, fade, gain, pan, direction, bounded-loop, loop-clear, and deterministic slice-map commands resolve durable occurrence/Instrument IDs and publish checked source transformations. Multi-literal region/fade/loop edits commit atomically. Slice-map boundaries are exact increasing original-source frames and may use forward or reverse traversal. The Event Grid also exposes exact duration, velocity, source-region (`x`), fade (`f`), gain (`g`), and pan (`p`) dialogs for sample occurrences.
 
 `play --target` accepts Song, Track, Clip, Pattern, Asset, sampler Mapping, and durable sample Occurrence identities. `--path raw|mapping|channel-pre|channel-post|master`, exact Musical Time/Locator `--from` and `--to`, optional looping, repeatable transient `--bypass`, and asset source-frame bounds form one inspectable Audition Plan. A raw target without an explicit end uses the selected project-rate source region's natural length rather than Song end. `--plan` performs off-callback compilation and deterministic preroll but opens no audio device. Audition selection and transient bypass never publish source or History.
 
@@ -188,12 +188,21 @@ crump --project ./song --json asset import ../recordings/phrase.wav \
   --summary "Import lawful vocal fragment"
 crump --project ./song --json asset collect \
   --summary "Normalize portable media paths"
+crump --project ./song --json asset bounce \
+  --source track/vocal:post_fader --from verse --to chorus --tail-seconds 1.5 \
+  --id vocal-tail --name "Vocal tail" --summary "Render wet vocal tail"
+crump --project ./song --json asset prepare --source phrase \
+  --from-frame 0 --to-frame 48000 --output-frames 96000 \
+  --pitch-semitones 0 --formants shift --quality effect-v1 \
+  --id slowed-phrase --name "Slowed phrase"
 crump --project ./song --json asset list
 ```
 
 `asset import` accepts an external regular WAV only as input. It captures exact bytes, computes lowercase SHA-256, chooses `media/ID.wav`, refuses to replace any existing destination, inserts the source declaration, validates the source-and-binary overlay, and publishes both sides under one recovery journal. Invalid WAVs, stale revisions, unsafe/symbolic-link paths, duplicate IDs/paths, and limit violations leave the declaration and destination unchanged. An external absolute path is never persisted.
 
-`asset collect` moves every valid declaration to `media/ASSET_ID.wav` in one checked source-and-binary History transaction while preserving exact bytes and hashes. It refuses undeclared destination conflicts. `asset list` reports only verified Project-relative identity, exact content hash/length, and WAV container metadata. Missing or changed media remains visible through stable validation diagnostics. Distinct paths with identical content produce a warning rather than an implicit merge.
+`asset collect` moves every valid declaration to `media/ASSET_ID.wav` in one checked source-and-binary History transaction while preserving exact bytes and hashes. It refuses undeclared destination conflicts. `asset bounce` requires Candidate identity to equal the exact Active Revision, deterministically prerolls and captures Master or one Track/Group/Return pre/post-fader tap over a half-open time/Locator range, optionally appends an isolated authored release/effect tail, and publishes stereo float WAV bytes plus a readable generated provenance block atomically. The provenance names source Revision, owner/tap, range, tail, format, versioned algorithm, build, and exact byte hash. Bounce never replaces a Clip or disables processors; placement is a later checked decision.
+
+`asset prepare` also requires exact Candidate/Active identity. It reads one verified asset's half-open original-frame region and publishes a new exact-duration asset. `--output-frames` is authoritative, pitch is independently bounded to ±24 semitones, and `effect-v1` exposes only `--formants shift`; preserve is an explicit blocked request. Tagged provenance records source asset/hash/range, output frames, pitch, formants, quality, format, `crump-wsola-effect-v1`, `x86_64-linux`, and build. Preparation is bounded and off-callback, retains the original bytes, and never places or replaces material automatically. `asset list` reports only verified Project-relative identity, exact content hash/length, and WAV container metadata. Missing or changed media remains visible through stable validation diagnostics. Distinct paths with identical content produce a warning rather than an implicit merge.
 
 ## Agent publication provenance
 

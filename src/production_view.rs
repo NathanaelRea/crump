@@ -9,14 +9,18 @@ use crate::{
     diagnostic::Diagnostic,
     edit::{
         CheckedReplacement, EditError, ProcessorMove, apply_structured_edit,
-        fade_sample_occurrence, move_processor, set_automation_point_at,
-        set_automation_point_interpolation, set_automation_point_value, set_event_at,
-        set_event_velocity, set_hit_voice, set_note_duration, set_note_pitch, set_parameter,
-        set_parameter_target, set_processor_setting, set_sample_occurrence_gain,
+        clear_sample_occurrence_loop, fade_sample_occurrence, move_processor,
+        set_automation_point_at, set_automation_point_interpolation, set_automation_point_value,
+        set_event_at, set_event_velocity, set_hit_voice, set_note_duration, set_note_pitch,
+        set_parameter, set_parameter_target, set_processor_setting,
+        set_sample_occurrence_direction, set_sample_occurrence_gain, set_sample_occurrence_loop,
         set_sample_occurrence_pan, set_track_level, set_track_pan, trim_sample_occurrence,
     },
     history::{ChangeOrigin, HistoryEntry, HistoryError, HistoryStore, Publication},
-    model::{AutomationInterpolation, DrumVoice, ParameterTarget, Unit, parse_pitch},
+    model::{
+        AutomationInterpolation, DrumVoice, ParameterTarget, SampleDirection, SampleLoopRegion,
+        Unit, parse_pitch,
+    },
     project::{ProjectBundle, ProjectIoError, RevisionId, load_project},
 };
 
@@ -157,6 +161,22 @@ pub enum Operation {
         fade_in_frames: u32,
         fade_out_frames: u32,
     },
+    /// Set one sample occurrence's traversal direction.
+    SetSampleDirection {
+        pattern: String,
+        occurrence: String,
+        direction: String,
+    },
+    /// Set one bounded occurrence-local loop and boundary crossfade.
+    SetSampleLoop {
+        pattern: String,
+        occurrence: String,
+        start_frame: u64,
+        end_frame: u64,
+        crossfade_frames: u32,
+    },
+    /// Clear an occurrence-local loop so it inherits its mapping.
+    ClearSampleLoop { pattern: String, occurrence: String },
     /// Set one sample occurrence's gain trim.
     SetSampleGain {
         pattern: String,
@@ -258,6 +278,8 @@ pub enum ValueKind {
     Pitch,
     /// Percussion voice syntax.
     DrumVoice,
+    /// Sample traversal direction syntax.
+    SampleDirection,
 }
 
 /// Failure from the terminal-independent Production View executor.
@@ -548,6 +570,38 @@ fn plan(
             *fade_in_frames,
             *fade_out_frames,
         )?,
+        Operation::SetSampleDirection {
+            pattern,
+            occurrence,
+            direction,
+        } => {
+            let direction = direction
+                .parse::<SampleDirection>()
+                .map_err(|error| invalid(ValueKind::SampleDirection, error))?;
+            vec![set_sample_occurrence_direction(
+                bundle, pattern, occurrence, direction,
+            )?]
+        }
+        Operation::SetSampleLoop {
+            pattern,
+            occurrence,
+            start_frame,
+            end_frame,
+            crossfade_frames,
+        } => vec![set_sample_occurrence_loop(
+            bundle,
+            pattern,
+            occurrence,
+            SampleLoopRegion {
+                start_frame: *start_frame,
+                end_frame: *end_frame,
+                crossfade_frames: *crossfade_frames,
+            },
+        )?],
+        Operation::ClearSampleLoop {
+            pattern,
+            occurrence,
+        } => vec![clear_sample_occurrence_loop(bundle, pattern, occurrence)?],
         Operation::SetSampleGain {
             pattern,
             occurrence,

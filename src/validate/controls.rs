@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     diagnostic::{Diagnostic, Diagnostics},
     model::{
-        AutomationInterpolation, InstrumentKind, ModulationOperator, ModulationRate,
+        AutomationInterpolation, ChannelRef, InstrumentKind, ModulationOperator, ModulationRate,
         ModulationScope, NodeKind, ParameterTarget, Project, SettingValue, Unit,
     },
 };
@@ -225,12 +225,16 @@ pub(super) fn validate_automations(project: &Project, diagnostics: &mut Diagnost
 }
 
 pub(super) fn validate_modulations(project: &Project, diagnostics: &mut Diagnostics) {
-    if project.song.modulations.len() > MAX_MODULATION_ROUTES {
+    let route_count = project
+        .song
+        .modulations
+        .len()
+        .saturating_add(project.song.envelope_followers.len());
+    if route_count > MAX_MODULATION_ROUTES {
         diagnostics.push(Diagnostic::error(
             "CRV119",
             format!(
-                "Song declares {} Modulation routes; maximum is {MAX_MODULATION_ROUTES}",
-                project.song.modulations.len()
+                "Song declares {route_count} Modulation and Envelope Follower routes; maximum is {MAX_MODULATION_ROUTES}"
             ),
         ));
     }
@@ -239,6 +243,13 @@ pub(super) fn validate_modulations(project: &Project, diagnostics: &mut Diagnost
         .modulations
         .iter()
         .map(|route| route.operators.len())
+        .chain(
+            project
+                .song
+                .envelope_followers
+                .iter()
+                .map(|route| route.operators.len()),
+        )
         .sum::<usize>();
     if total_operators > MAX_MODULATION_OPERATORS {
         diagnostics.push(Diagnostic::error(
@@ -373,6 +384,119 @@ pub(super) fn validate_modulations(project: &Project, diagnostics: &mut Diagnost
                     diagnostics,
                     "CRV131",
                     "Modulation operators require finite scalars and clamp minimum < maximum",
+                    &route.location,
+                );
+            }
+        }
+    }
+
+    for route in &project.song.envelope_followers {
+        if !valid_id(&route.id) || !route_ids.insert(route.id.as_str()) {
+            located_error(
+                diagnostics,
+                "CRV148",
+                format!(
+                    "Envelope Follower route id `{}` is invalid or duplicated",
+                    route.id
+                ),
+                &route.location,
+            );
+        }
+        let source_exists = match &route.source {
+            ChannelRef::Track(id) => project.song.tracks.iter().any(|channel| channel.id == *id),
+            ChannelRef::Group(id) => project.song.groups.iter().any(|channel| channel.id == *id),
+            ChannelRef::Return(id) => project.song.returns.iter().any(|channel| channel.id == *id),
+        };
+        if !source_exists {
+            located_error(
+                diagnostics,
+                "CRV149",
+                format!("Envelope Follower source `{}` does not exist", route.source),
+                &route.location,
+            );
+        }
+        let Some(spec) = project.parameter_spec(&route.target) else {
+            located_error(
+                diagnostics,
+                "CRV150",
+                format!(
+                    "Envelope Follower targets missing Parameter `{}`",
+                    route.target
+                ),
+                &route.location,
+            );
+            continue;
+        };
+        if !spec.modulatable || !automation_target_is_runtime_safe(project, &route.target) {
+            located_error(
+                diagnostics,
+                "CRV151",
+                format!(
+                    "Parameter `{}` cannot receive Envelope Follower modulation safely",
+                    route.target
+                ),
+                &route.location,
+            );
+        }
+        if !route.attack_seconds.is_finite()
+            || !route.release_seconds.is_finite()
+            || !(0.000_01..=10.0).contains(&route.attack_seconds)
+            || !(0.000_01..=10.0).contains(&route.release_seconds)
+        {
+            located_error(
+                diagnostics,
+                "CRV152",
+                "Envelope Follower attack/release must be 0.00001s..=10s",
+                &route.location,
+            );
+        }
+        if !route.floor_db.is_finite()
+            || !route.ceiling_db.is_finite()
+            || !(-144.0..=24.0).contains(&route.floor_db)
+            || !(-144.0..=24.0).contains(&route.ceiling_db)
+            || route.floor_db >= route.ceiling_db
+        {
+            located_error(
+                diagnostics,
+                "CRV153",
+                "Envelope Follower requires finite -144db..=24db floor < ceiling",
+                &route.location,
+            );
+        }
+        if let Err(error) = spec.unit.parse_value(&route.depth) {
+            located_error(
+                diagnostics,
+                "CRV154",
+                format!("invalid Envelope Follower depth for {}: {error}", spec.unit),
+                &route.location,
+            );
+        }
+        if route.operators.len() > MAX_MODULATION_OPERATORS_PER_ROUTE {
+            located_error(
+                diagnostics,
+                "CRV155",
+                format!(
+                    "Envelope Follower route has {} operators; maximum is {MAX_MODULATION_OPERATORS_PER_ROUTE}",
+                    route.operators.len()
+                ),
+                &route.location,
+            );
+        }
+        for operator in &route.operators {
+            let valid = match *operator {
+                ModulationOperator::Add { value }
+                | ModulationOperator::Multiply { value }
+                | ModulationOperator::Scale { value }
+                | ModulationOperator::Bias { value } => value.is_finite(),
+                ModulationOperator::Clamp { minimum, maximum } => {
+                    minimum.is_finite() && maximum.is_finite() && minimum < maximum
+                }
+            };
+            if !valid {
+                located_error(
+                    diagnostics,
+                    "CRV156",
+                    "Envelope Follower operators require finite scalars and clamp minimum < maximum",
                     &route.location,
                 );
             }

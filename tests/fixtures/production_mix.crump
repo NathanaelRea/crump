@@ -52,6 +52,19 @@ project "Production Mix" {
         setting mix 1
         sidechain input detector
       }
+      processor bass_gate gate {
+        setting mode expander
+        setting threshold -30db
+        setting ratio 4
+        setting attack 2ms
+        setting hold 20ms
+        setting release 80ms
+        setting range 36db
+        setting hysteresis 3db
+        setting detector peak
+        setting mix 0.2
+        sidechain input detector
+      }
       send bass_room target return/room tap post level -18db
       output group/mix_bus
       clip bass_clip pattern beat start 1.1 duration 3bar mode loop
@@ -64,6 +77,32 @@ project "Production Mix" {
         setting mid1_frequency 350hz
         setting mid1_gain -1db
         setting mid1_q 1
+      }
+      processor bus_chorus modulation_delay {
+        setting mode chorus
+        setting delay 12ms
+        setting depth 3ms
+        setting rate 0.5hz
+        setting feedback 0
+        setting mix 0.15
+        setting width 1
+      }
+      processor bus_crusher crusher {
+        setting bit_depth 16bit
+        setting sample_rate 12000hz
+        setting reconstruction 0
+        setting mix 0.05
+        setting output 0db
+      }
+      processor bus_stutter stutter {
+        setting slice 1/4beat
+        setting repeats 4
+        setting trigger false
+        setting chance 1
+        setting interval 1beat
+        setting seed 41
+        setting crossfade 5%
+        setting mix 0.2
       }
       send bus_room target return/room tap post level -24db
       output master
@@ -93,6 +132,7 @@ project "Production Mix" {
     }
 
     sidechain kick_detector from track/drums tap post to processor/bass_comp/detector
+    sidechain kick_gate from track/drums tap post to processor/bass_gate/detector
 
     master level -1db {
       processor master_saturation saturation {
@@ -106,6 +146,10 @@ project "Production Mix" {
         setting release 0.08s
         setting lookahead 0.005s
       }
+    }
+
+    follower drum_follow from track/drums tap post detector peak attack 5ms release 100ms floor -60db ceiling -6db target processor/bus_crusher/mix depth 0.2 {
+      clamp 0 1
     }
 
     locator intro "Intro" at 1.1

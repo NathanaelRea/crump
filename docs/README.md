@@ -5,6 +5,8 @@
 - [Production Workspace](workspace.md)
 - [Project Language 1](language.md)
 - [CLI and External Authoring Agents](cli-and-agents.md)
+- [Production Cookbook and Capability Matrix](cookbook/README.md)
+- [Producer Capability Roadmap Engineering Status](capability-roadmap-status.md)
 - [Native Audio, Revision Transitions, and MIDI](audio-and-midi.md)
 - [Project History and Deterministic Rendering](history-and-rendering.md)
 - [First-Release Support Contract](support.md)

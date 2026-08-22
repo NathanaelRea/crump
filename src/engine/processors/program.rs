@@ -1,6 +1,8 @@
 use crate::{
     model::{ParameterTarget, Processor, ProcessorKind},
-    processor_semantics::{ResolvedProcessorSettings, resolve_settings},
+    processor_semantics::{
+        ResolvedProcessorSettings, parse_generic_musical_duration, resolve_settings,
+    },
 };
 
 use super::*;
@@ -64,6 +66,18 @@ pub(super) enum ProcessorConfig {
         mix: Scalar,
         rms: bool,
     },
+    Gate {
+        mode: GateMode,
+        threshold: Scalar,
+        ratio: Scalar,
+        attack: Scalar,
+        hold: Scalar,
+        release: Scalar,
+        range: Scalar,
+        hysteresis: Scalar,
+        rms: bool,
+        mix: Scalar,
+    },
     Delay {
         time: Scalar,
         feedback: Scalar,
@@ -88,6 +102,33 @@ pub(super) enum ProcessorConfig {
         mix: Scalar,
         output: Scalar,
         mode: SaturationMode,
+    },
+    ModulationDelay {
+        delay: Scalar,
+        depth: Scalar,
+        rate: Scalar,
+        feedback: Scalar,
+        mix: Scalar,
+        width: Scalar,
+        mode: ModulationDelayMode,
+        maximum_frames: usize,
+    },
+    Crusher {
+        bit_depth: Scalar,
+        sample_rate: Scalar,
+        reconstruction: Scalar,
+        mix: Scalar,
+        output: Scalar,
+    },
+    Stutter {
+        trigger: Scalar,
+        chance: Scalar,
+        crossfade: Scalar,
+        mix: Scalar,
+        slice_frames: usize,
+        repeats: u32,
+        interval_frames: u64,
+        seed: u64,
     },
     Limiter {
         ceiling: Scalar,
@@ -115,6 +156,12 @@ pub(super) struct EqBandProgram {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum GateMode {
+    Gate,
+    Expander,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SaturationMode {
     SoftClip,
     Tanh,
@@ -127,6 +174,13 @@ pub(super) enum DelayMode {
     PingPong,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ModulationDelayMode {
+    Chorus,
+    Flanger,
+}
+
+pub(super) const MODULATION_DELAY_MAX_SECONDS: f64 = 0.07;
 pub(super) const REVERB_COMB_LENGTHS_48K: [usize; 4] = [1557, 1617, 1491, 1422];
 pub(super) const REVERB_DIFFUSER_LENGTHS_48K: [usize; 4] = [225, 556, 441, 341];
 pub(super) const REVERB_MODULATION_DEPTH_FRAMES_48K: f64 = 8.0;
@@ -218,13 +272,21 @@ impl ProcessorProgram {
     ) -> Result<Self, EngineError> {
         let settings = resolve_settings(processor, tempo_bpm)
             .map_err(|error| EngineError::Compile(error.compile_message(processor)))?;
-        if processor.kind != ProcessorKind::Compressor && !processor.sidechain_inputs.is_empty() {
+        if !matches!(
+            processor.kind,
+            ProcessorKind::Compressor | ProcessorKind::Gate
+        ) && !processor.sidechain_inputs.is_empty()
+        {
             return Err(EngineError::Compile(format!(
                 "processor `{}` kind {:?} does not consume sidechain Audio",
                 processor.id, processor.kind
             )));
         }
-        if processor.kind == ProcessorKind::Compressor && processor.sidechain_inputs.len() > 1 {
+        if matches!(
+            processor.kind,
+            ProcessorKind::Compressor | ProcessorKind::Gate
+        ) && processor.sidechain_inputs.len() > 1
+        {
             return Err(EngineError::Compile(format!(
                 "compressor `{}` accepts at most one named sidechain input",
                 processor.id
@@ -312,6 +374,22 @@ impl ProcessorProgram {
                 mix: scalar("mix")?,
                 rms: settings.choice("detector") == Some("rms"),
             },
+            ProcessorKind::Gate => ProcessorConfig::Gate {
+                mode: if settings.choice("mode") == Some("expander") {
+                    GateMode::Expander
+                } else {
+                    GateMode::Gate
+                },
+                threshold: scalar("threshold")?,
+                ratio: scalar("ratio")?,
+                attack: scalar("attack")?,
+                hold: scalar("hold")?,
+                release: scalar("release")?,
+                range: scalar("range")?,
+                hysteresis: scalar("hysteresis")?,
+                rms: settings.choice("detector") == Some("rms"),
+                mix: scalar("mix")?,
+            },
             ProcessorKind::Delay => ProcessorConfig::Delay {
                 time: scalar("time")?,
                 feedback: scalar("feedback")?,
@@ -346,6 +424,57 @@ impl ProcessorProgram {
                     Some(_) => SaturationMode::Tanh,
                 },
             },
+            ProcessorKind::ModulationDelay => ProcessorConfig::ModulationDelay {
+                delay: scalar("delay")?,
+                depth: scalar("depth")?,
+                rate: scalar("rate")?,
+                feedback: scalar("feedback")?,
+                mix: scalar("mix")?,
+                width: scalar("width")?,
+                mode: if settings.choice("mode") == Some("flanger") {
+                    ModulationDelayMode::Flanger
+                } else {
+                    ModulationDelayMode::Chorus
+                },
+                maximum_frames: modulation_delay_maximum_frames(sample_rate),
+            },
+            ProcessorKind::Crusher => ProcessorConfig::Crusher {
+                bit_depth: scalar("bit_depth")?,
+                sample_rate: scalar("sample_rate")?,
+                reconstruction: scalar("reconstruction")?,
+                mix: scalar("mix")?,
+                output: scalar("output")?,
+            },
+            ProcessorKind::Stutter => {
+                let slice_frames =
+                    musical_setting_frames(processor, &settings, "slice", tempo_bpm, sample_rate)?;
+                let interval_frames = musical_setting_frames(
+                    processor,
+                    &settings,
+                    "interval",
+                    tempo_bpm,
+                    sample_rate,
+                )? as u64;
+                if interval_frames < slice_frames as u64 {
+                    return Err(EngineError::Compile(format!(
+                        "stutter `{}` interval must be at least its slice duration",
+                        processor.id
+                    )));
+                }
+                ProcessorConfig::Stutter {
+                    trigger: scalar("trigger")?,
+                    chance: scalar("chance")?,
+                    crossfade: scalar("crossfade")?,
+                    mix: scalar("mix")?,
+                    slice_frames,
+                    repeats: settings.unsigned("repeats").unwrap_or(4),
+                    interval_frames,
+                    seed: stable_stutter_seed(
+                        settings.unsigned("seed").unwrap_or(0),
+                        &processor.id,
+                    ),
+                }
+            }
             ProcessorKind::Limiter => {
                 let lookahead_seconds = settings.numeric("lookahead").ok_or_else(|| {
                     EngineError::Compile(format!(
@@ -436,6 +565,35 @@ impl ProcessorProgram {
         }
     }
 
+    pub(crate) const fn uses_project_render_tail(&self) -> bool {
+        matches!(
+            self.config,
+            ProcessorConfig::Delay { .. }
+                | ProcessorConfig::Reverb { .. }
+                | ProcessorConfig::ModulationDelay { .. }
+        )
+    }
+
+    pub(crate) fn tail_frames_upper_bound(&self) -> Option<u32> {
+        match self.config {
+            ProcessorConfig::Crusher { .. } => Some(
+                self.sample_rate
+                    .saturating_add(99)
+                    .saturating_div(100)
+                    .saturating_mul(2),
+            ),
+            ProcessorConfig::Stutter {
+                slice_frames,
+                repeats,
+                ..
+            } => Some(
+                u32::try_from((slice_frames as u64).saturating_mul(u64::from(repeats)))
+                    .unwrap_or(u32::MAX),
+            ),
+            _ => None,
+        }
+    }
+
     pub(crate) fn heap_bytes(&self) -> u64 {
         let sidechains = (self.sidechain_inputs.capacity() as u64)
             .saturating_mul(std::mem::size_of::<String>() as u64)
@@ -461,6 +619,12 @@ impl ProcessorProgram {
                 (*maximum_frames as u64).saturating_mul(std::mem::size_of::<[f32; 2]>() as u64)
             }
             ProcessorConfig::Reverb { .. } => reverb_heap_bytes(self.sample_rate),
+            ProcessorConfig::ModulationDelay { maximum_frames, .. } => {
+                (*maximum_frames as u64).saturating_mul(std::mem::size_of::<[f32; 2]>() as u64)
+            }
+            ProcessorConfig::Stutter { slice_frames, .. } => {
+                (*slice_frames as u64).saturating_mul(std::mem::size_of::<[f32; 2]>() as u64)
+            }
             ProcessorConfig::Limiter {
                 lookahead_frames, ..
             } => limiter_heap_bytes(*lookahead_frames),
@@ -471,6 +635,8 @@ impl ProcessorProgram {
                 u32::try_from(OVERSAMPLING_ROUND_TRIP_LATENCY_FRAMES).unwrap_or(u32::MAX),
             ),
             ProcessorConfig::Compressor { .. }
+            | ProcessorConfig::Gate { .. }
+            | ProcessorConfig::Crusher { .. }
             | ProcessorConfig::Utility { .. }
             | ProcessorConfig::Latency => 0,
         };
@@ -485,9 +651,13 @@ impl ProcessorProgram {
             ProcessorConfig::Utility { .. } => 8,
             ProcessorConfig::Eq { bands } => 24_u64.saturating_mul(bands.len() as u64),
             ProcessorConfig::Compressor { .. } => 28,
+            ProcessorConfig::Gate { .. } => 32,
             ProcessorConfig::Delay { .. } => 32,
             ProcessorConfig::Reverb { .. } => 160,
             ProcessorConfig::Saturation { .. } => saturation_work_units(),
+            ProcessorConfig::ModulationDelay { .. } => 48,
+            ProcessorConfig::Crusher { .. } => 28,
+            ProcessorConfig::Stutter { .. } => 24,
             ProcessorConfig::Limiter {
                 lookahead_frames, ..
             } => limiter_work_units(*lookahead_frames),
@@ -595,6 +765,26 @@ pub(crate) fn authored_processor_estimate(
             32,
         ),
         ProcessorKind::Reverb => (reverb_heap_bytes(sample_rate), 160),
+        ProcessorKind::ModulationDelay => (
+            (modulation_delay_maximum_frames(sample_rate) as u64)
+                .saturating_mul(std::mem::size_of::<[f32; 2]>() as u64),
+            48,
+        ),
+        ProcessorKind::Crusher => (0, 28),
+        ProcessorKind::Stutter => {
+            let slice_frames = settings
+                .as_ref()
+                .and_then(|settings| settings.choice("slice"))
+                .and_then(parse_generic_musical_duration)
+                .and_then(|duration| duration.to_frames(tempo_bpm, sample_rate).ok())
+                .unwrap_or_else(|| {
+                    (0.25 * 60.0 * f64::from(sample_rate) / tempo_bpm).round() as u64
+                });
+            (
+                slice_frames.saturating_mul(std::mem::size_of::<[f32; 2]>() as u64),
+                24,
+            )
+        }
         ProcessorKind::Limiter => {
             let lookahead = settings
                 .as_ref()
@@ -611,6 +801,7 @@ pub(crate) fn authored_processor_estimate(
             )
         }
         ProcessorKind::Compressor => (0, 28),
+        ProcessorKind::Gate => (0, 32),
         ProcessorKind::Saturation => (
             stereo_delay_heap_bytes(
                 u32::try_from(OVERSAMPLING_ROUND_TRIP_LATENCY_FRAMES).unwrap_or(u32::MAX),
@@ -623,7 +814,42 @@ pub(crate) fn authored_processor_estimate(
     (fixed_and_declared.saturating_add(algorithm_heap), work)
 }
 
-pub(super) fn delay_maximum_frames(settings: &ResolvedProcessorSettings, sample_rate: u32) -> u64 {
+fn musical_setting_frames(
+    processor: &Processor,
+    settings: &ResolvedProcessorSettings,
+    key: &str,
+    tempo_bpm: f64,
+    sample_rate: u32,
+) -> Result<usize, EngineError> {
+    let literal = settings.choice(key).ok_or_else(|| {
+        EngineError::Compile(format!(
+            "processor `{}` is missing resolved `{key}`",
+            processor.id
+        ))
+    })?;
+    let duration = parse_generic_musical_duration(literal).ok_or_else(|| {
+        EngineError::Compile(format!(
+            "processor `{}` has invalid musical duration `{literal}` for `{key}`",
+            processor.id
+        ))
+    })?;
+    let frames = duration.to_frames(tempo_bpm, sample_rate)?;
+    usize::try_from(frames.max(1)).map_err(|_| {
+        EngineError::Compile(format!(
+            "processor `{}` `{key}` duration exceeds host limits",
+            processor.id
+        ))
+    })
+}
+
+pub(super) fn modulation_delay_maximum_frames(sample_rate: u32) -> usize {
+    (MODULATION_DELAY_MAX_SECONDS * f64::from(sample_rate))
+        .ceil()
+        .max(1.0) as usize
+        + 2
+}
+
+fn delay_maximum_frames(settings: &ResolvedProcessorSettings, sample_rate: u32) -> u64 {
     if settings.choice("tempo_sync") == Some("true") {
         let seconds = settings.numeric("time").unwrap_or(4.0);
         (seconds * f64::from(sample_rate)).ceil() as u64 + 2

@@ -82,7 +82,7 @@ The first release accepts only the validated Musical Sketch slice:
 - at most 128 Automation lanes, 1,024 points per lane, 8,192 points total, 256 Modulation routes, 2,048 route operators, and 512 callback-time Parameter targets; and
 - at most 30 seconds of explicit Render Tail.
 
-Unaccepted roadmap engineering can additionally declare/import/collect up to 256 Project-owned WAV assets (64 MiB each, 256 MiB total), preserve their exact bytes through History, decode/resample them off-callback, and play them through bounded sampler Instruments. Later engineering also includes the compiled mix graph/processor floor, expressive native devices, and checked linear arrangement, Groove, Pattern Variation, and Parameter-lock workflows. None of this expands the certified First Public Release envelope without its separate evidence gates.
+Unaccepted roadmap engineering can additionally declare/import/collect up to 256 Project-owned WAV assets (64 MiB each, 256 MiB total), preserve their exact bytes through History, decode/resample them off-callback, play them through bounded sampler Instruments, bounce exact routed ranges, and prepare exact-frame shift-only duration/pitch assets under ADR 0012. Later engineering also includes the compiled mix graph/processor floor, expressive native devices, and checked linear arrangement, Groove, Pattern Variation, and Parameter-lock workflows. None of this expands the certified First Public Release envelope without its separate evidence gates.
 
 The limits protect bounded work; they are not a recommendation to use maximum voices/Nodes on reference hardware. The frozen Reference Project is [`fixtures/reference/project.crump`](../fixtures/reference/project.crump).
 
@@ -90,8 +90,8 @@ The limits protect bounded work; they are not a recommendation to use maximum vo
 
 The First Public Release does not promise:
 
-- certified sampler or imported-audio workflow quality, Media Tracks, or time stretching (sampler playback exists as unaccepted Slice 4 engineering);
-- recording, comping, warping, or time stretching;
+- certified sampler, imported-audio, or prepared-transform quality, or Media Tracks (these exist only as unaccepted roadmap engineering);
+- recording, comping, proprietary warp modes, formant preservation, or realtime routed pitch;
 - VST, CLAP, LV2, or other plug-in hosting;
 - user Rust/native extensions or arbitrary scripting;
 - recorded or procedural Automation, non-LFO routed Modulation sources, or allocation-changing Automation/Modulation targets;

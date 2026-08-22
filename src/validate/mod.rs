@@ -114,6 +114,24 @@ pub(crate) fn validate_project_with_topology(project: &Project) -> (Diagnostics,
 #[must_use]
 pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) -> Diagnostics {
     let mut diagnostics = Diagnostics::new();
+    for declaration in &project.assets {
+        if declaration.generated.is_some()
+            && let Some(asset) = inventory.get(&declaration.id)
+            && asset.metadata().sample_rate != project.sample_rate
+        {
+            located_error(
+                &mut diagnostics,
+                "CRV147",
+                format!(
+                    "generated asset `{}` sample rate {} does not match Project sample rate {}",
+                    declaration.id,
+                    asset.metadata().sample_rate,
+                    project.sample_rate
+                ),
+                &declaration.location,
+            );
+        }
+    }
     for instrument in &project.song.instruments {
         let Some(sampler) = &instrument.sampler else {
             continue;
@@ -175,7 +193,11 @@ pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) ->
             };
             for event in &pattern.events {
                 let PatternEvent::Sample {
-                    mapping, end_frame, ..
+                    mapping,
+                    start_frame,
+                    end_frame,
+                    loop_region,
+                    ..
                 } = event
                 else {
                     continue;
@@ -194,6 +216,17 @@ pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) ->
                             authored_mapping.asset,
                             asset.metadata().frames
                         ),
+                        event.site(),
+                    );
+                }
+                if let Some(effective_loop) = loop_region.or(authored_mapping.loop_region)
+                    && (effective_loop.start_frame < *start_frame
+                        || effective_loop.end_frame > *end_frame)
+                {
+                    source_site_error(
+                        &mut diagnostics,
+                        "CRV146",
+                        "the effective sample loop lies outside this occurrence's source region",
                         event.site(),
                     );
                 }

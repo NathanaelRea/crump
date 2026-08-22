@@ -165,7 +165,7 @@ fn lex(file: &Path, source: &str) -> (Vec<Token>, Diagnostics) {
                 while cursor < bytes.len()
                     && !matches!(
                         bytes[cursor],
-                        b' ' | b'\t' | b'\r' | b'\n' | b';' | b'#' | b'{' | b'}' | b'"'
+                        b' ' | b'\t' | b'\r' | b'\n' | b';' | b'{' | b'}' | b'"'
                     )
                 {
                     let Some(character) = source.get(cursor..).and_then(|rest| rest.chars().next())
@@ -365,6 +365,15 @@ mod tests {
             &source[statements[0].start..statements[0].end],
             source.trim_end()
         );
+    }
+
+    #[test]
+    fn sharp_pitch_words_do_not_start_comments() {
+        let source = "note 0beat C#5 1beat 1 # trailing comment\n";
+        let (statements, diagnostics) = parse_statements(Path::new("project.crump"), source);
+        assert!(diagnostics.is_empty());
+        assert_eq!(statements[0].tokens[2].value, "C#5");
+        assert_eq!(statements[0].tokens.len(), 5);
     }
 
     #[test]

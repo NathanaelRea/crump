@@ -763,6 +763,7 @@ fn repeated_instrument_post_chains_count_as_runtime_processor_instances() {
     project.song.groups.clear();
     project.song.returns.clear();
     project.song.sidechains.clear();
+    project.song.envelope_followers.clear();
     project
         .song
         .master
@@ -902,4 +903,32 @@ fn rejects_more_than_bounded_events_at_one_frame() {
             .iter()
             .any(|diagnostic| diagnostic.code == "CRV091")
     );
+}
+
+#[test]
+fn follower_and_stutter_contracts_reject_ambiguous_bounds() {
+    let source = include_str!("../../tests/fixtures/production_mix.crump");
+    let bad_follower = source.replace("floor -60db ceiling -6db", "floor -6db ceiling -60db");
+    let document = parse_project(Path::new("bad-follower.crump"), &bad_follower);
+    assert!(
+        !document.diagnostics.has_errors(),
+        "{:?}",
+        document.diagnostics
+    );
+    let diagnostics = validate_project(&document.project.expect("Follower Project"));
+    assert!(diagnostics.as_slice().iter().any(|diagnostic| {
+        diagnostic.code == "CRV153" && diagnostic.message.contains("floor < ceiling")
+    }));
+
+    let bad_stutter = source.replace("setting interval 1beat", "setting interval 1/8beat");
+    let document = parse_project(Path::new("bad-stutter.crump"), &bad_stutter);
+    assert!(
+        !document.diagnostics.has_errors(),
+        "{:?}",
+        document.diagnostics
+    );
+    let diagnostics = validate_project(&document.project.expect("Stutter Project"));
+    assert!(diagnostics.as_slice().iter().any(|diagnostic| {
+        diagnostic.code == "CRV092" && diagnostic.message.contains("interval must be at least")
+    }));
 }

@@ -1,0 +1,65 @@
+crump 1
+project "Cookbook 48 Split Delays" {
+  id cookbook-48-split-delays
+  seed 4048
+  sample_rate 48000
+  render_tail 500ms
+  song {
+    tempo 240bpm
+    meter 4/4
+    end 1bar
+    instrument drums "Wide Source" stock_drums {
+      polyphony 8
+      parameter tone "Tone" ratio 0 1 0.5 0.62
+      parameter punch "Punch" ratio 0 1 0.5 0.74
+      faceplate {
+        control tone "Tone" "Controls source brightness" maps tone
+        control punch "Punch" "Controls source impact" maps punch
+      }
+    }
+    pattern beat 1bar {
+      hit 0beat kick 0.9
+      hit 1beat snare 0.72
+      hit 2beat kick 0.84
+      hit 3beat clap 0.7
+    }
+    track source "Split Delay Source" instrument drums level -10db pan 0 {
+      send low-send target return/low-delay tap post level -12db
+      send high-send target return/high-delay tap post level -12db
+      output master
+      clip beat-loop pattern beat start 0bar duration 1bar mode loop
+    }
+    return low-delay "Low Delay" level -8db {
+      processor low-band eq {
+        setting low_pass 1khz
+      }
+      processor low-echo delay {
+        setting tempo_sync true
+        setting division 1/4
+        setting feedback 0.32
+        setting mix 0.999
+      }
+      output master
+    }
+    return high-delay "High Delay" level -8db {
+      processor high-band eq {
+        setting high_pass 1khz
+      }
+      processor high-echo delay {
+        setting tempo_sync true
+        setting division 1/8
+        setting feedback 0.32
+        setting mix 0.999
+        setting mode ping_pong
+      }
+      output master
+    }
+    master level -1db {
+      processor ceiling limiter {
+        setting ceiling -1db
+        setting release 80ms
+        setting lookahead 5ms
+      }
+    }
+  }
+}

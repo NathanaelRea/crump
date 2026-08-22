@@ -1695,3 +1695,196 @@ fn limiter_never_exceeds_sample_ceiling() {
     );
     assert!(outputs.iter().flatten().any(|sample| sample.abs() > 0.78));
 }
+
+fn modulation_delay_runtime(
+    mode: ModulationDelayMode,
+    width: f64,
+    feedback: f64,
+) -> ProcessorRuntime {
+    test_program(
+        ProcessorKind::ModulationDelay,
+        ProcessorConfig::ModulationDelay {
+            delay: Scalar::Constant(0.012),
+            depth: Scalar::Constant(0.003),
+            rate: Scalar::Constant(0.75),
+            feedback: Scalar::Constant(feedback),
+            mix: Scalar::Constant(1.0),
+            width: Scalar::Constant(width),
+            mode,
+            maximum_frames: modulation_delay_maximum_frames(48_000),
+        },
+    )
+    .runtime()
+}
+
+#[test]
+fn modulation_delay_modes_width_feedback_and_storage_are_explicit() {
+    let mut mono = modulation_delay_runtime(ModulationDelayMode::Flanger, 0.0, 0.0);
+    let mut wide = modulation_delay_runtime(ModulationDelayMode::Flanger, 1.0, 0.0);
+    let mut chorus = modulation_delay_runtime(ModulationDelayMode::Chorus, 1.0, 0.0);
+    let mono_fingerprint = mono.heap_storage_fingerprint();
+    let mut mono_output = Vec::new();
+    let mut wide_output = Vec::new();
+    let mut chorus_output = Vec::new();
+    for frame in 0..24_000 {
+        let sample = (2.0 * PI * 440.0 * frame as f64 / 48_000.0).sin() as f32 * 0.25;
+        let input = [sample, sample];
+        mono_output.push(mono.process(input, None, &[]));
+        wide_output.push(wide.process(input, None, &[]));
+        chorus_output.push(chorus.process(input, None, &[]));
+    }
+    assert!(mono_output.iter().all(|frame| frame[0] == frame[1]));
+    assert!(
+        wide_output
+            .iter()
+            .skip(4_000)
+            .any(|frame| frame[0] != frame[1])
+    );
+    assert_ne!(wide_output, chorus_output);
+    assert_eq!(mono.heap_storage_fingerprint(), mono_fingerprint);
+    assert!(
+        mono_output
+            .iter()
+            .flatten()
+            .all(|sample| sample.is_finite())
+    );
+
+    for feedback in [-0.95, 0.95] {
+        let mut runtime = modulation_delay_runtime(ModulationDelayMode::Flanger, 1.0, feedback);
+        let output = (0..96_000)
+            .map(|frame| {
+                let input = if frame == 0 { [1.0, -1.0] } else { [0.0; 2] };
+                runtime.process(input, None, &[])
+            })
+            .collect::<Vec<_>>();
+        assert!(output.iter().flatten().all(|sample| sample.is_finite()));
+        assert!(output.iter().flatten().all(|sample| sample.abs() <= 32.0));
+        let early = output[1_000..48_000]
+            .iter()
+            .flatten()
+            .map(|sample| sample.abs())
+            .sum::<f32>();
+        let late = output[72_000..]
+            .iter()
+            .flatten()
+            .map(|sample| sample.abs())
+            .sum::<f32>();
+        assert!(
+            late < early,
+            "feedback={feedback}, early={early}, late={late}"
+        );
+    }
+}
+
+#[test]
+fn crusher_decimation_alias_mix_gain_and_reset_are_deterministic() {
+    let program = test_program(
+        ProcessorKind::Crusher,
+        ProcessorConfig::Crusher {
+            bit_depth: Scalar::Constant(12.0),
+            sample_rate: Scalar::Constant(12_000.0),
+            reconstruction: Scalar::Constant(0.0),
+            mix: Scalar::Constant(1.0),
+            output: Scalar::Constant(0.0),
+        },
+    );
+    let mut runtime = program.runtime();
+    let fingerprint = runtime.heap_storage_fingerprint();
+    let output = (0..48_000)
+        .map(|frame| {
+            let sample = (2.0 * PI * 10_000.0 * frame as f64 / 48_000.0).sin() as f32 * 0.5;
+            runtime.process([sample, sample], None, &[])[0]
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(runtime.heap_storage_fingerprint(), fingerprint);
+    assert!(output.iter().all(|sample| sample.is_finite()));
+    assert!(tone_amplitude(&output[4_800..], 2_000.0) > tone_amplitude(&output[4_800..], 10_000.0));
+
+    let mut dry = test_program(
+        ProcessorKind::Crusher,
+        ProcessorConfig::Crusher {
+            bit_depth: Scalar::Constant(1.0),
+            sample_rate: Scalar::Constant(100.0),
+            reconstruction: Scalar::Constant(0.0),
+            mix: Scalar::Constant(0.0),
+            output: Scalar::Constant(6.0),
+        },
+    )
+    .runtime();
+    let input = [0.25, -0.5];
+    let gained = dry.process(input, None, &[]);
+    let gain = 10.0_f32.powf(6.0 / 20.0);
+    assert!((gained[0] - input[0] * gain).abs() < 1.0e-6);
+    assert!((gained[1] - input[1] * gain).abs() < 1.0e-6);
+    dry.reset();
+    assert_eq!(dry.process([0.0; 2], None, &[]), [0.0; 2]);
+}
+
+#[test]
+fn gate_hysteresis_hold_expander_curve_and_sidechain_are_sample_exact() {
+    let mut gate = GateState::new();
+    let settings = |state: &mut GateState, sidechain: [f32; 2]| {
+        state.process(
+            [1.0, -1.0],
+            Some(sidechain),
+            GateMode::Gate,
+            -20.0,
+            4.0,
+            0.000_01,
+            0.003,
+            0.000_01,
+            60.0,
+            3.0,
+            false,
+            1.0,
+            1_000,
+        )
+    };
+    let _ = settings(&mut gate, [1.0; 2]);
+    assert!(gate.is_open());
+    for _ in 0..3 {
+        let output = settings(&mut gate, [0.0; 2]);
+        assert!(gate.is_open());
+        assert!(output[0] > 0.99);
+    }
+    let closed = settings(&mut gate, [0.0; 2]);
+    assert!(!gate.is_open());
+    assert!(closed[0].abs() < 0.01);
+
+    let mut expander = GateState::new();
+    let output = expander.process(
+        [1.0; 2],
+        Some([0.01; 2]),
+        GateMode::Expander,
+        -20.0,
+        2.0,
+        0.000_01,
+        0.0,
+        0.000_01,
+        48.0,
+        0.0,
+        false,
+        1.0,
+        1_000,
+    );
+    assert!((output[0] - 0.1).abs() < 1.0e-4, "output={output:?}");
+    assert!((expander.gain_reduction_db() - 20.0).abs() < 0.01);
+
+    let mut no_sidechain = GateState::new();
+    let open = no_sidechain.process(
+        [1.0; 2],
+        None,
+        GateMode::Gate,
+        -20.0,
+        4.0,
+        0.000_01,
+        0.0,
+        0.000_01,
+        60.0,
+        0.0,
+        false,
+        1.0,
+        48_000,
+    );
+    assert!(open[0] > 0.99);
+}

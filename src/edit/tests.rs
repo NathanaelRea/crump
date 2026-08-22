@@ -174,6 +174,38 @@ fn sampler_operations_and_collection_are_checked_atomic_and_renderable() {
     apply(
         &bundle,
         vec![
+            set_sample_occurrence_direction(
+                &bundle,
+                "phrase",
+                "original",
+                crate::model::SampleDirection::Reverse,
+            )
+            .expect("direction"),
+        ],
+        "Reverse",
+    );
+    bundle = load_project(directory.path()).expect("reload after direction");
+    apply(
+        &bundle,
+        vec![
+            set_sample_occurrence_loop(
+                &bundle,
+                "phrase",
+                "original",
+                crate::model::SampleLoopRegion {
+                    start_frame: 32,
+                    end_frame: 96,
+                    crossfade_frames: 8,
+                },
+            )
+            .expect("loop"),
+        ],
+        "Loop",
+    );
+    bundle = load_project(directory.path()).expect("reload after loop");
+    apply(
+        &bundle,
+        vec![
             place_sample_occurrence(
                 &bundle,
                 "phrase",
@@ -189,6 +221,8 @@ fn sampler_operations_and_collection_are_checked_atomic_and_renderable() {
                     fade_in_frames: 5,
                     fade_out_frames: 7,
                     velocity: 0.8,
+                    direction: None,
+                    loop_region: None,
                 },
             )
             .expect("place"),
@@ -219,6 +253,25 @@ fn sampler_operations_and_collection_are_checked_atomic_and_renderable() {
         vec![move_sample_occurrence(&bundle, "phrase", "copy-tail", "3beat").expect("move")],
         "Move",
     );
+    bundle = load_project(directory.path()).expect("reload after move");
+    apply(
+        &bundle,
+        vec![
+            create_sample_slice_map(
+                &bundle,
+                &SampleSliceMapPlacement {
+                    instrument: "sampler".to_owned(),
+                    asset: "source".to_owned(),
+                    id_prefix: "slice".to_owned(),
+                    start_key: crate::model::parse_pitch("C5").expect("pitch"),
+                    boundaries: vec![0, 128, 256],
+                    direction: crate::model::SampleDirection::Reverse,
+                },
+            )
+            .expect("slice map"),
+        ],
+        "Slice map",
+    );
 
     let final_bundle = load_project(directory.path()).expect("final sampler Project");
     assert!(!final_bundle.diagnostics.has_errors());
@@ -227,6 +280,9 @@ fn sampler_operations_and_collection_are_checked_atomic_and_renderable() {
         assert!(source.contains(&format!("sample {occurrence} ")));
     }
     assert!(source.contains("asset source \"Source\" wav \"media/source.wav\""));
+    assert!(source.contains("direction reverse loop 32 96 crossfade 8"));
+    assert!(source.contains("mapping slice-1 asset source keys C5 C5 root C5"));
+    assert!(source.contains("mapping slice-2 asset source keys C#5 C#5 root C#5"));
     let project = final_bundle
         .publishable()
         .expect("publishable final sampler Project");

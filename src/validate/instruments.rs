@@ -355,6 +355,40 @@ fn validate_sampler(
                 &mapping.fade_out_site,
             );
         }
+        if let Some(loop_region) = mapping.loop_region {
+            let loop_frames = loop_region
+                .end_frame
+                .saturating_sub(loop_region.start_frame);
+            if loop_region.start_frame < mapping.start_frame
+                || loop_region.end_frame > mapping.end_frame
+                || loop_region.start_frame >= loop_region.end_frame
+                || u64::from(loop_region.crossfade_frames).saturating_mul(2) > loop_frames
+            {
+                if let Some(site) = &mapping.loop_site {
+                    source_site_error(
+                        diagnostics,
+                        "CRV019",
+                        "sample loop must be inside the mapping region with a crossfade no longer than half the loop",
+                        site,
+                    );
+                } else {
+                    located_error(
+                        diagnostics,
+                        "CRV019",
+                        "sample loop must be inside the mapping region with a crossfade no longer than half the loop",
+                        &mapping.location,
+                    );
+                }
+            }
+            if mapping.playback != crate::model::SamplePlayback::Gated {
+                located_error(
+                    diagnostics,
+                    "CRV019",
+                    "a looped sample mapping must use gated playback so Note Off can stop it",
+                    &mapping.location,
+                );
+            }
+        }
         if mapping
             .choke_group
             .as_deref()

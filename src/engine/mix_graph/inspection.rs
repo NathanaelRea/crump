@@ -124,6 +124,11 @@ pub struct CompiledProcessorInspection {
     pub oversampling_filter_taps: u16,
     /// Fixed detector headroom used for reconstructed output peaks, in decibels.
     pub true_peak_safety_margin_db: f64,
+    /// How processor output may continue after its input becomes silent.
+    pub tail_policy: ProcessorTailPolicy,
+    /// Finite tail ceiling when [`Self::tail_policy`] is `bounded_frames`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tail_frames_upper_bound: Option<u32>,
     /// Preallocated mutable processor-state bytes used by admission.
     pub state_bytes: u64,
     /// Abstract callback work units per rendered frame used by admission.
@@ -136,6 +141,18 @@ pub struct CompiledProcessorInspection {
 pub enum ProcessorStatePolicy {
     /// The wet processor continues receiving Audio while bypassed.
     Continue,
+}
+
+/// Inspectable native processor tail behavior after input becomes silent.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProcessorTailPolicy {
+    /// No processor-owned audible tail is retained from a silent input.
+    None,
+    /// Feedback or diffusion is truncated only by the explicit Project/render/bounce tail.
+    ProjectRenderTail,
+    /// Output clears within [`CompiledProcessorInspection::tail_frames_upper_bound`].
+    BoundedFrames,
 }
 
 /// One complete source-to-Master signal path.

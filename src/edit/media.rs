@@ -1,5 +1,91 @@
 use super::*;
 
+/// Publishes one staged bounce declaration and exact bytes through the atomic History path.
+pub fn publish_bounce_asset(
+    root: impl AsRef<Path>,
+    expected_revision: &RevisionId,
+    artifact: &crate::engine::bounce::BounceArtifact,
+    publication: Publication,
+) -> Result<HistoryEntry, EditError> {
+    publish_generated_audio_asset(root, expected_revision, artifact, publication)
+}
+
+/// Publishes one staged prepared-sample declaration and exact bytes atomically.
+pub fn publish_sample_transform_asset(
+    root: impl AsRef<Path>,
+    expected_revision: &RevisionId,
+    artifact: &crate::engine::sample_transform::SampleTransformArtifact,
+    publication: Publication,
+) -> Result<HistoryEntry, EditError> {
+    publish_generated_audio_asset(root, expected_revision, artifact, publication)
+}
+
+fn publish_generated_audio_asset(
+    root: impl AsRef<Path>,
+    expected_revision: &RevisionId,
+    artifact: &crate::engine::GeneratedAudioArtifact,
+    publication: Publication,
+) -> Result<HistoryEntry, EditError> {
+    if artifact.bytes().len() as u64 > MAX_MEDIA_ASSET_BYTES {
+        return Err(EditError::InvalidValue(format!(
+            "generated media exceeds the {MAX_MEDIA_ASSET_BYTES}-byte maximum"
+        )));
+    }
+    let actual_hash = Sha256::digest(artifact.bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    if actual_hash != artifact.sha256() {
+        return Err(EditError::InvalidValue(
+            "generated media hash does not match its exact staged bytes".to_owned(),
+        ));
+    }
+    if artifact.provenance().source_revision() != expected_revision.to_string() {
+        return Err(EditError::InvalidValue(
+            "generated media provenance does not name the expected Active Revision".to_owned(),
+        ));
+    }
+    let expected_frames = artifact.provenance().expected_output_frames();
+    if expected_frames != Some(artifact.frame_count()) {
+        return Err(EditError::InvalidValue(
+            "generated media frame count does not match its range and tail provenance".to_owned(),
+        ));
+    }
+    let bundle = load_project(root.as_ref())?;
+    let project = bundle.project.as_ref().ok_or(EditError::InvalidBase)?;
+    if artifact.sample_rate() != project.sample_rate {
+        return Err(EditError::InvalidValue(
+            "generated media sample rate does not match the expected Project Revision".to_owned(),
+        ));
+    }
+    let (file, position, indentation) = line_insertion(&bundle, &project.song.location, "Song")?;
+    let declaration = artifact
+        .source_declaration()
+        .lines()
+        .map(|line| format!("{indentation}{line}\n"))
+        .collect::<String>();
+    apply_project_mutation(
+        root,
+        expected_revision,
+        ProjectMutation {
+            replacements: vec![CheckedReplacement {
+                file,
+                start: position,
+                end: position,
+                expected: String::new(),
+                replacement: declaration,
+            }],
+            asset_writes: vec![StagedAssetWrite {
+                path: artifact.path().to_path_buf(),
+                bytes: artifact.bytes().to_vec(),
+                replace: false,
+            }],
+            asset_removals: Vec::new(),
+        },
+        publication,
+    )
+}
+
 /// Copies one external WAV into `media/`, declares it, and publishes atomically.
 pub fn import_media_asset(
     root: impl AsRef<Path>,
@@ -136,6 +222,131 @@ pub(super) fn quote_source_string(value: &str) -> String {
     format!("\"{escaped}\"")
 }
 
+/// Source-backed arguments for creating adjacent one-key sampler slices.
+#[derive(Debug, Clone)]
+pub struct SampleSliceMapPlacement {
+    /// Target sampler Instrument.
+    pub instrument: String,
+    /// Project media asset identity shared by every generated mapping.
+    pub asset: String,
+    /// Source-safe mapping ID prefix; one-based indices are appended with `-`.
+    pub id_prefix: String,
+    /// First MIDI key assigned to the first half-open slice.
+    pub start_key: u8,
+    /// Strictly increasing original-source boundaries; `N` values create `N - 1` mappings.
+    pub boundaries: Vec<u64>,
+    /// Traversal direction assigned explicitly to every mapping.
+    pub direction: SampleDirection,
+}
+
+/// Creates a deterministic adjacent slice map as one checked source insertion.
+pub fn create_sample_slice_map(
+    bundle: &ProjectBundle,
+    placement: &SampleSliceMapPlacement,
+) -> Result<CheckedReplacement, EditError> {
+    if !valid_source_id(&placement.instrument)
+        || !valid_source_id(&placement.asset)
+        || !valid_source_id(&placement.id_prefix)
+    {
+        return Err(EditError::InvalidValue(
+            "slice-map Instrument, asset, and prefix IDs must be source-safe".to_owned(),
+        ));
+    }
+    if placement.boundaries.len() < 2
+        || placement
+            .boundaries
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+    {
+        return Err(EditError::InvalidValue(
+            "slice-map boundaries must contain at least two strictly increasing frames".to_owned(),
+        ));
+    }
+    let slice_count = placement.boundaries.len() - 1;
+    let final_key = usize::from(placement.start_key).saturating_add(slice_count - 1);
+    if final_key > 127 {
+        return Err(EditError::InvalidValue(
+            "slice map would exceed MIDI key 127".to_owned(),
+        ));
+    }
+    let project = bundle.project.as_ref().ok_or(EditError::InvalidBase)?;
+    let instrument = project
+        .song
+        .instruments
+        .iter()
+        .find(|instrument| instrument.id == placement.instrument)
+        .ok_or_else(|| {
+            EditError::UnknownTarget(format!("Instrument `{}`", placement.instrument))
+        })?;
+    let sampler = instrument.sampler.as_ref().ok_or_else(|| {
+        EditError::WrongTargetKind(format!(
+            "Instrument `{}` is not a sampler",
+            placement.instrument
+        ))
+    })?;
+    let asset = bundle
+        .assets
+        .get(&placement.asset)
+        .ok_or_else(|| EditError::UnknownTarget(format!("media asset `{}`", placement.asset)))?;
+    if placement.boundaries.last().copied().unwrap_or(0) > asset.metadata().frames {
+        return Err(EditError::InvalidValue(format!(
+            "slice map exceeds asset `{}` length {}",
+            placement.asset,
+            asset.metadata().frames
+        )));
+    }
+    for (index, key) in (placement.start_key..=final_key as u8).enumerate() {
+        let id = format!("{}-{}", placement.id_prefix, index + 1);
+        if sampler.mappings.iter().any(|mapping| mapping.id == id) {
+            return Err(EditError::InvalidValue(format!(
+                "sample mapping `{id}` already exists"
+            )));
+        }
+        if sampler
+            .mappings
+            .iter()
+            .any(|mapping| (mapping.low_key..=mapping.high_key).contains(&key))
+        {
+            return Err(EditError::InvalidValue(format!(
+                "slice-map key {} overlaps an existing mapping",
+                format_pitch(key)
+            )));
+        }
+    }
+    let mut mappings = String::new();
+    for (index, pair) in placement.boundaries.windows(2).enumerate() {
+        let key = placement.start_key + index as u8;
+        let region_frames = pair[1] - pair[0];
+        let fade = region_frames.min(64) / 2;
+        mappings.push_str(&format!(
+            "mapping {}-{} asset {} keys {} {} root {} {{\n  region {} {}\n  playback one_shot\n  direction {}\n  gain 0db\n  pan 0\n  envelope 0s 5ms\n  fade {} {}\n}}\n",
+            placement.id_prefix,
+            index + 1,
+            placement.asset,
+            format_pitch(key),
+            format_pitch(key),
+            format_pitch(key),
+            pair[0],
+            pair[1],
+            placement.direction,
+            fade,
+            fade,
+        ));
+    }
+    let (file, position, indentation) = block_insertion(bundle, &sampler.location, "Sampler")?;
+    let replacement = mappings
+        .lines()
+        .map(|line| format!("{indentation}{line}\n"))
+        .collect();
+    Ok(CheckedReplacement {
+        file,
+        start: position,
+        end: position,
+        expected: String::new(),
+        replacement,
+    })
+}
+
 /// Source-backed arguments for placing one durable sample occurrence.
 #[derive(Debug, Clone)]
 pub struct SamplePlacement {
@@ -161,6 +372,10 @@ pub struct SamplePlacement {
     pub fade_out_frames: u32,
     /// Occurrence velocity in the inclusive 0..=1 domain.
     pub velocity: f64,
+    /// Optional occurrence-local traversal override; absence inherits the mapping.
+    pub direction: Option<SampleDirection>,
+    /// Optional occurrence-local loop override in original source frames.
+    pub loop_region: Option<SampleLoopRegion>,
 }
 
 /// Places one non-destructive sample occurrence into a Pattern block.
@@ -205,6 +420,9 @@ pub fn place_sample_occurrence(
         placement.fade_out_frames,
         placement.velocity,
     )?;
+    if let Some(loop_region) = placement.loop_region {
+        validate_sample_loop(placement.start_frame, placement.end_frame, loop_region)?;
+    }
     let event = canonical_sample_event(
         &placement.id,
         at,
@@ -217,6 +435,8 @@ pub fn place_sample_occurrence(
         placement.fade_in_frames,
         placement.fade_out_frames,
         placement.velocity,
+        placement.direction,
+        placement.loop_region,
     );
     let (file, start, indentation) = block_insertion(bundle, &pattern.location, "Pattern")?;
     Ok(CheckedReplacement {
@@ -263,6 +483,7 @@ pub fn trim_sample_occurrence(
     let PatternEvent::Sample {
         fade_in_frames,
         fade_out_frames,
+        loop_region,
         sites,
         ..
     } = event
@@ -270,6 +491,9 @@ pub fn trim_sample_occurrence(
         unreachable!("sample_occurrence returns a sample Event");
     };
     validate_source_region(start_frame, end_frame, *fade_in_frames, *fade_out_frames)?;
+    if let Some(loop_region) = loop_region {
+        validate_sample_loop(start_frame, end_frame, *loop_region)?;
+    }
     Ok(vec![
         CheckedReplacement::at(&sites.start, start_frame.to_string()),
         CheckedReplacement::at(&sites.end, end_frame.to_string()),
@@ -287,6 +511,8 @@ pub fn slip_sample_occurrence(
     let PatternEvent::Sample {
         start_frame,
         end_frame,
+        loop_region,
+        sites,
         ..
     } = event
     else {
@@ -300,13 +526,29 @@ pub fn slip_sample_occurrence(
         }
         .ok_or_else(|| EditError::InvalidValue("sample slip exceeds source-frame range".to_owned()))
     };
-    trim_sample_occurrence(
-        bundle,
-        pattern_id,
-        occurrence_id,
-        shifted(*start_frame)?,
-        shifted(*end_frame)?,
-    )
+    let shifted_start = shifted(*start_frame)?;
+    let shifted_end = shifted(*end_frame)?;
+    validate_source_region(shifted_start, shifted_end, 0, 0)?;
+    let mut replacements = vec![
+        CheckedReplacement::at(&sites.start, shifted_start.to_string()),
+        CheckedReplacement::at(&sites.end, shifted_end.to_string()),
+    ];
+    if let Some(loop_region) = loop_region {
+        let shifted_loop = SampleLoopRegion {
+            start_frame: shifted(loop_region.start_frame)?,
+            end_frame: shifted(loop_region.end_frame)?,
+            crossfade_frames: loop_region.crossfade_frames,
+        };
+        validate_sample_loop(shifted_start, shifted_end, shifted_loop)?;
+        let Some(site) = &sites.loop_site else {
+            return Err(EditError::InvalidBase);
+        };
+        replacements.push(CheckedReplacement::at(
+            site,
+            canonical_sample_loop(shifted_loop),
+        ));
+    }
+    Ok(replacements)
 }
 
 /// Sets click-prevention fades for one durable sample occurrence.
@@ -378,6 +620,82 @@ pub fn set_sample_occurrence_pan(
     ))
 }
 
+/// Sets one occurrence-local traversal direction without changing its source region.
+pub fn set_sample_occurrence_direction(
+    bundle: &ProjectBundle,
+    pattern_id: &str,
+    occurrence_id: &str,
+    direction: SampleDirection,
+) -> Result<CheckedReplacement, EditError> {
+    let (_, event) = sample_occurrence(bundle, pattern_id, occurrence_id)?;
+    let PatternEvent::Sample { sites, .. } = event else {
+        unreachable!("sample_occurrence returns a sample Event");
+    };
+    if let Some(site) = &sites.direction {
+        return Ok(CheckedReplacement::at(site, direction.to_string()));
+    }
+    let position = sites
+        .loop_site
+        .as_ref()
+        .map_or(sites.site.end, |site| site.start);
+    Ok(CheckedReplacement {
+        file: sites.site.file.clone(),
+        start: position,
+        end: position,
+        expected: String::new(),
+        replacement: format!(" direction {direction}"),
+    })
+}
+
+/// Sets one bounded occurrence-local loop and its deterministic boundary crossfade.
+pub fn set_sample_occurrence_loop(
+    bundle: &ProjectBundle,
+    pattern_id: &str,
+    occurrence_id: &str,
+    loop_region: SampleLoopRegion,
+) -> Result<CheckedReplacement, EditError> {
+    let (_, event) = sample_occurrence(bundle, pattern_id, occurrence_id)?;
+    let PatternEvent::Sample {
+        start_frame,
+        end_frame,
+        sites,
+        ..
+    } = event
+    else {
+        unreachable!("sample_occurrence returns a sample Event");
+    };
+    validate_sample_loop(*start_frame, *end_frame, loop_region)?;
+    if let Some(site) = &sites.loop_site {
+        return Ok(CheckedReplacement::at(
+            site,
+            canonical_sample_loop(loop_region),
+        ));
+    }
+    Ok(CheckedReplacement {
+        file: sites.site.file.clone(),
+        start: sites.site.end,
+        end: sites.site.end,
+        expected: String::new(),
+        replacement: canonical_sample_loop(loop_region),
+    })
+}
+
+/// Removes an occurrence-local loop so playback inherits the mapping's loop facts.
+pub fn clear_sample_occurrence_loop(
+    bundle: &ProjectBundle,
+    pattern_id: &str,
+    occurrence_id: &str,
+) -> Result<CheckedReplacement, EditError> {
+    let (_, event) = sample_occurrence(bundle, pattern_id, occurrence_id)?;
+    let PatternEvent::Sample { sites, .. } = event else {
+        unreachable!("sample_occurrence returns a sample Event");
+    };
+    let site = sites.loop_site.as_ref().ok_or_else(|| {
+        EditError::InvalidValue("sample occurrence has no local loop override".to_owned())
+    })?;
+    Ok(CheckedReplacement::at(site, String::new()))
+}
+
 /// Duplicates one occurrence under a new durable ID and onset.
 pub fn duplicate_sample_occurrence(
     bundle: &ProjectBundle,
@@ -397,6 +715,8 @@ pub fn duplicate_sample_occurrence(
         fade_in_frames,
         fade_out_frames,
         velocity,
+        direction,
+        loop_region,
         ..
     } = event
     else {
@@ -417,6 +737,8 @@ pub fn duplicate_sample_occurrence(
             fade_in_frames: *fade_in_frames,
             fade_out_frames: *fade_out_frames,
             velocity: *velocity,
+            direction: *direction,
+            loop_region: *loop_region,
         },
     )
 }
@@ -454,6 +776,8 @@ pub fn split_sample_occurrence(
         fade_in_frames,
         fade_out_frames,
         velocity,
+        direction,
+        loop_region,
         sites,
         ..
     } = event
@@ -472,6 +796,13 @@ pub fn split_sample_occurrence(
     {
         return Err(EditError::InvalidValue(
             "split must lie strictly inside both the occurrence time and source region".to_owned(),
+        ));
+    }
+    if loop_region.is_some_and(|loop_region| {
+        loop_region.start_frame < source_frame && loop_region.end_frame > source_frame
+    }) {
+        return Err(EditError::InvalidValue(
+            "cannot split through an occurrence-local sample loop".to_owned(),
         ));
     }
     let left_duration = split_at
@@ -500,6 +831,8 @@ pub fn split_sample_occurrence(
         left_fade_in,
         left_fade_out,
         *velocity,
+        *direction,
+        loop_region.filter(|loop_region| loop_region.end_frame <= source_frame),
     );
     let right = canonical_sample_event(
         new_id,
@@ -513,6 +846,8 @@ pub fn split_sample_occurrence(
         right_fade_in,
         right_fade_out,
         *velocity,
+        *direction,
+        loop_region.filter(|loop_region| loop_region.start_frame >= source_frame),
     );
     let source = bundle
         .source(&sites.site.file)
@@ -540,13 +875,25 @@ fn canonical_sample_event(
     fade_in_frames: u32,
     fade_out_frames: u32,
     velocity: f64,
+    direction: Option<SampleDirection>,
+    loop_region: Option<SampleLoopRegion>,
 ) -> String {
-    format!(
+    let mut event = format!(
         "sample {id} {at} mapping {mapping} duration {duration} start {start_frame} end {end_frame} gain {} pan {} fade {fade_in_frames} {fade_out_frames} velocity {}",
         Unit::Decibels.format_value(gain_db),
         Unit::Pan.format_value(pan),
         Unit::Ratio.format_value(velocity),
-    )
+    );
+    if let Some(direction) = direction {
+        event.push_str(&format!(" direction {direction}"));
+    }
+    if let Some(loop_region) = loop_region {
+        event.push_str(&format!(
+            " loop {} {} crossfade {}",
+            loop_region.start_frame, loop_region.end_frame, loop_region.crossfade_frames
+        ));
+    }
+    event
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -583,6 +930,34 @@ fn validate_sample_values(
         ));
     }
     validate_source_region(start_frame, end_frame, fade_in_frames, fade_out_frames)
+}
+
+fn canonical_sample_loop(loop_region: SampleLoopRegion) -> String {
+    format!(
+        " loop {} {} crossfade {}",
+        loop_region.start_frame, loop_region.end_frame, loop_region.crossfade_frames
+    )
+}
+
+fn validate_sample_loop(
+    region_start: u64,
+    region_end: u64,
+    loop_region: SampleLoopRegion,
+) -> Result<(), EditError> {
+    let loop_frames = loop_region
+        .end_frame
+        .saturating_sub(loop_region.start_frame);
+    if loop_region.start_frame < region_start
+        || loop_region.end_frame > region_end
+        || loop_region.start_frame >= loop_region.end_frame
+        || u64::from(loop_region.crossfade_frames).saturating_mul(2) > loop_frames
+    {
+        return Err(EditError::InvalidValue(
+            "sample loop must lie inside the source region and its crossfade cannot exceed half the loop"
+                .to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_source_region(

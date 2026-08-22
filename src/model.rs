@@ -46,12 +46,184 @@ pub struct MediaAsset {
     pub path: PathBuf,
     /// Required lowercase SHA-256 of exact file bytes.
     pub sha256: String,
+    /// Complete source-backed provenance when Crump generated this asset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub generated: Option<GeneratedAssetProvenance>,
     /// Path literal used by checked source edits.
     pub path_site: ValueSite,
     /// Hash literal used by checked source edits.
     pub sha256_site: ValueSite,
     /// Declaration location.
     pub location: SourceLocation,
+}
+
+/// Explicit formant behavior for independent pitch preparation.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FormantPolicy {
+    /// Resampling moves spectral envelopes with pitch.
+    Shift,
+    /// Preserve spectral envelopes; explicitly unavailable in the first algorithm.
+    Preserve,
+}
+
+impl fmt::Display for FormantPolicy {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Shift => "shift",
+            Self::Preserve => "preserve",
+        })
+    }
+}
+
+impl FromStr for FormantPolicy {
+    type Err = ValueError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "shift" => Ok(Self::Shift),
+            "preserve" => Ok(Self::Preserve),
+            _ => Err(ValueError::UnknownFormantPolicy(value.to_owned())),
+        }
+    }
+}
+
+/// Versioned quality contract for prepared sample transforms.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SampleTransformQuality {
+    /// Fixed-window effect-quality overlap-add algorithm version one.
+    EffectV1,
+}
+
+impl fmt::Display for SampleTransformQuality {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::EffectV1 => "effect_v1",
+        })
+    }
+}
+
+impl FromStr for SampleTransformQuality {
+    type Err = ValueError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "effect_v1" => Ok(Self::EffectV1),
+            _ => Err(ValueError::UnknownSampleTransformQuality(value.to_owned())),
+        }
+    }
+}
+
+/// Inspectable provenance for exact audio generated from an Active Revision.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum GeneratedAssetProvenance {
+    /// Audio captured from one exact routed timeline tap.
+    Bounce {
+        /// Exact source Revision rendered before this asset declaration existed.
+        source_revision: String,
+        /// Stable source owner (`master` or a channel identity such as `track/lead`).
+        owner: String,
+        /// Exact source tap (`master_output`, `pre_fader`, or `post_fader`).
+        tap: String,
+        /// Inclusive source timeline frame.
+        start_frame: u64,
+        /// Exclusive source timeline frame before an isolated tail.
+        end_frame: u64,
+        /// Number of isolated effect/release tail frames appended.
+        tail_frames: u64,
+        /// Exact portable encoded format identity.
+        format: String,
+        /// Versioned deterministic generation algorithm.
+        algorithm: String,
+        /// Crump package build that generated the bytes.
+        build: String,
+    },
+    /// A non-destructive offline duration/pitch preparation of one exact asset region.
+    SampleTransform {
+        /// Exact Active Revision containing the source asset.
+        source_revision: String,
+        /// Durable source asset identity.
+        source_asset: String,
+        /// Exact SHA-256 of the source asset bytes.
+        source_sha256: String,
+        /// Inclusive original-source frame.
+        source_start_frame: u64,
+        /// Exclusive original-source frame.
+        source_end_frame: u64,
+        /// Exact generated frame count at the Project sample rate.
+        output_frames: u64,
+        /// Independent pitch displacement in semitones.
+        pitch_semitones: f64,
+        /// Explicit spectral-envelope policy.
+        formants: FormantPolicy,
+        /// Versioned algorithm quality contract.
+        quality: SampleTransformQuality,
+        /// Exact portable encoded format identity.
+        format: String,
+        /// Versioned deterministic generation algorithm.
+        algorithm: String,
+        /// Supported exact-byte deterministic platform domain.
+        deterministic_domain: String,
+        /// Crump package build that generated the bytes.
+        build: String,
+    },
+}
+
+impl GeneratedAssetProvenance {
+    /// Exact source Revision from which this asset was generated.
+    #[must_use]
+    pub fn source_revision(&self) -> &str {
+        match self {
+            Self::Bounce {
+                source_revision, ..
+            }
+            | Self::SampleTransform {
+                source_revision, ..
+            } => source_revision,
+        }
+    }
+
+    /// Exact portable output-format identity.
+    #[must_use]
+    pub fn format(&self) -> &str {
+        match self {
+            Self::Bounce { format, .. } | Self::SampleTransform { format, .. } => format,
+        }
+    }
+
+    /// Versioned deterministic generation algorithm.
+    #[must_use]
+    pub fn algorithm(&self) -> &str {
+        match self {
+            Self::Bounce { algorithm, .. } | Self::SampleTransform { algorithm, .. } => algorithm,
+        }
+    }
+
+    /// Crump package build that generated the bytes.
+    #[must_use]
+    pub fn build(&self) -> &str {
+        match self {
+            Self::Bounce { build, .. } | Self::SampleTransform { build, .. } => build,
+        }
+    }
+
+    /// Frame count implied by the authored generation request.
+    #[must_use]
+    pub fn expected_output_frames(&self) -> Option<u64> {
+        match self {
+            Self::Bounce {
+                start_frame,
+                end_frame,
+                tail_frames,
+                ..
+            } => end_frame
+                .checked_sub(*start_frame)
+                .and_then(|frames| frames.checked_add(*tail_frames)),
+            Self::SampleTransform { output_frames, .. } => Some(*output_frames),
+        }
+    }
 }
 
 /// One finite linear arrangement.
@@ -88,6 +260,8 @@ pub struct Song {
     pub automations: Vec<AutomationLane>,
     /// Authored normalized LFO routes, ordered at runtime by durable route ID.
     pub modulations: Vec<ModulationRoute>,
+    /// Authored channel-tap Envelope Followers with one-sample control latency.
+    pub envelope_followers: Vec<EnvelopeFollowerRoute>,
     /// Declaration location, used by checked lane insertion.
     pub location: SourceLocation,
 }
@@ -169,6 +343,11 @@ pub struct SampleMapping {
     pub end_frame: u64,
     /// Whether Note Off releases playback or the complete region always plays.
     pub playback: SamplePlayback,
+    /// Source traversal direction.
+    pub direction: SampleDirection,
+    /// Optional bounded loop in original source frames.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub loop_region: Option<SampleLoopRegion>,
     /// Mapping trim in decibels.
     pub gain_db: f64,
     /// Mapping pan from left (-1) to right (+1).
@@ -198,6 +377,54 @@ pub struct SampleMapping {
     pub fade_in_site: ValueSite,
     /// Fade-out literal for checked source edits.
     pub fade_out_site: ValueSite,
+    /// Optional authored direction literal for checked source edits.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub direction_site: Option<ValueSite>,
+    /// Optional complete authored loop directive for checked source edits.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub loop_site: Option<ValueSite>,
+}
+
+/// Source traversal direction for mapped and placed samples.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SampleDirection {
+    /// Traverse from the inclusive region start toward its exclusive end.
+    Forward,
+    /// Traverse from the final source frame toward the inclusive region start.
+    Reverse,
+}
+
+impl fmt::Display for SampleDirection {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Forward => "forward",
+            Self::Reverse => "reverse",
+        })
+    }
+}
+
+impl FromStr for SampleDirection {
+    type Err = ValueError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "forward" => Ok(Self::Forward),
+            "reverse" => Ok(Self::Reverse),
+            _ => Err(ValueError::UnknownSampleDirection(value.to_owned())),
+        }
+    }
+}
+
+/// One bounded half-open sample loop in original source-frame coordinates.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SampleLoopRegion {
+    /// Inclusive loop start.
+    pub start_frame: u64,
+    /// Exclusive loop end.
+    pub end_frame: u64,
+    /// Symmetric boundary crossfade length.
+    pub crossfade_frames: u32,
 }
 
 /// Gate behavior for one mapped sample zone.
@@ -263,6 +490,8 @@ pub enum Unit {
     Decibels,
     /// Pitch in semitones.
     Semitones,
+    /// Quantizer precision in bits.
+    Bits,
     /// Stereo position from -1 to 1.
     Pan,
     /// Discrete authored false/true state represented internally as 0/1.
@@ -295,6 +524,7 @@ impl Unit {
             (Self::Seconds, "ms") => 0.001,
             (Self::Decibels, "db" | "dB") => 1.0,
             (Self::Semitones, "st") => 1.0,
+            (Self::Bits, "bit" | "bits") => 1.0,
             (Self::Pan, "pan") => 1.0,
             (Self::Boolean, _) => unreachable!("Boolean literals return before numeric parsing"),
             _ => {
@@ -319,6 +549,7 @@ impl Unit {
             Self::Hertz => format!("{number}hz"),
             Self::Seconds => format!("{number}s"),
             Self::Decibels => format!("{number}db"),
+            Self::Bits => format!("{number}bit"),
             Self::Boolean => unreachable!("Boolean values return before numeric formatting"),
         }
     }
@@ -332,6 +563,7 @@ impl fmt::Display for Unit {
             Self::Seconds => "seconds",
             Self::Decibels => "db",
             Self::Semitones => "semitones",
+            Self::Bits => "bits",
             Self::Pan => "pan",
             Self::Boolean => "boolean",
         })
@@ -348,6 +580,7 @@ impl FromStr for Unit {
             "seconds" | "second" | "s" => Ok(Self::Seconds),
             "db" | "decibels" => Ok(Self::Decibels),
             "semitones" | "st" => Ok(Self::Semitones),
+            "bits" | "bit" => Ok(Self::Bits),
             "pan" => Ok(Self::Pan),
             "boolean" | "bool" => Ok(Self::Boolean),
             _ => Err(ValueError::UnknownUnit(value.to_owned())),
@@ -453,12 +686,20 @@ pub enum ProcessorKind {
     Eq,
     /// Feed-forward compressor with an optional external sidechain.
     Compressor,
+    /// Sidechain-capable gate/downward expander.
+    Gate,
     /// Fractional stereo delay.
     Delay,
     /// Shared stereo algorithmic reverberator.
     Reverb,
     /// Multi-phase soft saturation/clipper.
     Saturation,
+    /// Bounded chorus/flanger delay-line family.
+    ModulationDelay,
+    /// Explicit bit-depth and sample-rate reduction.
+    Crusher,
+    /// Bounded preceding-audio capture and repeat processor.
+    Stutter,
     /// Lookahead inter-sample-peak-aware Master limiter.
     Limiter,
     /// Explicit deterministic latency used for routing and compensation tests.
@@ -473,9 +714,13 @@ impl FromStr for ProcessorKind {
             "utility" => Ok(Self::Utility),
             "eq" | "equalizer" => Ok(Self::Eq),
             "compressor" | "comp" => Ok(Self::Compressor),
+            "gate" | "expander" => Ok(Self::Gate),
             "delay" => Ok(Self::Delay),
             "reverb" => Ok(Self::Reverb),
             "saturation" | "saturator" => Ok(Self::Saturation),
+            "modulation_delay" => Ok(Self::ModulationDelay),
+            "crusher" => Ok(Self::Crusher),
+            "stutter" | "beat_repeat" => Ok(Self::Stutter),
             "limiter" => Ok(Self::Limiter),
             "latency" => Ok(Self::Latency),
             _ => Err(ValueError::UnknownProcessor(value.to_owned())),
@@ -1300,6 +1545,66 @@ pub struct ModulationRoute {
     pub location: SourceLocation,
 }
 
+/// One channel-tap Envelope Follower routed additively into a physical Parameter.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvelopeFollowerRoute {
+    /// Durable Song-wide route identity and deterministic fold key.
+    pub id: String,
+    /// Stable source channel.
+    pub source: ChannelRef,
+    /// Exact pre/post-fader source tap.
+    pub tap: TapPoint,
+    /// Linked-stereo detector law.
+    pub detector: EnvelopeDetector,
+    /// Detector attack in seconds.
+    pub attack_seconds: f64,
+    /// Detector release in seconds.
+    pub release_seconds: f64,
+    /// Input level mapping to normalized zero.
+    pub floor_db: f64,
+    /// Input level mapping to normalized one.
+    pub ceiling_db: f64,
+    /// Stable destination Parameter.
+    pub target: ParameterTarget,
+    /// Route depth in the destination's canonical physical unit.
+    pub depth: String,
+    /// Route-local normalized arithmetic in authored order.
+    pub operators: Vec<ModulationOperator>,
+    /// Source declaration location.
+    pub location: SourceLocation,
+}
+
+/// Linked-stereo level detector used by Audio-derived control.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EnvelopeDetector {
+    /// Larger absolute channel sample.
+    Peak,
+    /// Instantaneous linked stereo root-mean-square level.
+    Rms,
+}
+
+impl fmt::Display for EnvelopeDetector {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Peak => "peak",
+            Self::Rms => "rms",
+        })
+    }
+}
+
+impl FromStr for EnvelopeDetector {
+    type Err = ValueError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "peak" => Ok(Self::Peak),
+            "rms" => Ok(Self::Rms),
+            _ => Err(ValueError::UnknownEnvelopeDetector(value.to_owned())),
+        }
+    }
+}
+
 /// Runtime ownership and phase semantics of one Modulation source.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "scope", content = "instrument", rename_all = "snake_case")]
@@ -1641,6 +1946,12 @@ pub struct SampleEventSites {
     pub fade_out: ValueSite,
     /// Velocity literal range.
     pub velocity: ValueSite,
+    /// Optional occurrence-local traversal direction literal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub direction: Option<ValueSite>,
+    /// Optional complete occurrence-local loop directive, including leading whitespace.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub loop_site: Option<ValueSite>,
 }
 
 /// A concrete first-release Event.
@@ -1709,6 +2020,12 @@ pub enum PatternEvent {
         fade_out_frames: u32,
         /// Normalized trigger velocity.
         velocity: f64,
+        /// Optional occurrence-local direction override; absence inherits the mapping.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        direction: Option<SampleDirection>,
+        /// Optional occurrence-local loop override; absence inherits the mapping.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        loop_region: Option<SampleLoopRegion>,
         /// Checked source ranges, boxed because they are needed only for off-realtime edits.
         #[serde(flatten)]
         sites: Box<SampleEventSites>,
@@ -1947,6 +2264,18 @@ pub enum ValueError {
     /// Sampler gate behavior is unknown.
     #[error("unknown sample playback `{0}`; expected one_shot or gated")]
     UnknownSamplePlayback(String),
+    /// Sampler traversal direction is unknown.
+    #[error("unknown sample direction `{0}`; expected forward or reverse")]
+    UnknownSampleDirection(String),
+    /// Envelope Follower detector spelling is unknown.
+    #[error("unknown Envelope Follower detector `{0}`; expected peak or rms")]
+    UnknownEnvelopeDetector(String),
+    /// Prepared-sample formant behavior is unknown.
+    #[error("unknown formant policy `{0}`; expected shift or preserve")]
+    UnknownFormantPolicy(String),
+    /// Prepared-sample transform quality is unknown.
+    #[error("unknown sample-transform quality `{0}`; expected effect_v1")]
+    UnknownSampleTransformQuality(String),
     /// A stable Parameter target path was malformed.
     #[error("invalid Parameter target `{0}`; expected OWNER/ID/PARAMETER or master/level")]
     InvalidParameterTarget(String),
@@ -2060,6 +2389,9 @@ mod tests {
     fn parameter_units_are_physical() {
         assert_eq!(Unit::Hertz.parse_value("4.2khz").unwrap(), 4_200.0);
         assert_eq!(Unit::Seconds.parse_value("15ms").unwrap(), 0.015);
+        assert_eq!(Unit::Bits.parse_value("12bit").unwrap(), 12.0);
+        assert_eq!(Unit::Bits.format_value(8.0), "8bit");
+        assert!(Unit::Bits.parse_value("12").is_err());
         assert!(Unit::Decibels.parse_value("2hz").is_err());
         assert_eq!(Unit::Boolean.parse_value("false").unwrap(), 0.0);
         assert_eq!(Unit::Boolean.parse_value("true").unwrap(), 1.0);

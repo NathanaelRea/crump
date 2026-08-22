@@ -777,6 +777,18 @@ impl MixGraphRuntime {
             .position(|channel| channel.identity == identity)
     }
 
+    pub(crate) fn set_transport_frame(&mut self, frame: u64) {
+        for channel in &mut self.channels {
+            for processor in channel
+                .source_processors
+                .iter_mut()
+                .chain(channel.inserts.iter_mut())
+            {
+                processor.processor.set_transport_frame(frame);
+            }
+        }
+    }
+
     pub(crate) fn channel_tap(&self, index: usize, tap: TapPoint) -> Option<[f32; 2]> {
         self.channel_taps.get(index).map(|samples| match tap {
             TapPoint::PreFader => samples.pre_fader,
@@ -925,6 +937,9 @@ pub(super) fn process_processor(
         if let Some(gain_reduction_db) = processor.processor.gain_reduction_db() {
             meter.observe_gain_reduction(gain_reduction_db);
         }
+        if let Some((repeating, ignored_triggers)) = processor.processor.stutter_status() {
+            meter.observe_stutter(repeating, ignored_triggers);
+        }
         let (authored, transient, effective, mix) =
             processor.processor.bypass_state(controls, audition);
         meter.observe_processing(sample, output, authored, transient, effective, mix);
@@ -967,10 +982,14 @@ impl CompensationDelay {
 /// Callback-cheap processor activity accumulator aligned to processor inspection indexes.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 pub struct ProcessorMeter {
-    /// Current compressor gain reduction in decibels; zero for other processor kinds.
+    /// Current Compressor or Gate/Expander gain reduction in decibels.
     pub gain_reduction_db: f32,
-    /// Maximum compressor gain reduction observed since runtime creation.
+    /// Maximum dynamics gain reduction observed since runtime creation.
     pub maximum_gain_reduction_db: f32,
+    /// Whether a bounded Stutter is currently replaying a frozen slice.
+    pub stutter_repeating: bool,
+    /// Total warm-up or active-repeat triggers ignored by Stutter.
+    pub stutter_ignored_triggers: u64,
     /// Current absolute stereo input peak.
     pub input_peak: f32,
     /// Current absolute stereo output peak.
@@ -989,6 +1008,11 @@ impl ProcessorMeter {
     pub(super) fn observe_gain_reduction(&mut self, gain_reduction_db: f32) {
         self.gain_reduction_db = gain_reduction_db.max(0.0);
         self.maximum_gain_reduction_db = self.maximum_gain_reduction_db.max(self.gain_reduction_db);
+    }
+
+    pub(super) fn observe_stutter(&mut self, repeating: bool, ignored_triggers: u64) {
+        self.stutter_repeating = repeating;
+        self.stutter_ignored_triggers = ignored_triggers;
     }
 
     pub(super) fn observe_processing(

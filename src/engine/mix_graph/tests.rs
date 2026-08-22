@@ -334,15 +334,53 @@ fn production_fixture_compiles_every_slice_two_route_role() {
             ProcessorKind::Utility,
             ProcessorKind::Eq,
             ProcessorKind::Compressor,
+            ProcessorKind::Gate,
             ProcessorKind::Delay,
             ProcessorKind::Reverb,
             ProcessorKind::Saturation,
+            ProcessorKind::ModulationDelay,
+            ProcessorKind::Crusher,
+            ProcessorKind::Stutter,
             ProcessorKind::Limiter,
             ProcessorKind::Latency,
         ]
         .into_iter()
         .collect()
     );
+    let modulation_delay = inspection
+        .processors
+        .iter()
+        .find(|processor| processor.id == "bus_chorus")
+        .expect("modulation-delay inspection");
+    assert_eq!(
+        modulation_delay.tail_policy,
+        ProcessorTailPolicy::ProjectRenderTail
+    );
+    assert_eq!(modulation_delay.tail_frames_upper_bound, None);
+    assert!(modulation_delay.state_bytes > 3_000 * 8);
+    let crusher = inspection
+        .processors
+        .iter()
+        .find(|processor| processor.id == "bus_crusher")
+        .expect("crusher inspection");
+    assert_eq!(crusher.tail_policy, ProcessorTailPolicy::BoundedFrames);
+    assert_eq!(crusher.tail_frames_upper_bound, Some(960));
+    assert_eq!(
+        crusher
+            .settings
+            .iter()
+            .find(|setting| setting.key == "bit_depth")
+            .and_then(|setting| setting.unit),
+        Some(Unit::Bits)
+    );
+    let stutter = inspection
+        .processors
+        .iter()
+        .find(|processor| processor.id == "bus_stutter")
+        .expect("stutter inspection");
+    assert_eq!(stutter.tail_policy, ProcessorTailPolicy::BoundedFrames);
+    assert_eq!(stutter.tail_frames_upper_bound, Some(24_000));
+    assert!(stutter.state_bytes >= 6_000 * 8);
     assert!(
         inspection
             .channels
@@ -539,6 +577,21 @@ fn production_fixture_compiles_every_slice_two_route_role() {
         processor_activity[compressor.index].gain_reduction_db > 1.0,
         "external sidechain should drive measurable compressor reduction"
     );
+    let gate = inspection
+        .processors
+        .iter()
+        .find(|processor| processor.id == "bass_gate")
+        .expect("gate inspection");
+    for _ in 0..10_000 {
+        sources[bass_source] = [0.1, 0.1];
+        sources[drums_source] = [0.0, 0.0];
+        let _ = runtime.process(&sources, control_runtime.values(), false);
+    }
+    runtime.copy_processor_activity(&mut processor_activity);
+    assert!(
+        processor_activity[gate.index].gain_reduction_db > 1.0,
+        "aligned external sidechain silence should close the Gate"
+    );
 }
 
 #[test]
@@ -574,9 +627,13 @@ fn inspection_resolves_defaults_for_every_processor_kind() {
             ProcessorKind::Utility,
             ProcessorKind::Eq,
             ProcessorKind::Compressor,
+            ProcessorKind::Gate,
             ProcessorKind::Delay,
             ProcessorKind::Reverb,
             ProcessorKind::Saturation,
+            ProcessorKind::ModulationDelay,
+            ProcessorKind::Crusher,
+            ProcessorKind::Stutter,
             ProcessorKind::Limiter,
             ProcessorKind::Latency,
         ])
@@ -876,6 +933,7 @@ fn latency_compensation_aligns_every_convergence_at_supported_quanta() {
         master.level_db = 0.0;
         master.inserts.clear();
         project.song.sidechains.clear();
+        project.song.envelope_followers.clear();
         (balance, latency)
     }
 

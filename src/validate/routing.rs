@@ -502,7 +502,11 @@ fn validate_processor(
             );
         }
     }
-    if processor.kind != ProcessorKind::Compressor && !processor.sidechain_inputs.is_empty() {
+    if !matches!(
+        processor.kind,
+        ProcessorKind::Compressor | ProcessorKind::Gate
+    ) && !processor.sidechain_inputs.is_empty()
+    {
         located_error(
             diagnostics,
             "CRV133",
@@ -513,12 +517,16 @@ fn validate_processor(
             &processor.location,
         );
     }
-    if processor.kind == ProcessorKind::Compressor && processor.sidechain_inputs.len() > 1 {
+    if matches!(
+        processor.kind,
+        ProcessorKind::Compressor | ProcessorKind::Gate
+    ) && processor.sidechain_inputs.len() > 1
+    {
         located_error(
             diagnostics,
             "CRV134",
             format!(
-                "compressor `{}` accepts at most one named sidechain input",
+                "sidechain processor `{}` accepts at most one named sidechain input",
                 processor.id
             ),
             &processor.location,

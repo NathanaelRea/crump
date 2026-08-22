@@ -2,7 +2,9 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use crate::model::{Instrument, ParameterTarget, SamplePlayback};
+use crate::model::{
+    Instrument, ParameterTarget, SampleDirection, SampleLoopRegion, SamplePlayback,
+};
 
 use super::{
     EngineError,
@@ -43,6 +45,8 @@ struct CompiledMapping {
     end: f64,
     source_frame_scale: f64,
     playback: SamplePlayback,
+    direction: SampleDirection,
+    loop_region: Option<CompiledLoopRegion>,
     gain_db: f32,
     pan: f32,
     attack_seconds: f32,
@@ -50,6 +54,13 @@ struct CompiledMapping {
     fade_in: f64,
     fade_out: f64,
     choke_group: Option<u16>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CompiledLoopRegion {
+    start: f64,
+    end: f64,
+    crossfade: f64,
 }
 
 impl CompiledSamplerProgram {
@@ -84,6 +95,13 @@ impl CompiledSamplerProgram {
                     authored.id, authored.asset
                 )));
             }
+            let loop_region = authored
+                .loop_region
+                .map(|loop_region| compile_loop_region(loop_region, source_frame_scale, start, end))
+                .transpose()
+                .map_err(|message| {
+                    EngineError::Compile(format!("sample mapping `{}` {message}", authored.id))
+                })?;
             let choke_group = if let Some(group) = authored.choke_group.as_deref() {
                 if let Some(index) = choke_groups.get(group) {
                     Some(*index)
@@ -107,6 +125,8 @@ impl CompiledSamplerProgram {
                 end,
                 source_frame_scale,
                 playback: authored.playback,
+                direction: authored.direction,
+                loop_region,
                 gain_db: authored.gain_db as f32,
                 pan: authored.pan as f32,
                 attack_seconds: authored.attack_seconds as f32,
@@ -192,6 +212,8 @@ impl SamplerRuntime {
             mapping.pan,
             mapping.fade_in,
             mapping.fade_out,
+            mapping.direction,
+            mapping.loop_region,
             velocity,
             false,
             ClipEnvelope::TRANSPARENT,
@@ -226,6 +248,8 @@ impl SamplerRuntime {
             mapping.pan,
             mapping.fade_in,
             mapping.fade_out,
+            mapping.direction,
+            mapping.loop_region,
             velocity,
             false,
             clip_envelope,
@@ -243,6 +267,8 @@ impl SamplerRuntime {
         pan: f32,
         fade_in_frames: u32,
         fade_out_frames: u32,
+        direction: Option<SampleDirection>,
+        loop_region: Option<SampleLoopRegion>,
         velocity: f32,
         clip_envelope: ClipEnvelope,
     ) {
@@ -256,6 +282,15 @@ impl SamplerRuntime {
         if start >= end || end > mapping.source.len() as f64 + 1.0e-9 {
             return;
         }
+        let loop_region = match loop_region {
+            Some(loop_region) => {
+                let Ok(compiled) = compile_loop_region(loop_region, scale, start, end) else {
+                    return;
+                };
+                Some(compiled)
+            }
+            None => mapping.loop_region,
+        };
         self.start_voice(
             note_id,
             mapping_index,
@@ -266,6 +301,8 @@ impl SamplerRuntime {
             (mapping.pan + pan).clamp(-1.0, 1.0),
             f64::from(fade_in_frames) * scale,
             f64::from(fade_out_frames) * scale,
+            direction.unwrap_or(mapping.direction),
+            loop_region,
             velocity,
             true,
             clip_envelope,
@@ -284,6 +321,8 @@ impl SamplerRuntime {
         pan: f32,
         fade_in: f64,
         fade_out: f64,
+        direction: SampleDirection,
+        loop_region: Option<CompiledLoopRegion>,
         velocity: f32,
         occurrence: bool,
         clip_envelope: ClipEnvelope,
@@ -310,6 +349,8 @@ impl SamplerRuntime {
             pan,
             fade_in,
             fade_out,
+            direction,
+            loop_region,
             velocity,
             occurrence,
             self.activation_counter,
@@ -339,7 +380,7 @@ impl SamplerRuntime {
     pub(crate) fn all_notes_off(&mut self) {
         for voice in &mut self.voices {
             if voice.active {
-                voice.begin_release(CHOKE_FADE_FRAMES);
+                voice.release_requested = true;
             }
         }
     }
@@ -396,6 +437,8 @@ struct SamplerVoice {
     pan: f32,
     fade_in: f64,
     fade_out: f64,
+    direction: SampleDirection,
+    loop_region: Option<CompiledLoopRegion>,
     velocity: f32,
     age_frames: u64,
     activation_order: u64,
@@ -425,6 +468,8 @@ impl Default for SamplerVoice {
             pan: 0.0,
             fade_in: 0.0,
             fade_out: 0.0,
+            direction: SampleDirection::Forward,
+            loop_region: None,
             velocity: 0.0,
             age_frames: 0,
             activation_order: 0,
@@ -454,6 +499,8 @@ impl SamplerVoice {
         pan: f32,
         fade_in: f64,
         fade_out: f64,
+        direction: SampleDirection,
+        loop_region: Option<CompiledLoopRegion>,
         velocity: f32,
         occurrence: bool,
         activation_order: u64,
@@ -470,7 +517,10 @@ impl SamplerVoice {
         self.occurrence = occurrence;
         self.note_id = note_id;
         self.mapping_index = mapping_index;
-        self.position = start;
+        self.position = match direction {
+            SampleDirection::Forward => start,
+            SampleDirection::Reverse => (end - 1.0).max(start),
+        };
         self.start = start;
         self.end = end;
         self.semitones = semitones;
@@ -478,6 +528,8 @@ impl SamplerVoice {
         self.pan = pan;
         self.fade_in = fade_in;
         self.fade_out = fade_out;
+        self.direction = direction;
+        self.loop_region = loop_region;
         self.velocity = velocity.clamp(0.0, 1.0);
         self.age_frames = 0;
         self.activation_order = activation_order;
@@ -508,26 +560,40 @@ impl SamplerVoice {
         instrument_pan: f32,
         attack_frames: u32,
     ) -> [f32; 2] {
-        if self.position >= self.end {
+        self.wrap_loop_position();
+        let ended = self.loop_region.is_none()
+            && match self.direction {
+                SampleDirection::Forward => self.position >= self.end,
+                SampleDirection::Reverse => self.position < self.start,
+            };
+        if ended {
             self.active = false;
             self.last_output = [0.0; 2];
             return [0.0; 2];
         }
-        let sample = interpolated_frame(mapping.source.frames(), self.position);
+        let sample = self.source_sample(mapping.source.frames());
         let attack = if attack_frames == 0 {
             1.0
         } else {
             (self.age_frames as f32 / attack_frames as f32).clamp(0.0, 1.0)
         };
+        let travelled = match self.direction {
+            SampleDirection::Forward => self.position - self.start,
+            SampleDirection::Reverse => (self.end - 1.0).max(self.start) - self.position,
+        };
         let source_fade_in = if self.fade_in <= f64::EPSILON {
             1.0
         } else {
-            ((self.position - self.start) / self.fade_in).clamp(0.0, 1.0) as f32
+            (travelled / self.fade_in).clamp(0.0, 1.0) as f32
         };
-        let source_fade_out = if self.fade_out <= f64::EPSILON {
+        let terminal_distance = match self.direction {
+            SampleDirection::Forward => self.end - self.position,
+            SampleDirection::Reverse => self.position - self.start + 1.0,
+        };
+        let source_fade_out = if self.loop_region.is_some() || self.fade_out <= f64::EPSILON {
             1.0
         } else {
-            ((self.end - self.position) / self.fade_out).clamp(0.0, 1.0) as f32
+            (terminal_distance / self.fade_out).clamp(0.0, 1.0) as f32
         };
         if self.releasing {
             self.release_cursor = self.release_cursor.saturating_add(1);
@@ -557,10 +623,83 @@ impl SamplerVoice {
             self.residual_frames -= 1;
         }
         let increment = 2.0_f64.powf((self.semitones + tune) / 12.0);
-        self.position += increment;
+        match self.direction {
+            SampleDirection::Forward => self.position += increment,
+            SampleDirection::Reverse => self.position -= increment,
+        }
         self.age_frames = self.age_frames.saturating_add(1);
         self.last_output = output;
         output
+    }
+
+    fn wrap_loop_position(&mut self) {
+        let Some(loop_region) = self.loop_region else {
+            return;
+        };
+        let length = loop_region.end - loop_region.start;
+        let cycle = length - loop_region.crossfade;
+        if cycle <= f64::EPSILON {
+            return;
+        }
+        match self.direction {
+            SampleDirection::Forward if self.position >= loop_region.end => {
+                self.position = loop_region.start
+                    + loop_region.crossfade
+                    + (self.position - loop_region.end) % cycle;
+            }
+            SampleDirection::Reverse if self.position < loop_region.start => {
+                let overshoot = (loop_region.start - self.position) % cycle;
+                self.position = loop_region.end - loop_region.crossfade - overshoot;
+                if self.position < loop_region.start {
+                    self.position += cycle;
+                }
+            }
+            SampleDirection::Forward | SampleDirection::Reverse => {}
+        }
+    }
+
+    fn source_sample(&self, frames: &[[f32; 2]]) -> [f32; 2] {
+        let primary = interpolated_region_frame(frames, self.position, self.start, self.end);
+        let Some(loop_region) = self
+            .loop_region
+            .filter(|loop_region| loop_region.crossfade > 0.0)
+        else {
+            return primary;
+        };
+        let (alternate_position, blend) = match self.direction {
+            SampleDirection::Forward
+                if self.position >= loop_region.end - loop_region.crossfade
+                    && self.position < loop_region.end =>
+            {
+                (
+                    loop_region.start + self.position - (loop_region.end - loop_region.crossfade),
+                    (self.position - (loop_region.end - loop_region.crossfade) + 1.0)
+                        / loop_region.crossfade,
+                )
+            }
+            SampleDirection::Reverse
+                if self.position >= loop_region.start
+                    && self.position < loop_region.start + loop_region.crossfade =>
+            {
+                (
+                    loop_region.end - loop_region.crossfade + (self.position - loop_region.start),
+                    (loop_region.start + loop_region.crossfade - self.position)
+                        / loop_region.crossfade,
+                )
+            }
+            SampleDirection::Forward | SampleDirection::Reverse => return primary,
+        };
+        let alternate = interpolated_region_frame(
+            frames,
+            alternate_position,
+            loop_region.start,
+            loop_region.end,
+        );
+        let blend = blend.clamp(0.0, 1.0) as f32;
+        [
+            primary[0] + (alternate[0] - primary[0]) * blend,
+            primary[1] + (alternate[1] - primary[1]) * blend,
+        ]
     }
 }
 
@@ -586,14 +725,42 @@ fn select_voice(voices: &[SamplerVoice]) -> usize {
         .unwrap_or(0)
 }
 
-fn interpolated_frame(frames: &[[f32; 2]], position: f64) -> [f32; 2] {
-    let index = position.floor().max(0.0) as usize;
-    let fraction = (position - index as f64) as f32;
-    let first = frames.get(index).copied().unwrap_or([0.0; 2]);
-    let second = frames
-        .get(index.saturating_add(1))
-        .copied()
-        .unwrap_or(first);
+fn compile_loop_region(
+    authored: SampleLoopRegion,
+    scale: f64,
+    region_start: f64,
+    region_end: f64,
+) -> Result<CompiledLoopRegion, &'static str> {
+    if authored.start_frame >= authored.end_frame
+        || u64::from(authored.crossfade_frames).saturating_mul(2)
+            > authored.end_frame.saturating_sub(authored.start_frame)
+    {
+        return Err("has an invalid loop or a crossfade longer than half the loop");
+    }
+    let start = authored.start_frame as f64 * scale;
+    let end = authored.end_frame as f64 * scale;
+    if start < region_start || end > region_end || start >= end {
+        return Err("loop lies outside its selected source region");
+    }
+    Ok(CompiledLoopRegion {
+        start,
+        end,
+        crossfade: f64::from(authored.crossfade_frames) * scale,
+    })
+}
+
+fn interpolated_region_frame(frames: &[[f32; 2]], position: f64, start: f64, end: f64) -> [f32; 2] {
+    if frames.is_empty() {
+        return [0.0; 2];
+    }
+    let minimum = start.floor().max(0.0) as usize;
+    let maximum = (end.ceil().max(1.0) as usize)
+        .saturating_sub(1)
+        .min(frames.len().saturating_sub(1));
+    let index = (position.floor().max(0.0) as usize).clamp(minimum.min(maximum), maximum);
+    let fraction = (position - position.floor()).clamp(0.0, 1.0) as f32;
+    let first = frames[index];
+    let second = frames[index.saturating_add(1).min(maximum)];
     [
         first[0] + (second[0] - first[0]) * fraction,
         first[1] + (second[1] - first[1]) * fraction,
@@ -610,6 +777,7 @@ fn seconds_to_frames(seconds: f32, sample_rate: f64) -> u32 {
 mod tests {
     use std::fs;
 
+    use super::*;
     use sha2::{Digest, Sha256};
     use tempfile::tempdir;
 
@@ -708,6 +876,27 @@ project "Sampler Test" {{
             .collect()
     }
 
+    fn render_prefix_in_blocks(
+        bundle: &crate::project::ProjectBundle,
+        frames: usize,
+        quantum: usize,
+    ) -> Vec<[f32; 2]> {
+        let project = bundle.publishable().expect("publishable sampler Project");
+        let compiled = CompiledProject::compile_with_assets(project, &bundle.assets)
+            .expect("compile sampler Project");
+        let mut runtime = compiled.runtime();
+        let mut rendered = Vec::with_capacity(frames);
+        while rendered.len() < frames {
+            let mut block = vec![[0.0; 2]; quantum];
+            runtime
+                .process_block(&mut block, ProcessingMode::Offline)
+                .expect("finite sampler block");
+            let remaining = frames - rendered.len();
+            rendered.extend_from_slice(&block[..remaining.min(quantum)]);
+        }
+        rendered
+    }
+
     #[test]
     fn mapped_notes_and_durable_sample_occurrences_render_deterministically() {
         let bundle = write_sample_project(2);
@@ -753,6 +942,239 @@ project "Sampler Test" {{
             crate::engine::track_semantic_hash(&schedule, &changed.song.instruments[0], &changed)
                 .expect("changed semantic hash");
         assert_ne!(original, changed_hash);
+    }
+
+    #[test]
+    fn malformed_mapping_and_occurrence_loops_are_rejected() {
+        let mapping_bundle = write_sample_project(2);
+        let mapping_source_path = mapping_bundle.root.join(PROJECT_FILE);
+        let mapping_source = fs::read_to_string(&mapping_source_path)
+            .expect("mapping source")
+            .replace(
+                "        playback one_shot",
+                "        playback gated\n        loop 900 1100 crossfade 101",
+            );
+        fs::write(&mapping_source_path, mapping_source).expect("invalid mapping loop");
+        let mapping_bundle = load_project(&mapping_bundle.root).expect("load mapping loop");
+        assert!(
+            mapping_bundle
+                .diagnostics
+                .as_slice()
+                .iter()
+                .any(|diagnostic| {
+                    diagnostic.code == "CRV019"
+                        && diagnostic.message.contains("sample loop must be inside")
+                })
+        );
+
+        let occurrence_bundle = write_sample_project(2);
+        let occurrence_source_path = occurrence_bundle.root.join(PROJECT_FILE);
+        let occurrence_source = fs::read_to_string(&occurrence_source_path)
+            .expect("occurrence source")
+            .replace(
+                "fade 8 12 velocity 0.75",
+                "fade 8 12 velocity 0.75 loop 32 512 crossfade 8",
+            );
+        fs::write(&occurrence_source_path, occurrence_source).expect("invalid occurrence loop");
+        let occurrence_bundle =
+            load_project(&occurrence_bundle.root).expect("load occurrence loop");
+        assert!(
+            occurrence_bundle
+                .diagnostics
+                .as_slice()
+                .iter()
+                .any(|diagnostic| {
+                    diagnostic.code == "CRV070"
+                        && diagnostic
+                            .message
+                            .contains("sample occurrence loop must be inside")
+                })
+        );
+    }
+
+    #[test]
+    fn authored_direction_and_bounded_loops_are_explicit_and_deterministic() {
+        let bundle = write_sample_project(2);
+        let source_path = bundle.root.join(PROJECT_FILE);
+        let source = fs::read_to_string(&source_path)
+            .expect("source")
+            .replace(
+                "        playback one_shot",
+                "        playback gated\n        direction reverse\n        loop 128 512 crossfade 32",
+            )
+            .replace(
+                "fade 8 12 velocity 0.75",
+                "fade 8 12 velocity 0.75 direction forward loop 128 384 crossfade 16",
+            );
+        fs::write(&source_path, source).expect("transport source");
+        let bundle = load_project(&bundle.root).expect("load transport Project");
+        assert!(!bundle.diagnostics.has_errors(), "{:?}", bundle.diagnostics);
+        let project = bundle.publishable().expect("valid transport Project");
+        let mapping = &project.song.instruments[0]
+            .sampler
+            .as_ref()
+            .expect("sampler")
+            .mappings[0];
+        assert_eq!(mapping.direction, crate::model::SampleDirection::Reverse);
+        assert_eq!(
+            mapping.loop_region,
+            Some(crate::model::SampleLoopRegion {
+                start_frame: 128,
+                end_frame: 512,
+                crossfade_frames: 32,
+            })
+        );
+        let occurrence = project.song.patterns[0]
+            .events
+            .iter()
+            .find(|event| matches!(event, crate::model::PatternEvent::Sample { .. }))
+            .expect("sample occurrence");
+        assert!(matches!(
+            occurrence,
+            crate::model::PatternEvent::Sample {
+                direction: Some(crate::model::SampleDirection::Forward),
+                loop_region: Some(crate::model::SampleLoopRegion {
+                    start_frame: 128,
+                    end_frame: 384,
+                    crossfade_frames: 16,
+                }),
+                ..
+            }
+        ));
+        let first = render_prefix(&bundle, 25_000);
+        for quantum in crate::engine::mix_graph::SUPPORTED_QUANTA {
+            assert_eq!(
+                render_prefix_in_blocks(&bundle, 25_000, quantum),
+                first,
+                "reverse/loop sampler output changed at quantum {quantum}"
+            );
+        }
+        assert!(first.iter().flatten().all(|sample| sample.is_finite()));
+    }
+
+    #[test]
+    fn isolated_tail_uses_authored_sampler_release() {
+        let bundle = write_sample_project(2);
+        let project = bundle.publishable().expect("sampler Project");
+        let compiled = CompiledProject::compile_with_assets(project, &bundle.assets)
+            .expect("compile sampler Project");
+        let mut runtime = compiled.runtime();
+        runtime
+            .process_frame(ProcessingMode::Offline)
+            .expect("start sampler voice");
+        assert!(runtime.telemetry().active_voices > 0);
+
+        runtime.begin_isolated_tail(500);
+        for _ in 0..64 {
+            runtime
+                .process_frame(ProcessingMode::Offline)
+                .expect("early sampler release");
+        }
+        assert!(
+            runtime.telemetry().active_voices > 0,
+            "isolated tails must not replace the authored 5ms release with the 64-frame choke fade"
+        );
+        for _ in 0..200 {
+            runtime
+                .process_frame(ProcessingMode::Offline)
+                .expect("complete sampler release");
+        }
+        assert_eq!(runtime.telemetry().active_voices, 0);
+    }
+
+    #[test]
+    fn reverse_traversal_and_loop_crossfade_use_bounded_region_samples() {
+        let frames = (0..8)
+            .map(|value| [value as f32, value as f32])
+            .collect::<Vec<_>>();
+        let mut reverse = SamplerVoice {
+            active: true,
+            start: 0.0,
+            end: 8.0,
+            position: 7.0,
+            direction: SampleDirection::Reverse,
+            ..SamplerVoice::default()
+        };
+        let mut observed = Vec::new();
+        for _ in 0..8 {
+            observed.push(reverse.source_sample(&frames)[0]);
+            reverse.position -= 1.0;
+        }
+        assert_eq!(observed, vec![7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0]);
+
+        let mut looped = SamplerVoice {
+            active: true,
+            start: 0.0,
+            end: 8.0,
+            position: 4.0,
+            direction: SampleDirection::Forward,
+            loop_region: Some(CompiledLoopRegion {
+                start: 2.0,
+                end: 6.0,
+                crossfade: 2.0,
+            }),
+            ..SamplerVoice::default()
+        };
+        let before = looped.source_sample(&frames)[0];
+        looped.position = 5.0;
+        let boundary = looped.source_sample(&frames)[0];
+        looped.position = 6.0;
+        looped.wrap_loop_position();
+        let after = looped.source_sample(&frames)[0];
+        assert!((before - boundary).abs() <= 1.0);
+        assert!((boundary - after).abs() <= 1.0);
+        assert!((2.0..6.0).contains(&looped.position));
+
+        let mut reverse_loop = SamplerVoice {
+            active: true,
+            start: 0.0,
+            end: 8.0,
+            position: 3.0,
+            direction: SampleDirection::Reverse,
+            loop_region: Some(CompiledLoopRegion {
+                start: 2.0,
+                end: 6.0,
+                crossfade: 2.0,
+            }),
+            ..SamplerVoice::default()
+        };
+        let reverse_before = reverse_loop.source_sample(&frames)[0];
+        reverse_loop.position = 2.0;
+        let reverse_boundary = reverse_loop.source_sample(&frames)[0];
+        reverse_loop.position = 1.0;
+        reverse_loop.wrap_loop_position();
+        let reverse_after = reverse_loop.source_sample(&frames)[0];
+        assert!((reverse_before - reverse_boundary).abs() <= 1.0);
+        assert!((reverse_boundary - reverse_after).abs() <= 1.0);
+        assert!((2.0..6.0).contains(&reverse_loop.position));
+
+        let mut zero_crossfade = SamplerVoice {
+            position: 14.5,
+            direction: SampleDirection::Forward,
+            loop_region: Some(CompiledLoopRegion {
+                start: 2.0,
+                end: 6.0,
+                crossfade: 0.0,
+            }),
+            ..SamplerVoice::default()
+        };
+        zero_crossfade.wrap_loop_position();
+        assert_eq!(zero_crossfade.position, 2.5);
+
+        let fractional = compile_loop_region(
+            SampleLoopRegion {
+                start_frame: 1,
+                end_frame: 5,
+                crossfade_frames: 2,
+            },
+            0.5,
+            0.0,
+            4.0,
+        )
+        .expect("fractional converted loop");
+        assert_eq!(fractional.start, 0.5);
+        assert_eq!(fractional.end, 2.5);
+        assert_eq!(fractional.crossfade, 1.0);
     }
 
     #[test]

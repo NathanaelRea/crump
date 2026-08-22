@@ -432,6 +432,12 @@ impl CompiledMixGraph {
         let schedules = compile_schedules(project)?;
         let controls = CompiledControlProgram::compile(project)?;
         let mut graph = Self::compile_with_topology(project, &controls, topology, false)?;
+        let envelope_followers = super::super::follower::CompiledEnvelopeFollowerProgram::compile(
+            project,
+            &controls,
+            &graph,
+            project.sample_rate,
+        )?;
         let instruments: BTreeMap<_, _> = project
             .song
             .instruments
@@ -462,14 +468,38 @@ impl CompiledMixGraph {
                 (schedules.capacity() as u64)
                     .saturating_mul(std::mem::size_of::<TrackRuntime>() as u64),
             )
-            .saturating_add(controls.runtime_state_bytes());
+            .saturating_add(controls.runtime_state_bytes())
+            .saturating_add(envelope_followers.runtime_state_bytes());
         graph.inspection.resources.include_song_runtime_state(
-            controls.allocation_bytes(),
+            controls
+                .allocation_bytes()
+                .saturating_add(envelope_followers.allocation_bytes()),
             schedule_program_bytes,
             instrument_program_bytes,
             song_runtime_structure_bytes,
         );
+        graph
+            .inspection
+            .resources
+            .include_additional_callback_work(envelope_followers.work_units_per_frame());
         Ok(graph.inspection.resources)
+    }
+
+    pub(crate) fn include_additional_callback_work(
+        &mut self,
+        work_units_per_frame: u64,
+    ) -> Result<(), EngineError> {
+        self.inspection
+            .resources
+            .include_additional_callback_work(work_units_per_frame);
+        if !self.inspection.resources.admitted {
+            return Err(EngineError::Compile(format!(
+                "runtime callback work exceeds the named budget: {} work units/frame (budget {})",
+                self.inspection.resources.work_units_per_frame,
+                self.inspection.resources.work_budget_per_frame
+            )));
+        }
+        Ok(())
     }
 
     pub(crate) fn include_song_runtime_state(

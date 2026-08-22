@@ -45,6 +45,14 @@ pub(super) fn compile_processor_chain(
         .iter()
         .map(|processor| {
             let program = ProcessorProgram::compile(processor, controls, sample_rate, tempo_bpm)?;
+            let tail_frames_upper_bound = program.tail_frames_upper_bound();
+            let tail_policy = if program.uses_project_render_tail() {
+                ProcessorTailPolicy::ProjectRenderTail
+            } else if tail_frames_upper_bound.is_some() {
+                ProcessorTailPolicy::BoundedFrames
+            } else {
+                ProcessorTailPolicy::None
+            };
             let telemetry_index = *processor_indexes
                 .get(&(owner.to_owned(), processor.id.clone()))
                 .ok_or_else(|| {
@@ -69,6 +77,8 @@ pub(super) fn compile_processor_chain(
                 oversampling_factor: program.oversampling_factor(),
                 oversampling_filter_taps: program.oversampling_filter_taps(),
                 true_peak_safety_margin_db: program.true_peak_safety_margin_db(),
+                tail_policy,
+                tail_frames_upper_bound,
                 state_bytes: program.state_bytes(),
                 work_units_per_frame: program.work_units(),
             });

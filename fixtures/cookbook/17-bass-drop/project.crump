@@ -1,0 +1,46 @@
+crump 1
+project "Cookbook 17 Bass Drop" {
+  id cookbook-17-bass-drop
+  seed 4017
+  sample_rate 48000
+  render_tail 250ms
+  song {
+    tempo 240bpm
+    meter 4/4
+    end 1bar
+    instrument drums "Bass Source" stock_drums {
+      polyphony 4
+      parameter tone "Tone" ratio 0 1 0.4 0.3
+      parameter punch "Punch" ratio 0 1 0.7 0.85
+      faceplate {
+        control tone "Tone" "Controls bass-source brightness" maps tone
+        control punch "Punch" "Controls bass-source impact" maps punch
+      }
+    }
+    pattern pulse 1bar {
+      hit 0beat kick 0.94
+      hit 2beat kick 0.86
+    }
+    automation reveal-filter target processor/withheld-band/bypass {
+      point intro 0bar false step
+      point drop 2beat true step
+      point end 1bar true step
+    }
+    track bass "Bass" instrument drums level -7db pan 0 {
+      processor withheld-band eq {
+        setting high_pass 100hz
+        setting low_pass 300hz
+      }
+      output master
+      clip pulse-loop pattern pulse start 0bar duration 1bar mode loop
+    }
+    master level -1db {
+      processor ceiling limiter {
+        setting ceiling -1db
+        setting release 80ms
+        setting lookahead 5ms
+      }
+    }
+    locator drop "Drop" at 2beat
+  }
+}

@@ -13,7 +13,10 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     diagnostic::{Diagnostic, Diagnostics},
-    model::MediaAsset,
+    model::{
+        ChannelRef, FormantPolicy, GeneratedAssetProvenance, MediaAsset, SampleTransformQuality,
+        TapPoint,
+    },
 };
 
 /// Maximum number of authored media assets in one Project.
@@ -508,6 +511,73 @@ fn load_asset_bytes(
     content_paths: &mut BTreeMap<String, PathBuf>,
     diagnostics: &mut Diagnostics,
 ) -> Option<LoadedAsset> {
+    if let Some(provenance) = &declaration.generated {
+        let valid = match provenance {
+            GeneratedAssetProvenance::Bounce {
+                source_revision,
+                owner,
+                tap,
+                start_frame,
+                end_frame,
+                format,
+                algorithm,
+                build,
+                ..
+            } => {
+                let channel_source =
+                    owner.parse::<ChannelRef>().is_ok() && tap.parse::<TapPoint>().is_ok();
+                let master_source = owner == "master" && tap == "master_output";
+                valid_sha256(source_revision)
+                    && start_frame < end_frame
+                    && format == "stereo_f32_wav"
+                    && !algorithm.trim().is_empty()
+                    && !build.trim().is_empty()
+                    && (master_source || channel_source)
+            }
+            GeneratedAssetProvenance::SampleTransform {
+                source_revision,
+                source_asset,
+                source_sha256,
+                source_start_frame,
+                source_end_frame,
+                output_frames,
+                pitch_semitones,
+                formants,
+                quality,
+                format,
+                algorithm,
+                deterministic_domain,
+                build,
+            } => {
+                valid_sha256(source_revision)
+                    && generated_source_id(source_asset)
+                    && valid_sha256(source_sha256)
+                    && source_start_frame < source_end_frame
+                    && *output_frames > 0
+                    && pitch_semitones.is_finite()
+                    && (-24.0..=24.0).contains(pitch_semitones)
+                    && *formants == FormantPolicy::Shift
+                    && *quality == SampleTransformQuality::EffectV1
+                    && format == "stereo_f32_wav"
+                    && !algorithm.trim().is_empty()
+                    && deterministic_domain == "x86_64-linux"
+                    && !build.trim().is_empty()
+            }
+        };
+        if !valid {
+            diagnostics.push(
+                Diagnostic::error(
+                    "CRM008",
+                    format!(
+                        "asset `{}` has invalid generated-audio provenance",
+                        declaration.id
+                    ),
+                )
+                .at(declaration.location.clone()),
+            );
+            return None;
+        }
+    }
     let byte_len = bytes.len() as u64;
     if byte_len > MAX_MEDIA_ASSET_BYTES {
         diagnostics.push(
@@ -552,6 +622,24 @@ fn load_asset_bytes(
             return None;
         }
     };
+    if let Some(provenance) = &declaration.generated
+        && (provenance.expected_output_frames() != Some(wav_metadata.frames)
+            || wav_metadata.channels != 2
+            || wav_metadata.sample_format != WavSampleFormat::Float
+            || wav_metadata.bits_per_sample != 32)
+    {
+        diagnostics.push(
+            Diagnostic::error(
+                "CRM008",
+                format!(
+                    "asset `{}` WAV metadata does not match its generated-audio provenance",
+                    declaration.id
+                ),
+            )
+            .at(declaration.location.clone()),
+        );
+        return None;
+    }
     if let Some(first_path) = content_paths.get(&actual_hash) {
         diagnostics.push(
             Diagnostic::warning(
@@ -577,6 +665,16 @@ fn load_asset_bytes(
         bytes: Arc::from(bytes),
         metadata: wav_metadata,
     })
+}
+
+fn generated_source_id(value: &str) -> bool {
+    let mut characters = value.chars();
+    characters
+        .next()
+        .is_some_and(|character| character.is_ascii_alphabetic())
+        && characters.all(|character| {
+            character.is_ascii_alphanumeric() || character == '_' || character == '-'
+        })
 }
 
 /// Returns whether a digest is canonical lowercase SHA-256 text.
@@ -694,6 +792,7 @@ mod tests {
             name: id.to_owned(),
             path: PathBuf::from(path),
             sha256: digest,
+            generated: None,
             path_site: ValueSite::new("project.crump", 0, 0, ""),
             sha256_site: ValueSite::new("project.crump", 0, 0, ""),
             location: SourceLocation::file("project.crump"),

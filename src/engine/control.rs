@@ -628,9 +628,13 @@ impl ControlRuntime {
     }
 
     /// Adds one future modulation contribution before the next evaluation.
-    #[allow(dead_code)]
     pub(crate) fn add_modulation(&mut self, index: ControlIndex, contribution: f64) {
         self.modulation[index.0] += contribution;
+    }
+
+    /// Clears pending Audio-derived contributions after an explicit transport discontinuity.
+    pub(crate) fn clear_future_modulation(&mut self) {
+        self.modulation.fill(0.0);
     }
 }
 

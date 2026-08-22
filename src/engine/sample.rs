@@ -328,6 +328,7 @@ mod tests {
             name: "Sample".to_owned(),
             path: PathBuf::from("media/sample.wav"),
             sha256: digest,
+            generated: None,
             path_site: ValueSite::new("project.crump", 0, 0, ""),
             sha256_site: ValueSite::new("project.crump", 0, 0, ""),
             location: SourceLocation::file("project.crump"),

@@ -1,0 +1,54 @@
+crump 1
+project "Cookbook 84 Club Toilet" {
+  id cookbook-84-club-toilet
+  seed 4084
+  sample_rate 48000
+  render_tail 500ms
+  song {
+    tempo 240bpm
+    meter 4/4
+    end 1bar
+    instrument drums "Mix Source" stock_drums {
+      polyphony 8
+      parameter tone "Tone" ratio 0 1 0.5 0.64
+      parameter punch "Punch" ratio 0 1 0.5 0.76
+      faceplate {
+        control tone "Tone" "Controls source brightness" maps tone
+        control punch "Punch" "Controls source impact" maps punch
+      }
+    }
+    pattern beat 1bar {
+      hit 0beat kick 0.92
+      hit 1beat snare 0.76
+      hit 2beat kick 0.86
+      hit 3beat clap 0.7
+      hit 1/2beat hat 0.45
+      hit 3/2beat hat 0.5
+      hit 5/2beat hat 0.48
+      hit 7/2beat hat 0.54
+    }
+    track source "Mix Source" instrument drums level -8db pan 0 {
+      output master
+      clip beat-loop pattern beat start 0bar duration 1bar mode loop
+    }
+    master level -1db {
+      processor wall-filter eq {
+        setting low_pass 800hz
+      }
+      processor distant-room reverb {
+        setting pre_delay 10ms
+        setting diffusion 0.75
+        setting decay 0.72
+        setting damping 0.55
+        setting modulation 0.1
+        setting width 0.8
+        setting mix 0.38
+      }
+      processor ceiling limiter {
+        setting ceiling -1db
+        setting release 80ms
+        setting lookahead 5ms
+      }
+    }
+  }
+}

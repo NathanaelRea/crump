@@ -1,7 +1,7 @@
 //! Semantic parser for Crump's deliberately small first-release language.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -10,14 +10,16 @@ use crate::{
     diagnostic::{Diagnostic, Diagnostics, SourceLocation},
     model::{
         AutomationInterpolation, AutomationLane, AutomationPoint, ChannelRef, ChannelStrip, Clip,
-        ClipMode, ClipSites, Connection, ControlPolarity, DrumVoice, Endpoint, FaceplateControl,
-        Graph, GraphNode, GrooveSites, GrooveTemplate, Group, Instrument, InstrumentKind,
-        LfoWaveform, Locator, Master, MediaAsset, ModulationOperator, ModulationRate,
-        ModulationRoute, ModulationScope, NodeKind, OutputTarget, Panner, Parameter, ParameterLock,
+        ClipMode, ClipSites, Connection, ControlPolarity, DrumVoice, Endpoint, EnvelopeDetector,
+        EnvelopeFollowerRoute, FaceplateControl, FormantPolicy, GeneratedAssetProvenance, Graph,
+        GraphNode, GrooveSites, GrooveTemplate, Group, Instrument, InstrumentKind, LfoWaveform,
+        Locator, Master, MediaAsset, ModulationOperator, ModulationRate, ModulationRoute,
+        ModulationScope, NodeKind, OutputTarget, Panner, Parameter, ParameterLock,
         ParameterLockSites, ParameterTarget, Pattern, PatternEvent, PatternVariation,
         PatternVariationSites, Processor, ProcessorKind, ProcessorSetting, Project, Return,
-        SOURCE_VERSION, SampleEventSites, SampleMapping, SamplePlayback, SamplerDefinition, Send,
-        SettingValue, SidechainRoute, Song, TapPoint, Track, Unit, ValueSite, parse_pitch,
+        SOURCE_VERSION, SampleDirection, SampleEventSites, SampleLoopRegion, SampleMapping,
+        SamplePlayback, SampleTransformQuality, SamplerDefinition, Send, SettingValue,
+        SidechainRoute, Song, TapPoint, Track, Unit, ValueSite, parse_pitch,
     },
     time::{Meter, MusicalTime, parse_musical_time, parse_seconds},
 };
@@ -314,23 +316,391 @@ impl Parser<'_> {
             || statement.tokens[4].kind != TokenKind::String
             || statement.tokens[5].value != "sha256"
             || statement.tokens[6].kind != TokenKind::String
-            || !statement.children.is_empty()
         {
             self.error_at(
                 "CRP230",
-                "asset syntax is `asset id \"Name\" wav \"media/file.wav\" sha256 \"lowercase-hex\"`",
+                "asset syntax is `asset id \"Name\" wav \"media/file.wav\" sha256 \"lowercase-hex\"` with an optional generated provenance block",
                 statement,
             );
             return None;
         }
+        let generated = if statement.children.is_empty() {
+            None
+        } else if statement.children.len() == 1
+            && statement.children[0].keyword() == Some("generated")
+        {
+            self.parse_generated_asset(&statement.children[0])
+        } else {
+            self.error_at(
+                "CRP231",
+                "an asset may contain only one `generated { ... }` provenance block",
+                statement,
+            );
+            return None;
+        };
         Some(MediaAsset {
             id: statement.tokens[1].value.clone(),
             name: statement.tokens[2].value.clone(),
             path: PathBuf::from(&statement.tokens[4].value),
             sha256: statement.tokens[6].value.clone(),
+            generated,
             path_site: self.site(&statement.tokens[4]),
             sha256_site: self.site(&statement.tokens[6]),
             location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_generated_asset(&mut self, statement: &Statement) -> Option<GeneratedAssetProvenance> {
+        if !(1..=2).contains(&statement.tokens.len()) || statement.children.is_empty() {
+            self.error_at(
+                "CRP231",
+                "generated provenance syntax is `generated [bounce|sample_transform] { ... }`",
+                statement,
+            );
+            return None;
+        }
+        match statement.tokens.get(1).map(|token| token.value.as_str()) {
+            None | Some("bounce") => {}
+            Some("sample_transform") => return self.parse_sample_transform_provenance(statement),
+            Some(kind) => {
+                self.error_at(
+                    "CRP231",
+                    format!("unknown generated provenance kind `{kind}`"),
+                    statement,
+                );
+                return None;
+            }
+        }
+        let mut revision = None;
+        let mut owner = None;
+        let mut tap = None;
+        let mut range = None;
+        let mut tail = None;
+        let mut format = None;
+        let mut algorithm = None;
+        let mut build = None;
+        let mut seen = BTreeSet::new();
+        for child in &statement.children {
+            if let Some(
+                keyword @ ("revision" | "owner" | "tap" | "range" | "tail" | "format" | "algorithm"
+                | "build"),
+            ) = child.keyword()
+                && !seen.insert(keyword)
+            {
+                self.error_at(
+                    "CRP231",
+                    format!("`{keyword}` is declared more than once in generated provenance"),
+                    child,
+                );
+                continue;
+            }
+            match child.keyword() {
+                Some("revision") => {
+                    revision = self
+                        .single_argument(child, "CRP231", "revision requires one identity")
+                        .map(|token| token.value.clone());
+                }
+                Some("owner") => {
+                    owner = self
+                        .single_argument(
+                            child,
+                            "CRP231",
+                            "owner requires master or one channel identity",
+                        )
+                        .map(|token| token.value.clone());
+                }
+                Some("tap") => {
+                    tap = self
+                        .single_argument(child, "CRP231", "tap requires one identity")
+                        .map(|token| token.value.clone());
+                }
+                Some("range") if child.tokens.len() == 3 => {
+                    let start = self.parse_u64_token(&child.tokens[1], "generated range start");
+                    let end = self.parse_u64_token(&child.tokens[2], "generated range end");
+                    range = start.zip(end);
+                }
+                Some("tail") => {
+                    tail = self
+                        .single_argument(child, "CRP231", "tail requires one frame count")
+                        .and_then(|token| self.parse_u64_token(token, "generated tail"));
+                }
+                Some("format") => {
+                    format = self
+                        .single_argument(child, "CRP231", "format requires one identity")
+                        .map(|token| token.value.clone());
+                }
+                Some("algorithm") => {
+                    algorithm = self
+                        .single_argument(child, "CRP231", "algorithm requires one identity")
+                        .map(|token| token.value.clone());
+                }
+                Some("build") => {
+                    build = self
+                        .single_argument(child, "CRP231", "build requires one identity")
+                        .map(|token| token.value.clone());
+                }
+                Some("range") => {
+                    self.error_at("CRP231", "range syntax is `range START END`", child);
+                }
+                Some(keyword) => self.unknown("generated asset provenance", keyword, child),
+                None => {}
+            }
+        }
+        let (start_frame, end_frame) = self.required(
+            range,
+            "CRP231",
+            "generated provenance is missing `range START END`",
+            statement,
+        )?;
+        Some(GeneratedAssetProvenance::Bounce {
+            source_revision: self.required(
+                revision,
+                "CRP231",
+                "generated provenance is missing `revision`",
+                statement,
+            )?,
+            owner: self.required(
+                owner,
+                "CRP231",
+                "generated provenance is missing `owner`",
+                statement,
+            )?,
+            tap: self.required(
+                tap,
+                "CRP231",
+                "generated provenance is missing `tap`",
+                statement,
+            )?,
+            start_frame,
+            end_frame,
+            tail_frames: self.required(
+                tail,
+                "CRP231",
+                "generated provenance is missing `tail`",
+                statement,
+            )?,
+            format: self.required(
+                format,
+                "CRP231",
+                "generated provenance is missing `format`",
+                statement,
+            )?,
+            algorithm: self.required(
+                algorithm,
+                "CRP231",
+                "generated provenance is missing `algorithm`",
+                statement,
+            )?,
+            build: self.required(
+                build,
+                "CRP231",
+                "generated provenance is missing `build`",
+                statement,
+            )?,
+        })
+    }
+
+    fn parse_sample_transform_provenance(
+        &mut self,
+        statement: &Statement,
+    ) -> Option<GeneratedAssetProvenance> {
+        let mut revision = None;
+        let mut source_asset = None;
+        let mut source_sha256 = None;
+        let mut source_range = None;
+        let mut output_frames = None;
+        let mut pitch_semitones = None;
+        let mut formants = None;
+        let mut quality = None;
+        let mut format = None;
+        let mut algorithm = None;
+        let mut deterministic_domain = None;
+        let mut build = None;
+        let mut seen = BTreeSet::new();
+        for child in &statement.children {
+            if let Some(
+                keyword @ ("revision" | "source_asset" | "source_sha256" | "source_range"
+                | "output_frames" | "pitch" | "formants" | "quality" | "format"
+                | "algorithm" | "domain" | "build"),
+            ) = child.keyword()
+                && !seen.insert(keyword)
+            {
+                self.error_at(
+                    "CRP232",
+                    format!(
+                        "`{keyword}` is declared more than once in sample-transform provenance"
+                    ),
+                    child,
+                );
+                continue;
+            }
+            match child.keyword() {
+                Some("revision") => {
+                    revision = self
+                        .single_argument(child, "CRP232", "revision requires one identity")
+                        .map(|token| token.value.clone());
+                }
+                Some("source_asset") => {
+                    source_asset = self
+                        .single_argument(child, "CRP232", "source_asset requires one asset ID")
+                        .map(|token| token.value.clone());
+                }
+                Some("source_sha256") => {
+                    source_sha256 = self
+                        .single_argument(child, "CRP232", "source_sha256 requires one hash")
+                        .map(|token| token.value.clone());
+                }
+                Some("source_range") if child.tokens.len() == 3 => {
+                    let start = self
+                        .parse_u64_token(&child.tokens[1], "sample-transform source range start");
+                    let end =
+                        self.parse_u64_token(&child.tokens[2], "sample-transform source range end");
+                    source_range = start.zip(end);
+                }
+                Some("output_frames") => {
+                    output_frames = self
+                        .single_argument(
+                            child,
+                            "CRP232",
+                            "output_frames requires one exact frame count",
+                        )
+                        .and_then(|token| {
+                            self.parse_u64_token(token, "sample-transform output frames")
+                        });
+                }
+                Some("pitch") => {
+                    pitch_semitones = self
+                        .single_argument(child, "CRP232", "pitch requires one semitone value")
+                        .and_then(|token| self.parse_physical(Unit::Semitones, token));
+                }
+                Some("formants") => {
+                    formants = self
+                        .single_argument(child, "CRP232", "formants requires shift or preserve")
+                        .and_then(|token| match token.value.parse::<FormantPolicy>() {
+                            Ok(value) => Some(value),
+                            Err(error) => {
+                                self.error_at("CRP232", error.to_string(), child);
+                                None
+                            }
+                        });
+                }
+                Some("quality") => {
+                    quality = self
+                        .single_argument(child, "CRP232", "quality requires effect_v1")
+                        .and_then(
+                            |token| match token.value.parse::<SampleTransformQuality>() {
+                                Ok(value) => Some(value),
+                                Err(error) => {
+                                    self.error_at("CRP232", error.to_string(), child);
+                                    None
+                                }
+                            },
+                        );
+                }
+                Some("format") => {
+                    format = self
+                        .single_argument(child, "CRP232", "format requires one identity")
+                        .map(|token| token.value.clone());
+                }
+                Some("algorithm") => {
+                    algorithm = self
+                        .single_argument(child, "CRP232", "algorithm requires one identity")
+                        .map(|token| token.value.clone());
+                }
+                Some("domain") => {
+                    deterministic_domain = self
+                        .single_argument(child, "CRP232", "domain requires one identity")
+                        .map(|token| token.value.clone());
+                }
+                Some("build") => {
+                    build = self
+                        .single_argument(child, "CRP232", "build requires one identity")
+                        .map(|token| token.value.clone());
+                }
+                Some("source_range") => self.error_at(
+                    "CRP232",
+                    "source_range syntax is `source_range START END`",
+                    child,
+                ),
+                Some(keyword) => self.unknown("sample-transform provenance", keyword, child),
+                None => {}
+            }
+        }
+        let (source_start_frame, source_end_frame) = self.required(
+            source_range,
+            "CRP232",
+            "sample-transform provenance is missing `source_range START END`",
+            statement,
+        )?;
+        Some(GeneratedAssetProvenance::SampleTransform {
+            source_revision: self.required(
+                revision,
+                "CRP232",
+                "sample-transform provenance is missing `revision`",
+                statement,
+            )?,
+            source_asset: self.required(
+                source_asset,
+                "CRP232",
+                "sample-transform provenance is missing `source_asset`",
+                statement,
+            )?,
+            source_sha256: self.required(
+                source_sha256,
+                "CRP232",
+                "sample-transform provenance is missing `source_sha256`",
+                statement,
+            )?,
+            source_start_frame,
+            source_end_frame,
+            output_frames: self.required(
+                output_frames,
+                "CRP232",
+                "sample-transform provenance is missing `output_frames`",
+                statement,
+            )?,
+            pitch_semitones: self.required(
+                pitch_semitones,
+                "CRP232",
+                "sample-transform provenance is missing `pitch`",
+                statement,
+            )?,
+            formants: self.required(
+                formants,
+                "CRP232",
+                "sample-transform provenance is missing `formants`",
+                statement,
+            )?,
+            quality: self.required(
+                quality,
+                "CRP232",
+                "sample-transform provenance is missing `quality`",
+                statement,
+            )?,
+            format: self.required(
+                format,
+                "CRP232",
+                "sample-transform provenance is missing `format`",
+                statement,
+            )?,
+            algorithm: self.required(
+                algorithm,
+                "CRP232",
+                "sample-transform provenance is missing `algorithm`",
+                statement,
+            )?,
+            deterministic_domain: self.required(
+                deterministic_domain,
+                "CRP232",
+                "sample-transform provenance is missing `domain`",
+                statement,
+            )?,
+            build: self.required(
+                build,
+                "CRP232",
+                "sample-transform provenance is missing `build`",
+                statement,
+            )?,
         })
     }
 
@@ -352,6 +722,7 @@ impl Parser<'_> {
         let mut locator_statements = Vec::new();
         let mut automation_statements = Vec::new();
         let mut modulation_statements = Vec::new();
+        let mut follower_statements = Vec::new();
 
         for child in &statement.children {
             match child.keyword() {
@@ -394,6 +765,7 @@ impl Parser<'_> {
                 Some("locator") => locator_statements.push(child),
                 Some("automation") => automation_statements.push(child),
                 Some("modulation") => modulation_statements.push(child),
+                Some("follower") => follower_statements.push(child),
                 Some(keyword) => self.unknown("Song", keyword, child),
                 None => {}
             }
@@ -440,6 +812,10 @@ impl Parser<'_> {
             .into_iter()
             .filter_map(|modulation| self.parse_modulation(modulation, meter))
             .collect();
+        let envelope_followers = follower_statements
+            .into_iter()
+            .filter_map(|follower| self.parse_envelope_follower(follower))
+            .collect();
         Some(Song {
             tempo_bpm,
             meter,
@@ -456,6 +832,7 @@ impl Parser<'_> {
             locators,
             automations,
             modulations,
+            envelope_followers,
             location: statement.location(self.file, self.source),
         })
     }
@@ -565,6 +942,8 @@ impl Parser<'_> {
         let mut pan = None;
         let mut envelope = None;
         let mut fade = None;
+        let mut direction = None;
+        let mut loop_region = None;
         let mut choke_group = None;
         for child in &statement.children {
             match child.keyword() {
@@ -610,14 +989,47 @@ impl Parser<'_> {
                         fade = Some((fade_in, fade_out, self.site(&child.tokens[1]), self.site(&child.tokens[2])));
                     }
                 }
+                Some("direction") => {
+                    direction = self
+                        .single_argument(child, "CRP138", "direction requires forward or reverse")
+                        .and_then(|token| match SampleDirection::from_str(&token.value) {
+                            Ok(value) => Some((value, self.site(token))),
+                            Err(error) => {
+                                self.token_error("CRP138", error.to_string(), token);
+                                None
+                            }
+                        });
+                }
+                Some("loop") if child.tokens.len() == 5 && child.tokens[3].value == "crossfade" => {
+                    let start_frame = self.parse_u64_token(&child.tokens[1], "loop start");
+                    let end_frame = self.parse_u64_token(&child.tokens[2], "loop end");
+                    let crossfade_frames = self.parse_u32_token(&child.tokens[4], "loop crossfade");
+                    if let (Some(start_frame), Some(end_frame), Some(crossfade_frames)) =
+                        (start_frame, end_frame, crossfade_frames)
+                    {
+                        loop_region = Some((
+                            SampleLoopRegion {
+                                start_frame,
+                                end_frame,
+                                crossfade_frames,
+                            },
+                            ValueSite::new(
+                                self.file.to_path_buf(),
+                                child.start,
+                                child.end,
+                                self.source[child.start..child.end].to_owned(),
+                            ),
+                        ));
+                    }
+                }
                 Some("choke") => {
                     choke_group = self
                         .single_argument(child, "CRP138", "choke requires one group ID")
                         .map(|token| token.value.clone());
                 }
-                Some("region" | "envelope" | "fade") => self.error_at(
+                Some("region" | "envelope" | "fade" | "loop") => self.error_at(
                     "CRP139",
-                    "mapping directives are `region START END`, `envelope ATTACK RELEASE`, and `fade IN END`",
+                    "mapping directives include `region START END`, `envelope ATTACK RELEASE`, `fade IN OUT`, and `loop START END crossfade FRAMES`",
                     child,
                 ),
                 Some(keyword) => self.unknown("sample mapping", keyword, child),
@@ -656,6 +1068,12 @@ impl Parser<'_> {
             "sample mapping is missing `fade IN OUT`",
             statement,
         )?;
+        let (direction, direction_site) = direction
+            .map(|(direction, site)| (direction, Some(site)))
+            .unwrap_or((SampleDirection::Forward, None));
+        let (loop_region, loop_site) = loop_region
+            .map(|(loop_region, site)| (Some(loop_region), Some(site)))
+            .unwrap_or((None, None));
         Some(SampleMapping {
             id: statement.tokens[1].value.clone(),
             asset: statement.tokens[3].value.clone(),
@@ -665,6 +1083,8 @@ impl Parser<'_> {
             start_frame,
             end_frame,
             playback,
+            direction,
+            loop_region,
             gain_db,
             pan,
             attack_seconds,
@@ -679,6 +1099,8 @@ impl Parser<'_> {
             pan_site,
             fade_in_site,
             fade_out_site,
+            direction_site,
+            loop_site,
         })
     }
 
@@ -979,7 +1401,7 @@ impl Parser<'_> {
                     }
                 }
                 Some("sample") => {
-                    if child.tokens.len() != 20
+                    if child.tokens.len() < 20
                         || child.tokens[3].value != "mapping"
                         || child.tokens[5].value != "duration"
                         || child.tokens[7].value != "start"
@@ -991,7 +1413,83 @@ impl Parser<'_> {
                     {
                         self.error_at(
                             "CRP185",
-                            "sample syntax is `sample ID AT mapping MAPPING duration TIME start FRAME end FRAME gain DB pan PAN fade IN OUT velocity VALUE`",
+                            "sample syntax is `sample ID AT mapping MAPPING duration TIME start FRAME end FRAME gain DB pan PAN fade IN OUT velocity VALUE [direction forward|reverse] [loop START END crossfade FRAMES]`",
+                            child,
+                        );
+                        continue;
+                    }
+                    let mut suffix = 20;
+                    let mut direction = None;
+                    let mut direction_site = None;
+                    if child
+                        .tokens
+                        .get(suffix)
+                        .is_some_and(|token| token.value == "direction")
+                    {
+                        let Some(token) = child.tokens.get(suffix + 1) else {
+                            self.error_at(
+                                "CRP185",
+                                "sample direction requires forward or reverse",
+                                child,
+                            );
+                            continue;
+                        };
+                        direction = match SampleDirection::from_str(&token.value) {
+                            Ok(value) => Some(value),
+                            Err(error) => {
+                                self.token_error("CRP185", error.to_string(), token);
+                                continue;
+                            }
+                        };
+                        direction_site = Some(self.site(token));
+                        suffix += 2;
+                    }
+                    let mut loop_region = None;
+                    let mut loop_site = None;
+                    if child
+                        .tokens
+                        .get(suffix)
+                        .is_some_and(|token| token.value == "loop")
+                    {
+                        if child.tokens.len() != suffix + 5
+                            || child.tokens[suffix + 3].value != "crossfade"
+                        {
+                            self.error_at(
+                                "CRP185",
+                                "sample loop syntax is `loop START END crossfade FRAMES`",
+                                child,
+                            );
+                            continue;
+                        }
+                        let start =
+                            self.parse_u64_token(&child.tokens[suffix + 1], "sample loop start");
+                        let end =
+                            self.parse_u64_token(&child.tokens[suffix + 2], "sample loop end");
+                        let crossfade = self
+                            .parse_u32_token(&child.tokens[suffix + 4], "sample loop crossfade");
+                        let (Some(start_frame), Some(end_frame), Some(crossfade_frames)) =
+                            (start, end, crossfade)
+                        else {
+                            continue;
+                        };
+                        loop_region = Some(SampleLoopRegion {
+                            start_frame,
+                            end_frame,
+                            crossfade_frames,
+                        });
+                        let start = child.tokens[suffix].start.saturating_sub(1);
+                        loop_site = Some(ValueSite::new(
+                            self.file.to_path_buf(),
+                            start,
+                            child.tokens[suffix + 4].end,
+                            self.source[start..child.tokens[suffix + 4].end].to_owned(),
+                        ));
+                        suffix += 5;
+                    }
+                    if suffix != child.tokens.len() {
+                        self.error_at(
+                            "CRP185",
+                            "sample suffixes must be `[direction forward|reverse] [loop START END crossfade FRAMES]`",
                             child,
                         );
                         continue;
@@ -1039,6 +1537,8 @@ impl Parser<'_> {
                             fade_in_frames,
                             fade_out_frames,
                             velocity,
+                            direction,
+                            loop_region,
                             sites: Box::new(SampleEventSites {
                                 site: ValueSite::new(
                                     self.file.to_path_buf(),
@@ -1055,6 +1555,8 @@ impl Parser<'_> {
                                 fade_in: self.site(&child.tokens[16]),
                                 fade_out: self.site(&child.tokens[17]),
                                 velocity: self.site(&child.tokens[19]),
+                                direction: direction_site,
+                                loop_site,
                             }),
                         });
                     }
@@ -1630,7 +2132,7 @@ impl Parser<'_> {
         if statement.tokens.len() != 3 {
             self.error_at(
                 "CRP220",
-                "processor syntax is `processor id utility|eq|compressor|delay|reverb|saturation|limiter|latency {`",
+                "processor syntax is `processor id utility|eq|compressor|gate|delay|reverb|saturation|modulation_delay|crusher|stutter|limiter|latency {`",
                 statement,
             );
             return None;
@@ -1878,6 +2380,112 @@ impl Parser<'_> {
             id: statement.tokens[1].value.clone(),
             target,
             points,
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_envelope_follower(&mut self, statement: &Statement) -> Option<EnvelopeFollowerRoute> {
+        if statement.tokens.len() != 20
+            || statement.tokens[2].value != "from"
+            || statement.tokens[4].value != "tap"
+            || statement.tokens[6].value != "detector"
+            || statement.tokens[8].value != "attack"
+            || statement.tokens[10].value != "release"
+            || statement.tokens[12].value != "floor"
+            || statement.tokens[14].value != "ceiling"
+            || statement.tokens[16].value != "target"
+            || statement.tokens[18].value != "depth"
+        {
+            self.error_at(
+                "CRP233",
+                "Follower syntax is `follower ID from CHANNEL tap TAP detector peak|rms attack TIME release TIME floor DB ceiling DB target TARGET depth VALUE {`",
+                statement,
+            );
+            return None;
+        }
+        let source = match ChannelRef::from_str(&statement.tokens[3].value) {
+            Ok(source) => source,
+            Err(error) => {
+                self.token_error("CRP233", error.to_string(), &statement.tokens[3]);
+                return None;
+            }
+        };
+        let tap = match TapPoint::from_str(&statement.tokens[5].value) {
+            Ok(tap) => tap,
+            Err(error) => {
+                self.token_error("CRP233", error.to_string(), &statement.tokens[5]);
+                return None;
+            }
+        };
+        let detector = match EnvelopeDetector::from_str(&statement.tokens[7].value) {
+            Ok(detector) => detector,
+            Err(error) => {
+                self.token_error("CRP233", error.to_string(), &statement.tokens[7]);
+                return None;
+            }
+        };
+        let attack_seconds = self.parse_physical(Unit::Seconds, &statement.tokens[9])?;
+        let release_seconds = self.parse_physical(Unit::Seconds, &statement.tokens[11])?;
+        let floor_db = self.parse_physical(Unit::Decibels, &statement.tokens[13])?;
+        let ceiling_db = self.parse_physical(Unit::Decibels, &statement.tokens[15])?;
+        let target = match ParameterTarget::from_str(&statement.tokens[17].value) {
+            Ok(target) => target,
+            Err(error) => {
+                self.token_error("CRP233", error.to_string(), &statement.tokens[17]);
+                return None;
+            }
+        };
+        let mut operators = Vec::new();
+        for child in &statement.children {
+            let Some(keyword) = child.keyword() else {
+                continue;
+            };
+            let scalar = |parser: &mut Self| {
+                parser
+                    .single_argument(
+                        child,
+                        "CRP234",
+                        "Follower operator requires one finite scalar",
+                    )
+                    .and_then(|token| parser.parse_ratio(token))
+            };
+            let operator = match keyword {
+                "add" => scalar(self).map(|value| ModulationOperator::Add { value }),
+                "multiply" => scalar(self).map(|value| ModulationOperator::Multiply { value }),
+                "scale" => scalar(self).map(|value| ModulationOperator::Scale { value }),
+                "bias" => scalar(self).map(|value| ModulationOperator::Bias { value }),
+                "clamp" if child.tokens.len() == 3 => {
+                    let minimum = self.parse_ratio(&child.tokens[1]);
+                    let maximum = self.parse_ratio(&child.tokens[2]);
+                    minimum
+                        .zip(maximum)
+                        .map(|(minimum, maximum)| ModulationOperator::Clamp { minimum, maximum })
+                }
+                "clamp" => {
+                    self.error_at("CRP234", "clamp syntax is `clamp MINIMUM MAXIMUM`", child);
+                    None
+                }
+                _ => {
+                    self.unknown("Envelope Follower", keyword, child);
+                    None
+                }
+            };
+            if let Some(operator) = operator {
+                operators.push(operator);
+            }
+        }
+        Some(EnvelopeFollowerRoute {
+            id: statement.tokens[1].value.clone(),
+            source,
+            tap,
+            detector,
+            attack_seconds,
+            release_seconds,
+            floor_db,
+            ceiling_db,
+            target,
+            depth: statement.tokens[19].value.clone(),
+            operators,
             location: statement.location(self.file, self.source),
         })
     }
@@ -2271,6 +2879,34 @@ project "Parser Test" {
         assert_eq!(project.song.patterns[0].events.len(), 1);
         let site = &project.song.instruments[0].parameters[0].value_site;
         assert_eq!(&PROJECT[site.start..site.end], "3000hz");
+    }
+
+    #[test]
+    fn rejects_duplicate_generated_provenance_directives() {
+        let source = PROJECT.replace(
+            "  render_tail 2s",
+            r#"  render_tail 2s
+  asset tail "Tail" wav "media/tail.wav" sha256 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" {
+    generated {
+      revision "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      revision "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      owner master
+      tap master_output
+      range 0 10
+      tail 0
+      format stereo_f32_wav
+      algorithm test-v1
+      build "0.1.0"
+    }
+  }"#,
+        );
+        let document = parse_project(Path::new("project.crump"), &source);
+        assert!(document.diagnostics.as_slice().iter().any(|diagnostic| {
+            diagnostic.code == "CRP231"
+                && diagnostic
+                    .message
+                    .contains("`revision` is declared more than once")
+        }));
     }
 
     #[test]

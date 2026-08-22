@@ -177,6 +177,239 @@ fn portable_asset_import_and_list_are_source_backed() {
 }
 
 #[test]
+fn prepared_sample_transform_is_exact_deterministic_and_explicit() {
+    let root = fixture_project();
+    publish(&root);
+    let input = root.path().join("transform-source.wav");
+    let source_bytes = write_sampler_wav(&input);
+    let imported = invoke(
+        &root,
+        &[
+            "asset",
+            "import",
+            input.to_str().expect("UTF-8 input"),
+            "--id",
+            "source",
+            "--name",
+            "Transform source",
+        ],
+    );
+    assert!(imported.status.success());
+
+    let prepare = |id: &str, formants: &str| {
+        invoke(
+            &root,
+            &[
+                "asset",
+                "prepare",
+                "--source",
+                "source",
+                "--from-frame",
+                "0",
+                "--to-frame",
+                "512",
+                "--output-frames",
+                "1024",
+                "--pitch-semitones",
+                "12",
+                "--formants",
+                formants,
+                "--quality",
+                "effect-v1",
+                "--id",
+                id,
+            ],
+        )
+    };
+    let first = prepare("prepared", "shift");
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stdout)
+    );
+    let first = response(&first);
+    assert_eq!(first["command"], "asset.prepare");
+    assert_eq!(first["data"]["frame_count"], 1_024);
+    assert_eq!(first["data"]["provenance"]["kind"], "sample_transform");
+    assert_eq!(first["data"]["provenance"]["source_asset"], "source");
+    assert_eq!(first["data"]["provenance"]["pitch_semitones"], 12.0);
+    assert_eq!(first["data"]["provenance"]["formants"], "shift");
+    assert_eq!(
+        first["data"]["provenance"]["deterministic_domain"],
+        "x86_64-linux"
+    );
+    let first_bytes = fs::read(root.path().join("media/prepared.wav")).expect("prepared WAV");
+
+    let second = prepare("prepared-copy", "shift");
+    assert!(second.status.success());
+    assert_eq!(
+        fs::read(root.path().join("media/prepared-copy.wav")).expect("repeat WAV"),
+        first_bytes
+    );
+    assert_eq!(
+        fs::read(root.path().join("media/source.wav")).expect("preserved source"),
+        source_bytes
+    );
+
+    let source_before_rejection =
+        fs::read_to_string(root.path().join("project.crump")).expect("source before rejection");
+    let preserve = prepare("preserved", "preserve");
+    assert_eq!(preserve.status.code(), Some(2));
+    assert_eq!(response(&preserve)["error"]["code"], "transform_rejected");
+    assert!(!root.path().join("media/preserved.wav").exists());
+    assert_eq!(
+        fs::read_to_string(root.path().join("project.crump")).expect("source after rejection"),
+        source_before_rejection
+    );
+
+    let validated = invoke(&root, &["validate"]);
+    assert!(validated.status.success());
+    let source = source_before_rejection;
+    assert!(source.contains("generated sample_transform {"));
+    assert!(source.contains("source_range 0 512"));
+    assert!(source.contains("output_frames 1024"));
+    assert!(source.contains("algorithm crump-wsola-effect-v1"));
+}
+
+#[test]
+fn source_backed_bounce_is_exact_atomic_and_revision_guarded() {
+    let root = fixture_project();
+    let original_source = fs::read_to_string(root.path().join("project.crump")).expect("source");
+    let initial = publish(&root);
+    let initial_entry = initial["data"]["history_entry"]["id"]
+        .as_str()
+        .expect("initial history ID")
+        .to_owned();
+    let initial_revision = initial["data"]["revision"]
+        .as_str()
+        .expect("initial Revision")
+        .to_owned();
+
+    let bounced = invoke(
+        &root,
+        &[
+            "asset",
+            "bounce",
+            "--source",
+            "master",
+            "--from",
+            "0beat",
+            "--to",
+            "1beat",
+            "--tail-seconds",
+            "0.001",
+            "--id",
+            "intro-bounce",
+            "--name",
+            "Intro bounce",
+        ],
+    );
+    assert!(
+        bounced.status.success(),
+        "{}",
+        String::from_utf8_lossy(&bounced.stdout)
+    );
+    let bounced = response(&bounced);
+    assert_eq!(bounced["command"], "asset.bounce");
+    assert_eq!(bounced["data"]["frame_count"], 24_048);
+    assert_eq!(
+        bounced["data"]["provenance"]["source_revision"],
+        initial_revision
+    );
+    assert_eq!(bounced["data"]["provenance"]["tail_frames"], 48);
+    let generated_path = root.path().join("media/intro-bounce.wav");
+    let generated = fs::read(&generated_path).expect("generated WAV");
+    let generated_hash = Sha256::digest(&generated)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    assert_eq!(bounced["data"]["sha256"], generated_hash);
+
+    let source = fs::read_to_string(root.path().join("project.crump")).expect("bounce source");
+    assert!(source.contains("asset intro-bounce \"Intro bounce\" wav \"media/intro-bounce.wav\""));
+    assert!(source.contains(&format!("revision \"{initial_revision}\"")));
+    assert!(source.contains("owner master"));
+    assert!(source.contains("tap master_output"));
+    assert!(source.contains("range 0 24000"));
+    assert!(source.contains("algorithm crump-bounce-stereo-f32-v1"));
+
+    let validated = invoke(&root, &["validate"]);
+    assert!(validated.status.success());
+    let inspected = invoke(&root, &["inspect"]);
+    assert!(inspected.status.success());
+    let inspected = response(&inspected);
+    assert_eq!(
+        inspected["data"]["project"]["assets"][0]["generated"]["source_revision"],
+        initial_revision
+    );
+
+    let duplicate = invoke(
+        &root,
+        &[
+            "asset",
+            "bounce",
+            "--from",
+            "0beat",
+            "--to",
+            "1beat",
+            "--id",
+            "intro-bounce",
+        ],
+    );
+    assert_eq!(duplicate.status.code(), Some(2));
+    assert_eq!(response(&duplicate)["error"]["code"], "bounce_rejected");
+    assert_eq!(
+        fs::read(&generated_path).expect("unchanged generated WAV"),
+        generated
+    );
+    assert_eq!(
+        fs::read_to_string(root.path().join("project.crump")).expect("unchanged source"),
+        source
+    );
+
+    let restored = invoke(
+        &root,
+        &[
+            "history",
+            "restore",
+            &initial_entry,
+            "--actor",
+            "tester",
+            "--explanation",
+            "Verify generated source and bytes restore atomically",
+        ],
+    );
+    assert!(restored.status.success());
+    assert_eq!(
+        fs::read_to_string(root.path().join("project.crump")).expect("restored source"),
+        original_source
+    );
+    assert!(!generated_path.exists());
+
+    fs::write(
+        root.path().join("project.crump"),
+        format!("{original_source}\n# unpublished Candidate\n"),
+    )
+    .expect("change Candidate");
+    let stale = invoke(
+        &root,
+        &[
+            "asset",
+            "bounce",
+            "--from",
+            "0beat",
+            "--to",
+            "1beat",
+            "--id",
+            "stale-bounce",
+        ],
+    );
+    assert_eq!(stale.status.code(), Some(3));
+    assert_eq!(response(&stale)["error"]["code"], "candidate_not_active");
+    assert!(!root.path().join("media/stale-bounce.wav").exists());
+}
+
+#[test]
 fn sampler_collect_edit_and_render_are_end_to_end_portable() {
     let root = tempfile::tempdir().expect("temporary sampler Project");
     fs::create_dir(root.path().join("takes")).expect("takes directory");
@@ -296,6 +529,45 @@ project "Sampler CLI" {{
         ],
         vec!["edit", "sample-gain", "phrase", "first", "-3"],
         vec!["edit", "sample-pan", "phrase", "first", "0.25"],
+        vec!["edit", "sample-direction", "phrase", "first", "reverse"],
+        vec![
+            "edit",
+            "sample-loop",
+            "phrase",
+            "first",
+            "128",
+            "384",
+            "--crossfade",
+            "16",
+        ],
+    ] {
+        let edited = invoke(&root, &arguments);
+        assert!(
+            edited.status.success(),
+            "{}",
+            String::from_utf8_lossy(&edited.stdout)
+        );
+        assert_eq!(response(&edited)["ok"], true);
+    }
+
+    let looped_source =
+        fs::read_to_string(root.path().join("project.crump")).expect("looped source");
+    assert!(looped_source.contains("velocity 0.75 direction reverse loop 128 384 crossfade 16"));
+
+    for arguments in [
+        vec!["edit", "sample-loop-clear", "phrase", "first"],
+        vec![
+            "edit",
+            "sample-slice-map",
+            "samples",
+            "source",
+            "slice",
+            "C5",
+            "--boundaries",
+            "0,256,512",
+            "--direction",
+            "reverse",
+        ],
     ] {
         let edited = invoke(&root, &arguments);
         assert!(
@@ -310,8 +582,11 @@ project "Sampler CLI" {{
         fs::read_to_string(root.path().join("project.crump")).expect("edited source");
     assert!(final_source.contains("asset source \"Source\" wav \"media/source.wav\""));
     assert!(final_source.contains(
-        "sample first 0qn mapping zone duration 1qn start 0 end 512 gain -3db pan 0.25 fade 8 12 velocity 0.75"
+        "sample first 0qn mapping zone duration 1qn start 0 end 512 gain -3db pan 0.25 fade 8 12 velocity 0.75 direction reverse"
     ));
+    assert!(!final_source.contains("direction reverse loop 128 384"));
+    assert!(final_source.contains("mapping slice-1 asset source keys C5 C5 root C5"));
+    assert!(final_source.contains("mapping slice-2 asset source keys C#5 C#5 root C#5"));
 
     let rendered = invoke(&root, &["render", "--output", "master"]);
     assert!(
@@ -833,6 +1108,32 @@ fn inspect_exposes_resolved_processor_contracts_and_admission_facts() {
         .find(|setting| setting["key"] == "lookahead")
         .expect("resolved lookahead");
     assert_eq!(lookahead["parameter_target"], false);
+    let crusher = processors
+        .iter()
+        .find(|processor| processor["id"] == "bus_crusher")
+        .expect("Crusher inspection");
+    assert_eq!(crusher["tail_policy"], "bounded_frames");
+    let bits = crusher["settings"]
+        .as_array()
+        .expect("Crusher settings")
+        .iter()
+        .find(|setting| setting["key"] == "bit_depth")
+        .expect("bit-depth setting");
+    assert_eq!(bits["unit"], "bits");
+    let stutter = processors
+        .iter()
+        .find(|processor| processor["id"] == "bus_stutter")
+        .expect("Stutter inspection");
+    assert_eq!(stutter["tail_frames_upper_bound"], 24_000);
+
+    let followers = inspected["data"]["envelope_followers"]
+        .as_array()
+        .expect("Envelope Follower inspection");
+    assert_eq!(followers.len(), 1);
+    assert_eq!(followers[0]["id"], "drum_follow");
+    assert_eq!(followers[0]["source"], "track/drums");
+    assert_eq!(followers[0]["control_latency_frames"], 1);
+    assert_eq!(followers[0]["target"]["owner"], "processor");
     assert!(
         mix_graph["resources"]["processor_meter_bytes"]
             .as_u64()
