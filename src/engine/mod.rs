@@ -26,7 +26,7 @@ use crate::{
     diagnostic::Diagnostic,
     media::AssetInventory,
     model::{DrumVoice, InstrumentKind, Project, TapPoint},
-    validate::{validate_project, validate_project_assets},
+    validate::{validate_project_assets, validate_project_with_topology},
 };
 
 use self::{
@@ -82,7 +82,7 @@ impl CompiledProject {
         project: &Project,
         inventory: &AssetInventory,
     ) -> Result<Self, EngineError> {
-        let mut diagnostics = validate_project(project);
+        let (mut diagnostics, topology) = validate_project_with_topology(project);
         diagnostics.extend(validate_project_assets(project, inventory));
         if diagnostics.has_errors() {
             return Err(EngineError::Validation(diagnostics.into_vec()));
@@ -142,7 +142,8 @@ impl CompiledProject {
                 semantic_hash,
             });
         }
-        let mut mix_graph = CompiledMixGraph::compile(project, &controls)?;
+        let mut mix_graph =
+            CompiledMixGraph::compile_with_topology(project, &controls, &topology, true)?;
         let schedule_program_bytes = tracks
             .iter()
             .map(|track| track.schedule.allocation_bytes())
@@ -668,7 +669,7 @@ impl SongRuntime {
     }
 
     /// Clears a replacement on the controller thread before queue ownership moves.
-    #[cfg(feature = "pipewire")]
+    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn prime_for_publication(&mut self) {
         if !self.audition_seek_requested {
             self.seek_transport(self.frame);
@@ -2004,9 +2005,12 @@ mod tests {
         let project = fixture(include_str!("../../tests/fixtures/minimal.crump"));
         let compiled = CompiledProject::compile(&project).expect("compile graph fixture");
         let resources = &compiled.mix_graph_inspection().resources;
+        let topology = crate::routing::AuthoredTopology::compile(&project);
         let validation_estimate =
-            super::mix_graph::CompiledMixGraph::resource_estimate_for_validation(&project)
-                .expect("validation estimate");
+            super::mix_graph::CompiledMixGraph::resource_estimate_for_validation(
+                &project, &topology,
+            )
+            .expect("validation estimate");
         assert_eq!(resources, &validation_estimate);
         assert!(resources.control_program_bytes > 0);
         assert!(resources.schedule_program_bytes > 0);

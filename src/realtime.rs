@@ -172,7 +172,10 @@ mod native {
         AuditionChannelIdentity, AuditionCommand, PlayerTelemetry, RealtimeError, SongRuntime,
         StreamStatus,
     };
-    use crate::engine::{PUBLICATION_TRANSITION_MILLISECONDS, ProcessingMode};
+    use crate::engine::{
+        PUBLICATION_TRANSITION_MILLISECONDS, ProcessingMode,
+        audition::{RuntimePublicationError, RuntimePublicationPort},
+    };
 
     const COMMAND_CAPACITY: usize = 32;
     const RECLAIM_CAPACITY: usize = 8;
@@ -615,6 +618,7 @@ mod native {
         commands: Option<Producer<AudioCommand>>,
         reclaimed: Consumer<Box<SongRuntime>>,
         publication_in_flight: Arc<AtomicBool>,
+        publication_reservation: Option<PublicationReservation>,
         telemetry: Consumer<PlayerTelemetry>,
         latest: PlayerTelemetry,
         stream_status: Arc<AtomicU8>,
@@ -674,6 +678,7 @@ mod native {
                     commands: Some(command_producer),
                     reclaimed: reclaim_consumer,
                     publication_in_flight,
+                    publication_reservation: None,
                     telemetry: telemetry_consumer,
                     latest: PlayerTelemetry::default(),
                     stream_status,
@@ -849,6 +854,42 @@ mod native {
             while let Ok(runtime) = self.reclaimed.pop() {
                 drop(runtime);
             }
+        }
+    }
+
+    impl RuntimePublicationPort for PipeWirePlayer {
+        fn reserve_publication(&mut self) -> Result<(), RuntimePublicationError> {
+            if self.publication_reservation.is_some() {
+                return Err(RuntimePublicationError::Busy);
+            }
+            let reservation =
+                PipeWirePlayer::reserve_publication(self).map_err(|error| match error {
+                    RealtimeError::QueueFull => RuntimePublicationError::Busy,
+                    error => RuntimePublicationError::Failed(error.to_string()),
+                })?;
+            self.publication_reservation = Some(reservation);
+            Ok(())
+        }
+
+        fn publish_reserved(
+            &mut self,
+            runtime: SongRuntime,
+        ) -> Result<(), RuntimePublicationError> {
+            let reservation = self.publication_reservation.take().ok_or_else(|| {
+                RuntimePublicationError::Failed(
+                    "runtime publication attempted without a reservation".to_owned(),
+                )
+            })?;
+            PipeWirePlayer::publish_reserved(self, runtime, reservation).map_err(
+                |error| match error {
+                    RealtimeError::QueueFull => RuntimePublicationError::Busy,
+                    error => RuntimePublicationError::Failed(error.to_string()),
+                },
+            )
+        }
+
+        fn cancel_publication(&mut self) {
+            self.publication_reservation.take();
         }
     }
 
@@ -1326,30 +1367,35 @@ mod native {
 pub use native::Player as PipeWirePlayer;
 
 #[cfg(not(feature = "pipewire"))]
-pub(crate) struct PublicationReservation;
-
-#[cfg(not(feature = "pipewire"))]
 /// Stub native player for builds that intentionally omit PipeWire.
 pub struct PipeWirePlayer;
+
+#[cfg(not(feature = "pipewire"))]
+impl crate::engine::audition::RuntimePublicationPort for PipeWirePlayer {
+    fn reserve_publication(
+        &mut self,
+    ) -> Result<(), crate::engine::audition::RuntimePublicationError> {
+        Err(crate::engine::audition::RuntimePublicationError::Failed(
+            RealtimeError::Unavailable.to_string(),
+        ))
+    }
+
+    fn publish_reserved(
+        &mut self,
+        _runtime: SongRuntime,
+    ) -> Result<(), crate::engine::audition::RuntimePublicationError> {
+        Err(crate::engine::audition::RuntimePublicationError::Failed(
+            RealtimeError::Unavailable.to_string(),
+        ))
+    }
+
+    fn cancel_publication(&mut self) {}
+}
 
 #[cfg(not(feature = "pipewire"))]
 impl PipeWirePlayer {
     /// Reports that this build lacks native playback.
     pub fn start(_runtime: SongRuntime) -> Result<Self, RealtimeError> {
-        Err(RealtimeError::Unavailable)
-    }
-
-    /// Reports that this build lacks native playback.
-    pub(crate) fn reserve_publication(&mut self) -> Result<PublicationReservation, RealtimeError> {
-        Err(RealtimeError::Unavailable)
-    }
-
-    /// Reports that this build lacks native playback.
-    pub(crate) fn publish_reserved(
-        &mut self,
-        _runtime: SongRuntime,
-        _reservation: PublicationReservation,
-    ) -> Result<(), RealtimeError> {
         Err(RealtimeError::Unavailable)
     }
 

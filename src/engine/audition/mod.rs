@@ -15,6 +15,12 @@ use crate::{
     time::{MusicalTime, parse_musical_time},
 };
 
+mod publication;
+
+pub use publication::{
+    ActiveRefresh, AuditionRuntimePolicy, RuntimePublicationError, RuntimePublicationPort,
+};
+
 use super::{
     CompiledProject, EngineError, ProcessorMeter, RuntimeTelemetry, SongRuntime,
     mix_graph::{CompiledProcessorInspection, MixGraphInspection},
@@ -1066,7 +1072,7 @@ mod tests {
     fn fixture() -> Project {
         let document = parse_project(
             Path::new("project.crump"),
-            include_str!("../../tests/fixtures/minimal.crump"),
+            include_str!("../../../tests/fixtures/minimal.crump"),
         );
         assert!(!document.diagnostics.has_errors());
         document.project.expect("fixture Project")
@@ -1583,7 +1589,7 @@ project "Audition Publication" {{
     fn live_processor_bypass_telemetry_is_not_replaced_by_static_plan_state() {
         let document = parse_project(
             Path::new("production_mix.crump"),
-            include_str!("../../tests/fixtures/production_mix.crump"),
+            include_str!("../../../tests/fixtures/production_mix.crump"),
         );
         assert!(!document.diagnostics.has_errors());
         let project = document.project.expect("production fixture");
