@@ -8,19 +8,11 @@ A Linux-first terminal Guided Production Instrument in which text is the durable
 
 ### Terminal-First
 
-The first supported human client is a Ratatui workspace, while the Project model, engine, and authoring operations do not depend on terminal rendering. No alternative client is promised by this term.
+The supported human client is a Ratatui workspace, while the Project model, engine, and authoring operations do not depend on terminal rendering. No alternative client is supported by this term.
 
 ### Guided Production Instrument
 
 A production environment where a beginner can reach audible music quickly through progressively revealed controls and, optionally, an external Authoring Agent. The user learns by making and progressively assumes direct control; the environment is neither an autonomous song generator nor a separate production course.
-
-### Complete Production Environment
-
-Crump's product destination: one environment in which an electronic musician can compose, synthesize, arrange, automate, mix, save, reopen, and render a finished track. It is reached through validated end-to-end slices and is not the scope of the First Public Release.
-
-### Validated Slice
-
-The smallest end-to-end product expansion that removes the largest observed obstacle between the current workflow and a finished track. Each slice is selected from Beginner Musician and Experienced Producer evidence rather than a precommitted DAW feature backlog.
 
 ### Beginner Musician
 
@@ -28,7 +20,7 @@ A target user with no music-production, synthesis, or Crump DSL experience who i
 
 ### Experienced Producer
 
-An independent electronic-music producer who understands composition, synthesis, arrangement, and mixing but did not implement Crump or author its Reference Project. This evaluator tests whether familiar concepts transfer and whether the generated instrument, controls, depth, and audio result are musically credible.
+An electronic-music producer who understands composition, synthesis, arrangement, and mixing and uses Crump's detailed Parameters, routing, graphs, source, and rendering behavior directly.
 
 ### Free Core
 
@@ -46,27 +38,19 @@ A Project-owned regular WAV file with a durable source ID, normalized Project-re
 
 A declared Media Asset whose current complete file bytes hash to a different SHA-256 than the digest in Authoritative Source. Filesystem timestamps, ownership, host canonical paths, and decoded sample representations do not define change.
 
-### First Public Release
-
-The first supported release proving Crump's distinctive loop on a documented Linux configuration: an external Authoring Agent creates a brief-derived pitched polyphonic Composable DSP Graph instrument and a Musical Sketch from a blank Project, then a Beginner Musician hears, inspects, changes, restores, saves, reopens, and renders it through Crump. Complete-track production breadth and third-party plugin hosting are outside this release.
-
 ### Reference Project
 
-The fixed, versioned Project produced by the First Public Release's creation workflow and shared by human acceptance and machine-verifiable checks. Its Musical Sketch uses stock synthesized percussion and a brief-derived, Agent-authored pitched polyphonic Native Instrument expressed as a Composable DSP Graph, with no imported or model-rendered waveform assets.
+The fixed, versioned repository Project used by end-to-end checks and examples. Its Musical Sketch uses stock synthesized percussion and pitched polyphonic Native Instruments expressed as Composable DSP Graphs, with no Media Assets.
 
 ### Musical Sketch
 
-A 30-60 second multi-part arrangement with a stock synthesized-percussion role, a pitched role, and more than one section or an audible variation. It requires only simple level balance and a lossless master, making it an integrated product proof rather than a polished complete track.
-
-### Reference Project Acceptance Gate
-
-The release gate combining a Beginner Musician's completion of the blank-to-render workflow, an Experienced Producer's independent inspection and modification of the resulting Reference Project, and objective checks of that Project. A blocked promised capability, data loss, crash, dangerous output, or required developer intervention fails the gate; non-blocking usability friction is recorded.
+A 30–60 second multi-part arrangement with a stock synthesized-percussion role, a pitched role, and more than one section or an audible variation. It uses simple level balance and renders to a lossless master.
 
 ## Authored And Runtime State
 
 ### Crump DSL
 
-The small purpose-built declarative language that represents a Project's musical structure, processing graphs, Parameters, Faceplates, and imports as human-readable Authoritative Source. It is not a general-purpose programming language; its First Public Release grammar is limited to concepts exercised by the Reference Project.
+The small purpose-built declarative language that represents a Project's musical structure, processing graphs, Parameters, Faceplates, imports, and Media Assets as human-readable Authoritative Source. It is not a general-purpose programming language.
 
 ### Authoritative Source
 
@@ -86,7 +70,7 @@ The successful whole-Project validation that records a Candidate Revision in Pro
 
 ### Affected Instrument Restart
 
-The first-release transition for a valid topology change: Crump publishes the new graph with a short protective fade, resets the changed instrument's voices and effect state, and leaves transport and unchanged Tracks running. The workspace reports the restart; exact state migration is not implied.
+The transition for a valid topology change: Crump publishes the new graph with a short protective fade, resets the changed Instrument's voices and effect state, and leaves transport and unchanged Tracks running. The workspace reports the restart; incompatible state is not migrated.
 
 ### Structured Source Edit
 
@@ -114,7 +98,7 @@ An ordered set of source-backed views over the same authored object, beginning w
 
 ### Authoring Agent
 
-An external model-driven tool that may author every layer of a Project by editing normal project files and using Crump's documented machine-readable CLI for inspection, validation, checks, Project Publication, and rendering. Its harness runs outside Crump in the First Public Release, and Crump never owns its model, inference, or conversation loop.
+An external model-driven tool that may author every layer of a Project by editing normal Project files and using Crump's documented machine-readable CLI for inspection, validation, checks, Project Publication, and rendering. Its harness runs outside Crump, and Crump never owns its model, inference, or conversation loop.
 
 ### Agent Change
 
@@ -126,7 +110,7 @@ One named, exactly reversible transition of the durable authored state caused by
 
 ### Project History
 
-The persistent ordered sequence of every Project History Entry, retained without automatic expiry or compaction in the First Public Release and preserved across close and reopen. It supports ordinary comparison and restoration independently of Git; any Git commit, branch, or milestone integration is user-requested rather than automatic.
+The persistent ordered sequence of every Project History Entry, retained without automatic expiry or compaction and preserved across close and reopen. It supports ordinary comparison and restoration independently of Git; any Git commit or branch operation is user-requested rather than automatic.
 
 ### History Restore
 
@@ -144,7 +128,7 @@ The single musical arrangement owned by a project: tracks placed on a linear tim
 
 ### Timeline
 
-The linear, musically addressed arrangement axis used by the first public release. Session-style scene launching is not part of this definition.
+The linear, musically addressed arrangement axis used by Crump. Session-style scene launching is unsupported.
 
 ### Musical Time
 
@@ -304,15 +288,11 @@ The shallowest Production View of a Native Instrument: a small declarative set o
 
 ### Graph View
 
-The first-release inspection surface for navigating a Composable DSP Graph's nodes, connections, Parameters, Faceplate mappings, and source locations. It does not create, delete, or reconnect nodes; topology changes are direct source edits or Agent Changes.
+The inspection surface for navigating a Composable DSP Graph's nodes, connections, Parameters, Faceplate mappings, and source locations. It does not create, delete, or reconnect nodes; topology changes are direct source edits or Agent Changes.
 
 ### Instrument Module
 
 A portable human-readable source unit containing a Native Instrument's Composable DSP Graph, typed interface, and Instrument Faceplate. It may be copied or imported across Projects and saved to a personal library without compilation, a package registry, or an opaque preset format.
-
-### Synthesis-Complete
-
-The Complete Production Environment's capability to create every sound required for a finished electronic track with Native Instruments and native processing, without imported or model-rendered waveform assets. The First Public Release proves the smaller Reference Project subset; samples may be supported later, but no core workflow or release gate depends on them.
 
 ### Processing Node
 
@@ -324,17 +304,13 @@ A named, typed connection point on a Processing Node. A Sidechain is an auxiliar
 
 ### Parameter
 
-An addressable control exposed by a device or routing channel. Its stable identity is its owner's durable or intrinsic identity plus an immutable key defined by the owner type, so rename and reorder preserve references while replacement creates a different target. First-release value kinds are continuous real, bounded integer, boolean, and enum; only continuous values support non-step interpolation or Modulation, while momentary actions are Events rather than Parameters. Each Parameter declares its legal domain, default, canonical physical unit, display mapping, and automation and modulation capabilities. Authoritative Source uses physical values; normalized values exist only at controller or plugin adapter boundaries. Out-of-domain authored values invalidate a Candidate Revision; finite runtime modulation overshoot is clamped, while a non-finite control result holds the last finite effective value and emits a diagnostic.
-
-### Rust Extension
-
-An advanced post-release mechanism for implementing DSP nodes, instruments, or effects below the level exposed by the Composable DSP Graph. It is not part of the First Public Release or the ordinary Agent Change trust model.
+An addressable control exposed by a device or routing channel. Its stable identity is its owner's durable or intrinsic identity plus an immutable key defined by the owner type, so rename and reorder preserve references while replacement creates a different target. Value kinds are continuous real, bounded integer, boolean, and enum; only continuous values support non-step interpolation or Modulation, while momentary actions are Events rather than Parameters. Each Parameter declares its legal domain, default, canonical physical unit, display mapping, and Automation and Modulation capabilities. Authoritative Source uses physical values; normalized values exist only at controller boundaries. Out-of-domain authored values invalidate a Candidate Revision; finite runtime Modulation overshoot is clamped, while a non-finite control result holds the last finite effective value and emits a diagnostic.
 
 ## Reproducibility
 
 ### Render Range
 
-The First Public Release's offline interval from Song time zero through the arrangement end plus the authored Render Tail. The range is visible before rendering and identical for unchanged repeated renders.
+The offline interval from Song time zero through the arrangement end plus the authored Render Tail. The range is visible before rendering and identical for unchanged repeated renders.
 
 ### Render Tail
 
@@ -346,7 +322,7 @@ A versioned set of delivery measurements derived by reopening the completed ster
 
 ### Qualification Report
 
-A versioned machine-readable record from profiling one exact Active Revision and half-open frame range at a supported offline full-block quantum, with one disclosed short final block when needed. Each block is timed against its exact frame deadline. It binds build/host/resource identity, timing distribution, deadline and finite-output facts, and the operator's p99.9 threshold. It is not PipeWire evidence: xruns remain absent and named-hardware endurance plus callback-safety auditing stay external.
+A versioned machine-readable record from profiling one exact Active Revision and half-open frame range at a supported offline full-block quantum, with one disclosed short final block when needed. Each block is timed against its exact frame deadline. It binds build, host, and resource identity; timing distribution; deadline and finite-output facts; and the operator's p99.9 threshold. It does not measure PipeWire xruns, device scheduling, or callback safety.
 
 ### Deterministic Evaluation
 
@@ -354,8 +330,4 @@ Evaluation in which the same project, assets, compatible engine version, and exp
 
 ### Deterministic Comparison Domain
 
-Repeated rendering of the same Project and render settings with the exact same Crump build and sample rate on the documented `amd64` reference environment produces a byte-identical stereo 32-bit-float WAV and manifest. It makes no bit-identity promise across engine builds, architectures, or unsupported environments.
-
-## Terms Requiring Decisions
-
-The following name appears in the product contract but does not yet have a sufficiently precise, agreed meaning: compatible engine version.
+Repeated rendering of the same Project and render settings with the exact same Crump build and sample rate in the documented `x86_64` comparison domain produces a byte-identical stereo 32-bit-float WAV and manifest. It makes no bit-identity promise across engine builds or architectures.

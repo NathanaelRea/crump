@@ -63,8 +63,10 @@ jobs:
           dpkg-deb --extract dist/crump_0.1.0_amd64.deb package-root
           test -f package-root/usr/share/doc/crump/docs/language.md
           test -f package-root/usr/share/doc/crump/docs/cli-and-agents.md
-          test -f package-root/usr/share/doc/crump/docs/adr/0011-first-release-graph-transition.md
+          test -f package-root/usr/share/doc/crump/docs/adr/0011-graph-transition.md
           test -f package-root/usr/share/doc/crump/fixtures/reference/project.crump
+          test -f package-root/usr/share/doc/crump/fixtures/expressive/project.crump
+          test -f package-root/usr/share/doc/crump/fixtures/production/project.crump
           test -f package-root/usr/share/doc/crump/skills/crump-authoring/SKILL.md
           test -f package-root/usr/share/crump/skills/crump-authoring/SKILL.md
           package-root/usr/bin/crump --version

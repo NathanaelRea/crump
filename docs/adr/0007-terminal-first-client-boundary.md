@@ -3,4 +3,6 @@
 Status: Accepted
 Date: 2026-07-28
 
-Crump's first supported human client will be a Ratatui production workspace, but terminal rendering will not define or own the Project model, authoring operations, or audio engine. The terminal keeps keyboard production, source inspection, and an external agent harness cohesive while allowing the core to outlive Ratatui's visual constraints. This decision does not commit a desktop or browser client; it only prevents the initial client from becoming an irreversible engine boundary.
+Crump's human client is a Ratatui production workspace, but terminal rendering does not define or own the Project model, authoring operations, persistence, or audio engine. The terminal combines keyboard production and source inspection while the core remains terminal-independent.
+
+Crump has no desktop or browser client. Ratatui is an adapter over the same model and operations used by the CLI and engine, not an engine boundary.

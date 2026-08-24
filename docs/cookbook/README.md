@@ -1,21 +1,19 @@
 # Crump Production Cookbook
 
-Status: M1 engineering fixture set; listening review remains open
-
-This cookbook turns production knowledge into readable Project actions that a musician or external Authoring Agent can perform through the same source and publication path. It does not add engine capabilities, claim sonic equivalence with named products, or make the 100 source recipes a release gate.
+This cookbook turns production knowledge into readable Project actions that a musician or external Authoring Agent can perform through the same source and publication path. It does not add engine capabilities or claim sonic equivalence with named products.
 
 ## Canonical feasibility matrix
 
-[`feasibility.json`](feasibility.json) is the self-contained machine-readable source of truth for recipe identity, current support, source assumptions, required capability gaps, packaging recommendation, and links. Its 100 rows retain the reviewed chapter identities from the [source video](https://www.youtube.com/watch?v=D5dc7mQ30hU). Local transcript research may help a reviewer re-audit those rows, but it is optional input rather than a packaged or test-time dependency.
+[`feasibility.json`](feasibility.json) is the self-contained machine-readable source of truth for recipe identity, current support, source assumptions, required capability gaps, and links. Its 100 rows retain the reviewed chapter identities from the [source video](https://www.youtube.com/watch?v=D5dc7mQ30hU). Local transcript research may help a reviewer re-audit those rows, but it is optional input rather than a packaged or test-time dependency.
 
-The reviewed post-M5-engineering counts are:
+The matrix contains:
 
 | Support state | Count | Meaning |
 | --- | ---: | --- |
 | `direct` | 64 | Current Crump source and native processing can express the recipe without external preprocessing. |
 | `approximation` | 21 | Current tools can approach the intent, but the demonstrated transform or workflow is not direct. |
 | `blocked` | 14 | A missing primitive is central to the result. |
-| `intentional-non-goal` | 1 | Recipe 88 requires live microphone input, which is outside the current product direction. |
+| `intentional-non-goal` | 1 | Recipe 88 requires unsupported live microphone input. |
 
 `direct` does not mean one-click, source-independent, or sonically identical to Ableton or a named plug-in. It means the current engine has no known missing primitive for the stated source assumptions. Caption uncertainty remains uncertainty; recipes never repair an unclear control or value by invention.
 
@@ -23,13 +21,13 @@ The reviewed post-M5-engineering counts are:
 
 1. Open `feasibility.json` and select the exact recipe row.
 2. Confirm the material matches every relevant source assumption. A native Instrument, imported sample, vocal phrase, drum source, Track, Return, Group, and Master can require different actions.
-3. Apply a linked `direct` page through explicit source edits. An unlinked `direct` row is feasibility evidence, not an Agent procedure; author it only from the musician's explicit instructions until a reviewed page exists. For `approximation`, explain the mismatch and obtain the musician's agreement before authoring. Stop on `blocked` or `intentional-non-goal` unless the musician chooses a different supported task.
+3. Apply a linked `direct` page through explicit source edits. An unlinked `direct` row is feasibility evidence, not an Agent procedure; author it only from the musician's explicit instructions. For `approximation`, explain the mismatch and obtain the musician's agreement before authoring. Stop on `blocked` or `intentional-non-goal` unless the musician chooses a different supported task.
 4. Follow the page's gain staging and A/B instructions. Match apparent level before judging an effect.
 5. Validate the Candidate, audition it, publish one intended change with provenance, render the exact Active Revision when useful, and ask the musician to listen.
 
 No page grants hidden Agent authority. Human and Agent work both produce ordinary processors, routing, Automation, Clips, and assets in Authoritative Source.
 
-## M1 direct recipes and fixtures
+## Direct recipes and fixtures
 
 | Recipe | Primary coverage | Page | Runnable Project |
 | --- | --- | --- | --- |
@@ -42,11 +40,11 @@ No page grants hidden Agent authority. Human and Agent work both produce ordinar
 | 48 Split Delays | complementary filtered Returns | [page](recipes/48-split-delays.md) | [`fixtures/cookbook/48-split-delays`](../../fixtures/cookbook/48-split-delays/) |
 | 84 Club Toilet | Master EQ and Reverb | [page](recipes/84-club-toilet.md) | [`fixtures/cookbook/84-club-toilet`](../../fixtures/cookbook/84-club-toilet/) |
 
-Fixtures are short engineering examples, not finished productions or listening evidence. They validate, compile, render deterministically, and exercise current source syntax. Tests publish only disposable copies; checked-in fixture directories contain no History state.
+Fixtures are short runnable examples. They validate, compile, render deterministically, and exercise current source syntax. Tests publish only disposable copies; checked-in fixture directories contain no History state.
 
 ## Reuse boundary
 
-Several matrix rows are marked `effect-module-candidate`. That label records repeated chain potential only. M1 intentionally uses ordinary processor blocks and routing; Crump has no general Effect Module syntax or parallel Rack runtime. A later decision may admit a transparent module interface after repeated fixtures prove identity, mapping, ownership, latency, and resource boilerplate.
+Recipes use ordinary processor blocks and routing. Crump has no general Effect Module syntax or parallel Rack runtime.
 
 ## Installation
 

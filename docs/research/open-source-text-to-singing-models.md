@@ -7,14 +7,14 @@
 
 Turning ordinary TTS into a stylized melodic hook is practical, especially for short, processed electronic vocals. Turning a spoken phrase into a convincing exposed lead singer is not reliably solved by pitch shifting alone. Natural results require note-aware phoneme timing, a continuous pitch contour, formant-aware time/pitch processing, singing-like excitation, and musical transitions such as portamento and delayed vibrato.
 
-For this project, the strongest current options are:
+The reviewed options expose different tradeoffs:
 
-1. **Vevo2** for a non-commercial experiment with explicit melody control from a synthetic piano or humming guide.
-2. **ACE-Step 1.5** for permissively licensed lyrics-to-music generation, multitrack generation, and vocal extraction, accepting weaker note-level determinism.
-3. **OpenVPI DiffSinger** for precise score-conditioned synthesis if a suitable English voicebank with explicit distribution/commercial terms can be found or trained.
-4. **TTS plus Rubber Band/WORLD/Praat-style processing** for deliberately synthetic vocal chops and backing layers.
+- **Vevo2** accepts melody guidance but its weights are CC BY-NC-ND 4.0.
+- **ACE-Step 1.5** is MIT-licensed lyrics-to-music generation with multitrack and vocal-extraction behavior but weaker note-level determinism.
+- **OpenVPI DiffSinger** is score-conditioned; framework and voicebank licensing are separate.
+- **TTS plus Rubber Band/WORLD/Praat-style processing** can create deliberately synthetic vocal chops and backing layers.
 
-YuE and other long-form song language models are not sensible CPU-first dependencies on this machine.
+YuE and the other long-form song models require GPU-oriented resources and do not provide the desired exact score control.
 
 ## Speech-to-singing by signal processing
 
@@ -30,7 +30,7 @@ A dry spoken TTS recording can be made melodic by:
 
 A constant pitch shift over a complete spoken phrase leaves speech timing and intonation underneath the new pitch. Uniform time stretching smears consonants, breaths, and transients. Large pitch or duration changes expose phasey sustained vowels, metallic excitation, duplicated consonants, formant mismatch, and robotic note transitions.
 
-This machine already has FFmpeg's Rubber Band filter and `/usr/bin/rubberband`. The local TTS experiment at `../tts/generate_chatterbox_expression_reel.py` uses independent tempo and pitch controls with `formant=preserved`. That is enough for a first stylized-hook prototype, but not a complete singing renderer. A stronger offline implementation would use phoneme alignment plus time-varying pitch and duration curves, or a singing-aware neural model.
+This machine has FFmpeg's Rubber Band filter and `/usr/bin/rubberband`. The local TTS experiment at `../tts/generate_chatterbox_expression_reel.py` uses independent tempo and pitch controls with `formant=preserved`. It applies whole-phrase controls rather than phoneme-aligned, time-varying pitch and duration curves.
 
 Primary technical sources:
 
@@ -71,7 +71,7 @@ A plausible Crump workflow is:
 4. import the resulting WAV as a declared Crump asset;
 5. do final arrangement, effects, automation, and mixing in Crump.
 
-The model/repository license is **MIT**. The standard Hugging Face snapshot is about 10.1 GB. CPU inference is officially supported, but the installation and benchmark guides describe CPU as significantly slower and for testing; published fast timings are GPU results. It is therefore a practical candidate for an offline trial, not yet a measured CPU workflow on this machine. Its main creative limitation is stochastic melody, pronunciation, and singer identity rather than exact note/phoneme control.
+The model/repository license is **MIT**. The standard Hugging Face snapshot is about 10.1 GB. CPU inference is officially supported, but the installation and benchmark guides describe CPU as significantly slower and for testing; published fast timings are GPU results. No CPU measurement for this machine is available. Its main creative limitation is stochastic melody, pronunciation, and singer identity rather than exact note/phoneme control.
 
 ### OpenVPI DiffSinger
 
@@ -99,33 +99,9 @@ The English stage-one checkpoint is about 12.45 GB and stage two about 3.93 GB. 
 
 ### Other full-song models
 
-DiffRhythm 2 and HeartMuLa publish lyrics-conditioned full-song weights under Apache 2.0, but they remain less suitable than ACE-Step for this particular integration: they target complete mixed songs rather than exact isolated score-driven vocals, and their official local workflows are GPU-oriented. They may be useful for ideation but should not displace Crump's authored composition.
+DiffRhythm 2 and HeartMuLa publish lyrics-conditioned full-song weights under Apache 2.0. They target complete mixed songs rather than exact isolated score-driven vocals, and their official local workflows are GPU-oriented.
 
 Sources:
 
 - [DiffRhythm 2 official model](https://huggingface.co/ASLP-lab/DiffRhythm2) and [repository](https://github.com/ASLP-lab/DiffRhythm2).
 - [HeartMuLa official model](https://huggingface.co/HeartMuLa/HeartMuLa-oss-3B) and [repository](https://github.com/HeartMuLa/heartlib).
-
-## Recommendation for `already-here`
-
-The reference vocal is a short, recurring, heavily produced pitched motif rather than an exposed conventional lead performance. That makes a hybrid approach realistic:
-
-1. author the melody and syllable timing explicitly;
-2. render an original piano/humming guide;
-3. test **Vevo2** only if non-commercial licensing is acceptable, or test **ACE-Step 1.5** as the permissive alternative;
-4. in parallel, make a TTS-plus-Rubber-Band version from synthetic voices already available under `../tts`;
-5. import only newly generated vocal WAVs into Crump;
-6. layer doubles/octaves/harmonies and finish them with Crump's sampler, automation, modulation, routing, and effects;
-7. compare both routes under human listening before adding Crump DSP.
-
-If model-rendered vocals are accepted as build-time assets, Crump does not need neural singing inference. Its most valuable native addition would instead be a deep offline warped-sample module: independent time/pitch curves, formant policy, phoneme/warp anchors, and deterministic generated-asset provenance.
-
-## Remaining checks
-
-Before adopting any checkpoint:
-
-- record its exact revision/hash and model-card license;
-- review voice/singer consent and generated-audio terms independently of the framework license;
-- confirm whether output is isolated vocal or a separated mixture;
-- benchmark a 10–20 second phrase for cold start, peak RAM, runtime, and repeatability;
-- listen for lyric alignment, note accuracy, sustained-vowel artifacts, consonant timing, breaths, and stem bleed.

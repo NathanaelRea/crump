@@ -1,13 +1,13 @@
 # Finalized-audio analysis standards review
 
 **Accessed:** 2026-08-21  
-**Implementation reviewed:** `src/engine/analysis.rs`, `src/engine/oversampling.rs`, and `src/engine/render.rs`
+**Code reviewed:** `src/engine/analysis.rs`, `src/engine/oversampling.rs`, and `src/engine/render.rs`
 
 ## Scope and conclusion
 
 Crump analyzes the decoded bytes of each finalized stereo float WAV. Its loudness path follows the BS.1770 K-weighting and integrated-gating structure, and its short-term/Loudness Range path now follows the EBU 3-second/10 Hz and two-stage LRA-gating structure. Automated tests pass the official EBU steady-tone loudness tolerance and EBU true-peak steady-tone cases 15–19.
 
-This is evidence of algorithm compatibility, not a blanket standards-conformance claim. Crump has not run the complete official EBU test-signal set, its custom 4×/129-tap reconstruction filter is not the example Annex 2 filter, and the harder transient/phase-offset true-peak cases 20–23 remain unverified. Product documentation should therefore name the exact Crump analysis schema and reconstruction kernel, use “derived” or “compatible” wording where appropriate, and avoid “EBU Mode conformant” or “BS.1770-5 conformant” until the complete version-pinned test set and tolerances pass.
+This demonstrates algorithm compatibility, not blanket standards conformance. Crump has not run the complete official EBU test-signal set, its custom 4×/129-tap reconstruction filter is not the Annex 2 example filter, and transient/phase-offset true-peak cases 20–23 are unverified. Product documentation names the exact Crump analysis schema and reconstruction kernel and does not claim “EBU Mode conformant” or “BS.1770-5 conformant.”
 
 ## Primary-source requirements
 
@@ -42,7 +42,7 @@ The LRA relative threshold is not `final integrated programme loudness − 20 LU
 
 ITU-R BS.1770-5 Annex 2 describes 4× oversampling from 48 kHz to 192 kHz, low-pass interpolation, absolute peak detection, and dBTP reporting. It supplies one 48th-order, four-phase FIR coefficient set that satisfies its guidance and allows methods with similar or superior results. A 4× ratio alone does not establish equivalent response or error.
 
-EBU Tech 3341 Table 1 cases 15–23 provide published true-peak expectations and tolerances. Crump currently exercises the steady-tone cases 15–19 (`+0.2/−0.4 dBTP`). Cases 20–23, which use a synthesized transient and four downsampling offsets, remain necessary evidence for a broader conformance claim.
+EBU Tech 3341 Table 1 cases 15–23 provide published true-peak expectations and tolerances. Crump exercises the steady-tone cases 15–19 (`+0.2/−0.4 dBTP`). Cases 20–23 use a synthesized transient and four downsampling offsets and have not been executed.
 
 ### Product-defined metrics
 
@@ -55,29 +55,19 @@ The cited standards do not prescribe Crump's JSON representation, sample full-sc
 
 None of these facts implies hidden normalization or a universal loudness target.
 
-## Crump implementation mapping
+## Current Crump behavior
 
-| Area | Current implementation | Supported wording |
+| Area | Current behavior | Supported wording |
 | --- | --- | --- |
 | Artifact identity | Reopens finalized stereo 48 kHz IEEE float WAV bytes; Render schema 2 hashes and revalidates every artifact and recomputes its analysis before replacement. | Finalized-file analysis; exact-artifact evidence. |
 | K-weighting/stereo | BS.1770 48 kHz coefficients, shelf then high-pass, equal L/R energy sum. | BS.1770-derived K-weighted stereo loudness. |
 | Integrated loudness | 400 ms windows at 100 ms hops, `−70` absolute gate, absolute-gated mean `−10 LU` relative gate. | BS.1770-derived gated integrated loudness; official EBU tone case 1 passes `±0.1 LU`. |
 | Short-term maximum | Ungated 3-second windows evaluated every 100 ms. | Maximum sampled 3-second Short-term Loudness at a 10 Hz hop. |
-| Loudness Range | 3-second/10 Hz population, `−70 LUFS` absolute gate, absolute-gated short-term mean `−20 LU` relative gate, nearest 10th/95th percentiles. | Tech 3342-derived LRA algorithm; full EBU test-signal conformance remains open. |
-| Reconstructed peak | Custom fixed 4×, 129-tap Blackman-windowed-sinc kernel, named in every analysis object. | Crump 4× reconstructed peak estimate / dBTP-style measurement; cases 15–19 pass. Do not claim Annex 2 conformance yet. |
-| DC/clipping/non-finite | Explicit deterministic Crump metrics and failure policy. | Product diagnostics, not BS.1770/R 128 compliance gates. |
+| Loudness Range | 3-second/10 Hz population, `−70 LUFS` absolute gate, absolute-gated short-term mean `−20 LU` relative gate, nearest 10th/95th percentiles. | Tech 3342-derived LRA algorithm; complete EBU test-signal conformance has not been demonstrated. |
+| Reconstructed peak | Custom fixed 4×, 129-tap Blackman-windowed-sinc kernel, named in every analysis object. | Crump 4× reconstructed peak estimate / dBTP-style measurement; cases 15–19 pass. Annex 2 conformance is not claimed. |
+| DC/clipping/non-finite | Explicit deterministic Crump metrics and failure policy. | Product diagnostics, not BS.1770/R 128 conformance measures. |
 
 Analysis schema 2 identifies the corrected 10 Hz Short-term sampling and Tech 3342 LRA gate/percentile behavior. The manifest's `loudness_method` string names those mechanics rather than claiming EBU conformance.
-
-## Remaining qualification
-
-Before standards-conformance wording is permitted:
-
-1. Run the complete version-pinned EBU Tech 3341 minimum-requirements signal set with its published tolerances, including authentic NLR/WLR material where licensing permits.
-2. Reproduce or obtain true-peak cases 20–23 and verify every phase/downsampling offset.
-3. Characterize the custom reconstruction kernel's passband, stopband, phase coverage, startup/EOF behavior, and maximum under-read against BS.1770-5 Annex 2.
-4. Record exact test-signal hashes, generation procedure, document revisions, numeric tolerances, executable hash, architecture, and results.
-5. Keep broadcast delivery targets separate from creative mastering policy.
 
 ## Official sources
 

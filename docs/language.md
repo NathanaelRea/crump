@@ -1,14 +1,14 @@
 # Crump Project Language 1
 
-The Crump language is a small declarative format for the First Public Release Musical Sketch. It is not a scripting language: there are no loops, functions, mutable variables, arbitrary code, or opaque binary project document. Exact source bytes are authoritative; optional binary media is explicitly declared by portable path and exact-byte digest.
+The Crump language is a small declarative Project format. It is not a scripting language: there are no functions, mutable variables, arbitrary code, or opaque binary project document. Exact source bytes are authoritative; binary media is explicitly declared by portable path and exact-byte digest.
 
 A Project directory has a `project.crump` root. Imported Instrument Modules use the same syntax described below and remain readable `.crump` files. Project-owned WAV files conventionally live under `media/`.
 
 ## Complete example
 
-[`fixtures/reference/project.crump`](../fixtures/reference/project.crump) is the First Public Release acceptance fixture. It has a 34.286-second arrangement, three Tracks, two graph instruments, stock synthesized percussion, section variation, and all first-release creative processors.
+[`fixtures/reference/project.crump`](../fixtures/reference/project.crump) is a compact end-to-end fixture. It has a 34.286-second arrangement, three Tracks, two graph Instruments, stock synthesized percussion, section variation, and native creative processors.
 
-[`fixtures/production/project.crump`](../fixtures/production/project.crump) is a separate 96-bar (3:12) Slice 7 engineering fixture. It combines an exact-hash portable Sampler asset with native graph/stock Instruments, arrangement controls, and complete routing for scale/admission/grouping checks. It carries no independent listening or named-hardware acceptance claim.
+[`fixtures/production/project.crump`](../fixtures/production/project.crump) is a 96-bar (3:12) resource and routing fixture. It combines an exact-hash portable Sampler asset with native graph/stock Instruments, arrangement controls, and complete routing for scale, admission, and callback-grouping checks.
 
 A minimal outline is:
 
@@ -98,7 +98,7 @@ A Project declares:
 | --- | --- |
 | `id` | Stable source-safe Project ID |
 | `seed` | Deterministic unsigned random seed |
-| `sample_rate` | `48000` in the first release |
+| `sample_rate` | fixed at `48000` |
 | `render_tail` | Explicit finite effect/release tail, at most 30 seconds |
 | `asset` | Optional portable Project-owned WAV identity, described below |
 
@@ -130,7 +130,7 @@ crump --project ./song asset bounce --source track/vocal:post_fader \
   --from verse --to chorus --tail-seconds 1.5 --id vocal-tail --name "Vocal tail"
 ```
 
-Bounce performs deterministic preroll, captures `master` or one explicit Track/Group/Return pre/post-fader tap, stops future source dispatch at the range boundary for an optional isolated release/effect tail, and stages stereo float32 WAV bytes. It then publishes those bytes and a readable declaration atomically through History. It never replaces Clips, disables processors, or flattens editable source. A generated declaration contains an inspectable `generated` block with the exact source Revision, owner, tap, half-open frame range, tail frames, format, versioned algorithm, and Crump build; the ordinary asset hash still identifies the complete WAV bytes. Bounce requires the current Candidate to equal the exact Active Revision.
+Bounce performs deterministic preroll, captures `master` or one explicit Track/Group/Return pre/post-fader tap, stops source dispatch at the range boundary for an optional isolated release/effect tail, and stages stereo float32 WAV bytes. It then publishes those bytes and a readable declaration atomically through History. It never replaces Clips, disables processors, or flattens editable source. A generated declaration contains an inspectable `generated` block with the exact source Revision, owner, tap, half-open frame range, tail frames, format, versioned algorithm, and Crump build; the ordinary asset hash still identifies the complete WAV bytes. Bounce requires the current Candidate to equal the exact Active Revision.
 
 One exact asset region can instead be prepared with independent output duration and pitch:
 
@@ -141,7 +141,7 @@ crump --project ./song asset prepare --source voice \
   --id slowed-voice --name "Slowed voice"
 ```
 
-`output_frames` is the authoritative generated duration at the Project sample rate; a ratio is never retained as an implicit rounding rule. `pitch_semitones` is independently bounded to −24…+24. The first quality uses versioned `crump-wsola-effect-v1` preparation and declares deterministic domain `x86_64-linux`. Its only admitted formant policy is `shift`: `preserve` is recognized and rejected as unavailable rather than silently approximated. This is an effect-quality engineering mode, not a claim of exposed-vocal quality.
+`output_frames` is the authoritative generated duration at the Project sample rate; a ratio is never retained as an implicit rounding rule. `pitch_semitones` is independently bounded to −24…+24. Preparation uses the versioned `crump-wsola-effect-v1` algorithm in deterministic domain `x86_64-linux`. Its only admitted formant policy is `shift`: `preserve` is recognized and rejected as unavailable rather than silently approximated. The algorithm makes no claim about exposed-vocal quality.
 
 Prepared assets use tagged readable provenance:
 
@@ -168,7 +168,7 @@ Decode, conversion, correlation, overlap-add preparation, resampling, and encodi
 
 A Song declares positive finite `tempo`, a meter such as `4/4`, and an exact positive `end`. The arrangement is half-open: Events occur in `[0, end)`. Song-scoped Automation points may include an endpoint at `end`; that endpoint defines the approach to the boundary and is not itself an Event.
 
-The compiled mix graph contains timeline Tracks, routing-only Groups, parallel Returns, one Master, durable pre/post-fader Sends, named processor sidechains, and locators. Tracks and Groups default to Master; Returns may feed Master, a Group, or a later Return while the complete routing graph remains acyclic. Plug-in hosting is not implemented.
+The compiled mix graph contains timeline Tracks, routing-only Groups, parallel Returns, one Master, durable pre/post-fader Sends, named processor sidechains, and locators. Tracks and Groups default to Master; Returns may feed Master, a Group, or a later Return while the complete routing graph remains acyclic. Crump does not host plug-ins.
 
 ## Exact musical time
 
@@ -299,7 +299,7 @@ Scopes are `global`, `instrument/INSTRUMENT_ID`, and `per_voice/INSTRUMENT_ID`. 
 
 Operators transform the normalized source in declaration order. `add`/`bias` add a unitless scalar, `multiply`/`scale` multiply by one, and `clamp MIN MAX` constrains the route-local value. The result is multiplied by `depth` in the target's physical unit. Routes combine additively in durable route-ID order, then the Parameter domain is applied. Instrument and per-voice routes may target only their owning Instrument; per-voice routes require a graph Instrument. Inspection reports each route in deterministic order; per-voice contributions are note-relative and therefore do not pretend to have one Song-time value.
 
-A per-voice graph Delay whose `time` is Parameter-bound changes voice-buffer allocation and is therefore rejected as an Automation or Modulation target. An authored edit recompiles and restarts the affected topology behind the protective publication fade. Other graph scalars, stock-drum tone/punch, channel fader/panner/Mute, Send gain, supported processor scalars, and Master level use the shared stable target model. Native processor presence is engineering capability; it does not by itself satisfy processor-quality or listening acceptance in `plan-production.md`.
+A per-voice graph Delay whose `time` is Parameter-bound changes voice-buffer allocation and is therefore rejected as an Automation or Modulation target. An authored edit recompiles and restarts the affected topology behind the protective publication fade. Other graph scalars, stock-drum tone/punch, channel fader/panner/Mute, Send gain, supported processor scalars, and Master level use the shared stable target model.
 
 A channel-tap Envelope Follower is a separate Audio-derived additive route:
 
@@ -315,9 +315,9 @@ Controls are evaluated before current-frame Audio, so a tap observed at frame N 
 
 ## Graphs
 
-`graph N` declares a per-voice Node ceiling; the actual graph cannot exceed it or the global release limits. Nodes have durable graph-local IDs, one native kind, and named settings. Connections are typed and directed.
+`graph N` declares a per-voice Node ceiling; the actual graph cannot exceed it or the global resource limits. Nodes have durable graph-local IDs, one native kind, and named settings. Connections are typed and directed.
 
-First-release Nodes:
+Graph Nodes:
 
 | Node | Inputs | Outputs | Settings |
 | --- | --- | --- | --- |
@@ -337,7 +337,7 @@ First-release Nodes:
 
 Special per-note sources are `note.pitch`, `note.gate`, and normalized `note.velocity`. Every required input must have exactly one compatible source, the graph must be acyclic, every authored Node must reach the one Output, and unknown settings are errors. Topological compilation is deterministic.
 
-A filter `mod` input accepts either uni- or bipolar Control, so an ADSR timbre envelope and an LFO use the same explicit port without weakening Audio typing. `velocity` adds `velocity_depth` hertz. `key` scales the base cutoff around `key_reference` (C4 / 261.625565 Hz by default); `key_track 1` doubles cutoff for each played-note octave. Filter modes are `lowpass`, `highpass`, `bandpass`, and `notch`; implementation and objective vectors do not substitute for the roadmap's listening selection.
+A filter `mod` input accepts either uni- or bipolar Control, so an ADSR timbre envelope and an LFO use the same explicit port without weakening Audio typing. `velocity` adds `velocity_depth` hertz. `key` scales the base cutoff around `key_reference` (C4 / 261.625565 Hz by default); `key_track 1` doubles cutoff for each played-note octave. Filter modes are `lowpass`, `highpass`, `bandpass`, and `notch`.
 
 `unison` owns 1–8 deterministic subvoices, equal-power stereo placement, bounded semitone spread/drift, power normalization, optional envelope gain and velocity response, and bounded Control-port pitch movement. `width 0` collapses placement to a mono-compatible center. Oscillator `glide` is a deterministic note-to-note exponential frequency slew in seconds. Unison subvoice work and the preallocated short graph-voice replacement tail are included in runtime admission. For tempo-synchronized global or per-voice movement, bind these scalar settings to Parameters and use authored Modulation routes rather than inventing callback state. The curated readable modules and their frozen abstract CPU/memory costs are documented in [Expressive native Instrument Modules](expressive-instruments.md).
 
@@ -526,7 +526,7 @@ processor repeat stutter {
 
 Reverb uses fixed preallocated stereo comb and gain-neutral allpass networks. `pre_delay` is `0s…1s`; `diffusion`, `decay`, `damping`, `modulation`, `width`, and `mix` are ratios in `0…1`. Pre-delay uses fractional interpolation and a fixed 10 ms read-head crossfade for continuous changes. Diffusion changes the bounded allpass coefficient rather than output gain, decay controls bounded comb feedback, damping low-passes recirculated Audio, and modulation moves fractional comb taps by at most eight frames at 48 kHz with deterministic phase offsets. A fixed input-headroom coefficient keeps sustained network buildup bounded. Stereo input is cross-fed without discarding side-only material. Width scales only the wet side component, so width zero is exactly mono and fold-down preserves the wet mid. Put one wet Reverb on a Return and route multiple Sends to it when the sources must share one continuing room state.
 
-Accepted settings are validated against the exact implemented kind-specific schema—unknown settings and runtime no-ops are rejected. `edit processor-setting ID KEY VALUE` replaces one exact source token or inserts one missing supported setting; `edit processor-bypass ID true|false` inserts/replaces durable bypass; and `edit processor-move ID earlier|later` moves one complete adjacent processor block with its attached leading comments inside the same owner chain. Every operation is revision-checked, whole-Project validated, atomically published, and recorded in History. Compiled inspection resolves authored values and effective defaults with units/domains, separate authored-literal and continuous-Parameter-target provenance, authored/transient/effective bypass, continuing-state policy, explicit versus intrinsic latency, nonlinear evaluations, activity, the filtered oversampling factor/tap count, and state/work admission facts. Saturation and Limiter share one fixed 4×, 129-tap linear-phase FIR kernel. Saturation filters both interpolation and decimation, evaluates its selected curve four times per input frame, aligns the dry path, and introduces 32 frames of intrinsic latency. Limiter reconstructs inter-sample peaks through the same kernel, adds the filter's 16-frame detector latency to authored lookahead, attacks immediately, and releases with the authored time constant. Lookahead changes allocated delay topology, so it is an authored structural literal rather than an automatable/modulatable Parameter target. Inspection publishes the Limiter's fixed 0.1 dB true-peak safety margin; neither processor applies hidden normalization or a universal loudness target. Utility width is correlation-preserving mid/side narrowing in `0…1`; it preserves the mid signal while scaling side energy, and widening is not silently accepted. EQ and Delay filter-frequency domains are `10hz…23.52khz` at the fixed 48 kHz Project rate, keeping authored targets below Nyquist without a hidden runtime clamp.
+Accepted settings are validated against the exact kind-specific schema—unknown settings and runtime no-ops are rejected. `edit processor-setting ID KEY VALUE` replaces one exact source token or inserts one missing supported setting; `edit processor-bypass ID true|false` inserts/replaces durable bypass; and `edit processor-move ID earlier|later` moves one complete adjacent processor block with its attached leading comments inside the same owner chain. Every operation is revision-checked, whole-Project validated, atomically published, and recorded in History. Compiled inspection resolves authored values and effective defaults with units/domains, separate authored-literal and continuous-Parameter-target provenance, authored/transient/effective bypass, continuing-state policy, explicit versus intrinsic latency, nonlinear evaluations, activity, the filtered oversampling factor/tap count, and state/work admission facts. Saturation and Limiter share one fixed 4×, 129-tap linear-phase FIR kernel. Saturation filters both interpolation and decimation, evaluates its selected curve four times per input frame, aligns the dry path, and introduces 32 frames of intrinsic latency. Limiter reconstructs inter-sample peaks through the same kernel, adds the filter's 16-frame detector latency to authored lookahead, attacks immediately, and releases with the authored time constant. Lookahead changes allocated delay topology, so it is an authored structural literal rather than an automatable/modulatable Parameter target. Inspection publishes the Limiter's fixed 0.1 dB true-peak safety margin; neither processor applies hidden normalization or a universal loudness target. Utility width is correlation-preserving mid/side narrowing in `0…1`; it preserves the mid signal while scaling side energy, and widening is not silently accepted. EQ and Delay filter-frequency domains are `10hz…23.52khz` at the fixed 48 kHz Project rate, keeping authored targets below Nyquist without a hidden runtime clamp.
 
 ## Validation and editing
 
@@ -543,4 +543,4 @@ Arbitrary text editors and Agents may edit source directly. Such bytes remain a 
 
 ## Limits
 
-The validator enforces finite numbers, domains, unique IDs, references, portable asset identities and exact hashes, graph compatibility/reachability, acyclic legal channel routing, Send/sidechain destinations, panner modes, processor schemas and latency, supported sample rate, maximum render tail, maximum Nodes, at most 256 media assets within the declared byte ceilings, at most 256 graph voices across actual runtime Track instances, at most 128 Automation lanes, at most 1,024 points per lane, at most 8,192 Automation points per Project, at most 8,192 materialized Parameter-lock points, and at most 1,024 dense callback-time Parameter targets. It also rejects duplicate targets, non-automatable or allocation-changing targets, non-step boolean Automation, ambiguous same-frame points, conflicting lock-bearing Clips, out-of-domain physical values, and Projects exceeding named compiled runtime work/memory budgets before allocation. These are safety and product-scope limits, not invitations to generate at the ceiling. Use `crump check` for the narrower Reference Musical Sketch acceptance checks.
+The validator enforces finite numbers, domains, unique IDs, references, portable asset identities and exact hashes, graph compatibility/reachability, acyclic legal channel routing, Send/sidechain destinations, panner modes, processor schemas and latency, supported sample rate, maximum render tail, maximum Nodes, at most 256 media assets within the declared byte ceilings, at most 256 graph voices across actual runtime Track instances, at most 128 Automation lanes, at most 1,024 points per lane, at most 8,192 Automation points per Project, at most 8,192 materialized Parameter-lock points, and at most 1,024 dense callback-time Parameter targets. It also rejects duplicate targets, non-automatable or allocation-changing targets, non-step boolean Automation, ambiguous same-frame points, conflicting lock-bearing Clips, out-of-domain physical values, and Projects exceeding named compiled runtime work/memory budgets before allocation. These are safety and product-scope limits, not invitations to generate at the ceiling. Use `crump check` for the narrower Reference Musical Sketch structural checks.

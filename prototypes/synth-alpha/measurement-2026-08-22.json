@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "profile": "qualification-max-v1",
+  "sample_rate": 48000,
+  "measured_frames": 24000,
+  "cpu_model": "AMD Ryzen 5 7640U w/ Radeon 760M Graphics",
+  "host_identity": "Linux 7.1.8-arch1-3 x86_64 GNU/Linux",
+  "rustc": "rustc 1.96.1 (31fca3adb 2026-06-26)",
+  "rustc_flags": "--edition 2024 -C opt-level=3 -C target-cpu=native",
+  "probe_source_sha256": "444cb5082fc176617d1927938be34a644a3de514a1901c1e33c102a648be243e",
+  "measurement_method": "median-of-five-consecutive-processes",
+  "combined_ns_per_frame_observations": [
+    4270.975,
+    4281.679,
+    4377.589,
+    4197.476,
+    4137.641
+  ],
+  "prototype_utilization_observations": [
+    0.205007,
+    0.205521,
+    0.210124,
+    0.201479,
+    0.198607
+  ],
+  "wavetable_ns_per_frame": 427.939,
+  "granular_ns_per_frame": 2142.007,
+  "spectral_ns_per_frame": 829.603,
+  "filter_route_ns_per_frame": 890.169,
+  "combined_ns_per_frame": 4270.975,
+  "frame_deadline_ns": 20833.333,
+  "prototype_utilization": 0.205007,
+  "mutable_voice_bytes": 8576,
+  "mutable_runtime_bytes": 137216,
+  "immutable_program_bytes": 8388608,
+  "shared_state_bytes": 4194304,
+  "publication_peak_bytes": 25440256,
+  "work_units_per_frame": 36864,
+  "checksum": -1897710.972508184
+}

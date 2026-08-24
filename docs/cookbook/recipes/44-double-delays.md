@@ -20,7 +20,7 @@ Use one or more Tracks feeding two Returns. Shared Returns let several sources c
 
 Use recipe 44 in [`../feasibility.json`](../feasibility.json). It requires two Returns, durable Sends, tempo-synchronized Delay divisions, explicit feedback/mix, and stable routing.
 
-## 4. Support state and known approximation
+## 4. Current behavior and limits
 
 The matrix marks this recipe `direct`. Device division labels differ across DAWs; Crump uses the exact source spelling and its documented straight/dotted/triplet calculation.
 
@@ -56,6 +56,6 @@ Can each rhythm be identified? Do they create useful motion rather than clutter?
 
 Validate unique Send/Return IDs, route acyclicity, division spellings, and Delay domains. Inspect effective Delay times, audition and level-match, then publish one routing change with rationale.
 
-## 12. Related Effect Modules
+## 12. Reuse boundary
 
-This remains a Project-level recipe because it spans two Returns and multiple Sends. A serial filtered Delay inside either Return could later become an Effect Module, but dual routing is not one module.
+This is a Project-level recipe because it spans two Returns and multiple Sends. Dual routing is not an Effect Module.

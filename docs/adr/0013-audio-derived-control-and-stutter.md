@@ -32,6 +32,6 @@ Envelope Followers require current Audio to influence a later control value, but
 
 Envelope Follower state can target earlier or later channels without channel-order semantics because every contribution is delayed one sample. Exact seek uses deterministic preroll; explicit cleared seeks reset pending follower state.
 
-Stutter is a preceding-audio repeater, not a lookahead/oncoming-slice effect and not a proprietary transient-warp mode. A future Tempo Map requires a separately versioned rule because current structural durations compile against one fixed tempo.
+Stutter is a preceding-audio repeater, not a lookahead/oncoming-slice effect or proprietary transient-warp mode. Its structural durations compile against one fixed Song tempo; tempo-varying Stutter duration is unsupported.
 
-General Step, Sample-and-Hold, and standalone random modulation remain deferred until a selected production demonstrates a need beyond deterministic Stutter triggering. Listening and workflow acceptance remain external to these engineering contracts.
+General Step, Sample-and-Hold, and standalone random Modulation sources are unsupported. Deterministic Stutter triggering does not expose them as reusable control sources.

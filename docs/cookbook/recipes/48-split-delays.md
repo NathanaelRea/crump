@@ -20,7 +20,7 @@ Use a Track with two Sends feeding two Returns. The source must contain useful m
 
 Consult recipe 48 in [`../feasibility.json`](../feasibility.json). It requires Returns, Sends, EQ, tempo-synchronized Delay, explicit processor order, and stable dB balance.
 
-## 4. Support state and known approximation
+## 4. Current behavior and limits
 
 The matrix marks the recipe `direct`. Filter slope and named-device behavior are not proprietary equivalents; the fixture demonstrates complementary native EQ bounds and distinct Delay divisions.
 
@@ -56,6 +56,6 @@ Are low repeats clear without mud? Do high repeats stay smooth rather than harsh
 
 Validate EQ domains, Delay divisions, processor order, unique Send IDs, and route acyclicity. Inspect both Returns, audition in context, then publish one explained routing state.
 
-## 12. Related Effect Modules
+## 12. Reuse boundary
 
-A filtered Delay is an initial module candidate because one serial EQ/Delay chain repeats. The two-Return topology and source Sends remain explicit Project routing outside that possible module.
+Each filtered Delay is an ordinary serial processor chain. The two-Return topology and source Sends remain explicit Project routing.

@@ -114,7 +114,7 @@ fn feasibility_matrix_is_complete_exact_and_linked() {
         "## 1. Musical intent and suitable material",
         "## 2. Source kinds",
         "## 3. Required capabilities and minimum version",
-        "## 4. Support state and known approximation",
+        "## 4. Current behavior and limits",
         "## 5. Ordered source/routing/processor actions",
         "## 6. Tempo-relative calculations and physical-unit ranges",
         "## 7. Automation or Modulation shape",
@@ -122,7 +122,7 @@ fn feasibility_matrix_is_complete_exact_and_linked() {
         "## 9. Failure modes and gain staging",
         "## 10. Listening questions",
         "## 11. Validation and publication",
-        "## 12. Related Effect Modules",
+        "## 12. Reuse boundary",
     ];
     let mut ids = BTreeSet::new();
     let mut slugs = BTreeSet::new();

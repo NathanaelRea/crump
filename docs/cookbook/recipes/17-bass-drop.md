@@ -14,13 +14,13 @@ Withhold bass bandwidth before a section boundary, then reveal the full source e
 
 ## 2. Source kinds
 
-Use a bass Instrument Track or a Group containing bass layers. The fixture uses a low synthesized percussion source solely to keep the engineering example small.
+Use a bass Instrument Track or a Group containing bass layers. The fixture uses a low synthesized percussion source solely to keep the example compact.
 
 ## 3. Required capabilities and minimum version
 
 Consult recipe 17 in [`../feasibility.json`](../feasibility.json). The recipe requires EQ, stable processor bypass identity, point Automation, and an exact Locator or musical-time boundary.
 
-## 4. Support state and known approximation
+## 4. Current behavior and limits
 
 The matrix marks this recipe `direct`. The fixture demonstrates a narrow band and bypass reveal; the correct pre-drop band is source- and arrangement-dependent.
 
@@ -56,6 +56,6 @@ Is the pre-drop bass still rhythmically legible? Does the reveal feel larger wit
 
 Validate that the bypass lane is Boolean and step-only, inspect it at times on both sides of the Locator, audition the loop, then publish one explained transition change.
 
-## 12. Related Effect Modules
+## 12. Reuse boundary
 
-This is a Project-level arrangement recipe, not an Effect Module: it owns a Song-time lane and section boundary outside any reusable serial processor chain.
+This Project-level arrangement recipe owns a Song-time lane and section boundary outside any reusable serial processor chain.

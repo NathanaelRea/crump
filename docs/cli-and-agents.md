@@ -41,7 +41,7 @@ The Ratatui `workspace` is interactive and rejects `--json` before emitting term
 | ---: | --- |
 | `0` | Command completed successfully |
 | `1` | Operational failure: I/O, PipeWire, compilation, render, or host failure |
-| `2` | Request blocked or invalid: diagnostics, unsupported value, missing rationale, or acceptance failure |
+| `2` | Request blocked or invalid: diagnostics, unsupported value, missing rationale, or failed check |
 | `3` | Conflict: stale checked edit, existing destination, or already-Active publication |
 
 Clap usage errors also use status `2`. With `--json`, usage errors and help/version requests use the same single-response JSON discipline (`usage_error` for invalid syntax); without it, Clap writes normal human-facing help. Agents should construct commands from `--help`, not probe invalid syntax.
@@ -58,7 +58,7 @@ crump --project ./song --json check
 - `status` succeeds even for an invalid Candidate and reports Candidate/Active identity and state.
 - `validate` exits `2` when blocking diagnostics exist.
 - `inspect` returns the recoverable typed Candidate model, source-file inventory, verified portable-media metadata/hashes, diagnostics, revision state, effective Parameter provenance, compiled processor tail/resource facts, and static Envelope Follower source/tap/target/depth/operator/one-sample-latency contracts at `--at TIME` (default Song time zero) when the Candidate is valid. The requested frame must lie at or before the inclusive Render Range boundary; out-of-range requests are rejected rather than silently clamped.
-- `check` applies the narrower objective 30–60 second Musical Sketch acceptance fixture.
+- `check` applies narrower objective structural requirements for a 30–60 second Musical Sketch.
 
 Diagnostics include stable code, severity, source location, byte range, message, and optional help. An Agent should report those facts rather than replacing them with a vague parse failure.
 
@@ -200,7 +200,7 @@ crump --project ./song --json asset list
 
 `asset import` accepts an external regular WAV only as input. It captures exact bytes, computes lowercase SHA-256, chooses `media/ID.wav`, refuses to replace any existing destination, inserts the source declaration, validates the source-and-binary overlay, and publishes both sides under one recovery journal. Invalid WAVs, stale revisions, unsafe/symbolic-link paths, duplicate IDs/paths, and limit violations leave the declaration and destination unchanged. An external absolute path is never persisted.
 
-`asset collect` moves every valid declaration to `media/ASSET_ID.wav` in one checked source-and-binary History transaction while preserving exact bytes and hashes. It refuses undeclared destination conflicts. `asset bounce` requires Candidate identity to equal the exact Active Revision, deterministically prerolls and captures Master or one Track/Group/Return pre/post-fader tap over a half-open time/Locator range, optionally appends an isolated authored release/effect tail, and publishes stereo float WAV bytes plus a readable generated provenance block atomically. The provenance names source Revision, owner/tap, range, tail, format, versioned algorithm, build, and exact byte hash. Bounce never replaces a Clip or disables processors; placement is a later checked decision.
+`asset collect` moves every valid declaration to `media/ASSET_ID.wav` in one checked source-and-binary History transaction while preserving exact bytes and hashes. It refuses undeclared destination conflicts. `asset bounce` requires Candidate identity to equal the exact Active Revision, deterministically prerolls and captures Master or one Track/Group/Return pre/post-fader tap over a half-open time/Locator range, optionally appends an isolated authored release/effect tail, and publishes stereo float WAV bytes plus a readable generated provenance block atomically. The provenance names source Revision, owner/tap, range, tail, format, versioned algorithm, build, and exact byte hash. Bounce never replaces a Clip or disables processors; placement requires a separate checked edit.
 
 `asset prepare` also requires exact Candidate/Active identity. It reads one verified asset's half-open original-frame region and publishes a new exact-duration asset. `--output-frames` is authoritative, pitch is independently bounded to ±24 semitones, and `effect-v1` exposes only `--formants shift`; preserve is an explicit blocked request. Tagged provenance records source asset/hash/range, output frames, pitch, formants, quality, format, `crump-wsola-effect-v1`, `x86_64-linux`, and build. Preparation is bounded and off-callback, retains the original bytes, and never places or replaces material automatically. `asset list` reports only verified Project-relative identity, exact content hash/length, and WAV container metadata. Missing or changed media remains visible through stable validation diagnostics. Distinct paths with identical content produce a warning rather than an implicit merge.
 
@@ -230,7 +230,7 @@ Agent work is not silently elevated. A running workspace identifies a valid unpu
 
 ## Candidate and Active discipline
 
-The Project source and declared media files on the filesystem form the Candidate. Playback and rendering load exact Active snapshots from `.crump/history`, not current unchecked files. Sampler Instruments decode/resample the preserved Active media off the callback; Media Track playback remains deferred.
+The Project source and declared media files on the filesystem form the Candidate. Playback and rendering load exact Active snapshots from `.crump/history`, not current unchecked files. Sampler Instruments decode/resample the preserved Active media off the callback; Media Track playback is unsupported.
 
 A robust Agent loop is:
 

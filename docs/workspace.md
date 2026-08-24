@@ -127,7 +127,7 @@ The workspace intentionally stays shallow rather than becoming a dense desktop c
 
 ## Graph
 
-Graph is an inspectable topology view. It lists selectable stable Nodes, typed Bus connections, Parameters, and Faceplate mappings in processing order, including Node kinds and setting/Parameter bindings. `↑` / `↓` selects any item; `Enter` opens its exact authoritative source location. `[` / `]` or `←` / `→` changes Instrument. Topology editing is intentionally source-only in the first release; automated whole-graph Structured Source Edits would exceed the accepted slice.
+Graph is an inspectable topology view. It lists selectable stable Nodes, typed Bus connections, Parameters, and Faceplate mappings in processing order, including Node kinds and setting/Parameter bindings. `↑` / `↓` selects any item; `Enter` opens its exact authoritative source location. `[` / `]` or `←` / `→` changes Instrument. Topology creation, deletion, and reconnection are source or Agent operations; whole-graph Structured Source Edits are unsupported.
 
 ## Source
 
@@ -150,7 +150,7 @@ Restoring never deletes or rewrites earlier entries.
 
 ## Playback and publication
 
-Space compiles and prerolls the armed Audition Plan from the Active snapshot before creating PipeWire streams. While running, Space pauses or resumes without destroying transport, voices, processor tails, loop state, or prepared runtime state; `S` explicitly stops. Candidate source or media is never used implicitly. Exact declared media is stored in Active snapshots and sampler Instruments decode/resample it off the callback before playback; Media Track playback remains deferred. When another process publishes a revision while playback is running, the workspace:
+Space compiles and prerolls the armed Audition Plan from the Active snapshot before creating PipeWire streams. While running, Space pauses or resumes without destroying transport, voices, processor tails, loop state, or prepared runtime state; `S` explicitly stops. Candidate source or media is never used implicitly. Exact declared media is stored in Active snapshots and sampler Instruments decode/resample it off the callback before playback; Media Track playback is unsupported. When another process publishes a revision while playback is running, the workspace:
 
 1. loads and validates the exact Active snapshot from History;
 2. resolves the retained audition target/range and deterministically initializes a replacement runtime off the audio thread from the latest observed frame offset;

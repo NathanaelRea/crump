@@ -20,7 +20,7 @@ Use a Track carrying a native Instrument, drums, or a portable sample. Keep the 
 
 Use recipe 10 in [`../feasibility.json`](../feasibility.json) for current support and version facts. The chain needs ordered Delay and Saturation processors plus physical-unit output compensation.
 
-## 4. Support state and known approximation
+## 4. Current behavior and limits
 
 The matrix marks the recipe `direct`. Crump's native Saturation is not Waves OneKnob Driver and the result is not a claim of proprietary-device equivalence.
 
@@ -56,6 +56,6 @@ Is the triplet motion clear? Does distortion add useful density without erasing 
 
 Validate the Candidate, inspect effective tempo-derived Delay time and processor order, audition through Track and Master paths, then publish one explained chain change.
 
-## 12. Related Effect Modules
+## 12. Reuse boundary
 
-A driven triplet-delay treatment is an `effect-module-candidate` in the matrix. M1 deliberately authors the processors directly until repeated identity and Faceplate needs are proven.
+This treatment uses directly authored Track processors. Crump has no Effect Module identity for the chain.

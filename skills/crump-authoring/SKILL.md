@@ -5,14 +5,14 @@ description: Author and revise Crump Musical Sketch projects through readable .c
 
 # Crump Authoring
 
-Crump is agent-ready, not agent-owning. Work beside the application through Project files and `crump --json`; never scrape or automate the terminal UI. Crump contains no model runtime and grants no hidden editing path.
+Work beside Crump through Project files and `crump --json`; never scrape or automate the terminal UI. Crump contains no model runtime and grants no hidden editing path.
 
 ## Authority and scope
 
 1. Read the target Project's `project.crump` and every declared `import` before changing it.
 2. Read the installed Project Language and CLI guides (`docs/language.md` and `docs/cli-and-agents.md` in a source checkout; `/usr/share/doc/crump/docs/language.md` and `/usr/share/doc/crump/docs/cli-and-agents.md` in the Debian package).
 3. For production-recipe requests, use the shared cookbook matrix and linked page (`docs/cookbook/feasibility.json` and `docs/cookbook/README.md` in a source checkout; `/usr/share/doc/crump/docs/cookbook/` in the Debian package). Do not maintain a private recipe or support list in this skill.
-4. Keep certification and implementation distinct. The certified Reference gate remains a 30–60 second no-sample Musical Sketch. Documented roadmap engineering may additionally use portable sampler Instruments, the compiled mix graph/processors, expressive native devices, checked Clip/Locator/arrangement operations, Groove Templates, procedural Pattern Variations, and Pattern Parameter locks when the musician asks for them; never describe those workflows as Slice-accepted. Point Automation and routed sine/triangle LFO Modulation use topology-stable physical-unit targets. Do not invent plugins, recording, Media Tracks, unversioned warp modes, formant preservation, realtime routed pitch, control sources beyond routed LFO and the documented Envelope Follower, or Rust extensions.
+4. Use documented current behavior: portable sampler Instruments, the compiled mix graph and processors, expressive native devices, checked Clip/Locator/arrangement operations, Groove Templates, Pattern Variations, Pattern Parameter Locks, point Automation, routed LFO Modulation, and the Envelope Follower. Do not invent plug-ins, recording, Media Tracks, undocumented warp modes, formant preservation, realtime routed pitch, other routed control sources, or Rust extensions.
 5. Source is authoritative. IDs are durable references, physical units are explicit, graph Buses are typed, and bounds are enforced.
 
 ## Cookbook recipe preflight
@@ -21,13 +21,13 @@ Before applying a named or analogous production recipe:
 
 1. Resolve the exact row in `feasibility.json`; use its recipe ID to avoid confusing duplicate titles such as the two **EZ Chops** chapters.
 2. Confirm the Project material and intended owner match the row's `source_assumptions`. A recipe for a vocal, sample, native Instrument, drums, Track, Return, Group, or Master is not automatically transferable to another source kind.
-3. For `direct`, open the linked cookbook page when present and author its explicit Project changes through the normal source path. An unlinked `direct` row is feasibility evidence only: do not invent its ordered procedure; require explicit musician instructions until a reviewed page exists.
+3. For `direct`, open the linked cookbook page when present and author its explicit Project changes through the normal source path. An unlinked `direct` row is feasibility evidence only: do not invent its ordered procedure; require explicit musician instructions.
 4. For `approximation`, state the missing direct behavior and proposed workaround before editing, and continue only when the musician accepts that difference.
 5. For `blocked`, stop and report the row's `missing_primitives`; do not invent a plug-in, transform, setting, generated asset, or unsupported command.
 6. For `intentional-non-goal`, explain the product boundary and offer only a genuinely different supported task, such as importing an already owned recording.
-7. Check `minimum_crump_version`, follow the page's audition/A-B and gain-staging procedure, and ask the musician to judge the level-matched result. Engineering support never establishes proprietary-device equivalence or musical quality.
+7. Check `minimum_crump_version`, follow the page's audition/A-B and gain-staging procedure, and ask the musician to judge the level-matched result. Recipe support never establishes proprietary-device equivalence or musical quality.
 
-The matrix owns support and packaging facts; linked pages own recipe actions and listening checks. This skill owns only safe orchestration, validation, publication provenance, and honest diagnostics handling.
+The matrix owns support metadata; linked pages own recipe actions and listening checks. This skill owns only safe orchestration, validation, publication provenance, and honest diagnostics handling.
 
 ## Safe authoring loop
 
@@ -118,7 +118,7 @@ crump --project /path/to/project --json asset prepare --source phrase \
   --explanation "Create an exact-duration effect-quality asset while retaining the original bytes"
 ```
 
-Treat `output-frames` as authoritative; calculate it explicitly from the intended duration and Project sample rate. The first mode is `crump-wsola-effect-v1` in deterministic domain `x86_64-linux`, bounded to ±24 semitones, with formants `shift` only. It is effect-quality engineering, not exposed-vocal certification. `preserve`, named DAW warp modes, realtime Track/Group pitch Automation, and cross-platform byte identity remain unsupported. Inspect source asset/hash/range, output frames, pitch, policy, quality, algorithm, domain, build, and output hash. Preparation never places or replaces a Clip; audition and use a separate checked edit.
+Treat `output-frames` as authoritative; calculate it explicitly from the intended duration and Project sample rate. The available algorithm is `crump-wsola-effect-v1` in deterministic domain `x86_64-linux`, bounded to ±24 semitones, with formants `shift` only. `preserve`, named DAW warp modes, realtime Track/Group pitch Automation, and cross-platform byte identity are unsupported. Inspect source asset/hash/range, output frames, pitch, policy, quality, algorithm, domain, build, and output hash. Preparation never places or replaces a Clip; audition and use a separate checked edit.
 
 Never describe reverse, loop, slice map, bounce, or preparation as formant preservation, a routed pitch shifter, destructive freeze, automatic replacement, or proprietary warp equivalence.
 
@@ -128,7 +128,7 @@ Use `gate` for explicit program- or sidechain-driven cleanup/rhythmic opening. N
 
 An Envelope Follower must be authored as the documented `follower` source directive. It is additive physical-unit Modulation: frame N Audio affects frame N+1 controls. Confirm source/tap and destination `modulatable` capability, use finite floor below ceiling, inspect normalized/contribution telemetry, and never promise same-frame feedback.
 
-Use `stutter` only when explicit repeated Events are not clearer. `slice` and `interval` are structural exact musical durations; `interval >= slice`, repeats are finite, crossfade is at most 50%, and `trigger` is rising-edge. Seeded chance is absolute-grid deterministic. Warm-up and active-repeat triggers are ignored and reported; they do not restart or queue. This is preceding-audio capture, not lookahead or proprietary transient warping. Ask the musician to judge the result; engineering timing tests do not establish usefulness.
+Use `stutter` only when explicit repeated Events are not clearer. `slice` and `interval` are structural exact musical durations; `interval >= slice`, repeats are finite, crossfade is at most 50%, and `trigger` is rising-edge. Seeded chance is absolute-grid deterministic. Warm-up and active-repeat triggers are ignored and reported; they do not restart or queue. This is preceding-audio capture, not lookahead or proprietary transient warping. Ask the musician to judge the result; deterministic timing does not establish musical usefulness.
 
 ## Publication boundary
 
@@ -189,11 +189,11 @@ crump --project /path/to/project --json render --output render/delivery \
   --stem track/lead:post_fader --stem group/music:post_fader --plan
 ```
 
-Use `--no-replace` when an existing destination must be treated as a conflict rather than replaced. Repeat `--stem OWNER:TAP` only for requested `track/ID` or `group/ID` owners. Read the planned policy: pre-fader includes upstream routing and owner processing; post-fader also includes owner gain/panner/Mute; neither includes outgoing Sends or downstream Group/Return/Master processing. All files share the Master range and frame count and receive disclosed latency-alignment padding. Do not promise that an arbitrary incomplete stem selection sums to the processed Master.
+Use `--no-replace` when an existing destination must be treated as a conflict rather than replaced. Repeat `--stem OWNER:TAP` only for requested `track/ID` or `group/ID` owners. Read the documented policy: pre-fader includes upstream routing and owner processing; post-fader also includes owner gain/panner/Mute; neither includes outgoing Sends or downstream Group/Return/Master processing. All files share the Master range and frame count and receive disclosed latency-alignment padding. Do not promise that an arbitrary incomplete stem selection sums to the processed Master.
 
 Report `rendered_active_revision`, Candidate/Active match state, frame count, duration, each artifact's finalized-WAV `analysis` metrics (sample/true peak, available loudness/LRA, DC, clipping, and non-finite count), per-file WAV hashes, manifest hash, processing/alignment policy, and output paths. Do not claim identical playback/render audio from a render performed while the intended Candidate is unpublished.
 
-When engineering workload evidence is explicitly requested, plan an exact range before running it:
+When offline workload measurement is explicitly requested, plan an exact range before running it:
 
 ```bash
 crump --project /path/to/project --json qualify --quantum 128 --from drop --to outro --plan
@@ -201,7 +201,7 @@ crump --project /path/to/project --json qualify --quantum 128 --from drop --to o
   --output evidence/drop-q128.json
 ```
 
-Treat this as an offline profile only. Report its `passed`, p99.9, missed-deadline, range, quantum, and build/resource identities, but preserve `pipewire_xruns: null` and the listed external evidence. Never infer target-hardware, realtime-safety, or 30-minute endurance acceptance from `qualify`.
+Treat this as an offline profile only. Report its `passed`, p99.9, missed-deadline, range, quantum, and build/resource identities, but preserve `pipewire_xruns: null` and the listed external evidence. Never infer target-hardware behavior, realtime safety, or 30-minute endurance behavior from `qualify`.
 
 ## Instrument Modules
 

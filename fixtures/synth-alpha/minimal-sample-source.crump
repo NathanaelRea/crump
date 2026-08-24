@@ -1,0 +1,38 @@
+crump-module 2-alpha
+asset source-texture "Deterministic source texture" wav "media/sample-source.wav" sha256 "ae8757e2a42ad7602b7bd6825ab0987444677a8e7f8515d0447e86aa01907de9" {
+  usage sample
+}
+instrument alpha-minimal-sample "Minimal Sample Source" graph {
+  polyphony 4
+  parameter start "Start" ratio 0 0.95 0 0 modulatable
+  faceplate {
+    control start "Start" "Moves the source-region start without stretching" maps start
+  }
+  presentation {
+    section source-panel sources "Sample Source" { node source asset source-texture }
+  }
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    route velocity-start source velocity target start depth 10% map unipolar curve linear order 0 bypass false
+  }
+  graph voice 8 {
+    node source sample_source {
+      asset source-texture
+      start $start
+      end 1
+      loop_mode off
+      direction forward
+      tune 0st
+      level 0.5
+      slice whole 0 48000
+    }
+    node envelope envelope mode ahdsr attack 1ms hold 0ms decay 50ms sustain 1 release 80ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+    node amplifier amplifier level 1
+    node output voice_output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> envelope.gate
+    bus source-audio source.audio -> amplifier.audio
+    bus envelope-gain envelope.control -> amplifier.gain
+    bus output-audio amplifier.audio -> output.audio
+  }
+}

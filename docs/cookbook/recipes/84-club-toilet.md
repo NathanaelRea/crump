@@ -20,7 +20,7 @@ The source assumption is the complete Master route. A Group is safer when only o
 
 Use recipe 84 in [`../feasibility.json`](../feasibility.json). It requires Master EQ, Reverb, ordered processors, durable bypass/Automation for section control, and monitoring-only A/B.
 
-## 4. Support state and known approximation
+## 4. Current behavior and limits
 
 The matrix marks this recipe `direct`. The title describes a production metaphor, not a calibrated acoustic simulation. Native EQ/Reverb do not claim equivalence with the demonstrated DAW devices.
 
@@ -56,6 +56,6 @@ Does the section feel distant without becoming unintelligible? Is the return to 
 
 Validate Master processor settings/order and any bypass lanes, inspect effective values around the transition, audition the complete range, and publish one explained Master change only after listening.
 
-## 12. Related Effect Modules
+## 12. Reuse boundary
 
-A wall/telephone-style serial treatment is an `effect-module-candidate`. M1 keeps the internal EQ/Reverb blocks readable and directly addressable; no opaque preset or Rack is introduced.
+The EQ/Reverb blocks remain readable and directly addressable. Crump has no Effect Module, opaque preset, or Rack for this treatment.

@@ -20,7 +20,7 @@ Suitable matrix assumptions are a native Instrument or drums routed from a Track
 
 Use the capabilities and minimum Crump version in recipe 4 of [`../feasibility.json`](../feasibility.json): Send/Return routing, EQ, Saturation, and source-backed gain.
 
-## 4. Support state and known approximation
+## 4. Current behavior and limits
 
 The matrix marks this recipe `direct`. The captions conflict about whether the demonstrated filter is high-pass or low-pass, so Crump does not infer that missing detail. The fixture uses an explicit bounded low band as one safe example, not a reconstruction of the proprietary chain.
 
@@ -56,6 +56,6 @@ Does the bass read more clearly on small speakers? Is the sub still stable in mo
 
 Validate the complete Candidate, inspect Return order and effective settings, audition the selected range, then publish one explained change. Render the Active Revision only after the musician accepts the balance.
 
-## 12. Related Effect Modules
+## 12. Reuse boundary
 
-A filtered saturation chain may become an Effect Module candidate after repeated examples prove a useful shared interface. M1 uses ordinary Return processors; no module identity exists yet.
+This recipe uses ordinary Return processors. Crump has no Effect Module identity for the chain.

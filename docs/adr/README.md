@@ -6,7 +6,7 @@ Use sequential names such as `0001-authoritative-project-source.md`. Every ADR i
 
 - Status and date.
 - Context and decision drivers when the trade-off is not obvious.
-- Consequences when they constrain later work.
+- Consequences that constrain other work.
 - Alternatives when a reasonable rejected option is likely to recur.
 - Durable evidence links when evidence exists in the tracked repository.
 - Superseded or superseding records, when applicable.

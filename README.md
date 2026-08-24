@@ -1,36 +1,32 @@
 # Crump
 
-Crump is a Linux-first, terminal-first **Guided Production Instrument** for electronic and synthesized music. Familiar production views lead human work, a small declarative language remains the durable Project source, and external Authoring Agents use the same readable files and a versioned `crump --json` command surface.
+Crump is a Linux-first, terminal Guided Production Instrument for electronic and synthesized music. Familiar production views lead human work, a small declarative language remains the durable Project source, and external Authoring Agents use the same readable files and versioned `crump --json` command surface.
 
-The First Public Release is deliberately narrower than a general DAW: it makes, auditions, revises, restores, and renders a 30–60 second no-sample Musical Sketch. Native graph instruments, synthesized percussion, exact musical time, persistent history, deterministic float-WAV rendering, PipeWire playback/MIDI, and the Ratatui Production Workspace are implemented in Rust.
-
-> **Release status:** implementation preview. Automated validation passes, but the public-release hardware endurance run and independent Beginner Musician / Experienced Producer evaluations are still required. See [Release evidence](docs/release-evidence.md). Do not interpret an unverified machine as part of the supported performance baseline.
-
-## What works
+## Capabilities
 
 - Human-readable, lossless `.crump` Project and Instrument Module source
-- Source-located parse, semantic, graph, and resource diagnostics
-- Timeline Tracks, reusable Patterns, procedural Pattern Variations, Clips, named Locators, and deterministic Groove Templates
-- Polyphonic composable DSP graphs, expressive native devices, stock drums, and portable WAV-backed sampler Instruments
-- Source-backed point Automation and Pattern Parameter locks for topology-stable physical-unit targets
-- Sample-accurate effective-value evaluation shared by playback and rendering, with base/Automation/lock/Modulation provenance
-- Keyboard-complete Timeline, Event Grid, Faceplate, Parameters, Automation, Graph, Source, Diagnostics, and History views
-- Native stereo 48 kHz PipeWire playback and transient MIDI 1.0/UMP Note Audition
+- Source-located parse, semantic, graph, route, media, and resource diagnostics
+- Timeline Tracks, reusable Patterns, Pattern Variations, Clips, Locators, and Groove Templates
+- Polyphonic Composable DSP Graphs, stock drums, expressive native devices, and portable WAV-backed sampler Instruments
+- Source-backed point Automation, Pattern Parameter Locks, routed LFO Modulation, and an Envelope Follower
+- Sample-accurate control evaluation shared by playback and rendering, with value provenance
+- Track, Group, Return, Send, sidechain, and Master routing with latency compensation
+- Native EQ, dynamics, Delay, Reverb, Saturation, Chorus/Flanger, Crusher, Stutter, and Limiter processing
+- Keyboard operation across Timeline, Event Grid, Faceplate, Parameters, Automation, Processing, Graph, Source, Diagnostics, and History views
+- Native stereo 48 kHz PipeWire playback and transient MIDI Note Audition
 - Checked source-preserving edits with stale-revision protection
 - Explicit Candidate → Active publication and append-only exact Project History
-- Portable WAV declaration/import/collection, exact content-addressed History ownership, deterministic off-callback decode/resampling, sampler playback, bounce, and exact-frame sample preparation
-- Native Track/Group/Return/Master routing with Sends, sidechains, latency compensation, and bounded Chorus/Flanger, Crusher, Gate/Expander, and finite Stutter processors plus one-sample Envelope Follower control
-- Checked Clip, Locator, arrangement-time, Groove, Variation, and Parameter-lock edits without procedural flattening
-- Safe Active publication through aligned 10 ms transitions: changed-target scalar handoff or equal-power topology fade
-- Deterministic stereo IEEE 32-bit-float Master/Stem bundles with hashes and finalized-file peak, loudness, DC, clipping, and non-finite analysis
-- Versioned exact-range offline workload reports that keep PipeWire, callback-safety, and named-hardware evidence explicitly external
+- Portable WAV import/collection, off-callback decode/resampling, sampler playback, bounce, and exact-frame sample preparation
+- Safe runtime publication through compatible state handoff or an aligned topology fade
+- Deterministic stereo float Master/Stem bundles with hashes and finalized-file audio analysis
+- Versioned exact-range offline workload reports
 - Stable one-response JSON commands for external Authoring Agents
 
-The implemented engineering baseline remains **Production Control Foundation 1A**; this is not completion of the production roadmap or a newly certified release. Later roadmap engineering now includes routed LFO Modulation, the compiled mix graph and native processor floor, Slice 4 forward/reverse bounded-loop sampler playback plus exact-Revision bounce and exact-frame offline sample preparation, Slice 5 expressive-device contracts, Slice 6 linear arrangement/groove workflows, and Slice 7 finalized delivery plus offline workload characterization. Plug-ins, recording, Media Tracks, formant preservation, realtime routed pitch, generated Rust DSP, realtime complete-track qualification, named-hardware evidence, listening gates, and every Slice acceptance gate remain open.
+Crump does not support recording, Media Tracks, third-party plug-ins, arbitrary native extensions, formant preservation, realtime routed pitch, MPE, or non-Linux playback. See [Supported Environment](docs/support.md) for the complete platform and capability limits.
 
 ## Install from source
 
-The reference build target is Ubuntu Desktop 26.04 LTS `amd64` with PipeWire 1.6, WirePlumber, and Rust 1.88 or newer. On Ubuntu/Debian, install the native build dependencies:
+Playback documentation targets Ubuntu Desktop 26.04 LTS `amd64` with PipeWire 1.6, WirePlumber, and Rust 1.88 or newer. On Ubuntu/Debian, install the native build dependencies:
 
 ```bash
 sudo apt install build-essential dpkg-dev pkg-config libpipewire-0.3-dev libclang-dev
@@ -45,32 +41,33 @@ cargo install --path . --locked
 crump doctor
 ```
 
-To build the unconfined Ubuntu `amd64` package candidate, run `packaging/build-deb.sh dist`. It includes the user guides, Reference Project, and provider-neutral Authoring skill as well as the binary. See the [support contract](docs/support.md) for inspection and installation commands. A build without native PipeWire is available for parser, history, and render tooling only:
+To build the unconfined Ubuntu `amd64` package, run `packaging/build-deb.sh dist`. It includes the user guides, Reference Project, and provider-neutral Authoring skill as well as the binary. A build without native PipeWire is available for parser, history, workspace inspection, and render tooling only:
 
 ```bash
 cargo build --release --no-default-features
 ```
 
-## First sketch
+## Start a Project
 
 ```bash
 crump new my-sketch --name "My Sketch"
 cd my-sketch
-crump                 # opens the Production Workspace in a terminal
+crump
 ```
 
 Inside the workspace:
 
-- `Space` starts/stops the exact Active Revision.
-- `1`–`9` select production views, `0` opens Help; `Tab` and `Shift-Tab` move between all views.
+- `Space` starts, pauses, or resumes the exact Active Revision; `S` stops.
+- `1`–`9` and `0` select Timeline through Diagnostics.
+- `Tab` and `Shift-Tab` move between views.
 - Arrow keys select and make bounded source-backed adjustments.
 - `Enter` accepts an exact value; `P` publishes a valid Candidate.
-- `?` shows complete keyboard help; `q` exits.
+- `?` shows keyboard help; `q` exits.
 
-The starter Project is intentionally silent. For a complete 34-second sketch:
+The starter Project is silent. From the repository root, copy [`fixtures/reference/`](fixtures/reference/) to exercise a complete synthesized arrangement:
 
 ```bash
-cp -r /path/to/crump/fixtures/reference neon-steps
+cp -R fixtures/reference neon-steps
 crump --project neon-steps publish \
   --origin human --actor "$USER" \
   --summary "Adopt reference sketch" \
@@ -79,23 +76,20 @@ crump --project neon-steps check
 crump --project neon-steps play
 crump --project neon-steps render --output render/master --plan
 crump --project neon-steps render --output render/master
-# Optional offline range/quantum workload evidence (not a PipeWire test):
 crump --project neon-steps qualify --quantum 128 --plan
 crump --project neon-steps qualify --quantum 128 \
   --output evidence/qualification.json
-# Optional aligned channel delivery:
 crump --project neon-steps render --output render/stems \
-  --stem track/lead:post_fader \
-  --stem group/music:post_fader
+  --stem track/lead:post_fader
 ```
 
-The render bundle always contains analyzed `master.wav` and `manifest.json`; each requested Track/Group tap adds an aligned, independently analyzed and hashed Stem WAV. The complete artifact set is published atomically.
+The render bundle contains analyzed `master.wav` and `manifest.json`; each requested Track or Group tap adds an aligned, independently analyzed and hashed Stem WAV. The complete artifact set is published atomically.
 
-A separate long-form engineering fixture lives in `fixtures/production/`. It is a self-contained 96-bar (3:12) portable-sampler/native-instrument Project used for admission and deterministic grouping tests; it is not independent listening or named-hardware qualification evidence.
+[`fixtures/production/`](fixtures/production/) is a self-contained 96-bar Project used by resource, routing, sampler, and deterministic grouping tests.
 
 ## Safe source workflow
 
-`project.crump`, imported `.crump` modules, and explicitly declared Project-owned media are authoritative. Crump never makes an invalid Candidate audible:
+`project.crump`, imported `.crump` modules, and declared Project-owned media are authoritative. Crump never makes an invalid Candidate audible:
 
 1. Source and declared media files on disk form the **Candidate Revision**.
 2. `validate` checks the complete Candidate and emits source locations.
@@ -103,7 +97,7 @@ A separate long-form engineering fixture lives in `fixtures/production/`. It is 
 4. Playback and rendering consume exact Active snapshots, not unchecked disk state.
 5. Every structured edit and restore creates an append-only **History Entry**.
 
-This lets a musician keep playing the last valid state while a person, editor, or Agent repairs invalid source.
+This lets playback continue from the last valid state while a person, editor, or Agent repairs invalid source.
 
 ## Commands
 
@@ -112,8 +106,7 @@ new  validate  inspect  status  publish  check
 workspace  play  render  qualify  doctor
 history list|show|diff|restore
 edit parameter|track-level|track-pan|note-pitch|event-time|note-duration|event-velocity|hit-voice
-edit automation-create|automation-delete|automation-point-create|automation-point-time|automation-point-value|automation-point-curve|automation-point-delete
-edit clip-*|locator-*|time-*|groove-*|pattern-variation-*|parameter-lock-*
+edit automation-*|clip-*|locator-*|time-*|groove-*|pattern-variation-*|parameter-lock-*
 edit sample-place|sample-move|sample-duplicate|sample-split|sample-trim|sample-slip|sample-fade|sample-gain|sample-pan
 asset import|collect|list
 module export|install|list|inspect
@@ -123,17 +116,17 @@ Every non-interactive command supports `--json` and emits exactly one response w
 
 ## Documentation
 
+- [Documentation index](docs/README.md)
 - [Production Workspace](docs/workspace.md)
-- [Project language](docs/language.md)
+- [Project Language](docs/language.md)
 - [CLI and Authoring Agents](docs/cli-and-agents.md)
-- [Production cookbook and capability matrix](docs/cookbook/README.md)
-- [Provider-neutral Crump Authoring skill](skills/crump-authoring/SKILL.md)
+- [Production Cookbook](docs/cookbook/README.md)
+- [Provider-neutral Authoring skill](skills/crump-authoring/SKILL.md)
 - [Audio, revision transitions, and MIDI](docs/audio-and-midi.md)
 - [History and deterministic rendering](docs/history-and-rendering.md)
-- [Support contract and troubleshooting](docs/support.md)
-- [Release evidence and remaining human gates](docs/release-evidence.md)
+- [Supported environment and troubleshooting](docs/support.md)
+- [Verification](docs/verification.md)
 - [Product contract](requirements/product-contract.md)
-- [First Public Release definition](docs/product/first-public-release.md)
 - [Domain glossary](CONTEXT.md)
 - [Architecture overview](docs/architecture/overview.md)
 

@@ -20,7 +20,7 @@ Use stock synthesized hats or a declared exact-hash WAV in a Sampler Instrument.
 
 Use recipe 35 of [`../feasibility.json`](../feasibility.json). Required capabilities are Pattern Events, sampler regions/fades, EQ, Reverb, tempo-synchronized Delay, and Clip fades.
 
-## 4. Support state and known approximation
+## 4. Current behavior and limits
 
 The matrix marks the recipe `direct`. Crump expresses the roll as explicit Events rather than an opaque roll generator; event spacing and source choice remain musical decisions.
 
@@ -56,6 +56,6 @@ Does the roll increase momentum? Are attacks crisp without clicks? Does stereo m
 
 Validate exact asset hash, regions, fades, Event times, and processor domains. Audition every path, publish the complete intended roll once, reopen, and render the Active Revision when needed.
 
-## 12. Related Effect Modules
+## 12. Reuse boundary
 
-The filtered Reverb/Delay tail may later inform a module candidate. Event creation, sample identity, Clip fades, and arrangement placement remain Project-level recipe actions.
+The Reverb/Delay chain uses ordinary processors. Event creation, sample identity, Clip fades, and arrangement placement are Project-level recipe actions.

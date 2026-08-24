@@ -3,4 +3,6 @@
 Status: Accepted
 Date: 2026-07-28
 
-Crump will persist its exact, action-level Project History across close and reopen rather than delegating ordinary comparison and restoration to Git. The First Public Release retains every entry without automatic expiry or compaction. Restoring an earlier state appends that exact state as a new entry referencing the selected entry; it never deletes history, moves a pointer, or creates a user-visible branch. This gives beginners and Agent workflows a dependable musical change timeline without requiring version-control knowledge. Git integration may create user-requested milestones or branches, but Crump will never silently alter repository history, and Project History remains non-authoritative relative to the current source.
+Crump persists exact action-level Project History across close and reopen rather than delegating ordinary comparison and restoration to Git. Every entry is retained without automatic expiry or compaction.
+
+Restoring an earlier state appends that exact source-and-media snapshot as a new entry referencing the selected entry. Restore never deletes history, moves a pointer, or creates a user-visible branch. Git operations remain user-controlled; Crump never silently changes repository history. Current Project source and the Active pointer, not the History log by itself, determine current state.

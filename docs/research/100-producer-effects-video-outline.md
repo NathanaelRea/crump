@@ -1,6 +1,6 @@
 # 100 producer effects: transcript-derived video outline
 
-**Status:** Draft, informative research; not normative Crump documentation.
+This transcript-derived research is informative and does not define Crump behavior.
 
 ## Source and method
 

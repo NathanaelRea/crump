@@ -1,15 +1,13 @@
-# Serum 2 capabilities and plugin-architecture implications
+# Serum 2 Capabilities and Plug-in Architecture
 
-- **Status:** research note
 - **Retrieved:** 2026-08-21
 - **Serum version priority:** Serum 2; Serum 1 is mentioned only where Xfer makes a direct comparison
-- **Evidence policy:** Xfer Records primary sources only for Serum facts. Repository product contracts are used for Crump facts. Recommendations and inferences are labeled separately.
+- **Evidence policy:** Xfer Records primary sources only. Inferences and source limits are labeled explicitly.
 
 ## Summary
 
 Serum 2 is not merely a larger Serum 1 wavetable synth. Xfer documents three independently selectable primary oscillators spanning wavetable, sample, multisample, granular, and spectral engines; dedicated sub and noise sources; dual filters; a mixer and multi-bus effect graph; substantially expanded modulation; and internal clip and arpeggiator modules. Its product identity also depends on deep content editing, visual feedback, preset/content management, and host integration, not only oscillator DSP.
 
-For Crump, a credible **native Serum-class** destination therefore implies a broad, inspectable instrument platform rather than one monolithic wavetable node. That is compatible with Crump's Composable DSP Graph direction, but much of Serum 2's sample-based breadth is beyond the no-waveform-assets First Public Release. Implementing or hosting a **separate plug-in** is a different architecture: Serum 2 itself is shipped only as 64-bit VST3, AU, and AAX for supported Windows/macOS hosts, while Crump is Linux-first and explicitly excludes third-party plug-in hosting from its First Public Release.
 
 ## Source scope and confidence
 
@@ -114,60 +112,7 @@ Serum 2 is an instrument plug-in for Microsoft Windows and Apple macOS, delivere
 
 No Linux build, standalone application, CLAP build, LV2 build, or 32-bit build is listed. This is an observation about Xfer's stated delivery matrix, not proof that other environments can never run it. The available source set includes no official VST3, AU, or AAX specification, so ABI, process, state, automation, note-expression, and MIDI-output details remain outside this report.
 
-## Implications and recommendations for Crump
-
-Everything in this section is **analysis/recommendation**, not a claim about Serum internals.
-
-### A. Building a Serum-class native synth in Crump
-
-1. **Treat “Serum-class” as a platform capability map, not a single oscillator node.** A sensible native decomposition is typed, reusable sources (wavetable/sample/multisample/granular/spectral, sub, noise), explicit mixer/routing, filters, modulators, and effects. That maps naturally to Crump's existing Composable DSP Graph, Processing Node, Port, Parameter, and Modulation concepts rather than requiring a monolithic built-in instrument. [Crump domain contract](../../CONTEXT.md#product-terms)
-
-2. **Stage scope explicitly.** Crump's First Public Release proves a smaller pitched polyphonic native graph and deliberately does not depend on imported or model-rendered waveform assets; sample support and full Synthesis-Complete breadth are later concerns. Serum 2's sample, multisample, granular, spectral, preset-library, and content-browser breadth should therefore be a long-term benchmark, not an implied first-release requirement. [Crump domain contract, “First Public Release,” “Reference Project,” and “Synthesis-Complete”](../../CONTEXT.md)
-
-3. **Make heterogeneous source routing first-class.** Serum 2's three mode-selectable primaries, two filters, direct/main paths, and two FX buses imply that a parity target needs source-to-filter/FX routing and explicit summing, not a fixed oscillator→filter→amp chain. Crump already requires typed ports, declared cardinality, deterministic summing, and acyclic inter-device routing; native synth routing should preserve those guarantees inside reusable graphs. [Crump domain contract, “Composable DSP Graph,” “Port,” and “Bus”](../../CONTEXT.md)
-
-4. **Do not flatten modulation into automation.** Eight destination-capable macros, source/aux curves, reorderable routes, oscillator/filter sources, four envelopes, and up to ten LFOs imply a graph of per-voice and global controls. Crump should retain source identity, route depth/curve, polarity, scope, and deterministic combination order in human-readable source. Macro-to-macro or source-to-source routes require an explicit cycle policy; Xfer's sources do not reveal one to copy. Crump's contract already distinguishes absolute Automation, Parameter Locks, and additive Modulation. [Crump domain contract, “Automation,” “Parameter Lock,” and “Modulation”](../../CONTEXT.md)
-
-5. **Represent quality as an explicit contract, not a “HQ” label.** Before claiming Serum-class quality, Crump should specify aliasing/oversampling policy per nonlinear or resampling node, latency, realtime/offline equivalence, deterministic randomization, and CPU/resource bounds. The available Xfer evidence cannot supply numeric parity criteria.
-
-6. **Keep sequencing in Crump's durable musical model.** Serum 2 demonstrates that integrated clips/arps are valuable for patch audition and performance. Crump already has Patterns, Clips, Variations, deterministic probability, Automation, and Parameter Locks. Prefer reusable native event processors and Audition Phrases over a second opaque piano-roll document embedded in a synth preset; add arp/event-generator nodes only where they preserve inspectable authored events and deterministic semantics. [Crump domain contract, “Pattern,” “Clip,” “Pattern Variation,” and “Audition Phrase”](../../CONTEXT.md)
-
-7. **Translate the visual workflow rather than copying a GUI.** In Crump, useful Serum-class feedback means inspectable wave/table state, spectra, filter response, modulation activity, envelopes/LFO shapes, routing, and source locations rendered through Progressive Depth and Graph View. The terminal need not reproduce Serum's pixels, but it must make routings and active modulation legible. [Crump domain contract, “Progressive Depth,” “Instrument Faceplate,” and “Graph View”](../../CONTEXT.md)
-
-8. **Prefer portable authored instruments over opaque presets.** Serum's browser demonstrates the value of tags, ratings, preview phrases, packs, and macro previews. Crump can adopt those discovery ideas while retaining Instrument Modules as human-readable graphs/interfaces and Project-owned assets with hashes. Any later SFZ or sample import should define a supported subset, copy assets into the Project, and diagnose missing/changed media under the existing Media Asset contract. [Crump domain contract, “Instrument Module” and “Media Asset”](../../CONTEXT.md)
-
-### B. Implementing Crump's synth as a separate plug-in
-
-1. **This creates a product-delivery matrix, not just DSP reuse.** Matching Serum 2's stated reach would mean maintained VST3, AU, and AAX artifacts across supported Windows/macOS architectures, host-facing parameters/state/events, installers/content locations, GUI behavior, and validation. The supplied evidence does not justify detailed format-specific design; official SDK/specification review would be a prerequisite.
-
-2. **A separate plug-in weakens Crump's native strengths unless source remains authoritative.** Crump requires durable human-readable authored state, stable parameter identities, checked publication, exact history restoration, deterministic playback/render semantics, and inspectable graphs. A plug-in adapter should therefore be generated from the same native graph and parameter schema rather than becoming the canonical instrument document. [Crump domain contract, “Authoritative Source,” “Parameter,” “Project History,” and “Deterministic Evaluation”](../../CONTEXT.md)
-
-3. **Internal event generators enlarge the adapter contract.** Serum 2's arp and clip modules can produce MIDI. A Crump plug-in would need explicit decisions for generated-event output, transport synchronization, host feedback/cycle prevention, and state restoration in each format. Those requirements are additional to audio generation and parameter automation.
-
-4. **Recommendation:** postpone separate plug-in delivery until the native instrument ABI/schema, parameter identity, event timing, state serialization, and render-equivalence tests are stable. Then treat plug-in formats as boundary adapters, not as the core runtime model.
-
-### C. Hosting Serum or another external plug-in inside Crump
-
-1. **Serum 2 is not a direct fit for the documented Crump platform.** Xfer lists only Windows and macOS host environments; Crump is Linux-first. Therefore “host Serum 2” cannot be assumed to work on Crump's supported platform without an unsupported compatibility layer, which should not become a core guarantee.
-
-2. **Hosting is explicitly outside the First Public Release.** The Crump contract says third-party plug-in hosting is outside that release, so it should not be used to satisfy the native-instrument acceptance gate. [Crump domain contract, “First Public Release”](../../CONTEXT.md)
-
-3. **External state needs an explicit opaque boundary.** A future host must decide how plug-in binary state, exposed parameter IDs, external content, latency, generated events, crashes, nondeterminism, and unavailable binaries interact with Authoritative Source, Project History, Media Assets, audition, and offline render. Parameter projection alone cannot make an opaque Serum patch an inspectable Composable DSP Graph.
-
-4. **Recommendation:** if hosting is later pursued, begin with an official-format/specification spike and a deliberately weaker reproducibility contract for external devices. Preserve native instruments as the route to portable, inspectable, synthesis-complete projects; do not redefine “Serum-class native synth” as “Serum happens to load.”
-
-## Decision comparison
-
-| Criterion | Native Serum-class instrument | Separate Crump plug-in | Host Serum/external plug-ins |
-| --- | --- | --- | --- |
-| Fits Linux-first product | Strong | Depends on target formats; Serum's own matrix is not Linux-oriented | Weak for Serum 2 specifically |
-| Human-readable authoritative state | Strong if graph-authored | Strong only if adapter is generated from native schema | Weak; usually requires opaque vendor state |
-| First Public Release alignment | Native subset is central | Not required | Explicitly out of scope |
-| Serum 2 breadth quickly available | Slow; must implement | Slow; same DSP plus adapters | Potentially fast only on a supported host/platform, but non-native |
-| Determinism/inspection | Can satisfy Crump contract | Can if native engine remains canonical | Vendor- and host-dependent |
-| Recommended role | Long-term benchmark, delivered in validated slices | Later distribution boundary | Optional future interoperability, not product core |
-
-## Gaps and verification backlog
+## Source gaps
 
 The following requested details could not be answered confidently from the available official material:
 
@@ -184,15 +129,12 @@ The following requested details could not be answered confidently from the avail
 - Plug-in state, automation, generated-MIDI, note-expression, bus, and host compatibility semantics.
 - Change history after the version 2.0 / March 17, 2025 What's New document; the retrieved product page exposed a 2.1.5 demo URL, but a URL slug alone is not release-note evidence and is not used to infer features.
 
-**Next primary-source step:** obtain the full current Serum 2 in-product manual and official Xfer release notes/support articles, then review the official VST3, Audio Unit, and AAX specifications/SDK documentation before making adapter or hosting decisions. Record exact document versions and archive stable local copies.
-
 ## Sources
 
 ### Kept
 
 - [Xfer Records — Serum 2 product page](https://xferrecords.com/products/serum-2) — current official overview, oscillator descriptions, content counts, formats, and system requirements; retrieved 2026-08-21.
 - [Xfer Records — *What's New in Serum 2*](https://static.xferrecords.com/Serum%202%20What%27s%20New.pdf) — official feature overview, Serum 2 v2.0 / manual v1.0.0 / March 17, 2025; retrieved 2026-08-21.
-- [Crump `CONTEXT.md`](../../CONTEXT.md) — repository-authoritative product and architecture vocabulary used only for Crump facts and recommendations.
 
 ### Dropped or unavailable
 

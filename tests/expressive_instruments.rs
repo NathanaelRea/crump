@@ -1,7 +1,7 @@
-//! Engineering contract for the curated expressive Instrument Modules.
+//! Checks for the curated expressive Instrument Modules.
 //!
-//! These checks prove readable modules, deterministic DSP, and resource admission. They do not
-//! substitute for the independent producer listening gates in `plan-production.md`.
+//! These checks cover readable modules, deterministic DSP, and resource admission. They do not
+//! measure subjective listening quality.
 
 use std::{fs, path::Path};
 

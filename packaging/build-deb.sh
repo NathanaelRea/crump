@@ -17,7 +17,7 @@ cleanup() {
 trap cleanup EXIT
 
 if [[ $(uname -m) != x86_64 || $architecture != amd64 ]]; then
-  printf 'crump: first-release package builds require an x86_64 host and amd64 target\n' >&2
+  printf 'crump: package builds require an x86_64 host and amd64 target\n' >&2
   exit 2
 fi
 
@@ -47,7 +47,7 @@ done < <(find "$repo_root/docs/cookbook" -type f -name '*.md' -print0)
 for relative in \
   docs/adr/0012-prepared-sample-transform-contract.md \
   docs/adr/0013-audio-derived-control-and-stutter.md \
-  docs/capability-roadmap-status.md; do
+  docs/verification.md; do
   install -Dm644 "$repo_root/$relative" "$package_root/usr/share/doc/crump/$relative"
 done
 install -Dm644 "$repo_root/docs/cookbook/feasibility.json" \
@@ -57,8 +57,18 @@ while IFS= read -r -d '' fixture; do
   install -Dm644 "$fixture" \
     "$package_root/usr/share/doc/crump/fixtures/cookbook/$relative"
 done < <(find "$repo_root/fixtures/cookbook" -type f -print0)
-install -Dm644 "$repo_root/fixtures/reference/project.crump" \
-  "$package_root/usr/share/doc/crump/fixtures/reference/project.crump"
+for fixture_set in reference expressive production; do
+  if git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    while IFS= read -r -d '' relative; do
+      install -Dm644 "$repo_root/$relative" "$package_root/usr/share/doc/crump/$relative"
+    done < <(git -C "$repo_root" ls-files -z -- "fixtures/$fixture_set/*")
+  else
+    while IFS= read -r -d '' fixture; do
+      relative=${fixture#"$repo_root/"}
+      install -Dm644 "$fixture" "$package_root/usr/share/doc/crump/$relative"
+    done < <(find "$repo_root/fixtures/$fixture_set" -type f ! -path '*/.crump/*' -print0)
+  fi
+done
 install -Dm644 "$repo_root/fixtures/reference/project.crump" \
   "$package_root/usr/share/doc/crump/examples/reference/project.crump"
 install -Dm644 "$repo_root/skills/crump-authoring/SKILL.md" \
@@ -79,8 +89,8 @@ Depends: libc6, libpipewire-0.3-0 (>= 1.2)
 Installed-Size: $installed_size
 Homepage: https://github.com/nathan/crump
 Description: terminal-first guided production instrument
- Crump authors, auditions, versions, and deterministically renders short
- no-sample electronic Musical Sketches from readable declarative source.
+ Crump authors, auditions, versions, and deterministically renders electronic
+ music Projects from readable declarative source and declared WAV assets.
 CONTROL
 
 mkdir -p "$output_dir"

@@ -1,8 +1,8 @@
 # Expressive native Instrument Modules
 
-Slice 5's engineering fixture lives in [`fixtures/expressive/`](../fixtures/expressive/). Each device is a readable `crump-module 1` source with a concise Faceplate, a deeper Parameter/graph definition, and no opaque preset state. The companion Project imports the modules and exercises velocity, amplitude and timbre envelopes, key tracking, glide, deterministic modulation, stereo unison, shared post-voice effects, and release tails.
+The fixture in [`fixtures/expressive/`](../fixtures/expressive/) contains readable `crump-module 1` Instruments with concise Faceplates, deeper Parameter/graph definitions, and no opaque preset state. The companion Project imports the modules and exercises velocity, amplitude and timbre envelopes, key tracking, glide, deterministic Modulation, stereo unison, shared post-voice effects, and release tails.
 
-These are implementation and resource facts, not listening certification. “Warm,” “deep,” “melodic,” and other musical descriptions remain hypotheses until the independent producer gate in `plan-production.md` is recorded.
+The module names are descriptive labels, not objective claims about subjective sound quality.
 
 | Module | Faceplate / deeper Parameters | Authored voices | Graph work per stored voice | Replacement-aware graph work | Shared post-voice processors |
 | --- | ---: | ---: | ---: | ---: | ---: |

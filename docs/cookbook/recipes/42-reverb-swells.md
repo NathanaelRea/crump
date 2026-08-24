@@ -20,7 +20,7 @@ Use a Track or Group whose Reverb can be safely automated. A Return is preferabl
 
 Consult recipe 42 in [`../feasibility.json`](../feasibility.json). It requires Reverb, point Automation on a physical ratio target, exact Song time, and transient processor bypass for monitoring comparisons.
 
-## 4. Support state and known approximation
+## 4. Current behavior and limits
 
 The matrix marks the recipe `direct`. Native Reverb settings are not a reconstruction of Ableton's decay controls, so judge the Crump tail on its own terms.
 
@@ -56,6 +56,6 @@ Does the swell lead attention into the next section? Is the crest spacious rathe
 
 Validate lane order, domains, and interpolation; inspect effective mix at the opening, crest, and end; audition the range; then publish one explained Automation change.
 
-## 12. Related Effect Modules
+## 12. Reuse boundary
 
-A long-tail ambience chain may become a transparent Effect Module candidate. The Song-scoped Automation lane remains outside the reusable module and must target an exposed module Parameter if such a module is later accepted.
+The ambience chain uses ordinary processors. Its Automation lane is Song-scoped, and Crump has no Effect Module syntax for this chain.

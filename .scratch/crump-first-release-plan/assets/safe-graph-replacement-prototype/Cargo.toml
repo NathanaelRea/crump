@@ -1,8 +1,0 @@
-[package]
-name = "safe-graph-replacement-prototype"
-version = "0.0.0"
-edition = "2024"
-publish = false
-
-[profile.release]
-debug = true
