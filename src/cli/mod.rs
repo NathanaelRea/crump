@@ -1,7 +1,7 @@
 //! Stable human and JSON command surface for external Authoring Agents and scripts.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     ffi::OsString,
     fs::{self, File, OpenOptions},
     io::{IsTerminal, Write},
@@ -14,16 +14,16 @@ use clap::{Args, Parser, Subcommand, ValueEnum, error::ErrorKind};
 use serde_json::{Value, json};
 
 use crate::{
-    dsl::parse_module,
     edit::{
         ArrangementAutomation, ClipPlacement, EditError, GroovePlacement, ParameterLockPlacement,
-        PatternVariationPlacement, SamplePlacement, SampleSliceMapPlacement, apply_structured_edit,
-        collect_media_assets, create_automation_lane, create_automation_point, create_clip,
-        create_groove, create_locator, create_parameter_lock, create_pattern_variation,
-        create_sample_slice_map, delete_arrangement_time, delete_automation_lane,
-        delete_automation_point, delete_clip, delete_groove, delete_locator, delete_parameter_lock,
-        delete_pattern_variation, duplicate_arrangement_time, duplicate_clip,
-        duplicate_sample_occurrence, import_media_asset, insert_arrangement_time, move_clip,
+        PatternVariationPlacement, SamplePlacement, SampleSliceMapPlacement,
+        WavetableImportOptions, apply_structured_edit, collect_media_assets,
+        create_automation_lane, create_automation_point, create_clip, create_groove,
+        create_locator, create_parameter_lock, create_pattern_variation, create_sample_slice_map,
+        delete_arrangement_time, delete_automation_lane, delete_automation_point, delete_clip,
+        delete_groove, delete_locator, delete_parameter_lock, delete_pattern_variation,
+        duplicate_arrangement_time, duplicate_clip, duplicate_sample_occurrence,
+        import_media_asset, import_wavetable_asset, insert_arrangement_time, move_clip,
         move_locator, move_sample_occurrence, place_sample_occurrence, publish_bounce_asset,
         publish_sample_transform_asset, resize_clip, set_clip_fades, set_clip_gain,
         set_clip_groove, set_clip_source_offset, set_clip_transpose, slip_sample_occurrence,
@@ -38,6 +38,7 @@ use crate::{
         bounce::{
             BounceFormatPolicy, BounceRequest, BounceSource, BounceTailPolicy, bounce_revision,
         },
+        generated_audio::encode_float_wav,
         inspect_render_destination, plan_render_stems,
         qualification::qualify_compiled_project,
         render_project,
@@ -46,8 +47,12 @@ use crate::{
         },
     },
     history::{ChangeOrigin, HistoryError, HistoryStore, Publication},
+    instrument_module::{
+        catalog_entry, catalog_matches, render_module_preview, validate_module_source,
+    },
     model::{
-        AutomationInterpolation, ChannelRef, ClipMode, ParameterTarget, TapPoint, parse_pitch,
+        AutomationInterpolation, ChannelRef, ClipMode, ParameterTarget, TapPoint, WavetableMorph,
+        WavetableNormalization, parse_pitch,
     },
     production_view::{
         ExecuteError as ProductionViewError, MoveDirection, Operation as ProductionViewOperation,
@@ -58,7 +63,7 @@ use crate::{
     project_picker::{ProjectSelection, select_project},
     realtime::{PipeWirePlayer, StreamStatus},
     time::parse_musical_time,
-    validate::{check_musical_sketch, validate_instrument_module},
+    validate::check_musical_sketch,
 };
 
 const COMMAND_SCHEMA: u32 = 1;

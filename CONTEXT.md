@@ -322,7 +322,11 @@ A versioned set of delivery measurements derived by reopening the completed ster
 
 ### Qualification Report
 
-A versioned machine-readable record from profiling one exact Active Revision and half-open frame range at a supported offline full-block quantum, with one disclosed short final block when needed. Each block is timed against its exact frame deadline. It binds build, host, and resource identity; timing distribution; deadline and finite-output facts; and the operator's p99.9 threshold. It does not measure PipeWire xruns, device scheduling, or callback safety.
+A versioned machine-readable record from profiling one exact Active Revision and half-open frame range at a supported offline full-block quantum, with one disclosed short final block when needed. Each block is timed against its exact frame deadline. It binds build, host, and resource identity; timing distribution; deadline and finite-output facts; the operator's p99.9 threshold; and the repository checks and genuinely external evidence still required beside the report. `--require-pass` preserves the completed report before returning a failed automated gate. It does not measure PipeWire xruns, device scheduling, or complete callback safety.
+
+### Native Synthesis Compatibility Boundary
+
+The explicit separation between stable source/cache meaning and provisional sound acceptance. `crump 2`, `crump-module 2`, and named exact-input-derived algorithms are stable and fail closed; filter/default/category sound expectations, starter-content credibility, and a Serum-class support claim remain experimental until independent-producer and named Linux/PipeWire/device evidence passes. Offline reports and repository-authored templates cannot cross that boundary.
 
 ### Deterministic Evaluation
 

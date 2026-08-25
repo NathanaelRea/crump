@@ -7,7 +7,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     diagnostic::{Diagnostic, Diagnostics, Severity, SourceLocation},
     media::{AssetInventory, valid_asset_path, valid_sha256},
-    model::{InstrumentKind, NodeKind, PatternEvent, Project},
+    model::{
+        InstrumentKind, MediaAssetUsage, NodeKind, PatternEvent, PresentationItemKind, Project,
+        SOURCE_VERSION_V1, SOURCE_VERSION_V2,
+    },
 };
 
 mod controls;
@@ -17,6 +20,7 @@ mod routing;
 mod tracks;
 
 use controls::{validate_automations, validate_modulations};
+pub(crate) use instruments::validate_graph_for_compile;
 pub use instruments::validate_instrument_module;
 use instruments::{validate_instruments, validate_runtime_graph_voices};
 use patterns::validate_patterns;
@@ -29,6 +33,24 @@ use crate::routing::AuthoredTopology;
 pub const MAX_GRAPH_NODES: u16 = 64;
 /// Maximum graph voices across the Project.
 pub const MAX_GRAPH_VOICES: u32 = 256;
+/// Maximum Buses accepted by one explicit stereo summing input.
+pub const MAX_STEREO_SUM_INPUTS: usize = 64;
+/// Minimum power-of-two wavetable frame length.
+pub const MIN_WAVETABLE_FRAME_LENGTH: u32 = 32;
+/// Maximum power-of-two wavetable frame length.
+pub const MAX_WAVETABLE_FRAME_LENGTH: u32 = 8_192;
+/// Maximum authored frames in one wavetable asset.
+pub const MAX_WAVETABLE_FRAMES: u16 = 256;
+/// Maximum authored samples interpreted by one wavetable asset.
+pub const MAX_WAVETABLE_SAMPLES: u64 = 2_097_152;
+/// Maximum named slice regions on one graph sample source.
+pub const MAX_SAMPLE_SLICES: usize = 256;
+/// Maximum authored zones on one graph multisample source.
+pub const MAX_MULTISAMPLE_ZONES: usize = 256;
+/// Maximum sinusoidal peaks retained and resynthesized per spectral frame.
+pub const MAX_SPECTRAL_PEAKS: usize = 128;
+/// Maximum spectral source Nodes admitted in one voice graph.
+pub const MAX_SPECTRAL_SOURCES_PER_VOICE: usize = 2;
 /// Maximum explicit render tail.
 pub const MAX_RENDER_TAIL_SECONDS: f64 = 30.0;
 /// First-release supported render/playback sample rate.
@@ -41,6 +63,18 @@ pub const MAX_AUTOMATION_POINTS_PER_LANE: usize = 1_024;
 pub const MAX_AUTOMATION_POINTS: usize = 8_192;
 /// Maximum dense effective-value slots evaluated on every authored sample frame.
 pub const MAX_CONTROL_TARGETS: usize = 1_024;
+/// Maximum authored Instrument Modulation sources evaluated per sample.
+pub const MAX_INSTRUMENT_MODULATION_SOURCES: usize = 64;
+/// Maximum normalized macro Parameters exposed by one Instrument.
+pub const MAX_INSTRUMENT_MACROS: usize = 8;
+/// Maximum reusable Instrument-owned LFO source programs.
+pub const MAX_INSTRUMENT_LFOS: usize = 16;
+/// Maximum authored generated-view sections per Instrument.
+pub const MAX_PRESENTATION_SECTIONS: usize = 16;
+/// Maximum source-backed presentation references per Instrument.
+pub const MAX_PRESENTATION_ITEMS: usize = 256;
+/// Maximum searchable tags carried by one Instrument presentation.
+pub const MAX_INSTRUMENT_TAGS: usize = 16;
 /// Maximum authored Modulation routes evaluated per sample.
 pub const MAX_MODULATION_ROUTES: usize = 256;
 /// Maximum route-local arithmetic operations per Modulation route.
@@ -59,6 +93,8 @@ pub(crate) fn validate_project_with_topology(project: &Project) -> (Diagnostics,
     let mut diagnostics = Diagnostics::new();
     validate_project_header(project, &mut diagnostics);
     validate_media_assets(project, &mut diagnostics);
+    validate_graph_assets(project, &mut diagnostics);
+    validate_presentation_assets(project, &mut diagnostics);
     let topology = AuthoredTopology::compile(project);
     validate_instruments(&project.song.instruments, &mut diagnostics);
     validate_patterns(project, &mut diagnostics);
@@ -115,6 +151,60 @@ pub(crate) fn validate_project_with_topology(project: &Project) -> (Diagnostics,
 pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) -> Diagnostics {
     let mut diagnostics = Diagnostics::new();
     for declaration in &project.assets {
+        if let Some(asset) = inventory.get(&declaration.id)
+            && let Err(message) = crate::media::validate_finite_wav_samples(asset)
+        {
+            located_error(
+                &mut diagnostics,
+                "CRV199",
+                format!(
+                    "media asset `{}` contains invalid sample data: {message}",
+                    declaration.id
+                ),
+                &declaration.location,
+            );
+        }
+        if let Some(wavetable) = &declaration.wavetable {
+            match inventory.get(&declaration.id) {
+                None => located_error(
+                    &mut diagnostics,
+                    "CRV197",
+                    format!(
+                        "wavetable asset `{}` is not loaded from its exact declared bytes",
+                        declaration.id
+                    ),
+                    &declaration.location,
+                ),
+                Some(asset) if asset.metadata().channels != 1 => located_error(
+                    &mut diagnostics,
+                    "CRV197",
+                    format!(
+                        "wavetable asset `{}` must be a mono WAV; found {} channels",
+                        declaration.id,
+                        asset.metadata().channels
+                    ),
+                    &declaration.location,
+                ),
+                Some(asset) => {
+                    let expected = u64::from(wavetable.frame_length)
+                        .saturating_mul(u64::from(wavetable.frames));
+                    if asset.metadata().frames != expected {
+                        located_error(
+                            &mut diagnostics,
+                            "CRV197",
+                            format!(
+                                "wavetable asset `{}` declares {} frames × {} samples = {expected}, but the WAV contains {} frames",
+                                declaration.id,
+                                wavetable.frames,
+                                wavetable.frame_length,
+                                asset.metadata().frames
+                            ),
+                            &declaration.location,
+                        );
+                    }
+                }
+            }
+        }
         if declaration.generated.is_some()
             && let Some(asset) = inventory.get(&declaration.id)
             && asset.metadata().sample_rate != project.sample_rate
@@ -130,6 +220,71 @@ pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) ->
                 ),
                 &declaration.location,
             );
+        }
+    }
+    for instrument in &project.song.instruments {
+        for node in instrument
+            .graph
+            .iter()
+            .chain(instrument.shared_graph.iter())
+            .flat_map(|graph| &graph.nodes)
+        {
+            match node.kind {
+                NodeKind::SampleSource => {
+                    let Some(crate::model::SettingValue::Text(asset_id)) = node.setting("asset")
+                    else {
+                        continue;
+                    };
+                    let Some(asset) = inventory.get(asset_id) else {
+                        continue;
+                    };
+                    for directive in &node.directives {
+                        if directive.tokens.len() == 4
+                            && directive.tokens[0].value == "slice"
+                            && let Ok(end) = directive.tokens[3].value.parse::<u64>()
+                            && end > asset.metadata().frames
+                        {
+                            source_site_error(
+                                &mut diagnostics,
+                                "CRV198",
+                                format!(
+                                    "sample slice `{}` ends at frame {end}, beyond asset `{asset_id}` length {}",
+                                    directive.tokens[1].value,
+                                    asset.metadata().frames
+                                ),
+                                &directive.tokens[3].site,
+                            );
+                        }
+                    }
+                }
+                NodeKind::Multisample => {
+                    for directive in &node.directives {
+                        let tokens = &directive.tokens;
+                        if tokens.len() != 26 || tokens[0].value != "zone" {
+                            continue;
+                        }
+                        let Some(asset) = inventory.get(&tokens[3].value) else {
+                            continue;
+                        };
+                        if let Ok(end) = tokens[21].value.parse::<u64>()
+                            && end > asset.metadata().frames
+                        {
+                            source_site_error(
+                                &mut diagnostics,
+                                "CRV198",
+                                format!(
+                                    "multisample zone `{}` ends at frame {end}, beyond asset `{}` length {}",
+                                    tokens[1].value,
+                                    tokens[3].value,
+                                    asset.metadata().frames
+                                ),
+                                &tokens[21].site,
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
         }
     }
     for instrument in &project.song.instruments {
@@ -230,6 +385,35 @@ pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) ->
                         event.site(),
                     );
                 }
+            }
+        }
+    }
+    if !diagnostics.has_errors() {
+        let topology = AuthoredTopology::compile(project);
+        if let (Ok(sample_bytes), Ok(mut estimate)) = (
+            crate::engine::sample::CompiledSampleLibrary::estimated_allocation_bytes_for_project(
+                project,
+                inventory,
+                project.sample_rate,
+            ),
+            crate::engine::mix_graph::CompiledMixGraph::resource_estimate_for_validation(
+                project, &topology,
+            ),
+        ) {
+            estimate.include_additional_instrument_program_bytes(sample_bytes);
+            if !estimate.admitted {
+                diagnostics.push(
+                    Diagnostic::error(
+                        "CRV092",
+                        format!(
+                            "compiled exact-asset runtime exceeds a named budget: {} bytes at publication (budget {})",
+                            estimate.publication_peak_bytes, estimate.publication_budget_bytes
+                        ),
+                    )
+                    .with_help(
+                        "reduce referenced sample duration, graph voices, processor state, or Track count",
+                    ),
+                );
             }
         }
     }
@@ -407,7 +591,226 @@ impl CheckResult {
     }
 }
 
+fn validate_graph_assets(project: &Project, diagnostics: &mut Diagnostics) {
+    let assets = project
+        .assets
+        .iter()
+        .map(|asset| (asset.id.as_str(), asset))
+        .collect::<BTreeMap<_, _>>();
+    for instrument in &project.song.instruments {
+        for node in instrument
+            .graph
+            .iter()
+            .chain(instrument.shared_graph.iter())
+            .flat_map(|graph| &graph.nodes)
+        {
+            match node.kind {
+                NodeKind::Wavetable
+                | NodeKind::SampleSource
+                | NodeKind::Granular
+                | NodeKind::Spectral => {
+                    let Some(setting) = node.settings.iter().find(|setting| setting.key == "asset")
+                    else {
+                        located_error(
+                            diagnostics,
+                            "CRV196",
+                            format!(
+                                "{} node `{}` requires one Project-owned asset setting",
+                                match node.kind {
+                                    NodeKind::Wavetable => "wavetable",
+                                    NodeKind::Granular => "granular",
+                                    NodeKind::Spectral => "spectral",
+                                    _ => "sample_source",
+                                },
+                                node.id
+                            ),
+                            &node.location,
+                        );
+                        continue;
+                    };
+                    let crate::model::SettingValue::Text(asset_id) = &setting.value else {
+                        continue;
+                    };
+                    match assets.get(asset_id.as_str()) {
+                        None => source_site_error(
+                            diagnostics,
+                            "CRV196",
+                            format!(
+                                "{} node `{}` references missing Project asset `{asset_id}`",
+                                match node.kind {
+                                    NodeKind::Wavetable => "wavetable",
+                                    NodeKind::Granular => "granular",
+                                    NodeKind::Spectral => "spectral",
+                                    _ => "sample_source",
+                                },
+                                node.id
+                            ),
+                            &setting.value_site,
+                        ),
+                        Some(asset)
+                            if node.kind == NodeKind::Wavetable
+                                && (!asset.usages.contains(&MediaAssetUsage::Wavetable)
+                                    || asset.wavetable.is_none()) =>
+                        {
+                            source_site_error(
+                                diagnostics,
+                                "CRV196",
+                                format!(
+                                    "asset `{asset_id}` is not declared with complete wavetable metadata"
+                                ),
+                                &setting.value_site,
+                            );
+                        }
+                        Some(asset)
+                            if node.kind == NodeKind::SampleSource
+                                && !asset.usages.contains(&MediaAssetUsage::Sample) =>
+                        {
+                            source_site_error(
+                                diagnostics,
+                                "CRV196",
+                                format!("asset `{asset_id}` is not declared for sample usage"),
+                                &setting.value_site,
+                            );
+                        }
+                        Some(asset)
+                            if node.kind == NodeKind::Granular
+                                && !asset.usages.contains(&MediaAssetUsage::Granular) =>
+                        {
+                            source_site_error(
+                                diagnostics,
+                                "CRV196",
+                                format!("asset `{asset_id}` is not declared for granular usage"),
+                                &setting.value_site,
+                            );
+                        }
+                        Some(asset)
+                            if node.kind == NodeKind::Spectral
+                                && !asset.usages.contains(&MediaAssetUsage::Spectral) =>
+                        {
+                            source_site_error(
+                                diagnostics,
+                                "CRV196",
+                                format!("asset `{asset_id}` is not declared for spectral usage"),
+                                &setting.value_site,
+                            );
+                        }
+                        Some(_) => {}
+                    }
+                }
+                NodeKind::Multisample => {
+                    for directive in &node.directives {
+                        let tokens = &directive.tokens;
+                        if tokens.len() < 4
+                            || tokens[0].value != "zone"
+                            || tokens[2].value != "asset"
+                        {
+                            continue;
+                        }
+                        let asset_id = &tokens[3];
+                        match assets.get(asset_id.value.as_str()) {
+                            None => source_site_error(
+                                diagnostics,
+                                "CRV196",
+                                format!(
+                                    "multisample zone references missing Project asset `{}`",
+                                    asset_id.value
+                                ),
+                                &asset_id.site,
+                            ),
+                            Some(asset)
+                                if !asset.usages.contains(&MediaAssetUsage::Multisample) =>
+                            {
+                                source_site_error(
+                                    diagnostics,
+                                    "CRV196",
+                                    format!(
+                                        "asset `{}` is not declared for multisample usage",
+                                        asset_id.value
+                                    ),
+                                    &asset_id.site,
+                                );
+                            }
+                            Some(_) => {}
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn validate_presentation_assets(project: &Project, diagnostics: &mut Diagnostics) {
+    let assets = project
+        .assets
+        .iter()
+        .map(|asset| asset.id.as_str())
+        .collect::<BTreeSet<_>>();
+    for instrument in &project.song.instruments {
+        if project.source_version < SOURCE_VERSION_V2
+            && !instrument.presentation.sections.is_empty()
+        {
+            located_error(
+                diagnostics,
+                "CRV194",
+                "Instrument presentation metadata requires source version 2",
+                &instrument.location,
+            );
+        }
+        for item in instrument
+            .presentation
+            .sections
+            .iter()
+            .flat_map(|section| &section.items)
+        {
+            if item.kind == PresentationItemKind::Asset && !assets.contains(item.id.as_str()) {
+                source_site_error(
+                    diagnostics,
+                    "CRV194",
+                    format!(
+                        "Instrument `{}` presentation references missing Project asset `{}`",
+                        instrument.id, item.id
+                    ),
+                    &item.id_site,
+                );
+            }
+        }
+    }
+}
+
 fn validate_project_header(project: &Project, diagnostics: &mut Diagnostics) {
+    if !matches!(
+        project.source_version,
+        SOURCE_VERSION_V1 | SOURCE_VERSION_V2
+    ) {
+        diagnostics.push(Diagnostic::error(
+            "CRV189",
+            format!(
+                "Project source version {} is unsupported; expected {SOURCE_VERSION_V1} or {SOURCE_VERSION_V2}",
+                project.source_version
+            ),
+        ));
+    }
+    if project.source_version == SOURCE_VERSION_V1 {
+        for instrument in &project.song.instruments {
+            if instrument
+                .parameters
+                .iter()
+                .any(|parameter| parameter.macro_source)
+                || !instrument.modulation_sources.is_empty()
+                || !instrument.modulation_routes.is_empty()
+                || instrument.shared_graph.is_some()
+                || !instrument.voicing.is_legacy_default()
+            {
+                located_error(
+                    diagnostics,
+                    "CRV190",
+                    "Instrument-owned Modulation, macro Parameters, shared graphs, and non-default voicing require source version 2",
+                    &instrument.location,
+                );
+            }
+        }
+    }
     if !valid_id(&project.id) {
         diagnostics.push(Diagnostic::error(
             "CRV001",
@@ -484,6 +887,73 @@ fn validate_media_assets(project: &Project, diagnostics: &mut Diagnostics) {
                 ),
                 &asset.location,
             );
+        }
+        if project.source_version < SOURCE_VERSION_V2
+            && (!asset.usages.is_empty() || asset.wavetable.is_some())
+        {
+            located_error(
+                diagnostics,
+                "CRV196",
+                "asset synthesis metadata requires source version 2",
+                &asset.location,
+            );
+        }
+        let unique_usages = asset.usages.iter().copied().collect::<BTreeSet<_>>();
+        if unique_usages.len() != asset.usages.len() {
+            located_error(
+                diagnostics,
+                "CRV196",
+                format!("media asset `{}` repeats a synthesis usage", asset.id),
+                &asset.location,
+            );
+        }
+        let declares_wavetable = asset.usages.contains(&MediaAssetUsage::Wavetable);
+        if declares_wavetable != asset.wavetable.is_some() {
+            located_error(
+                diagnostics,
+                "CRV196",
+                format!(
+                    "media asset `{}` must pair `usage wavetable` with complete wavetable metadata",
+                    asset.id
+                ),
+                &asset.location,
+            );
+        }
+        if let Some(wavetable) = &asset.wavetable {
+            if !wavetable.frame_length.is_power_of_two()
+                || !(MIN_WAVETABLE_FRAME_LENGTH..=MAX_WAVETABLE_FRAME_LENGTH)
+                    .contains(&wavetable.frame_length)
+            {
+                source_site_error(
+                    diagnostics,
+                    "CRV196",
+                    format!(
+                        "wavetable frame_length must be a power of two from {MIN_WAVETABLE_FRAME_LENGTH} to {MAX_WAVETABLE_FRAME_LENGTH}"
+                    ),
+                    &wavetable.frame_length_site,
+                );
+            }
+            if !(1..=MAX_WAVETABLE_FRAMES).contains(&wavetable.frames) {
+                source_site_error(
+                    diagnostics,
+                    "CRV196",
+                    format!("wavetable frames must be from 1 to {MAX_WAVETABLE_FRAMES}"),
+                    &wavetable.frames_site,
+                );
+            }
+            let samples =
+                u64::from(wavetable.frame_length).saturating_mul(u64::from(wavetable.frames));
+            if samples > MAX_WAVETABLE_SAMPLES {
+                located_error(
+                    diagnostics,
+                    "CRV196",
+                    format!(
+                        "wavetable asset `{}` declares {samples} samples; maximum is {MAX_WAVETABLE_SAMPLES}",
+                        asset.id
+                    ),
+                    &asset.location,
+                );
+            }
         }
     }
 }

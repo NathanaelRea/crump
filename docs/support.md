@@ -44,7 +44,7 @@ sudo apt install ./dist/crump_0.1.0_amd64.deb
 crump --version
 ```
 
-The builder uses `dpkg-deb` on Ubuntu and a deterministic GNU `ar`/GNU `tar` fallback on other developer hosts. The package installs the binary, user guides, Reference Project, and provider-neutral Authoring skill.
+The builder uses `dpkg-deb` on Ubuntu and a deterministic GNU `ar`/GNU `tar` fallback on other developer hosts. The package installs the binary, user guides, Reference Project, starter Instrument library, deep-house integration Project, and native-synthesis qualification fixtures. Generated renders and `.crump` working History are intentionally excluded.
 
 ## Diagnostics
 
@@ -112,7 +112,9 @@ systemctl --user status pipewire wireplumber
 
 Also record the OS/update date, CPU and memory, audio/MIDI make/model and USB IDs, sink/profile/rate/quantum, RTKit scheduling, reproduction steps, executable SHA-256, Locator range and quantum used by `qualify`, and relevant Crump/PipeWire counters.
 
-A `qualify` report times only the offline engine and leaves `pipewire_xruns` as `null`. PipeWire xruns and device behavior must be observed through the live graph.
+A `qualify` report times only the offline engine and leaves `pipewire_xruns` as `null`. PipeWire xruns and device behavior must be observed through the live graph. Use `--require-pass` when automation must fail on an offline threshold miss; the report is still written before the nonzero exit.
+
+For native-synthesis qualification and escalation, follow the exact [Milestone 8 runbook](qualification/native-synthesis.md) and attach an [automated run record](evidence/native-synthesis-m8/automated-run-template.json). Producer credibility requires an independently completed [producer record](evidence/native-synthesis-m8/producer-template.md). Realtime support claims require a completed [named hardware/PipeWire endurance record](evidence/native-synthesis-m8/hardware-endurance-template.md); offline reports and blank templates do not substitute for either.
 
 Do not publish usernames, home paths, unrelated PipeWire node names, environment variables, Project source, or Agent prompts unless needed and approved.
 

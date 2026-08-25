@@ -1,0 +1,81 @@
+crump-module 2
+instrument dh-bass "Deep House Bass" graph {
+  polyphony 1
+  voicing mono retrigger legato glide 55ms glide_mode legato note_priority last steal_priority release_oldest seed 7101
+  parameter cutoff "Cutoff" hz 70hz 2400hz 340hz 420hz automatable modulatable
+  parameter drive "Drive" ratio 0 1 0.16 0.2 automatable modulatable
+  faceplate {
+    control cutoff "Cutoff" "Balances the sub foundation and analog overtones" maps cutoff
+    control drive "Drive" "Adds bounded ladder color" maps drive
+  }
+  presentation {
+    tags bass deep-house analog mono
+    preview C1 C3 velocity 45% 95% duration 1beat
+    section source-panel sources "Analog and Sub Sources" {
+      node sub
+      node body
+    }
+    section filter-panel filters "Bass Filter" {
+      node filter
+      parameter cutoff
+      parameter drive
+    }
+  }
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source drift lfo instrument bipolar triangle sync 2bar phase 0
+    route velocity-cutoff source velocity target cutoff depth 420hz map unipolar curve smoothstep order 0 bypass false
+    route drift-cutoff source drift target cutoff depth 55hz map bipolar curve linear order 10 bypass false
+  }
+  graph voice 10 {
+    node sub analog_oscillator {
+      waveform sine
+      unison 1
+      coarse -12st
+      fine 0st
+      phase 0
+      random_phase 0
+      detune 0st
+      blend 1
+      width 0
+      drift 0st
+      glide 55ms
+      velocity_amount 0.15
+      level 0.42
+      pan 0
+    }
+    node body analog_oscillator {
+      waveform saw
+      unison 2
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 0.1
+      detune 0.04st
+      blend 0.82
+      width 0.12
+      drift 0.01st
+      glide 55ms
+      velocity_amount 0.25
+      level 0.2
+      pan 0
+    }
+    node sources stereo_mixer a_level 1 b_level 0.72
+    node envelope envelope mode ahdsr attack 3ms hold 0ms decay 180ms sustain 0.66 release 180ms attack_curve 0 decay_curve -0.15 release_curve 0 retrigger legato
+    node filter stereo_filter model ladder_drive mode lowpass cutoff $cutoff resonance 0.16 drive $drive mix 1 pan 0 mod_depth 0hz velocity_depth 0hz key_track 0.12 key_reference 130.812783hz
+    node voice-out output
+    bus sub-pitch note.pitch -> sub.pitch
+    bus sub-gain envelope.control -> sub.gain
+    bus sub-velocity note.velocity -> sub.velocity
+    bus body-pitch note.pitch -> body.pitch
+    bus body-gain envelope.control -> body.gain
+    bus body-velocity note.velocity -> body.velocity
+    bus envelope-gate note.gate -> envelope.gate
+    bus source-a sub.audio -> sources.a
+    bus source-b body.audio -> sources.b
+    bus filter-audio sources.audio -> filter.audio
+    bus filter-key note.pitch -> filter.key
+    bus filter-velocity note.velocity -> filter.velocity
+    bus output-audio filter.audio -> voice-out.audio
+  }
+}

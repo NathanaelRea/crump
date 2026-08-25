@@ -62,9 +62,11 @@ fn expressive_fixture_is_deterministic_finite_stereo_and_admitted() {
     let resources = &compiled.mix_graph_inspection().resources;
     assert!(resources.admitted);
     assert_eq!(resources.graph_voices, 27);
-    assert_eq!(resources.graph_node_instances, 506);
+    // Includes authored Nodes plus lowered Instrument/Song modulation operations in both
+    // preallocated graph voice slots.
+    assert_eq!(resources.graph_node_instances, 576);
     assert_eq!(resources.processors, 6);
-    assert_eq!(resources.work_units_per_frame, 2_437);
+    assert_eq!(resources.work_units_per_frame, 2_507);
     assert_eq!(resources.publication_runtime_slots, 2);
     assert!(resources.graph_voice_state_bytes > 100_000);
     assert!(resources.processor_state_bytes > 1_000_000);

@@ -1,0 +1,63 @@
+crump 2
+project "Instrument Modulation" {
+  id instrument-modulation
+  seed 41
+  sample_rate 48000
+  render_tail 100ms
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument lead "Lead" graph {
+      polyphony 2
+      parameter macro "Macro" ratio 0 1 0.5 0.5 automatable modulatable macro
+      parameter tone "Tone" ratio 0 1 0.1 0.2 automatable modulatable
+      faceplate {
+        control macro "Macro" "Scales timbre" maps macro
+        control tone "Tone" "Oscillator level" maps tone
+      }
+      modulation {
+        source macro-source parameter macro global unipolar
+        source motion lfo instrument bipolar sine free 1hz phase 0.25
+        source velocity note_velocity per_voice unipolar
+        source key-position note_key per_voice bipolar reference C4 range 24st
+        source note-gate note_gate per_voice unipolar
+        source note-age note_age per_voice unipolar duration 1s
+        source random random_hold per_voice bipolar rate free 4hz seed 91
+        source envelope port envelope.control per_voice unipolar
+        source graph-lfo port graph-lfo.control per_voice bipolar
+        route macro-tone source macro-source target tone depth 0.2 map unipolar curve linear order -20 bypass false
+        route motion-tone source motion target tone depth 0.1 map bipolar curve smoothstep order -10 bypass false
+        route velocity-tone source velocity target tone depth 0.1 map unipolar curve linear order 0 bypass false
+        route key-tone source key-position target tone depth 0.05 map bipolar curve linear order 10 bypass false
+        route gate-tone source note-gate target tone depth 0.02 map unipolar curve linear order 20 bypass false
+        route age-tone source note-age target tone depth 0.02 map unipolar curve power(2) order 30 bypass false
+        route random-tone source random target tone depth 0.01 map bipolar curve linear order 40 bypass false
+        route envelope-tone source envelope target tone depth 0.2 map unipolar curve smoothstep order 50 bypass false {
+          auxiliary macro-source multiply
+          clamp 0 1
+        }
+        route graph-lfo-tone source graph-lfo target tone depth 0.02 map bipolar curve linear order 60 bypass false
+      }
+      graph voice 6 {
+        node envelope envelope attack 1ms decay 20ms sustain 0.8 release 40ms
+        node graph-lfo lfo waveform triangle rate 2hz depth 1
+        node oscillator oscillator waveform saw level $tone
+        node widen mono_to_stereo
+        node out output
+        bus gate note.gate -> envelope.gate
+        bus pitch note.pitch -> oscillator.pitch
+        bus audio oscillator.audio -> widen.audio
+        bus output widen.audio -> out.audio
+      }
+    }
+    modulation song-tone lfo global bipolar triangle free 0.5hz target instrument/lead/tone depth 0.01
+    pattern notes 1bar {
+      note 0beat C4 1beat 0.8
+      note 2beat E4 1beat 0.5
+    }
+    track lead-track "Lead" instrument lead level -12db pan 0 {
+      clip lead-clip pattern notes start 0bar duration 1bar mode once
+    }
+  }
+}

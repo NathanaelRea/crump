@@ -1,0 +1,48 @@
+crump-module 2
+instrument dh-lead "Deep House Wavetable Lead" graph {
+  polyphony 8
+  parameter position "Table Position" ratio 0 1 0.2 0.3 automatable modulatable
+  parameter level "Level" ratio 0 1 0.32 0.32 modulatable
+  faceplate {
+    control position "Color" "Scans the exact four-frame wavetable" maps position
+    control level "Level" "Sets the source layer level" maps level
+  }
+  presentation {
+    tags lead wavetable bright
+    preview C4 C6 velocity 45% 95% duration 1/2beat
+    section source-panel sources "Wavetable Source" {
+      node source
+      asset wt-basic
+    }
+  }
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source motion lfo instrument bipolar sine sync 2bar phase 0.25
+    route velocity-position source velocity target position depth 18% map unipolar curve smoothstep order 0 bypass false
+    route motion-position source motion target position depth 12% map bipolar curve linear order 10 bypass false
+    route velocity-level source velocity target level depth 18% map unipolar curve linear order 20 bypass false
+  }
+  graph voice 7 {
+    node source wavetable {
+      asset wt-basic
+      unison 2
+      phase 0
+      random_phase 0.1
+      table_position $position
+      detune 0.06st
+      blend 0.9
+      width 0.6
+      drift 0.01st
+      velocity_amount 0.2
+      level $level
+      pan 0
+    }
+    node envelope envelope mode ahdsr attack 2ms hold 2ms decay 160ms sustain 0.08 release 260ms attack_curve 0 decay_curve -0.2 release_curve 0 retrigger always
+    node voice-out output
+    bus source-pitch note.pitch -> source.pitch
+    bus source-gain envelope.control -> source.gain
+    bus source-velocity note.velocity -> source.velocity
+    bus envelope-gate note.gate -> envelope.gate
+    bus output-audio source.audio -> voice-out.audio
+  }
+}

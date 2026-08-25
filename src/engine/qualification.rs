@@ -112,7 +112,11 @@ pub struct QualificationReport {
     pub resources: RuntimeResourceEstimate,
     /// Whether every offline machine-checkable threshold passed.
     pub passed: bool,
-    /// Evidence this offline harness deliberately cannot provide.
+    /// Repository checks that must accompany this report but are not run by this harness.
+    #[serde(default, alias = "automated_evidence")]
+    pub automated_evidence_required: Vec<String>,
+    /// Genuinely external evidence this offline harness cannot provide.
+    #[serde(default)]
     pub external_evidence_required: Vec<String>,
     /// PipeWire xruns are intentionally absent from offline profiling.
     pub pipewire_xruns: Option<u64>,
@@ -270,10 +274,18 @@ fn qualify_compiled_with_timer(
         first_non_finite_frame,
         resources,
         passed,
+        automated_evidence_required: vec![
+            "realtime::native::tests::maximum_topology_steady_state_and_controls_are_allocation_free"
+                .to_owned(),
+            "realtime::native::tests::maximum_topology_publication_transition_and_reclamation_are_allocation_free"
+                .to_owned(),
+            "realtime::native::tests::granular_spectral_independent_maxima_callback_is_allocation_free"
+                .to_owned(),
+        ],
         external_evidence_required: vec![
+            "independent producer workflow and level-matched listening judgment".to_owned(),
             "PipeWire xrun count from the target graph".to_owned(),
             "named-hardware 30-minute realtime endurance".to_owned(),
-            "callback allocation/blocking/I/O audit".to_owned(),
         ],
         pipewire_xruns: None,
     })
@@ -443,7 +455,33 @@ mod tests {
         assert!(report.p999_callback_utilization < 0.1);
         assert_eq!(report.non_finite_sample_count, 0);
         assert_eq!(report.pipewire_xruns, None);
+        assert_eq!(report.automated_evidence_required.len(), 3);
         assert_eq!(report.external_evidence_required.len(), 3);
+        let mut transitional_schema_one =
+            serde_json::to_value(&report).expect("qualification JSON");
+        let object = transitional_schema_one
+            .as_object_mut()
+            .expect("qualification object");
+        let evidence = object
+            .remove("automated_evidence_required")
+            .expect("required evidence");
+        object.insert("automated_evidence".to_owned(), evidence);
+        let transitional: QualificationReport = serde_json::from_value(transitional_schema_one)
+            .expect("transitional schema-one evidence field remains readable");
+        assert_eq!(transitional.automated_evidence_required.len(), 3);
+
+        let mut schema_one_without_new_evidence_fields =
+            serde_json::to_value(&report).expect("qualification JSON");
+        let object = schema_one_without_new_evidence_fields
+            .as_object_mut()
+            .expect("qualification object");
+        object.remove("automated_evidence_required");
+        object.remove("external_evidence_required");
+        let legacy: QualificationReport =
+            serde_json::from_value(schema_one_without_new_evidence_fields)
+                .expect("additive schema-one evidence fields remain backward compatible");
+        assert!(legacy.automated_evidence_required.is_empty());
+        assert!(legacy.external_evidence_required.is_empty());
 
         let mut slow = VecDeque::from(vec![Duration::from_millis(2); 16]);
         let report = qualify_project_with_timer(&bundle, options, |runtime, output| {

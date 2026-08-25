@@ -4,6 +4,7 @@ use tempfile::tempdir;
 
 use crate::{
     history::{ChangeOrigin, Publication},
+    model::{WavetableMorph, WavetableNormalization},
     project::PROJECT_FILE,
 };
 
@@ -173,60 +174,54 @@ fn sampler_operations_and_collection_are_checked_atomic_and_renderable() {
     bundle = load_project(directory.path()).expect("reload after pan");
     apply(
         &bundle,
-        vec![
-            set_sample_occurrence_direction(
-                &bundle,
-                "phrase",
-                "original",
-                crate::model::SampleDirection::Reverse,
-            )
-            .expect("direction"),
-        ],
+        vec![set_sample_occurrence_direction(
+            &bundle,
+            "phrase",
+            "original",
+            crate::model::SampleDirection::Reverse,
+        )
+        .expect("direction")],
         "Reverse",
     );
     bundle = load_project(directory.path()).expect("reload after direction");
     apply(
         &bundle,
-        vec![
-            set_sample_occurrence_loop(
-                &bundle,
-                "phrase",
-                "original",
-                crate::model::SampleLoopRegion {
-                    start_frame: 32,
-                    end_frame: 96,
-                    crossfade_frames: 8,
-                },
-            )
-            .expect("loop"),
-        ],
+        vec![set_sample_occurrence_loop(
+            &bundle,
+            "phrase",
+            "original",
+            crate::model::SampleLoopRegion {
+                start_frame: 32,
+                end_frame: 96,
+                crossfade_frames: 8,
+            },
+        )
+        .expect("loop")],
         "Loop",
     );
     bundle = load_project(directory.path()).expect("reload after loop");
     apply(
         &bundle,
-        vec![
-            place_sample_occurrence(
-                &bundle,
-                "phrase",
-                &SamplePlacement {
-                    id: "placed".to_owned(),
-                    mapping: "zone".to_owned(),
-                    at: "1beat".to_owned(),
-                    duration: "1beat".to_owned(),
-                    start_frame: 32,
-                    end_frame: 300,
-                    gain_db: -2.0,
-                    pan: -0.2,
-                    fade_in_frames: 5,
-                    fade_out_frames: 7,
-                    velocity: 0.8,
-                    direction: None,
-                    loop_region: None,
-                },
-            )
-            .expect("place"),
-        ],
+        vec![place_sample_occurrence(
+            &bundle,
+            "phrase",
+            &SamplePlacement {
+                id: "placed".to_owned(),
+                mapping: "zone".to_owned(),
+                at: "1beat".to_owned(),
+                duration: "1beat".to_owned(),
+                start_frame: 32,
+                end_frame: 300,
+                gain_db: -2.0,
+                pan: -0.2,
+                fade_in_frames: 5,
+                fade_out_frames: 7,
+                velocity: 0.8,
+                direction: None,
+                loop_region: None,
+            },
+        )
+        .expect("place")],
         "Place",
     );
     bundle = load_project(directory.path()).expect("reload after place");
@@ -256,20 +251,18 @@ fn sampler_operations_and_collection_are_checked_atomic_and_renderable() {
     bundle = load_project(directory.path()).expect("reload after move");
     apply(
         &bundle,
-        vec![
-            create_sample_slice_map(
-                &bundle,
-                &SampleSliceMapPlacement {
-                    instrument: "sampler".to_owned(),
-                    asset: "source".to_owned(),
-                    id_prefix: "slice".to_owned(),
-                    start_key: crate::model::parse_pitch("C5").expect("pitch"),
-                    boundaries: vec![0, 128, 256],
-                    direction: crate::model::SampleDirection::Reverse,
-                },
-            )
-            .expect("slice map"),
-        ],
+        vec![create_sample_slice_map(
+            &bundle,
+            &SampleSliceMapPlacement {
+                instrument: "sampler".to_owned(),
+                asset: "source".to_owned(),
+                id_prefix: "slice".to_owned(),
+                start_key: crate::model::parse_pitch("C5").expect("pitch"),
+                boundaries: vec![0, 128, 256],
+                direction: crate::model::SampleDirection::Reverse,
+            },
+        )
+        .expect("slice map")],
         "Slice map",
     );
 
@@ -342,6 +335,143 @@ fn media_import_copies_declares_validates_and_publishes_atomically() {
             .active_revision,
         after.revision
     );
+}
+
+#[test]
+fn wavetable_import_authors_complete_metadata_and_rejects_wrong_shape_atomically() {
+    let directory = tempdir().expect("Project root");
+    fs::write(
+        directory.path().join(PROJECT_FILE),
+        SOURCE.replacen("crump 1", "crump 2", 1),
+    )
+    .expect("Project source");
+    let external = tempdir().expect("external media");
+    let input = external.path().join("table.wav");
+    let samples = (0..128)
+        .map(|index| if index % 64 < 32 { 16_000 } else { -16_000 })
+        .collect::<Vec<_>>();
+    let bytes = write_test_wav(&input, &samples);
+    let before = load_project(directory.path()).expect("Candidate");
+    let options = WavetableImportOptions {
+        frame_length: 64,
+        frames: 2,
+        normalization: WavetableNormalization::GlobalPeak,
+        morph: WavetableMorph::CatmullRom,
+    };
+    import_wavetable_asset(
+        directory.path(),
+        &before.revision,
+        &input,
+        "table",
+        "Morph Table",
+        options,
+        Publication::new(ChangeOrigin::human("tester"), "Import table", "exact table"),
+    )
+    .expect("import wavetable");
+
+    assert_eq!(
+        fs::read(directory.path().join("media/table.wav")).expect("copied table"),
+        bytes
+    );
+    let source = fs::read_to_string(directory.path().join(PROJECT_FILE)).expect("source");
+    for expected in [
+        "asset table \"Morph Table\" wav \"media/table.wav\" sha256",
+        "usage wavetable",
+        "frame_length 64",
+        "frames 2",
+        "normalization global_peak",
+        "morph catmull_rom",
+    ] {
+        assert!(source.contains(expected), "missing `{expected}`");
+    }
+    let imported = load_project(directory.path()).expect("imported Project");
+    assert!(
+        !imported.diagnostics.has_errors(),
+        "{:?}",
+        imported.diagnostics
+    );
+    let definition = imported.project.as_ref().expect("Project").assets[0]
+        .wavetable
+        .as_ref()
+        .expect("wavetable metadata");
+    assert_eq!(definition.frame_length, 64);
+    assert_eq!(definition.frames, 2);
+    assert_eq!(definition.normalization, WavetableNormalization::GlobalPeak);
+    assert_eq!(definition.morph, WavetableMorph::CatmullRom);
+
+    let wrong = external.path().join("wrong.wav");
+    write_test_wav(&wrong, &[0; 64]);
+    let source_before = source;
+    assert!(matches!(
+        import_wavetable_asset(
+            directory.path(),
+            &imported.revision,
+            &wrong,
+            "wrong",
+            "Wrong",
+            options,
+            Publication::new(ChangeOrigin::human("tester"), "Import wrong", "reject")
+        ),
+        Err(EditError::InvalidValue(message)) if message.contains("requires 128 samples")
+    ));
+    assert_eq!(
+        fs::read_to_string(directory.path().join(PROJECT_FILE)).expect("source"),
+        source_before
+    );
+    assert!(!directory.path().join("media/wrong.wav").exists());
+}
+
+#[test]
+fn wavetable_import_writer_failure_rolls_back_source_asset_and_history() {
+    let directory = tempdir().expect("Project root");
+    let source = SOURCE.replacen("crump 1", "crump 2", 1);
+    fs::write(directory.path().join(PROJECT_FILE), &source).expect("Project source");
+    fs::create_dir(directory.path().join("media")).expect("media directory");
+    let store = HistoryStore::open(directory.path()).expect("initialize History storage");
+    assert!(store.active_state().expect("History state").is_none());
+    drop(store);
+
+    let external = tempdir().expect("external media");
+    let input = external.path().join("table.wav");
+    let samples = (0..128)
+        .map(|index| if index % 64 < 32 { 16_000 } else { -16_000 })
+        .collect::<Vec<_>>();
+    write_test_wav(&input, &samples);
+    let before = load_project(directory.path()).expect("Candidate");
+
+    let result = with_injected_source_write_failure(|| {
+        import_wavetable_asset(
+            directory.path(),
+            &before.revision,
+            &input,
+            "table",
+            "Interrupted Morph Table",
+            WavetableImportOptions {
+                frame_length: 64,
+                frames: 2,
+                normalization: WavetableNormalization::FramePeak,
+                morph: WavetableMorph::CatmullRom,
+            },
+            Publication::new(
+                ChangeOrigin::human("tester"),
+                "Interrupted wavetable import",
+                "fault-inject source publication after asset staging",
+            ),
+        )
+    });
+    assert!(result.is_err(), "injected writer must fail publication");
+
+    assert_eq!(
+        fs::read_to_string(directory.path().join(PROJECT_FILE)).expect("source after rollback"),
+        source
+    );
+    assert!(!directory.path().join("media/table.wav").exists());
+    let reopened = load_project(directory.path()).expect("reopen rolled-back Project");
+    assert_eq!(reopened.revision, before.revision);
+    assert!(!reopened.diagnostics.has_errors());
+    let store = HistoryStore::open(directory.path()).expect("reopen History");
+    assert!(store.active_state().expect("History state").is_none());
+    assert!(store.list().expect("History entries").is_empty());
 }
 
 #[test]
@@ -476,13 +606,11 @@ fn undeclared_binary_mutations_cannot_create_or_delete_project_files() {
         fs::read_to_string(directory.path().join(PROJECT_FILE)).expect("source"),
         SOURCE
     );
-    assert!(
-        HistoryStore::open(directory.path())
-            .expect("History")
-            .list()
-            .expect("entries")
-            .is_empty()
-    );
+    assert!(HistoryStore::open(directory.path())
+        .expect("History")
+        .list()
+        .expect("entries")
+        .is_empty());
 }
 
 #[cfg(unix)]

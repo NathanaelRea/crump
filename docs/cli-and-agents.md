@@ -9,7 +9,7 @@ Crump does not embed a model, provider SDK, prompt runtime, network client, or a
 5. explain and explicitly publish accepted work; and
 6. leave a durable Agent-origin History Entry for human inspection.
 
-The core remains fully usable without a model. A provider-neutral installable instruction bundle lives at [`skills/crump-authoring/SKILL.md`](../skills/crump-authoring/SKILL.md) and is installed by the Debian package at `/usr/share/crump/skills/crump-authoring/SKILL.md`; copy that directory into a harness's normal skills location or provide the file as authoritative task context. It adds no executable integration or privilege.
+The core remains fully usable without a model. A project-local Agent Skills suite lives at [`.agents/skills/`](../.agents/skills/README.md); trusted compatible harnesses discover it from that standard project location. The skills add no executable integration or privilege.
 
 ## Stable response envelope
 
@@ -186,6 +186,10 @@ crump --project ./song --json asset import ../recordings/phrase.wav \
   --id phrase \
   --name "Spoken phrase" \
   --summary "Import lawful vocal fragment"
+crump --project ./song --json asset import-wavetable ../tables/four-frame.wav \
+  --id basic-table --name "Basic table" --frame-length 2048 --frames 4 \
+  --normalization global-peak --morph catmull-rom \
+  --summary "Import exact four-frame table"
 crump --project ./song --json asset collect \
   --summary "Normalize portable media paths"
 crump --project ./song --json asset bounce \
@@ -198,11 +202,11 @@ crump --project ./song --json asset prepare --source phrase \
 crump --project ./song --json asset list
 ```
 
-`asset import` accepts an external regular WAV only as input. It captures exact bytes, computes lowercase SHA-256, chooses `media/ID.wav`, refuses to replace any existing destination, inserts the source declaration, validates the source-and-binary overlay, and publishes both sides under one recovery journal. Invalid WAVs, stale revisions, unsafe/symbolic-link paths, duplicate IDs/paths, and limit violations leave the declaration and destination unchanged. An external absolute path is never persisted.
+`asset import` accepts an external regular WAV only as input. It captures exact bytes, computes lowercase SHA-256, chooses `media/ID.wav`, refuses to replace any existing destination, inserts the source declaration, validates the source-and-binary overlay, and publishes both sides under one recovery journal. `asset import-wavetable` uses the same transaction but requires a stable source-v2 Candidate, exact mono shape, power-of-two frame length, bounded frame count, and explicit normalization/morph choices; it authors `usage wavetable` plus complete metadata. Invalid WAVs, stale revisions, unsafe/symbolic-link paths, duplicate IDs/paths, shape mismatches, and limit violations leave the declaration and destination unchanged. An external absolute path is never persisted.
 
 `asset collect` moves every valid declaration to `media/ASSET_ID.wav` in one checked source-and-binary History transaction while preserving exact bytes and hashes. It refuses undeclared destination conflicts. `asset bounce` requires Candidate identity to equal the exact Active Revision, deterministically prerolls and captures Master or one Track/Group/Return pre/post-fader tap over a half-open time/Locator range, optionally appends an isolated authored release/effect tail, and publishes stereo float WAV bytes plus a readable generated provenance block atomically. The provenance names source Revision, owner/tap, range, tail, format, versioned algorithm, build, and exact byte hash. Bounce never replaces a Clip or disables processors; placement requires a separate checked edit.
 
-`asset prepare` also requires exact Candidate/Active identity. It reads one verified asset's half-open original-frame region and publishes a new exact-duration asset. `--output-frames` is authoritative, pitch is independently bounded to ±24 semitones, and `effect-v1` exposes only `--formants shift`; preserve is an explicit blocked request. Tagged provenance records source asset/hash/range, output frames, pitch, formants, quality, format, `crump-wsola-effect-v1`, `x86_64-linux`, and build. Preparation is bounded and off-callback, retains the original bytes, and never places or replaces material automatically. `asset list` reports only verified Project-relative identity, exact content hash/length, and WAV container metadata. Missing or changed media remains visible through stable validation diagnostics. Distinct paths with identical content produce a warning rather than an implicit merge.
+`asset prepare` also requires exact Candidate/Active identity. It reads one verified asset's half-open original-frame region and publishes a new exact-duration asset. `--output-frames` is authoritative, pitch is independently bounded to ±24 semitones, and `effect-v1` exposes only `--formants shift`; preserve is an explicit blocked request. Tagged provenance records source asset/hash/range, output frames, pitch, formants, quality, format, `crump-wsola-effect-v1`, `x86_64-linux`, and build. Preparation is bounded and off-callback, retains the original bytes, and never places or replaces material automatically. `asset list` reports only verified Project-relative identity, exact content hash/length, WAV container metadata, and authored synthesis usages/metadata. `inspect` additionally reports runtime-referenced sample and wavetable derivative identities without exposing retained bytes. Missing or changed media remains visible through stable validation diagnostics. Distinct paths with identical content produce a warning rather than an implicit merge.
 
 ## Agent publication provenance
 
@@ -230,7 +234,7 @@ Agent work is not silently elevated. A running workspace identifies a valid unpu
 
 ## Candidate and Active discipline
 
-The Project source and declared media files on the filesystem form the Candidate. Playback and rendering load exact Active snapshots from `.crump/history`, not current unchecked files. Sampler Instruments decode/resample the preserved Active media off the callback; Media Track playback is unsupported.
+The Project source and declared media files on the filesystem form the Candidate. Playback and rendering load exact Active snapshots from `.crump/history`, not current unchecked files. Sampler Instruments and graph sample/multisample/granular/spectral Nodes decode/resample only runtime-referenced preserved Active assets off the callback; inspection binds their immutable Project-rate frames to exact source hashes and the versioned conversion algorithm. Spectral Nodes additionally rebuild referenced-only immutable `crump-spectral-peaks-v1` analyses and expose cache identity, fixed geometry, peak bounds, transient-frame count, and payload bytes. Wavetable Nodes deterministically rebuild immutable mips from preserved exact mono bytes and authored frame metadata. Media Track playback is unsupported.
 
 A robust Agent loop is:
 
@@ -289,18 +293,18 @@ Rendering reports Candidate identity, rendered Active identity, whether they mat
 ```bash
 crump --project ./song --json qualify --quantum 64 --from drop --to outro --plan
 crump --project ./song --json qualify --quantum 64 --from drop --to outro \
-  --maximum-p999-utilization 0.8 \
+  --maximum-p999-utilization 0.8 --require-pass \
   --output evidence/drop-q64.json
 ```
 
 `qualify` compiles the exact Active Revision, performs deterministic untimed preroll to the optional `--from` Locator, and wall-clock profiles the half-open range through the optional `--to` Locator. Without Locators it profiles the complete render range. The only admitted full-block quanta are 64, 128, and 256 frames. A non-aligned range ends with one disclosed `final_block_frames` short block; every block is evaluated against the deadline for the exact number of frames it processed. `--plan` is non-mutating: it reports the exact range, full/final block sizes, compile-time resource facts, threshold, output conflict consequence, and evidence that remains external without processing Audio.
 
-A schema-1 report records Project Revision, package and executable identities, host OS/kernel/CPU facts, requested and actual **offline** full quantum, final block size, exact range, block count, wall time, realtime factor, mean/peak/fixed-histogram p99.9 utilization, missed deadlines, finite-output facts, sample peak, and compile-time admission resources. Histogram overflow uses the observed peak rather than understating the quantile. The optional report file uses no-replace publication by default; `--replace` must be explicit, and neither mode may target Project source, declared media, or `.crump` History. A failed utilization threshold is represented by `passed: false` in a successfully captured report so automation does not lose the evidence.
+A schema-1 report records Project Revision, package and executable identities, host OS/kernel/CPU facts, requested and actual **offline** full quantum, final block size, exact range, block count, wall time, realtime factor, mean/peak/fixed-histogram p99.9 utilization, missed deadlines, finite-output facts, sample peak, compile-time admission resources, and separately named automated checks and external evidence still required beside the timed report. Histogram overflow uses the observed peak rather than understating the quantile. The optional report file uses no-replace publication by default; `--replace` must be explicit, and neither mode may target Project source, declared media, or `.crump` History. By default a failed utilization threshold is represented by `passed: false` in a successfully captured report. `--require-pass` writes that report and then exits with `qualification_not_passed`, allowing CI to gate without parsing successful JSON.
 
-This command is an offline workload profiler, not a PipeWire qualification. It deliberately reports `pipewire_xruns: null` and lists required external evidence for the target graph, named hardware, 30-minute realtime endurance, and callback allocation/blocking/I/O audit. Do not convert a fast offline report into an xrun, realtime-safety, or supported-hardware claim.
+This command is an offline workload profiler, not a PipeWire qualification. It deliberately reports `pipewire_xruns: null`. The repository callback tests are listed only as automated checks still required beside the report; the qualifier cannot know that they ran against its executable. Independent-producer judgment, PipeWire xruns, and named-hardware 30-minute endurance remain external. Lock/blocking/I/O absence is reviewed call-path evidence rather than a claim made by this timer. Do not convert a fast offline report into an xrun, complete realtime-safety, or supported-hardware claim.
 
 ## Security boundary
 
 Crump source is declarative data, but external Agents are separate processes with the operating-system authority granted by their launcher. Crump does not sandbox an Agent or arbitrary editor. Use normal account, filesystem, network, and secret controls.
 
-Crump itself constrains imported source and declared media to normalized Project paths, rejects traversal and symlink escape, validates exact media hashes and all domain references, uses bounded native graphs, and never evaluates arbitrary code. It does not execute text from summaries or explanations.
+Crump itself constrains imported source and declared media to normalized Project paths, rejects traversal and symlink escape, validates exact media hashes, exact wavetable shape, and all domain references, uses bounded native graphs, and never evaluates arbitrary code. It does not execute text from summaries or explanations.

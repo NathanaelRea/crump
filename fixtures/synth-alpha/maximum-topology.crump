@@ -1,244 +1,315 @@
-crump-module 2-alpha
-asset wt-basic "Basic four-frame table" wav "media/basic-table.wav" sha256 "2302bf70124b6017439eb385a62677b13284f112e968a2725d64e8f738bf3ca7" {
-  usage wavetable
-  frame_length 2048
-  frames 4
-  normalization preserve
-  morph linear
-}
-asset source-texture "Deterministic source texture" wav "media/sample-source.wav" sha256 "ae8757e2a42ad7602b7bd6825ab0987444677a8e7f8515d0447e86aa01907de9" { usage sample granular spectral }
-asset zone-low "Low multisample zone" wav "media/multisample-low.wav" sha256 "5675332919d951ff59291a90b991e596a443e5b368b4360dfca3b157e161a0e0" { usage multisample }
-asset zone-high "High multisample zone" wav "media/multisample-high.wav" sha256 "1e3309e6b805299f66308bd603d304387cba4e7affadf63f57d6835e82d5345d" { usage multisample }
-instrument qualification-max-v1 "Qualification Maximum V1" graph {
-  polyphony 8
-  voicing poly retrigger always glide 50ms priority oldest seed 65531
-
-  parameter macro-1 "Macro 1" ratio 0 1 0.5 0.5 automatable modulatable macro
-  parameter macro-2 "Macro 2" ratio 0 1 0.5 0.5 automatable modulatable macro
-  parameter macro-3 "Macro 3" ratio 0 1 0.5 0.5 automatable modulatable macro
-  parameter macro-4 "Macro 4" ratio 0 1 0.5 0.5 automatable modulatable macro
-  parameter macro-5 "Macro 5" ratio 0 1 0.5 0.5 automatable modulatable macro
-  parameter macro-6 "Macro 6" ratio 0 1 0.5 0.5 automatable modulatable macro
-  parameter macro-7 "Macro 7" ratio 0 1 0.5 0.5 automatable modulatable macro
-  parameter macro-8 "Macro 8" ratio 0 1 0.5 0.5 automatable modulatable macro
-  parameter cutoff-1 "Cutoff 1" hz 20hz 20khz 800hz 1000hz automatable modulatable
-  parameter cutoff-2 "Cutoff 2" hz 20hz 20khz 800hz 1200hz automatable modulatable
-  parameter cutoff-3 "Cutoff 3" hz 20hz 20khz 800hz 1400hz automatable modulatable
-  parameter cutoff-4 "Cutoff 4" hz 20hz 20khz 800hz 1600hz automatable modulatable
-  parameter cutoff-5 "Cutoff 5" hz 20hz 20khz 800hz 1800hz automatable modulatable
-  parameter cutoff-6 "Cutoff 6" hz 20hz 20khz 800hz 2000hz automatable modulatable
-  parameter cutoff-7 "Cutoff 7" hz 20hz 20khz 800hz 2200hz automatable modulatable
-  parameter cutoff-8 "Cutoff 8" hz 20hz 20khz 800hz 2400hz automatable modulatable
-  parameter table-position "Table Position" ratio 0 1 0 0.25 modulatable
-  parameter grain-density "Grain Density" hz 1hz 100hz 24hz 24hz modulatable
-  parameter spectral-scan "Spectral Scan" ratio 0 1 0 0.2 modulatable
-  parameter release "Release" seconds 5ms 8s 500ms 750ms modulatable
-
-  faceplate {
-    control macro-1 "Motion" "Scales maximum-profile movement" maps macro-1
-    control cutoff-1 "Cutoff" "Sets the first serial filter" maps cutoff-1
-    control grain-density "Density" "Sets the two bounded grain pools" maps grain-density
-    control release "Release" "Sets the maximum-profile amplitude release" maps release
+crump 2
+project "Native Synthesis Qualification Maximum" {
+  id native-synthesis-qualification-max
+  seed 65531
+  sample_rate 48000
+  render_tail 5ms
+  asset wt-basic "Basic four-frame table" wav "media/basic-table.wav" sha256 "2302bf70124b6017439eb385a62677b13284f112e968a2725d64e8f738bf3ca7" {
+    usage wavetable
+    frame_length 2048
+    frames 4
+    normalization preserve
+    morph linear
   }
-
-  presentation {
-    section sources-view sources "Eight Sources" { node source-analog node source-table node source-sample node source-multi node source-grain-a node source-grain-b node source-spectral node source-noise }
-    section mixer-view source_mixer "Source Sum" { node source-sum }
-    section filters-view filters "Eight Filters" { node filter-1 node filter-8 }
-    section modulators-view envelopes_lfos "Eight Envelopes and Sixteen LFOs" { node envelope-1 node envelope-8 source lfo-1 source lfo-16 }
-    section matrix-view modulation "Sixty-four Routes" { route route-1 route route-64 }
-    section voice-view voicing "Eight Voices" { node source-analog node source-table }
-    section routing-view routing "Voice and Shared Domains" { bus voice-out bus voices-in }
-    section effects-view effects "Shared Effects" { node shared-delay-1 node shared-reverb-4 }
+  asset source-texture "Deterministic source texture" wav "media/sample-source.wav" sha256 "ae8757e2a42ad7602b7bd6825ab0987444677a8e7f8515d0447e86aa01907de9" {
+    usage sample granular spectral
   }
-
-  modulation {
-    source lfo-1 lfo per_voice bipolar sine sync 1/16bar phase 0 retrigger note loop forward
-    source lfo-2 lfo per_voice bipolar triangle sync 2/16bar phase 0 retrigger note loop forward
-    source lfo-3 lfo per_voice bipolar sine sync 3/16bar phase 0 retrigger note loop forward
-    source lfo-4 lfo per_voice bipolar triangle sync 4/16bar phase 0 retrigger note loop forward
-    source lfo-5 lfo per_voice bipolar sine sync 5/16bar phase 0 retrigger note loop forward
-    source lfo-6 lfo per_voice bipolar triangle sync 6/16bar phase 0 retrigger note loop forward
-    source lfo-7 lfo per_voice bipolar sine sync 7/16bar phase 0 retrigger note loop forward
-    source lfo-8 lfo per_voice bipolar triangle sync 8/16bar phase 0 retrigger note loop forward
-    source lfo-9 lfo per_voice bipolar sine sync 9/16bar phase 0 retrigger note loop forward
-    source lfo-10 lfo per_voice bipolar triangle sync 10/16bar phase 0 retrigger note loop forward
-    source lfo-11 lfo per_voice bipolar sine sync 11/16bar phase 0 retrigger note loop forward
-    source lfo-12 lfo per_voice bipolar triangle sync 12/16bar phase 0 retrigger note loop forward
-    source lfo-13 lfo per_voice bipolar sine sync 13/16bar phase 0 retrigger note loop forward
-    source lfo-14 lfo per_voice bipolar triangle sync 14/16bar phase 0 retrigger note loop forward
-    source lfo-15 lfo per_voice bipolar sine sync 15/16bar phase 0 retrigger note loop forward
-    source lfo-16 lfo per_voice bipolar triangle sync 16/16bar phase 0 retrigger note loop forward
-    source macro-1 parameter macro-1 instrument unipolar
-    source macro-2 parameter macro-2 instrument unipolar
-    source macro-3 parameter macro-3 instrument unipolar
-    source macro-4 parameter macro-4 instrument unipolar
-    source macro-5 parameter macro-5 instrument unipolar
-    source macro-6 parameter macro-6 instrument unipolar
-    source macro-7 parameter macro-7 instrument unipolar
-    source macro-8 parameter macro-8 instrument unipolar
-    route route-1 source lfo-1 target cutoff-1 depth 500hz map bipolar curve linear order 1 bypass false
-    route route-2 source lfo-2 target cutoff-2 depth 500hz map bipolar curve linear order 2 bypass false
-    route route-3 source lfo-3 target cutoff-3 depth 500hz map bipolar curve smoothstep order 3 bypass false
-    route route-4 source lfo-4 target cutoff-4 depth 500hz map bipolar curve linear order 4 bypass false
-    route route-5 source lfo-5 target cutoff-5 depth 500hz map bipolar curve linear order 5 bypass false
-    route route-6 source lfo-6 target cutoff-6 depth 500hz map bipolar curve smoothstep order 6 bypass false
-    route route-7 source lfo-7 target cutoff-7 depth 500hz map bipolar curve linear order 7 bypass false
-    route route-8 source lfo-8 target cutoff-8 depth 500hz map bipolar curve linear order 8 bypass false
-    route route-9 source lfo-9 target cutoff-1 depth 500hz map bipolar curve smoothstep order 9 bypass false
-    route route-10 source lfo-10 target cutoff-2 depth 500hz map bipolar curve linear order 10 bypass false
-    route route-11 source lfo-11 target cutoff-3 depth 500hz map bipolar curve linear order 11 bypass false
-    route route-12 source lfo-12 target cutoff-4 depth 500hz map bipolar curve smoothstep order 12 bypass false
-    route route-13 source lfo-13 target cutoff-5 depth 500hz map bipolar curve linear order 13 bypass false
-    route route-14 source lfo-14 target cutoff-6 depth 500hz map bipolar curve linear order 14 bypass false
-    route route-15 source lfo-15 target cutoff-7 depth 500hz map bipolar curve smoothstep order 15 bypass false
-    route route-16 source lfo-16 target cutoff-8 depth 500hz map bipolar curve linear order 16 bypass false
-    route route-17 source lfo-1 target cutoff-1 depth 500hz map bipolar curve linear order 17 bypass false
-    route route-18 source lfo-2 target cutoff-2 depth 500hz map bipolar curve smoothstep order 18 bypass false
-    route route-19 source lfo-3 target cutoff-3 depth 500hz map bipolar curve linear order 19 bypass false
-    route route-20 source lfo-4 target cutoff-4 depth 500hz map bipolar curve linear order 20 bypass false
-    route route-21 source lfo-5 target cutoff-5 depth 500hz map bipolar curve smoothstep order 21 bypass false
-    route route-22 source lfo-6 target cutoff-6 depth 500hz map bipolar curve linear order 22 bypass false
-    route route-23 source lfo-7 target cutoff-7 depth 500hz map bipolar curve linear order 23 bypass false
-    route route-24 source lfo-8 target cutoff-8 depth 500hz map bipolar curve smoothstep order 24 bypass false
-    route route-25 source lfo-9 target cutoff-1 depth 500hz map bipolar curve linear order 25 bypass false
-    route route-26 source lfo-10 target cutoff-2 depth 500hz map bipolar curve linear order 26 bypass false
-    route route-27 source lfo-11 target cutoff-3 depth 500hz map bipolar curve smoothstep order 27 bypass false
-    route route-28 source lfo-12 target cutoff-4 depth 500hz map bipolar curve linear order 28 bypass false
-    route route-29 source lfo-13 target cutoff-5 depth 500hz map bipolar curve linear order 29 bypass false
-    route route-30 source lfo-14 target cutoff-6 depth 500hz map bipolar curve smoothstep order 30 bypass false
-    route route-31 source lfo-15 target cutoff-7 depth 500hz map bipolar curve linear order 31 bypass false
-    route route-32 source lfo-16 target cutoff-8 depth 500hz map bipolar curve linear order 32 bypass false
-    route route-33 source lfo-1 target cutoff-1 depth 500hz map bipolar curve smoothstep order 33 bypass false
-    route route-34 source lfo-2 target cutoff-2 depth 500hz map bipolar curve linear order 34 bypass false
-    route route-35 source lfo-3 target cutoff-3 depth 500hz map bipolar curve linear order 35 bypass false
-    route route-36 source lfo-4 target cutoff-4 depth 500hz map bipolar curve smoothstep order 36 bypass false
-    route route-37 source lfo-5 target cutoff-5 depth 500hz map bipolar curve linear order 37 bypass false
-    route route-38 source lfo-6 target cutoff-6 depth 500hz map bipolar curve linear order 38 bypass false
-    route route-39 source lfo-7 target cutoff-7 depth 500hz map bipolar curve smoothstep order 39 bypass false
-    route route-40 source lfo-8 target cutoff-8 depth 500hz map bipolar curve linear order 40 bypass false
-    route route-41 source lfo-9 target cutoff-1 depth 500hz map bipolar curve linear order 41 bypass false
-    route route-42 source lfo-10 target cutoff-2 depth 500hz map bipolar curve smoothstep order 42 bypass false
-    route route-43 source lfo-11 target cutoff-3 depth 500hz map bipolar curve linear order 43 bypass false
-    route route-44 source lfo-12 target cutoff-4 depth 500hz map bipolar curve linear order 44 bypass false
-    route route-45 source lfo-13 target cutoff-5 depth 500hz map bipolar curve smoothstep order 45 bypass false
-    route route-46 source lfo-14 target cutoff-6 depth 500hz map bipolar curve linear order 46 bypass false
-    route route-47 source lfo-15 target cutoff-7 depth 500hz map bipolar curve linear order 47 bypass false
-    route route-48 source lfo-16 target cutoff-8 depth 500hz map bipolar curve smoothstep order 48 bypass false
-    route route-49 source lfo-1 target cutoff-1 depth 500hz map bipolar curve linear order 49 bypass false
-    route route-50 source lfo-2 target cutoff-2 depth 500hz map bipolar curve linear order 50 bypass false
-    route route-51 source lfo-3 target cutoff-3 depth 500hz map bipolar curve smoothstep order 51 bypass false
-    route route-52 source lfo-4 target cutoff-4 depth 500hz map bipolar curve linear order 52 bypass false
-    route route-53 source lfo-5 target cutoff-5 depth 500hz map bipolar curve linear order 53 bypass false
-    route route-54 source lfo-6 target cutoff-6 depth 500hz map bipolar curve smoothstep order 54 bypass false
-    route route-55 source lfo-7 target cutoff-7 depth 500hz map bipolar curve linear order 55 bypass false
-    route route-56 source lfo-8 target cutoff-8 depth 500hz map bipolar curve linear order 56 bypass false
-    route route-57 source lfo-9 target cutoff-1 depth 500hz map bipolar curve smoothstep order 57 bypass false
-    route route-58 source lfo-10 target cutoff-2 depth 500hz map bipolar curve linear order 58 bypass false
-    route route-59 source lfo-11 target cutoff-3 depth 500hz map bipolar curve linear order 59 bypass false
-    route route-60 source lfo-12 target cutoff-4 depth 500hz map bipolar curve smoothstep order 60 bypass false
-    route route-61 source lfo-13 target cutoff-5 depth 500hz map bipolar curve linear order 61 bypass false
-    route route-62 source lfo-14 target cutoff-6 depth 500hz map bipolar curve linear order 62 bypass false
-    route route-63 source lfo-15 target cutoff-7 depth 500hz map bipolar curve smoothstep order 63 bypass false
-    route route-64 source lfo-16 target cutoff-8 depth 500hz map bipolar curve linear order 64 bypass false
+  asset zone-low "Low multisample zone" wav "media/multisample-low.wav" sha256 "5675332919d951ff59291a90b991e596a443e5b368b4360dfca3b157e161a0e0" {
+    usage multisample
   }
+  asset zone-high "High multisample zone" wav "media/multisample-high.wav" sha256 "1e3309e6b805299f66308bd603d304387cba4e7affadf63f57d6835e82d5345d" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument qualification-max-v1 "Qualification Maximum V1" graph {
+      polyphony 7
+      voicing poly retrigger always glide 50ms priority oldest seed 65531
 
-  graph voice 64 {
-    node source-analog analog_oscillator waveform saw unison 8 detune 0.15st width 1 phase 0 random_phase 1 level 0.12
-    node source-table wavetable asset wt-basic unison 8 table_position $table-position detune 0.1st width 1 phase 0 random_phase 1 level 0.12
-    node source-sample sample_source asset source-texture start 0 end 1 loop_mode forward loop_start 0.1 loop_end 0.9 loop_crossfade 256 direction forward tune 0st level 0.08
-    node source-multi multisample {
-      zone low asset zone-low keys C1 B3 velocity 0 1 root C3 layer body articulation default round_robin low-rr 0 region 0 24000 gain -6db pan -0.2
-      zone high asset zone-high keys C4 C7 velocity 0 1 root C5 layer body articulation default round_robin high-rr 0 region 0 24000 gain -6db pan 0.2
-      tune 0st
-      level 0.08
+      parameter macro-1 "Macro 1" ratio 0 1 0.5 0.5 automatable modulatable macro
+      parameter macro-2 "Macro 2" ratio 0 1 0.5 0.5 automatable modulatable macro
+      parameter macro-3 "Macro 3" ratio 0 1 0.5 0.5 automatable modulatable macro
+      parameter macro-4 "Macro 4" ratio 0 1 0.5 0.5 automatable modulatable macro
+      parameter macro-5 "Macro 5" ratio 0 1 0.5 0.5 automatable modulatable macro
+      parameter macro-6 "Macro 6" ratio 0 1 0.5 0.5 automatable modulatable macro
+      parameter macro-7 "Macro 7" ratio 0 1 0.5 0.5 automatable modulatable macro
+      parameter macro-8 "Macro 8" ratio 0 1 0.5 0.5 automatable modulatable macro
+      parameter cutoff-1 "Cutoff 1" hz 20hz 20khz 800hz 1000hz automatable modulatable
+      parameter cutoff-2 "Cutoff 2" hz 20hz 20khz 800hz 1200hz automatable modulatable
+      parameter cutoff-3 "Cutoff 3" hz 20hz 20khz 800hz 1400hz automatable modulatable
+      parameter cutoff-4 "Cutoff 4" hz 20hz 20khz 800hz 1600hz automatable modulatable
+      parameter cutoff-5 "Cutoff 5" hz 20hz 20khz 800hz 1800hz automatable modulatable
+      parameter cutoff-6 "Cutoff 6" hz 20hz 20khz 800hz 2000hz automatable modulatable
+      parameter cutoff-7 "Cutoff 7" hz 20hz 20khz 800hz 2200hz automatable modulatable
+      parameter cutoff-8 "Cutoff 8" hz 20hz 20khz 800hz 2400hz automatable modulatable
+      parameter table-position "Table Position" ratio 0 1 0 0.25 modulatable
+      parameter grain-density "Grain Density" hz 1hz 100hz 24hz 24hz modulatable
+      parameter spectral-scan "Spectral Scan" ratio 0 1 0 0.2 modulatable
+      parameter release "Release" seconds 5ms 8s 500ms 750ms modulatable
+
+      faceplate {
+        control macro-1 "Motion" "Scales maximum-profile movement" maps macro-1
+        control cutoff-1 "Cutoff" "Sets the first serial filter" maps cutoff-1
+        control grain-density "Density" "Sets the two bounded grain pools" maps grain-density
+        control release "Release" "Sets the maximum-profile amplitude release" maps release
+      }
+
+      presentation {
+        section sources-view sources "Eight Sources" {
+          node source-analog
+          node source-table
+          node source-sample
+          node source-multi
+          node source-grain-a
+          node source-grain-b
+          node source-spectral
+          node source-noise
+        }
+        section mixer-view source_mixer "Source Sum" {
+          node source-sum
+        }
+        section filters-view filters "Eight Filters" {
+          node filter-1
+          node filter-8
+        }
+        section modulators-view envelopes_lfos "Eight Envelopes and Sixteen LFOs" {
+          node envelope-1
+          node envelope-8
+          source lfo-1
+          source lfo-16
+        }
+        section matrix-view modulation "Sixty-four Routes" {
+          route route-1
+          route route-64
+        }
+        section voice-view voicing "Seven Resident Voices" {
+          node source-analog
+          node source-table
+        }
+        section routing-view routing "Voice and Shared Domains" {
+          bus voice-out
+          bus voices-in
+        }
+        section effects-view effects "Shared Effects" {
+          node shared-delay-1
+          node shared-reverb-3
+        }
+      }
+
+      modulation {
+        source lfo-1 lfo per_voice bipolar sine sync 1/16bar phase 0 retrigger note loop forward
+        source lfo-2 lfo per_voice bipolar triangle sync 2/16bar phase 0 retrigger note loop forward
+        source lfo-3 lfo per_voice bipolar sine sync 3/16bar phase 0 retrigger note loop forward
+        source lfo-4 lfo per_voice bipolar triangle sync 4/16bar phase 0 retrigger note loop forward
+        source lfo-5 lfo per_voice bipolar sine sync 5/16bar phase 0 retrigger note loop forward
+        source lfo-6 lfo per_voice bipolar triangle sync 6/16bar phase 0 retrigger note loop forward
+        source lfo-7 lfo per_voice bipolar sine sync 7/16bar phase 0 retrigger note loop forward
+        source lfo-8 lfo per_voice bipolar triangle sync 8/16bar phase 0 retrigger note loop forward
+        source lfo-9 lfo per_voice bipolar sine sync 9/16bar phase 0 retrigger note loop forward
+        source lfo-10 lfo per_voice bipolar triangle sync 10/16bar phase 0 retrigger note loop forward
+        source lfo-11 lfo per_voice bipolar sine sync 11/16bar phase 0 retrigger note loop forward
+        source lfo-12 lfo per_voice bipolar triangle sync 12/16bar phase 0 retrigger note loop forward
+        source lfo-13 lfo per_voice bipolar sine sync 13/16bar phase 0 retrigger note loop forward
+        source lfo-14 lfo per_voice bipolar triangle sync 14/16bar phase 0 retrigger note loop forward
+        source lfo-15 lfo per_voice bipolar sine sync 15/16bar phase 0 retrigger note loop forward
+        source lfo-16 lfo per_voice bipolar triangle sync 16/16bar phase 0 retrigger note loop forward
+        source macro-1 parameter macro-1 instrument unipolar
+        source macro-2 parameter macro-2 instrument unipolar
+        source macro-3 parameter macro-3 instrument unipolar
+        source macro-4 parameter macro-4 instrument unipolar
+        source macro-5 parameter macro-5 instrument unipolar
+        source macro-6 parameter macro-6 instrument unipolar
+        source macro-7 parameter macro-7 instrument unipolar
+        source macro-8 parameter macro-8 instrument unipolar
+        route route-1 source macro-1 target cutoff-1 depth 500hz map unipolar curve linear order 1 bypass false
+        route route-2 source lfo-2 target cutoff-2 depth 500hz map bipolar curve linear order 2 bypass false
+        route route-3 source lfo-3 target cutoff-3 depth 500hz map bipolar curve smoothstep order 3 bypass false
+        route route-4 source lfo-4 target cutoff-4 depth 500hz map bipolar curve linear order 4 bypass false
+        route route-5 source lfo-5 target cutoff-5 depth 500hz map bipolar curve linear order 5 bypass false
+        route route-6 source lfo-6 target cutoff-6 depth 500hz map bipolar curve smoothstep order 6 bypass false
+        route route-7 source lfo-7 target cutoff-7 depth 500hz map bipolar curve linear order 7 bypass false
+        route route-8 source lfo-8 target cutoff-8 depth 500hz map bipolar curve linear order 8 bypass false
+        route route-9 source lfo-9 target cutoff-1 depth 500hz map bipolar curve smoothstep order 9 bypass false
+        route route-10 source lfo-10 target cutoff-2 depth 500hz map bipolar curve linear order 10 bypass false
+        route route-11 source lfo-11 target cutoff-3 depth 500hz map bipolar curve linear order 11 bypass false
+        route route-12 source lfo-12 target cutoff-4 depth 500hz map bipolar curve smoothstep order 12 bypass false
+        route route-13 source lfo-13 target cutoff-5 depth 500hz map bipolar curve linear order 13 bypass false
+        route route-14 source lfo-14 target cutoff-6 depth 500hz map bipolar curve linear order 14 bypass false
+        route route-15 source lfo-15 target cutoff-7 depth 500hz map bipolar curve smoothstep order 15 bypass false
+        route route-16 source lfo-16 target cutoff-8 depth 500hz map bipolar curve linear order 16 bypass false
+        route route-17 source lfo-1 target cutoff-1 depth 500hz map bipolar curve linear order 17 bypass false
+        route route-18 source lfo-2 target cutoff-2 depth 500hz map bipolar curve smoothstep order 18 bypass false
+        route route-19 source lfo-3 target cutoff-3 depth 500hz map bipolar curve linear order 19 bypass false
+        route route-20 source lfo-4 target cutoff-4 depth 500hz map bipolar curve linear order 20 bypass false
+        route route-21 source lfo-5 target cutoff-5 depth 500hz map bipolar curve smoothstep order 21 bypass false
+        route route-22 source lfo-6 target cutoff-6 depth 500hz map bipolar curve linear order 22 bypass false
+        route route-23 source lfo-7 target cutoff-7 depth 500hz map bipolar curve linear order 23 bypass false
+        route route-24 source lfo-8 target cutoff-8 depth 500hz map bipolar curve smoothstep order 24 bypass false
+        route route-25 source lfo-9 target cutoff-1 depth 500hz map bipolar curve linear order 25 bypass false
+        route route-26 source lfo-10 target cutoff-2 depth 500hz map bipolar curve linear order 26 bypass false
+        route route-27 source lfo-11 target cutoff-3 depth 500hz map bipolar curve smoothstep order 27 bypass false
+        route route-28 source lfo-12 target cutoff-4 depth 500hz map bipolar curve linear order 28 bypass false
+        route route-29 source lfo-13 target cutoff-5 depth 500hz map bipolar curve linear order 29 bypass false
+        route route-30 source lfo-14 target cutoff-6 depth 500hz map bipolar curve smoothstep order 30 bypass false
+        route route-31 source lfo-15 target cutoff-7 depth 500hz map bipolar curve linear order 31 bypass false
+        route route-32 source lfo-16 target cutoff-8 depth 500hz map bipolar curve linear order 32 bypass false
+        route route-33 source lfo-1 target cutoff-1 depth 500hz map bipolar curve smoothstep order 33 bypass false
+        route route-34 source lfo-2 target cutoff-2 depth 500hz map bipolar curve linear order 34 bypass false
+        route route-35 source lfo-3 target cutoff-3 depth 500hz map bipolar curve linear order 35 bypass false
+        route route-36 source lfo-4 target cutoff-4 depth 500hz map bipolar curve smoothstep order 36 bypass false
+        route route-37 source lfo-5 target cutoff-5 depth 500hz map bipolar curve linear order 37 bypass false
+        route route-38 source lfo-6 target cutoff-6 depth 500hz map bipolar curve linear order 38 bypass false
+        route route-39 source lfo-7 target cutoff-7 depth 500hz map bipolar curve smoothstep order 39 bypass false
+        route route-40 source lfo-8 target cutoff-8 depth 500hz map bipolar curve linear order 40 bypass false
+        route route-41 source lfo-9 target cutoff-1 depth 500hz map bipolar curve linear order 41 bypass false
+        route route-42 source lfo-10 target cutoff-2 depth 500hz map bipolar curve smoothstep order 42 bypass false
+        route route-43 source lfo-11 target cutoff-3 depth 500hz map bipolar curve linear order 43 bypass false
+        route route-44 source lfo-12 target cutoff-4 depth 500hz map bipolar curve linear order 44 bypass false
+        route route-45 source lfo-13 target cutoff-5 depth 500hz map bipolar curve smoothstep order 45 bypass false
+        route route-46 source lfo-14 target cutoff-6 depth 500hz map bipolar curve linear order 46 bypass false
+        route route-47 source lfo-15 target cutoff-7 depth 500hz map bipolar curve linear order 47 bypass false
+        route route-48 source lfo-16 target cutoff-8 depth 500hz map bipolar curve smoothstep order 48 bypass false
+        route route-49 source lfo-1 target cutoff-1 depth 500hz map bipolar curve linear order 49 bypass false
+        route route-50 source lfo-2 target cutoff-2 depth 500hz map bipolar curve linear order 50 bypass false
+        route route-51 source lfo-3 target cutoff-3 depth 500hz map bipolar curve smoothstep order 51 bypass false
+        route route-52 source lfo-4 target cutoff-4 depth 500hz map bipolar curve linear order 52 bypass false
+        route route-53 source lfo-5 target cutoff-5 depth 500hz map bipolar curve linear order 53 bypass false
+        route route-54 source lfo-6 target cutoff-6 depth 500hz map bipolar curve smoothstep order 54 bypass false
+        route route-55 source lfo-7 target cutoff-7 depth 500hz map bipolar curve linear order 55 bypass false
+        route route-56 source lfo-8 target cutoff-8 depth 500hz map bipolar curve linear order 56 bypass false
+        route route-57 source lfo-9 target cutoff-1 depth 500hz map bipolar curve smoothstep order 57 bypass false
+        route route-58 source lfo-10 target cutoff-2 depth 500hz map bipolar curve linear order 58 bypass false
+        route route-59 source lfo-11 target cutoff-3 depth 500hz map bipolar curve linear order 59 bypass false
+        route route-60 source lfo-12 target cutoff-4 depth 500hz map bipolar curve smoothstep order 60 bypass false
+        route route-61 source lfo-13 target cutoff-5 depth 500hz map bipolar curve linear order 61 bypass false
+        route route-62 source lfo-14 target cutoff-6 depth 500hz map bipolar curve linear order 62 bypass false
+        route route-63 source lfo-15 target cutoff-7 depth 500hz map bipolar curve smoothstep order 63 bypass false
+        route route-64 source lfo-16 target cutoff-8 depth 500hz map bipolar curve linear order 64 bypass false
+      }
+
+      graph voice 64 {
+        node source-analog analog_oscillator waveform saw unison 8 detune 0.15st width 1 phase 0 random_phase 1 level 0.12
+        node source-table wavetable asset wt-basic unison 8 table_position $table-position detune 0.1st width 1 phase 0 random_phase 1 level 0.12
+        node source-sample sample_source asset source-texture start 0 end 1 loop_mode forward loop_start 0.1 loop_end 0.9 loop_crossfade 256 direction forward tune 0st level 0.08
+        node source-multi multisample {
+          zone low asset zone-low keys C1 B3 velocity 0 1 root C3 layer body articulation default round_robin low-rr 0 region 0 24000 gain -6db pan -0.2
+          zone high asset zone-high keys C4 C7 velocity 0 1 root C5 layer body articulation default round_robin high-rr 0 region 0 24000 gain -6db pan 0.2
+          tune 0st
+          level 0.08
+        }
+        node source-grain-a granular asset source-texture max_grains 32 position 0.25 scan 0.1 size 80ms density $grain-density tune 0st spray 0.1 window hann edge reflect direction_probability 0.25 stereo_spread 1 freeze false seed 1 level 0.08
+        node source-grain-b granular asset source-texture max_grains 32 position 0.65 scan -0.08 size 120ms density $grain-density tune 7st spray 0.1 window tukey edge wrap direction_probability 0.5 stereo_spread 1 freeze false seed 2 level 0.08
+        node source-spectral spectral asset source-texture algorithm crump-spectral-peaks-v1 max_peaks 128 scan $spectral-scan rate 0.5 tune 12st low 80hz high 18khz transients reset phase_randomization 0.1 freeze false level 0.08
+        node source-noise noise level 0.02
+        node noise-stereo mono_to_stereo
+        node envelope-1 envelope mode ahdsr attack 1ms hold 0ms decay 100ms sustain 0.5 release $release attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+        node envelope-2 envelope mode ahdsr attack 2ms hold 1ms decay 120ms sustain 0.5 release 200ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+        node envelope-3 envelope mode ahdsr attack 3ms hold 2ms decay 140ms sustain 0.5 release 250ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+        node envelope-4 envelope mode ahdsr attack 4ms hold 3ms decay 160ms sustain 0.5 release 300ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+        node envelope-5 envelope mode ahdsr attack 5ms hold 4ms decay 180ms sustain 0.5 release 350ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+        node envelope-6 envelope mode ahdsr attack 6ms hold 5ms decay 200ms sustain 0.5 release 400ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+        node envelope-7 envelope mode ahdsr attack 7ms hold 6ms decay 220ms sustain 0.5 release 450ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+        node envelope-8 envelope mode ahdsr attack 8ms hold 7ms decay 240ms sustain 0.5 release 500ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+        node source-sum stereo_sum
+        node filter-1 stereo_filter model svf_clean mode lowpass cutoff $cutoff-1 resonance 0.2 drive 0 mix 1 pan 0 mod_depth 500hz key_track 0 velocity_depth 0hz
+        node filter-2 stereo_filter model svf_clean mode highpass cutoff $cutoff-2 resonance 0.2 drive 0 mix 1 pan 0 mod_depth 500hz key_track 0 velocity_depth 0hz
+        node filter-3 stereo_filter model svf_clean mode bandpass cutoff $cutoff-3 resonance 0.2 drive 0 mix 1 pan 0 mod_depth 500hz key_track 0 velocity_depth 0hz
+        node filter-4 stereo_filter model svf_clean mode notch cutoff $cutoff-4 resonance 0.2 drive 0 mix 1 pan 0 mod_depth 500hz key_track 0 velocity_depth 0hz
+        node filter-5 stereo_filter model svf_clean mode lowpass cutoff $cutoff-5 resonance 0.2 drive 0 mix 1 pan 0 mod_depth 500hz key_track 0 velocity_depth 0hz
+        node filter-6 stereo_filter model svf_clean mode highpass cutoff $cutoff-6 resonance 0.2 drive 0 mix 1 pan 0 mod_depth 500hz key_track 0 velocity_depth 0hz
+        node filter-7 stereo_filter model svf_clean mode bandpass cutoff $cutoff-7 resonance 0.2 drive 0 mix 1 pan 0 mod_depth 500hz key_track 0 velocity_depth 0hz
+        node filter-8 stereo_filter model svf_clean mode notch cutoff $cutoff-8 resonance 0.2 drive 0 mix 1 pan 0 mod_depth 500hz key_track 0 velocity_depth 0hz
+        node voice-output output
+
+        bus pitch-analog note.pitch -> source-analog.pitch
+        bus pitch-table note.pitch -> source-table.pitch
+        bus pitch-sample note.pitch -> source-sample.pitch
+        bus pitch-multi note.pitch -> source-multi.pitch
+        bus pitch-grain-a note.pitch -> source-grain-a.pitch
+        bus pitch-grain-b note.pitch -> source-grain-b.pitch
+        bus pitch-spectral note.pitch -> source-spectral.pitch
+        bus gate-sample note.gate -> source-sample.gate
+        bus gate-multi note.gate -> source-multi.gate
+        bus velocity-multi note.velocity -> source-multi.velocity
+        bus gate-grain-a note.gate -> source-grain-a.gate
+        bus gate-grain-b note.gate -> source-grain-b.gate
+        bus gate-envelope-1 note.gate -> envelope-1.gate
+        bus gate-envelope-2 note.gate -> envelope-2.gate
+        bus gate-envelope-3 note.gate -> envelope-3.gate
+        bus gate-envelope-4 note.gate -> envelope-4.gate
+        bus gate-envelope-5 note.gate -> envelope-5.gate
+        bus gate-envelope-6 note.gate -> envelope-6.gate
+        bus gate-envelope-7 note.gate -> envelope-7.gate
+        bus gate-envelope-8 note.gate -> envelope-8.gate
+        bus analog-sum source-analog.audio -> source-sum.inputs
+        bus table-sum source-table.audio -> source-sum.inputs
+        bus sample-sum source-sample.audio -> source-sum.inputs
+        bus multi-sum source-multi.audio -> source-sum.inputs
+        bus grain-a-sum source-grain-a.audio -> source-sum.inputs
+        bus grain-b-sum source-grain-b.audio -> source-sum.inputs
+        bus spectral-sum source-spectral.audio -> source-sum.inputs
+        bus noise-convert source-noise.audio -> noise-stereo.audio
+        bus noise-sum noise-stereo.audio -> source-sum.inputs
+        bus sum-filter-1 source-sum.audio -> filter-1.audio
+        bus envelope-filter-1 envelope-1.control -> filter-1.mod
+        bus envelope-filter-2 envelope-2.control -> filter-2.mod
+        bus envelope-filter-3 envelope-3.control -> filter-3.mod
+        bus envelope-filter-4 envelope-4.control -> filter-4.mod
+        bus envelope-filter-5 envelope-5.control -> filter-5.mod
+        bus envelope-filter-6 envelope-6.control -> filter-6.mod
+        bus envelope-filter-7 envelope-7.control -> filter-7.mod
+        bus envelope-filter-8 envelope-8.control -> filter-8.mod
+        bus filter-1-filter-2 filter-1.audio -> filter-2.audio
+        bus filter-2-filter-3 filter-2.audio -> filter-3.audio
+        bus filter-3-filter-4 filter-3.audio -> filter-4.audio
+        bus filter-4-filter-5 filter-4.audio -> filter-5.audio
+        bus filter-5-filter-6 filter-5.audio -> filter-6.audio
+        bus filter-6-filter-7 filter-6.audio -> filter-7.audio
+        bus filter-7-filter-8 filter-7.audio -> filter-8.audio
+        bus voice-out filter-8.audio -> voice-output.audio
+      }
+
+      graph shared 64 {
+        node shared-entry stereo_sum
+        node shared-sum stereo_sum
+        node shared-delay-1 delay time 10ms feedback 0.2 mix 0.1
+        node shared-reverb-1 reverb room 0.6 damping 0.5 mix 0.1
+        node shared-delay-2 delay time 20ms feedback 0.2 mix 0.1
+        node shared-reverb-2 reverb room 0.6 damping 0.5 mix 0.1
+        node shared-delay-3 delay time 30ms feedback 0.2 mix 0.1
+        node shared-reverb-3 reverb room 0.6 damping 0.5 mix 0.1
+        node shared-delay-4 delay time 40ms feedback 0.2 mix 0.1
+        node shared-output output
+        bus voice-sum-in voice_sum.audio -> shared-entry.inputs
+        bus voices-in shared-entry.audio -> shared-sum.inputs
+        bus voices-delay-1 shared-entry.audio -> shared-delay-1.audio
+        bus delay-reverb-1 shared-delay-1.audio -> shared-reverb-1.audio
+        bus reverb-sum-1 shared-reverb-1.audio -> shared-sum.inputs
+        bus voices-delay-2 shared-entry.audio -> shared-delay-2.audio
+        bus delay-reverb-2 shared-delay-2.audio -> shared-reverb-2.audio
+        bus reverb-sum-2 shared-reverb-2.audio -> shared-sum.inputs
+        bus voices-delay-3 shared-entry.audio -> shared-delay-3.audio
+        bus delay-reverb-3 shared-delay-3.audio -> shared-reverb-3.audio
+        bus reverb-sum-3 shared-reverb-3.audio -> shared-sum.inputs
+        bus voices-delay-4 shared-entry.audio -> shared-delay-4.audio
+        bus delay-sum-4 shared-delay-4.audio -> shared-sum.inputs
+        bus shared-out shared-sum.audio -> shared-output.audio
+      }
     }
-    node source-grain-a granular asset source-texture max_grains 32 position 0.25 scan 0.1 size 80ms density $grain-density tune 0st spray 0.1 window hann edge reflect direction_probability 0.25 stereo_spread 1 freeze false seed 1 level 0.08
-    node source-grain-b granular asset source-texture max_grains 32 position 0.65 scan -0.08 size 120ms density $grain-density tune 7st spray 0.1 window tukey edge wrap direction_probability 0.5 stereo_spread 1 freeze false seed 2 level 0.08
-    node source-spectral spectral asset source-texture algorithm crump-spectral-peaks-v1 max_peaks 128 scan $spectral-scan rate 0.5 tune 12st low 80hz high 18khz transients reset phase_randomization 0.1 freeze false level 0.08
-    node source-noise noise color pink seed 3 level 0.02 pan 0
-    node envelope-1 envelope mode ahdsr attack 1ms hold 0ms decay 100ms sustain 0.5 release $release attack_curve 0 decay_curve 0 release_curve 0 retrigger always
-    node envelope-2 envelope mode ahdsr attack 2ms hold 1ms decay 120ms sustain 0.5 release 200ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
-    node envelope-3 envelope mode ahdsr attack 3ms hold 2ms decay 140ms sustain 0.5 release 250ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
-    node envelope-4 envelope mode ahdsr attack 4ms hold 3ms decay 160ms sustain 0.5 release 300ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
-    node envelope-5 envelope mode ahdsr attack 5ms hold 4ms decay 180ms sustain 0.5 release 350ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
-    node envelope-6 envelope mode ahdsr attack 6ms hold 5ms decay 200ms sustain 0.5 release 400ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
-    node envelope-7 envelope mode ahdsr attack 7ms hold 6ms decay 220ms sustain 0.5 release 450ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
-    node envelope-8 envelope mode ahdsr attack 8ms hold 7ms decay 240ms sustain 0.5 release 500ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
-    node source-sum stereo_sum
-    node filter-1 stereo_filter model svf_clean mode lowpass cutoff $cutoff-1 resonance 0.2 drive 0 mix 1 pan 0 key_track 0 velocity_depth 0hz
-    node filter-2 stereo_filter model svf_clean mode highpass cutoff $cutoff-2 resonance 0.2 drive 0 mix 1 pan 0 key_track 0 velocity_depth 0hz
-    node filter-3 stereo_filter model svf_clean mode bandpass cutoff $cutoff-3 resonance 0.2 drive 0 mix 1 pan 0 key_track 0 velocity_depth 0hz
-    node filter-4 stereo_filter model svf_clean mode notch cutoff $cutoff-4 resonance 0.2 drive 0 mix 1 pan 0 key_track 0 velocity_depth 0hz
-    node filter-5 stereo_filter model svf_clean mode lowpass cutoff $cutoff-5 resonance 0.2 drive 0 mix 1 pan 0 key_track 0 velocity_depth 0hz
-    node filter-6 stereo_filter model svf_clean mode highpass cutoff $cutoff-6 resonance 0.2 drive 0 mix 1 pan 0 key_track 0 velocity_depth 0hz
-    node filter-7 stereo_filter model svf_clean mode bandpass cutoff $cutoff-7 resonance 0.2 drive 0 mix 1 pan 0 key_track 0 velocity_depth 0hz
-    node filter-8 stereo_filter model svf_clean mode notch cutoff $cutoff-8 resonance 0.2 drive 0 mix 1 pan 0 key_track 0 velocity_depth 0hz
-    node voice-amp amplifier level 0.7
-    node voice-pan stereo_pan position 0 width 1
-    node voice-output voice_output
-
-    bus pitch-analog note.pitch -> source-analog.pitch
-    bus pitch-table note.pitch -> source-table.pitch
-    bus pitch-sample note.pitch -> source-sample.pitch
-    bus pitch-multi note.pitch -> source-multi.pitch
-    bus pitch-grain-a note.pitch -> source-grain-a.pitch
-    bus pitch-grain-b note.pitch -> source-grain-b.pitch
-    bus pitch-spectral note.pitch -> source-spectral.pitch
-    bus gate-envelope-1 note.gate -> envelope-1.gate
-    bus gate-envelope-2 note.gate -> envelope-2.gate
-    bus gate-envelope-3 note.gate -> envelope-3.gate
-    bus gate-envelope-4 note.gate -> envelope-4.gate
-    bus gate-envelope-5 note.gate -> envelope-5.gate
-    bus gate-envelope-6 note.gate -> envelope-6.gate
-    bus gate-envelope-7 note.gate -> envelope-7.gate
-    bus gate-envelope-8 note.gate -> envelope-8.gate
-    bus analog-sum source-analog.audio -> source-sum.inputs
-    bus table-sum source-table.audio -> source-sum.inputs
-    bus sample-sum source-sample.audio -> source-sum.inputs
-    bus multi-sum source-multi.audio -> source-sum.inputs
-    bus grain-a-sum source-grain-a.audio -> source-sum.inputs
-    bus grain-b-sum source-grain-b.audio -> source-sum.inputs
-    bus spectral-sum source-spectral.audio -> source-sum.inputs
-    bus noise-sum source-noise.audio -> source-sum.inputs
-    bus sum-filter-1 source-sum.audio -> filter-1.audio
-    bus filter-1-filter-2 filter-1.audio -> filter-2.audio
-    bus filter-2-filter-3 filter-2.audio -> filter-3.audio
-    bus filter-3-filter-4 filter-3.audio -> filter-4.audio
-    bus filter-4-filter-5 filter-4.audio -> filter-5.audio
-    bus filter-5-filter-6 filter-5.audio -> filter-6.audio
-    bus filter-6-filter-7 filter-6.audio -> filter-7.audio
-    bus filter-7-filter-8 filter-7.audio -> filter-8.audio
-    bus filters-amp filter-8.audio -> voice-amp.audio
-    bus envelope-amp envelope-1.control -> voice-amp.gain
-    bus amp-pan voice-amp.audio -> voice-pan.audio
-    bus voice-out voice-pan.audio -> voice-output.audio
-  }
-
-  graph shared 64 {
-    node shared-sum stereo_sum
-    node shared-delay-1 delay time 1/16beat feedback 0.2 low_pass 8khz high_pass 100hz mode ping_pong mix 0.1
-    node shared-reverb-1 reverb pre_delay 4ms diffusion 0.6 decay 0.5 damping 0.5 modulation 0.05 width 1 mix 0.1
-    node shared-delay-2 delay time 2/16beat feedback 0.2 low_pass 8khz high_pass 100hz mode ping_pong mix 0.1
-    node shared-reverb-2 reverb pre_delay 8ms diffusion 0.6 decay 0.5 damping 0.5 modulation 0.05 width 1 mix 0.1
-    node shared-delay-3 delay time 3/16beat feedback 0.2 low_pass 8khz high_pass 100hz mode ping_pong mix 0.1
-    node shared-reverb-3 reverb pre_delay 12ms diffusion 0.6 decay 0.5 damping 0.5 modulation 0.05 width 1 mix 0.1
-    node shared-delay-4 delay time 4/16beat feedback 0.2 low_pass 8khz high_pass 100hz mode ping_pong mix 0.1
-    node shared-reverb-4 reverb pre_delay 16ms diffusion 0.6 decay 0.5 damping 0.5 modulation 0.05 width 1 mix 0.1
-    node shared-output output
-    bus voices-in voices.audio -> shared-sum.inputs
-    bus voices-delay-1 voices.audio -> shared-delay-1.audio
-    bus delay-reverb-1 shared-delay-1.audio -> shared-reverb-1.audio
-    bus reverb-sum-1 shared-reverb-1.audio -> shared-sum.inputs
-    bus voices-delay-2 voices.audio -> shared-delay-2.audio
-    bus delay-reverb-2 shared-delay-2.audio -> shared-reverb-2.audio
-    bus reverb-sum-2 shared-reverb-2.audio -> shared-sum.inputs
-    bus voices-delay-3 voices.audio -> shared-delay-3.audio
-    bus delay-reverb-3 shared-delay-3.audio -> shared-reverb-3.audio
-    bus reverb-sum-3 shared-reverb-3.audio -> shared-sum.inputs
-    bus voices-delay-4 voices.audio -> shared-delay-4.audio
-    bus delay-reverb-4 shared-delay-4.audio -> shared-reverb-4.audio
-    bus reverb-sum-4 shared-reverb-4.audio -> shared-sum.inputs
-    bus shared-out shared-sum.audio -> shared-output.audio
+    pattern maximum-chord 1bar {
+      note 0beat C2 1bar 0.7
+      note 0beat G2 1bar 0.7
+      note 0beat C3 1bar 0.7
+      note 0beat E3 1bar 0.7
+      note 0beat G3 1bar 0.7
+      note 0beat C4 1bar 0.7
+      note 0beat E4 1bar 0.7
+      note 0beat G4 1bar 0.7
+    }
+    track maximum-track "Qualification Maximum" instrument qualification-max-v1 level -18db pan 0 {
+      clip maximum-phrase pattern maximum-chord start 0bar duration 1bar mode once
+    }
   }
 }

@@ -1,4 +1,5 @@
 use super::*;
+use crate::model::{WavetableMorph, WavetableNormalization};
 
 /// Publishes one staged bounce declaration and exact bytes through the atomic History path.
 pub fn publish_bounce_asset(
@@ -86,6 +87,19 @@ fn publish_generated_audio_asset(
     )
 }
 
+/// Source-backed structural interpretation authored by wavetable import.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WavetableImportOptions {
+    /// Samples in each periodic frame.
+    pub frame_length: u32,
+    /// Consecutive frames in the exact mono WAV.
+    pub frames: u16,
+    /// Source-amplitude normalization policy.
+    pub normalization: WavetableNormalization,
+    /// Deterministic inter-frame interpolation law.
+    pub morph: WavetableMorph,
+}
+
 /// Copies one external WAV into `media/`, declares it, and publishes atomically.
 pub fn import_media_asset(
     root: impl AsRef<Path>,
@@ -93,6 +107,58 @@ pub fn import_media_asset(
     source: impl AsRef<Path>,
     id: &str,
     name: &str,
+    publication: Publication,
+) -> Result<HistoryEntry, EditError> {
+    import_media_asset_with_metadata(root, expected_revision, source, id, name, None, publication)
+}
+
+/// Imports one exact mono WAV plus complete source-backed wavetable interpretation.
+pub fn import_wavetable_asset(
+    root: impl AsRef<Path>,
+    expected_revision: &RevisionId,
+    source: impl AsRef<Path>,
+    id: &str,
+    name: &str,
+    options: WavetableImportOptions,
+    publication: Publication,
+) -> Result<HistoryEntry, EditError> {
+    if !options.frame_length.is_power_of_two()
+        || !(crate::validate::MIN_WAVETABLE_FRAME_LENGTH
+            ..=crate::validate::MAX_WAVETABLE_FRAME_LENGTH)
+            .contains(&options.frame_length)
+    {
+        return Err(EditError::InvalidValue(format!(
+            "wavetable frame length must be a power of two from {} to {}",
+            crate::validate::MIN_WAVETABLE_FRAME_LENGTH,
+            crate::validate::MAX_WAVETABLE_FRAME_LENGTH
+        )));
+    }
+    if !(1..=crate::validate::MAX_WAVETABLE_FRAMES).contains(&options.frames)
+        || u64::from(options.frame_length).saturating_mul(u64::from(options.frames))
+            > crate::validate::MAX_WAVETABLE_SAMPLES
+    {
+        return Err(EditError::InvalidValue(
+            "wavetable frame count exceeds the bounded asset interpretation".to_owned(),
+        ));
+    }
+    import_media_asset_with_metadata(
+        root,
+        expected_revision,
+        source,
+        id,
+        name,
+        Some(options),
+        publication,
+    )
+}
+
+fn import_media_asset_with_metadata(
+    root: impl AsRef<Path>,
+    expected_revision: &RevisionId,
+    source: impl AsRef<Path>,
+    id: &str,
+    name: &str,
+    wavetable: Option<WavetableImportOptions>,
     publication: Publication,
 ) -> Result<HistoryEntry, EditError> {
     if !valid_source_id(id) {
@@ -127,8 +193,16 @@ pub fn import_media_asset(
             )));
         }
     };
+    if let Some(options) = wavetable {
+        validate_wavetable_import_bytes(&bytes, options)?;
+    }
     let bundle = load_project(root.as_ref())?;
     let project = bundle.project.as_ref().ok_or(EditError::InvalidBase)?;
+    if wavetable.is_some() && project.source_version < crate::model::SOURCE_VERSION_V2 {
+        return Err(EditError::InvalidValue(
+            "wavetable import requires a source-v2 Project".to_owned(),
+        ));
+    }
     if project.assets.iter().any(|asset| asset.id == id) {
         return Err(EditError::InvalidValue(format!(
             "media asset id `{id}` already exists"
@@ -143,11 +217,30 @@ pub fn import_media_asset(
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
-    let declaration = format!(
-        "{indentation}asset {id} {} wav \"{}\" sha256 \"{digest}\"\n",
-        quote_source_string(name),
-        destination.display()
-    );
+    let declaration = if let Some(options) = wavetable {
+        let normalization = match options.normalization {
+            WavetableNormalization::Preserve => "preserve",
+            WavetableNormalization::GlobalPeak => "global_peak",
+            WavetableNormalization::FramePeak => "frame_peak",
+        };
+        let morph = match options.morph {
+            WavetableMorph::Linear => "linear",
+            WavetableMorph::CatmullRom => "catmull_rom",
+        };
+        format!(
+            "{indentation}asset {id} {} wav \"{}\" sha256 \"{digest}\" {{\n{indentation}  usage wavetable\n{indentation}  frame_length {}\n{indentation}  frames {}\n{indentation}  normalization {normalization}\n{indentation}  morph {morph}\n{indentation}}}\n",
+            quote_source_string(name),
+            destination.display(),
+            options.frame_length,
+            options.frames,
+        )
+    } else {
+        format!(
+            "{indentation}asset {id} {} wav \"{}\" sha256 \"{digest}\"\n",
+            quote_source_string(name),
+            destination.display()
+        )
+    };
     apply_project_mutation(
         root,
         expected_revision,
@@ -168,6 +261,57 @@ pub fn import_media_asset(
         },
         publication,
     )
+}
+
+fn validate_wavetable_import_bytes(
+    bytes: &[u8],
+    options: WavetableImportOptions,
+) -> Result<(), EditError> {
+    let mut reader = hound::WavReader::new(std::io::Cursor::new(bytes)).map_err(|error| {
+        EditError::InvalidValue(format!("wavetable import is not a readable WAV: {error}"))
+    })?;
+    let specification = reader.spec();
+    if specification.channels != 1 {
+        return Err(EditError::InvalidValue(format!(
+            "wavetable import must be mono; found {} channels",
+            specification.channels
+        )));
+    }
+    let expected = u64::from(options.frame_length).saturating_mul(u64::from(options.frames));
+    if u64::from(reader.duration()) != expected {
+        return Err(EditError::InvalidValue(format!(
+            "wavetable import requires {expected} samples ({} frames × {}), but the WAV contains {}",
+            options.frames,
+            options.frame_length,
+            reader.duration()
+        )));
+    }
+    match specification.sample_format {
+        hound::SampleFormat::Int => {
+            for sample in reader.samples::<i32>() {
+                sample.map_err(|error| {
+                    EditError::InvalidValue(format!(
+                        "wavetable import contains unreadable PCM data: {error}"
+                    ))
+                })?;
+            }
+        }
+        hound::SampleFormat::Float => {
+            for sample in reader.samples::<f32>() {
+                let sample = sample.map_err(|error| {
+                    EditError::InvalidValue(format!(
+                        "wavetable import contains unreadable float data: {error}"
+                    ))
+                })?;
+                if !sample.is_finite() {
+                    return Err(EditError::InvalidValue(
+                        "wavetable import contains a non-finite sample".to_owned(),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Collects every declared WAV into the canonical `media/<asset-id>.wav` layout.

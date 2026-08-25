@@ -8,6 +8,7 @@ mod drums;
 mod follower;
 pub(crate) mod generated_audio;
 mod graph;
+mod lfo;
 pub mod mix_graph;
 mod oversampling;
 mod processors;
@@ -17,6 +18,12 @@ pub mod sample;
 pub mod sample_transform;
 mod sampler;
 pub(crate) mod schedule;
+pub(crate) mod spectral;
+mod wavetable;
+
+pub use sample::SampleSourceInspection;
+pub use spectral::SpectralAnalysisInspection;
+pub use wavetable::WavetableInspection;
 
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -29,18 +36,24 @@ use crate::model::Instrument;
 use crate::{
     diagnostic::Diagnostic,
     media::AssetInventory,
-    model::{DrumVoice, InstrumentKind, Project, TapPoint},
-    validate::{validate_project_assets, validate_project_with_topology},
+    model::{
+        DrumVoice, GlideMode, InstrumentKind, NotePriority, Project, RetriggerPolicy,
+        StealPriority, TapPoint, Voicing, VoicingMode,
+    },
+    validate::{MAX_CONTROL_TARGETS, validate_project_assets, validate_project_with_topology},
 };
 
 use self::{
-    control::{CompiledControlProgram, ControlIndex, ControlRuntime, ControlValueSnapshot},
+    control::{
+        CompiledControlProgram, ControlIndex, ControlRuntime, ControlValueSnapshot,
+        TrackParameterLockRuntime, mix_modulation_identity, stable_modulation_identity,
+    },
     drums::DrumSynth,
     follower::{
         CompiledEnvelopeFollowerProgram, EnvelopeFollowerInspection, EnvelopeFollowerMeter,
         EnvelopeFollowerRuntime, MAX_ENVELOPE_FOLLOWERS,
     },
-    graph::{CompiledGraph, GraphVoice},
+    graph::{CompiledGraph, GraphProcessIdentity, GraphVoice, SharedGraphRuntime},
     mix_graph::{
         ChannelMeter, CompiledMixGraph, MAX_MIX_CHANNELS, MAX_PROCESSOR_INSTANCES, MixGraphRuntime,
         ProcessorMeter,
@@ -48,6 +61,7 @@ use self::{
     sample::{CompiledSampleLibrary, CompiledSampleSource},
     sampler::{CompiledSamplerProgram, SamplerRuntime},
     schedule::{ClipEnvelope, MAX_RUNTIME_TRACKS, RuntimeEvent, TrackSchedule, compile_schedules},
+    spectral::CompiledSpectralLibrary,
 };
 
 pub use analysis::FinalizedAudioAnalysis;
@@ -76,6 +90,9 @@ pub struct CompiledProject {
     tracks: Vec<CompiledTrack>,
     mix_graph: CompiledMixGraph,
     envelope_followers: Arc<CompiledEnvelopeFollowerProgram>,
+    samples: Vec<SampleSourceInspection>,
+    spectral: Vec<SpectralAnalysisInspection>,
+    wavetables: Vec<WavetableInspection>,
 }
 
 impl CompiledProject {
@@ -97,10 +114,54 @@ impl CompiledProject {
         if diagnostics.has_errors() {
             return Err(EngineError::Validation(diagnostics.into_vec()));
         }
+        let sample_program_bytes = CompiledSampleLibrary::estimated_allocation_bytes_for_project(
+            project,
+            inventory,
+            project.sample_rate,
+        )
+        .map_err(|error| EngineError::Compile(error.to_string()))?;
+        let spectral_program_bytes =
+            CompiledSpectralLibrary::estimated_allocation_bytes_for_project(
+                project,
+                inventory,
+                project.sample_rate,
+            )
+            .map_err(|error| EngineError::Compile(error.to_string()))?;
+        let mut asset_aware_estimate =
+            CompiledMixGraph::resource_estimate_for_validation(project, &topology)?;
+        asset_aware_estimate.include_additional_instrument_program_bytes(
+            sample_program_bytes.saturating_add(spectral_program_bytes),
+        );
+        if !asset_aware_estimate.admitted {
+            diagnostics.push(
+                Diagnostic::error(
+                    "CRV092",
+                    format!(
+                        "compiled exact-asset runtime exceeds a named budget: {} bytes at publication (budget {})",
+                        asset_aware_estimate.publication_peak_bytes,
+                        asset_aware_estimate.publication_budget_bytes
+                    ),
+                )
+                .with_help(
+                    "reduce referenced sample/spectral duration, spectral peaks, graph voices, processor state, or Track count",
+                ),
+            );
+            return Err(EngineError::Validation(diagnostics.into_vec()));
+        }
         let schedules = compile_schedules(project)?;
         let controls = CompiledControlProgram::compile(project)?;
-        let sample_library = CompiledSampleLibrary::compile(inventory, project.sample_rate)
-            .map_err(|error| EngineError::Compile(error.to_string()))?;
+        let sample_library =
+            CompiledSampleLibrary::compile_for_project(project, inventory, project.sample_rate)
+                .map_err(|error| EngineError::Compile(error.to_string()))?;
+        let sample_inspection = sample_library.inspection();
+        let spectral_library =
+            CompiledSpectralLibrary::compile_for_project(project, &sample_library)
+                .map_err(|error| EngineError::Compile(error.to_string()))?;
+        let spectral_inspection = spectral_library.inspection();
+        let wavetable_library =
+            wavetable::CompiledWavetableLibrary::compile(project, inventory, project.sample_rate)
+                .map_err(|error| EngineError::Compile(error.to_string()))?;
+        let wavetable_inspection = wavetable_library.inspection();
         let instruments: BTreeMap<_, _> = project
             .song
             .instruments
@@ -116,12 +177,29 @@ impl CompiledProject {
                 })?;
             let program = match instrument.kind {
                 InstrumentKind::Graph => InstrumentProgram::Graph {
-                    graph: Arc::new(CompiledGraph::compile(
+                    // Voice and shared programs bind the same publication-owned
+                    // exact-asset derivative library before any callback exists.
+                    graph: Arc::new(CompiledGraph::compile_with_assets(
                         instrument,
+                        project,
                         project.sample_rate,
                         &controls,
+                        &sample_library,
+                        &spectral_library,
+                        &wavetable_library,
                     )?),
+                    shared_graph: CompiledGraph::compile_shared_with_assets(
+                        instrument,
+                        project,
+                        project.sample_rate,
+                        &controls,
+                        &sample_library,
+                        &spectral_library,
+                        &wavetable_library,
+                    )?
+                    .map(Arc::new),
                     polyphony: usize::from(instrument.polyphony),
+                    voicing: CompiledVoicing::from_authored(&instrument.voicing),
                 },
                 InstrumentKind::StockDrums => InstrumentProgram::Drums {
                     instrument: Box::new((*instrument).clone()),
@@ -167,18 +245,38 @@ impl CompiledProject {
         let instrument_program_bytes = tracks
             .iter()
             .map(|track| match &track.program {
-                InstrumentProgram::Graph { graph, .. } => graph.allocation_bytes(),
+                InstrumentProgram::Graph {
+                    graph,
+                    shared_graph,
+                    ..
+                } => graph.allocation_bytes().saturating_add(
+                    shared_graph
+                        .as_ref()
+                        .map_or(0, |graph| graph.allocation_bytes()),
+                ),
                 InstrumentProgram::Drums { .. } => 0,
                 InstrumentProgram::Sampler(program) => program.allocation_bytes(),
             })
-            .fold(sample_library.allocation_bytes(), u64::saturating_add);
+            .fold(
+                sample_library
+                    .allocation_bytes()
+                    .saturating_add(spectral_library.allocation_bytes()),
+                u64::saturating_add,
+            );
+        let voicing_runtime_state_bytes = tracks
+            .iter()
+            .filter(|track| matches!(track.program, InstrumentProgram::Graph { .. }))
+            .count() as u64
+            * std::mem::size_of::<GraphVoicingRuntime>() as u64;
         let song_runtime_structure_bytes = (std::mem::size_of::<SongRuntime>() as u64)
             .saturating_add(project.id.len() as u64)
+            .saturating_add(voicing_runtime_state_bytes)
             .saturating_add(
                 (tracks.capacity() as u64)
                     .saturating_mul(std::mem::size_of::<TrackRuntime>() as u64),
             )
             .saturating_add(controls.runtime_state_bytes())
+            .saturating_add(controls.track_parameter_lock_runtime_state_bytes())
             .saturating_add(envelope_followers.runtime_state_bytes());
         mix_graph.include_song_runtime_state(
             controls
@@ -188,7 +286,21 @@ impl CompiledProject {
             instrument_program_bytes,
             song_runtime_structure_bytes,
         )?;
-        mix_graph.include_additional_callback_work(envelope_followers.work_units_per_frame())?;
+        let voicing_work_units_per_frame = tracks
+            .iter()
+            .map(|track| match &track.program {
+                InstrumentProgram::Graph {
+                    polyphony, voicing, ..
+                } if voicing.glide_mode != GlideMode::Off => *polyphony as u64,
+                _ => 0,
+            })
+            .fold(0_u64, u64::saturating_add);
+        mix_graph.include_additional_callback_work(
+            controls
+                .instrument_work_units_per_frame()
+                .saturating_add(envelope_followers.work_units_per_frame())
+                .saturating_add(voicing_work_units_per_frame),
+        )?;
         let arrangement_frames = project
             .song
             .end
@@ -206,6 +318,9 @@ impl CompiledProject {
             tracks,
             mix_graph,
             envelope_followers,
+            samples: sample_inspection,
+            spectral: spectral_inspection,
+            wavetables: wavetable_inspection,
         })
     }
 
@@ -235,7 +350,15 @@ impl CompiledProject {
                 .tracks
                 .iter()
                 .enumerate()
-                .map(|(index, track)| TrackRuntime::new(track, self.sample_rate, index as u64))
+                .map(|(index, track)| {
+                    TrackRuntime::new(
+                        track,
+                        self.sample_rate,
+                        index as u64,
+                        self.controls
+                            .track_parameter_lock_runtime(&track.schedule.track_id),
+                    )
+                })
                 .collect(),
             mix: self.mix_graph.runtime(),
             track_sources: [[0.0; 2]; MAX_RUNTIME_TRACKS],
@@ -273,6 +396,24 @@ impl CompiledProject {
         self.mix_graph.inspection()
     }
 
+    /// Derived exact-asset sample decode/resampling identities and shapes.
+    #[must_use]
+    pub fn sample_source_inspection(&self) -> &[SampleSourceInspection] {
+        &self.samples
+    }
+
+    /// Derived exact-asset spectral analysis identities and bounded shapes.
+    #[must_use]
+    pub fn spectral_analysis_inspection(&self) -> &[SpectralAnalysisInspection] {
+        &self.spectral
+    }
+
+    /// Derived exact-asset table identities, shapes, and mip bounds.
+    #[must_use]
+    pub fn wavetable_inspection(&self) -> &[WavetableInspection] {
+        &self.wavetables
+    }
+
     /// Static Audio-derived control routes aligned to runtime follower telemetry indexes.
     #[must_use]
     pub fn envelope_follower_inspection(&self) -> Vec<EnvelopeFollowerInspection> {
@@ -288,11 +429,47 @@ struct CompiledTrack {
     semantic_hash: [u8; 32],
 }
 
+#[derive(Debug, Clone, Copy)]
+struct CompiledVoicing {
+    mode: VoicingMode,
+    retrigger: RetriggerPolicy,
+    glide_seconds: f64,
+    glide_mode: GlideMode,
+    note_priority: NotePriority,
+    steal_priority: StealPriority,
+    seed: u64,
+}
+
+impl CompiledVoicing {
+    fn from_authored(voicing: &Voicing) -> Self {
+        Self {
+            mode: voicing.mode,
+            retrigger: voicing.retrigger,
+            glide_seconds: voicing.glide_seconds,
+            glide_mode: voicing.glide_mode,
+            note_priority: voicing.note_priority,
+            steal_priority: voicing.steal_priority,
+            seed: voicing.seed,
+        }
+    }
+
+    fn structurally_compatible(self, replacement: Self) -> bool {
+        self.mode == replacement.mode
+            && self.retrigger == replacement.retrigger
+            && self.glide_mode == replacement.glide_mode
+            && self.note_priority == replacement.note_priority
+            && self.steal_priority == replacement.steal_priority
+            && self.seed == replacement.seed
+    }
+}
+
 #[derive(Debug, Clone)]
 enum InstrumentProgram {
     Graph {
         graph: Arc<CompiledGraph>,
+        shared_graph: Option<Arc<CompiledGraph>>,
         polyphony: usize,
+        voicing: CompiledVoicing,
     },
     Drums {
         instrument: Box<crate::model::Instrument>,
@@ -388,27 +565,29 @@ fn track_semantic_hash(
             }
         }
     }
-    let parameters = instrument
+    let mut parameters = instrument
         .parameters
         .iter()
         .map(|parameter| {
-            let allocation_value = instrument.graph.as_ref().and_then(|graph| {
-                graph
-                    .nodes
-                    .iter()
-                    .any(|node| {
+            let allocation_value = instrument
+                .graph
+                .iter()
+                .chain(instrument.shared_graph.iter())
+                .any(|graph| {
+                    graph.nodes.iter().any(|node| {
                         node.kind == crate::model::NodeKind::Delay
                             && matches!(
-                                node.settings.get("time"),
+                                node.setting("time"),
                                 Some(crate::model::SettingValue::Parameter(bound))
                                     if bound == &parameter.key
                             )
                     })
-                    .then_some(parameter.value)
-            });
+                })
+                .then_some(parameter.value);
             (&parameter.key, allocation_value)
         })
         .collect::<Vec<_>>();
+    parameters.sort_by_key(|(left, _)| *left);
     let sample_assets = instrument
         .sampler
         .as_ref()
@@ -426,17 +605,179 @@ fn track_semantic_hash(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    let graph_sample_asset_ids = instrument
+        .graph
+        .iter()
+        .chain(instrument.shared_graph.iter())
+        .flat_map(|graph| &graph.nodes)
+        .flat_map(|node| match node.kind {
+            crate::model::NodeKind::SampleSource
+            | crate::model::NodeKind::Granular
+            | crate::model::NodeKind::Spectral => node
+                .setting("asset")
+                .and_then(|value| match value {
+                    crate::model::SettingValue::Text(asset_id) => Some(vec![asset_id.as_str()]),
+                    _ => None,
+                })
+                .unwrap_or_default(),
+            crate::model::NodeKind::Multisample => node
+                .directives
+                .iter()
+                .filter_map(|directive| {
+                    (directive.tokens.len() >= 4
+                        && directive.tokens[0].value == "zone"
+                        && directive.tokens[2].value == "asset")
+                        .then_some(directive.tokens[3].value.as_str())
+                })
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let graph_sample_assets = graph_sample_asset_ids
+        .into_iter()
+        .filter_map(|asset_id| {
+            project
+                .assets
+                .iter()
+                .find(|asset| asset.id == asset_id)
+                .map(|asset| (&asset.id, &asset.sha256))
+        })
+        .collect::<Vec<_>>();
+    let wavetable_asset_ids = instrument
+        .graph
+        .iter()
+        .chain(instrument.shared_graph.iter())
+        .flat_map(|graph| &graph.nodes)
+        .filter(|node| node.kind == crate::model::NodeKind::Wavetable)
+        .filter_map(|node| match node.setting("asset") {
+            Some(crate::model::SettingValue::Text(asset_id)) => Some(asset_id.as_str()),
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let wavetable_assets = wavetable_asset_ids
+        .into_iter()
+        .filter_map(|asset_id| {
+            project
+                .assets
+                .iter()
+                .find(|asset| asset.id == asset_id)
+                .map(|asset| (&asset.id, &asset.sha256, &asset.wavetable))
+        })
+        .collect::<Vec<_>>();
+    let canonical_graph = instrument
+        .graph
+        .as_ref()
+        .map(canonical_graph_for_semantic_hash);
+    let canonical_shared_graph = instrument
+        .shared_graph
+        .as_ref()
+        .map(canonical_graph_for_semantic_hash);
+    let mut modulation_sources = instrument.modulation_sources.iter().collect::<Vec<_>>();
+    modulation_sources.sort_by(|left, right| left.id.cmp(&right.id));
+    let mut modulation_routes = instrument.modulation_routes.iter().collect::<Vec<_>>();
+    modulation_routes.sort_by(|left, right| {
+        left.order
+            .cmp(&right.order)
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    let modulation_route_topology = modulation_routes
+        .into_iter()
+        .map(|route| {
+            serde_json::json!({
+                "id": route.id,
+                "source": route.source,
+                "target": route.target,
+                "polarity": route.polarity,
+                "curve": route.curve,
+                "order": route.order,
+                "auxiliary": route.auxiliary,
+                "operators": route.operators,
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut song_modulation_topology = project
+        .song
+        .modulations
+        .iter()
+        .filter(|route| {
+            matches!(
+                &route.target,
+                crate::model::ParameterTarget::Instrument { instrument: owner, .. }
+                    if owner == &instrument.id
+            )
+        })
+        .collect::<Vec<_>>();
+    song_modulation_topology.sort_by(|left, right| left.id.cmp(&right.id));
+    let mut follower_topology = project
+        .song
+        .envelope_followers
+        .iter()
+        .filter(|route| {
+            matches!(
+                &route.target,
+                crate::model::ParameterTarget::Instrument { instrument: owner, .. }
+                    if owner == &instrument.id
+            )
+        })
+        .collect::<Vec<_>>();
+    follower_topology.sort_by(|left, right| left.id.cmp(&right.id));
     let mut audio_program = serde_json::json!({
         "kind": instrument.kind,
         "polyphony": instrument.polyphony,
+        "voicing": {
+            "mode": instrument.voicing.mode,
+            "retrigger": instrument.voicing.retrigger,
+            "glide_mode": instrument.voicing.glide_mode,
+            "note_priority": instrument.voicing.note_priority,
+            "steal_priority": instrument.voicing.steal_priority,
+            "seed": instrument.voicing.seed,
+        },
         "parameters": parameters,
-        "graph": instrument.graph,
+        "graph": canonical_graph,
+        "shared_graph": canonical_shared_graph,
+        "modulation_sources": modulation_sources,
+        "modulation_route_topology": modulation_route_topology,
+        "song_modulation_topology": song_modulation_topology,
+        "follower_topology": follower_topology,
         "sampler": instrument.sampler,
         "sample_assets": sample_assets,
+        "graph_sample_assets": graph_sample_assets,
+        "wavetable_assets": wavetable_assets,
     });
     strip_source_metadata(&mut audio_program);
     hash_bytes(&mut hasher, &serde_json::to_vec(&audio_program)?);
     Ok(hasher.finalize().into())
+}
+
+#[cfg(any(feature = "pipewire", test))]
+fn canonical_graph_for_semantic_hash(graph: &crate::model::Graph) -> crate::model::Graph {
+    let mut graph = graph.clone();
+    let summing_nodes = graph
+        .nodes
+        .iter()
+        .filter(|node| node.kind == crate::model::NodeKind::StereoSum)
+        .map(|node| node.id.clone())
+        .collect::<Vec<_>>();
+    graph.nodes.sort_by(|left, right| left.id.cmp(&right.id));
+    for node in &mut graph.nodes {
+        node.settings
+            .sort_by(|left, right| left.key.cmp(&right.key));
+    }
+    for connection in &mut graph.connections {
+        if connection.id_site.is_none() && !summing_nodes.contains(&connection.to.node) {
+            connection.id = format!(
+                "@canonical-connect:{}:{}:{}:{}",
+                connection.from.node, connection.from.port, connection.to.node, connection.to.port
+            );
+        }
+    }
+    graph.connections.sort_by(|left, right| {
+        left.id
+            .cmp(&right.id)
+            .then_with(|| left.from.cmp(&right.from))
+            .then_with(|| left.to.cmp(&right.to))
+    });
+    graph
 }
 
 #[cfg(any(feature = "pipewire", test))]
@@ -580,11 +921,20 @@ impl SongRuntime {
         }
         self.controls.evaluate_frame(self.frame);
         let control_values = self.controls.values();
-        let unconstrained_values = self.controls.unconstrained_values();
+        let pre_instrument_unconstrained_values =
+            self.controls.pre_instrument_unconstrained_values();
+        let song_modulation_values = self.controls.song_modulation_values();
+        let instrument_route_values = self.controls.instrument_route_values();
         let mut active_voices = 0;
         for (index, track) in self.tracks.iter_mut().enumerate() {
             track.dispatch(self.frame);
-            let (sample, voices) = track.process(control_values, unconstrained_values);
+            let (sample, voices) = track.process(
+                control_values,
+                pre_instrument_unconstrained_values,
+                song_modulation_values,
+                instrument_route_values,
+                self.frame,
+            );
             self.track_sources[index] = sample;
             active_voices += voices;
         }
@@ -766,6 +1116,8 @@ impl SongRuntime {
     #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn prepare_transition(&mut self, next: &mut Self) {
         self.scalar_control_handoff = false;
+        self.controls.reset_transition_changes();
+        next.controls.reset_transition_changes();
         for track in &mut self.tracks {
             track.transition_unchanged = false;
         }
@@ -832,13 +1184,56 @@ impl SongRuntime {
             && self.tracks.iter().all(|track| track.transition_unchanged)
             && next.tracks.iter().all(|track| track.transition_unchanged)
             && self.mix.topology_compatible(&next.mix);
+        let frames =
+            u64::from(self.sample_rate).saturating_mul(PUBLICATION_TRANSITION_MILLISECONDS) / 1_000;
         if wholly_compatible {
-            let frames = u64::from(self.sample_rate)
-                .saturating_mul(PUBLICATION_TRANSITION_MILLISECONDS)
-                / 1_000;
             self.scalar_control_handoff = self
                 .controls
                 .begin_publication_handoff(&mut next.controls, frames);
+        }
+        if !self.scalar_control_handoff {
+            for current in &mut self.tracks {
+                if current.transition_unchanged
+                    && self.controls.track_parameter_locks_differ(
+                        &next.controls,
+                        current.schedule.track_id.as_str(),
+                    )
+                    && let Some(replacement) = next
+                        .tracks
+                        .iter_mut()
+                        .find(|replacement| current.same_semantics(replacement))
+                {
+                    current.transition_unchanged = false;
+                    replacement.transition_unchanged = false;
+                }
+            }
+        }
+        let upstream_changed = self.controls.transition_changed();
+        let control_values = self.controls.values();
+        let pre_instrument_controls = self.controls.pre_instrument_unconstrained_values();
+        for current in &mut self.tracks {
+            if !current.transition_unchanged {
+                continue;
+            }
+            if let Some(replacement) = next
+                .tracks
+                .iter_mut()
+                .find(|replacement| current.same_semantics(replacement))
+            {
+                if self.scalar_control_handoff {
+                    current.begin_parameter_lock_handoff(
+                        replacement,
+                        control_values,
+                        pre_instrument_controls,
+                        frames,
+                    );
+                }
+                current.instrument.begin_compatible_handoff(
+                    &replacement.instrument,
+                    upstream_changed,
+                    frames,
+                );
+            }
         }
     }
 
@@ -1004,7 +1399,10 @@ impl SongRuntime {
         }
         self.controls.evaluate_frame(frame);
         let control_values = self.controls.values();
-        let unconstrained_values = self.controls.unconstrained_values();
+        let pre_instrument_unconstrained_values =
+            self.controls.pre_instrument_unconstrained_values();
+        let song_modulation_values = self.controls.song_modulation_values();
+        let instrument_route_values = self.controls.instrument_route_values();
         let mut output = TransitionFrame {
             frame,
             ..TransitionFrame::default()
@@ -1014,7 +1412,13 @@ impl SongRuntime {
                 continue;
             }
             track.dispatch(frame);
-            let (sample, voices) = track.process(control_values, unconstrained_values);
+            let (sample, voices) = track.process(
+                control_values,
+                pre_instrument_unconstrained_values,
+                song_modulation_values,
+                instrument_route_values,
+                frame,
+            );
             if track.transition_unchanged {
                 output.common_sources[index] = sample;
                 output.common_voices = output.common_voices.saturating_add(voices);
@@ -1196,13 +1600,16 @@ impl SongRuntime {
             return false;
         };
         let seed = note_id ^ (u64::from(pitch) << 32) ^ 0x6a09_e667_f3bc_c909;
-        track.instrument.dispatch(RuntimeEvent::NoteOn {
-            note_id,
-            pitch,
-            velocity,
-            seed,
-            clip_envelope: ClipEnvelope::TRANSPARENT,
-        });
+        track.instrument.dispatch(
+            RuntimeEvent::NoteOn {
+                note_id,
+                pitch,
+                velocity,
+                seed,
+                clip_envelope: ClipEnvelope::TRANSPARENT,
+            },
+            self.frame,
+        );
         true
     }
 
@@ -1218,13 +1625,16 @@ impl SongRuntime {
             return false;
         };
         let seed = note_id ^ (u64::from(pitch) << 32) ^ 0xbb67_ae85_84ca_a73b;
-        track.instrument.dispatch(RuntimeEvent::NoteOn {
-            note_id,
-            pitch,
-            velocity,
-            seed,
-            clip_envelope: ClipEnvelope::TRANSPARENT,
-        });
+        track.instrument.dispatch(
+            RuntimeEvent::NoteOn {
+                note_id,
+                pitch,
+                velocity,
+                seed,
+                clip_envelope: ClipEnvelope::TRANSPARENT,
+            },
+            self.frame,
+        );
         true
     }
 
@@ -1233,7 +1643,9 @@ impl SongRuntime {
         let Some(track) = self.tracks.get_mut(track_index) else {
             return false;
         };
-        track.instrument.dispatch(RuntimeEvent::NoteOff { note_id });
+        track
+            .instrument
+            .dispatch(RuntimeEvent::NoteOff { note_id }, self.frame);
         true
     }
 
@@ -1246,7 +1658,9 @@ impl SongRuntime {
         else {
             return false;
         };
-        track.instrument.dispatch(RuntimeEvent::NoteOff { note_id });
+        track
+            .instrument
+            .dispatch(RuntimeEvent::NoteOff { note_id }, self.frame);
         true
     }
 
@@ -1321,17 +1735,38 @@ struct TrackRuntime {
     loop_cursor: usize,
     #[cfg(any(feature = "pipewire", test))]
     transition_unchanged: bool,
+    modulation_identity: u64,
+    parameter_locks: Option<TrackParameterLockRuntime>,
+    #[cfg(any(feature = "pipewire", test))]
+    parameter_locks_handoff: bool,
     instrument: InstrumentRuntime,
 }
 
 impl TrackRuntime {
-    fn new(track: &CompiledTrack, sample_rate: u32, seed: u64) -> Self {
+    fn new(
+        track: &CompiledTrack,
+        sample_rate: u32,
+        seed: u64,
+        parameter_locks: Option<TrackParameterLockRuntime>,
+    ) -> Self {
+        let modulation_identity = stable_modulation_identity(&track.schedule.track_id);
         let instrument = match &track.program {
-            InstrumentProgram::Graph { graph, polyphony } => InstrumentRuntime::Graph {
+            InstrumentProgram::Graph {
+                graph,
+                shared_graph,
+                polyphony,
+                voicing,
+            } => InstrumentRuntime::Graph {
                 graph: graph.clone(),
                 voices: (0..*polyphony)
                     .map(|slot| GraphVoiceSlot::new(graph, seed ^ slot as u64))
                     .collect(),
+                shared: shared_graph.as_ref().map(|graph| SharedGraphInstance {
+                    graph: graph.clone(),
+                    runtime: graph
+                        .create_shared_runtime(modulation_identity ^ 0x510e_527f_ade6_82d1),
+                }),
+                voicing: Box::new(GraphVoicingRuntime::new(*voicing, sample_rate)),
             },
             InstrumentProgram::Drums {
                 instrument,
@@ -1352,6 +1787,10 @@ impl TrackRuntime {
             loop_cursor: 0,
             #[cfg(any(feature = "pipewire", test))]
             transition_unchanged: false,
+            modulation_identity,
+            parameter_locks,
+            #[cfg(any(feature = "pipewire", test))]
+            parameter_locks_handoff: false,
             instrument,
         }
     }
@@ -1360,18 +1799,81 @@ impl TrackRuntime {
     fn same_semantics(&self, other: &Self) -> bool {
         self.schedule.track_id == other.schedule.track_id
             && self.semantic_hash == other.semantic_hash
+            && self.instrument.transition_compatible(&other.instrument)
+    }
+
+    #[cfg(any(feature = "pipewire", test))]
+    fn begin_parameter_lock_handoff(
+        &mut self,
+        replacement: &mut Self,
+        fallback_effective: &[f64],
+        fallback_pre_instrument: &[f64],
+        frames: u64,
+    ) {
+        let began = match (&mut self.parameter_locks, &mut replacement.parameter_locks) {
+            (Some(current), Some(replacement)) => current.begin_handoff(
+                Some(replacement.lanes_handle()),
+                fallback_effective,
+                fallback_pre_instrument,
+                false,
+                frames,
+            ),
+            (None, Some(_)) => {
+                std::mem::swap(&mut self.parameter_locks, &mut replacement.parameter_locks);
+                let current = self
+                    .parameter_locks
+                    .as_mut()
+                    .expect("replacement lock runtime was moved into current Track");
+                current.begin_handoff(
+                    Some(current.lanes_handle()),
+                    fallback_effective,
+                    fallback_pre_instrument,
+                    true,
+                    frames,
+                )
+            }
+            (Some(current), None) => current.begin_handoff(
+                None,
+                fallback_effective,
+                fallback_pre_instrument,
+                false,
+                frames,
+            ),
+            (None, None) => false,
+        };
+        self.parameter_locks_handoff = began;
     }
 
     #[cfg(any(feature = "pipewire", test))]
     fn adopt_state_from(&mut self, current: &mut Self) {
         self.cursor = current.cursor;
         self.loop_cursor = current.loop_cursor;
+        if current.parameter_locks_handoff {
+            let keep_runtime = current
+                .parameter_locks
+                .as_mut()
+                .is_some_and(crate::engine::control::TrackParameterLockRuntime::finish_handoff);
+            if keep_runtime {
+                if let (Some(replacement), Some(current)) =
+                    (&mut self.parameter_locks, &mut current.parameter_locks)
+                {
+                    replacement.adopt_values_from(current);
+                } else {
+                    self.parameter_locks = current.parameter_locks.take();
+                }
+            } else {
+                self.parameter_locks = None;
+            }
+            current.parameter_locks_handoff = false;
+        }
         self.instrument.adopt_state_from(&mut current.instrument);
     }
 
     fn seek_transport(&mut self, frame: u64) {
         self.realign_pristine_transport(frame);
         self.instrument.all_notes_off();
+        self.instrument
+            .reset_shared_state(self.modulation_identity ^ 0x510e_527f_ade6_82d1);
     }
 
     fn realign_pristine_transport(&mut self, frame: u64) {
@@ -1402,7 +1904,7 @@ impl TrackRuntime {
         {
             let event = self.schedule.events[self.cursor].kind.clone();
             self.cursor += 1;
-            self.instrument.dispatch(event);
+            self.instrument.dispatch(event, frame);
         }
     }
 
@@ -1411,12 +1913,36 @@ impl TrackRuntime {
         self.instrument.active_voice_count()
     }
 
-    fn process(&mut self, controls: &[f64], unconstrained_controls: &[f64]) -> ([f32; 2], usize) {
-        self.instrument.process(controls, unconstrained_controls)
+    fn process(
+        &mut self,
+        controls: &[f64],
+        pre_instrument_unconstrained_controls: &[f64],
+        song_modulation: &[f64],
+        instrument_route_values: &[control::RuntimeInstrumentRouteValue],
+        song_frame: u64,
+    ) -> ([f32; 2], usize) {
+        let (controls, pre_instrument_unconstrained_controls) =
+            if let Some(parameter_locks) = &mut self.parameter_locks {
+                parameter_locks.project(song_frame, controls, pre_instrument_unconstrained_controls)
+            } else {
+                (controls, pre_instrument_unconstrained_controls)
+            };
+        self.instrument.process(
+            controls,
+            pre_instrument_unconstrained_controls,
+            song_modulation,
+            instrument_route_values,
+            song_frame,
+            self.modulation_identity,
+        )
     }
 }
 
 const GRAPH_STEAL_CROSSFADE_FRAMES: u32 = 64;
+
+pub(super) const fn graph_voice_slot_overhead_bytes() -> u64 {
+    (std::mem::size_of::<GraphVoiceSlot>() - 2 * std::mem::size_of::<GraphVoice>()) as u64
+}
 
 struct GraphVoiceSlot {
     voice: GraphVoice,
@@ -1427,6 +1953,21 @@ struct GraphVoiceSlot {
 }
 
 impl GraphVoiceSlot {
+    #[cfg(test)]
+    fn allocation_bytes(&self) -> u64 {
+        (std::mem::size_of::<Self>() as u64)
+            .saturating_add(
+                self.voice
+                    .allocation_bytes()
+                    .saturating_sub(std::mem::size_of::<GraphVoice>() as u64),
+            )
+            .saturating_add(
+                self.replacement_tail
+                    .allocation_bytes()
+                    .saturating_sub(std::mem::size_of::<GraphVoice>() as u64),
+            )
+    }
+
     fn new(graph: &CompiledGraph, seed: u64) -> Self {
         Self {
             voice: graph.create_voice(seed),
@@ -1437,6 +1978,7 @@ impl GraphVoiceSlot {
         }
     }
 
+    #[cfg(test)]
     fn activate(
         &mut self,
         note_id: u64,
@@ -1445,6 +1987,21 @@ impl GraphVoiceSlot {
         seed: u64,
         envelope: ClipEnvelope,
     ) {
+        self.activate_with_glide(note_id, pitch, velocity, seed, envelope, None, 0.0, 1);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn activate_with_glide(
+        &mut self,
+        note_id: u64,
+        pitch: u8,
+        velocity: f32,
+        seed: u64,
+        envelope: ClipEnvelope,
+        glide_start_hz: Option<f32>,
+        glide_seconds: f64,
+        sample_rate: u32,
+    ) {
         if self.voice.active() {
             self.voice.release_all();
             std::mem::swap(&mut self.voice, &mut self.replacement_tail);
@@ -1452,7 +2009,41 @@ impl GraphVoiceSlot {
             self.crossfade_remaining = GRAPH_STEAL_CROSSFADE_FRAMES;
         }
         self.voice.activate(note_id, pitch, velocity, seed);
+        self.voice
+            .configure_glide(glide_start_hz, pitch, glide_seconds, sample_rate);
         self.envelope = envelope;
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn legato(
+        &mut self,
+        note_id: u64,
+        pitch: u8,
+        velocity: f32,
+        seed: u64,
+        envelope: ClipEnvelope,
+        glide_start_hz: Option<f32>,
+        glide_seconds: f64,
+        sample_rate: u32,
+    ) {
+        self.voice.retarget_legato(
+            note_id,
+            pitch,
+            velocity,
+            seed,
+            glide_start_hz,
+            glide_seconds,
+            sample_rate,
+        );
+        self.envelope = envelope;
+    }
+
+    const fn gate_active(&self) -> bool {
+        self.voice.gate_active()
+    }
+
+    const fn pitch_hz(&self) -> f32 {
+        self.voice.pitch_hz()
     }
 
     fn release(&mut self, note_id: u64) {
@@ -1463,6 +2054,13 @@ impl GraphVoiceSlot {
     fn release_all(&mut self) {
         self.voice.release_all();
         self.replacement_tail.release_all();
+    }
+
+    #[cfg(any(feature = "pipewire", test))]
+    fn begin_route_transition(&mut self, changed: &[bool], frames: u64) {
+        self.voice.begin_route_transition(changed, frames);
+        self.replacement_tail
+            .begin_route_transition(changed, frames);
     }
 
     const fn active(&self) -> bool {
@@ -1485,11 +2083,21 @@ impl GraphVoiceSlot {
         &mut self,
         graph: &CompiledGraph,
         controls: &[f64],
-        unconstrained_controls: &[f64],
+        pre_instrument_unconstrained_controls: &[f64],
+        song_modulation: &[f64],
+        instrument_route_values: &[control::RuntimeInstrumentRouteValue],
+        identity: GraphProcessIdentity,
     ) -> [f32; 2] {
         let current = if self.voice.active() {
             let gain = self.envelope.gain_at(self.voice.age_frames());
-            let sample = graph.process(&mut self.voice, controls, unconstrained_controls);
+            let sample = graph.process(
+                &mut self.voice,
+                controls,
+                pre_instrument_unconstrained_controls,
+                song_modulation,
+                instrument_route_values,
+                identity,
+            );
             [sample[0] * gain, sample[1] * gain]
         } else {
             [0.0, 0.0]
@@ -1501,8 +2109,14 @@ impl GraphVoiceSlot {
             let gain = self
                 .replacement_tail_envelope
                 .gain_at(self.replacement_tail.age_frames());
-            let sample =
-                graph.process(&mut self.replacement_tail, controls, unconstrained_controls);
+            let sample = graph.process(
+                &mut self.replacement_tail,
+                controls,
+                pre_instrument_unconstrained_controls,
+                song_modulation,
+                instrument_route_values,
+                identity,
+            );
             [sample[0] * gain, sample[1] * gain]
         } else {
             [0.0, 0.0]
@@ -1520,10 +2134,243 @@ impl GraphVoiceSlot {
     }
 }
 
+const MAX_HELD_GRAPH_NOTES: usize = 64;
+
+#[derive(Debug, Clone, Copy)]
+struct HeldGraphNote {
+    note_id: u64,
+    pitch: u8,
+    velocity: f32,
+    seed: u64,
+    clip_envelope: ClipEnvelope,
+    started_frame: u64,
+    sequence: u64,
+}
+
+impl HeldGraphNote {
+    fn envelope_at(self, frame: u64) -> ClipEnvelope {
+        let mut envelope = self.clip_envelope;
+        envelope.position_frames = envelope
+            .position_frames
+            .saturating_add(frame.saturating_sub(self.started_frame));
+        envelope
+    }
+}
+
+struct GraphVoicingRuntime {
+    config: CompiledVoicing,
+    sample_rate: u32,
+    held: [Option<HeldGraphNote>; MAX_HELD_GRAPH_NOTES],
+    sequence: u64,
+    current_note: Option<u64>,
+    last_pitch_hz: Option<f32>,
+}
+
+impl GraphVoicingRuntime {
+    fn new(config: CompiledVoicing, sample_rate: u32) -> Self {
+        Self {
+            config,
+            sample_rate,
+            held: [None; MAX_HELD_GRAPH_NOTES],
+            sequence: 0,
+            current_note: None,
+            last_pitch_hz: None,
+        }
+    }
+
+    fn reset(&mut self) {
+        self.held.fill(None);
+        self.sequence = 0;
+        self.current_note = None;
+        self.last_pitch_hz = None;
+    }
+
+    #[cfg(any(feature = "pipewire", test))]
+    fn adopt_state_from(&mut self, current: &mut Self) {
+        std::mem::swap(&mut self.held, &mut current.held);
+        std::mem::swap(&mut self.sequence, &mut current.sequence);
+        std::mem::swap(&mut self.current_note, &mut current.current_note);
+        std::mem::swap(&mut self.last_pitch_hz, &mut current.last_pitch_hz);
+    }
+
+    fn note_on(&mut self, voices: &mut [GraphVoiceSlot], mut note: HeldGraphNote) {
+        if self.config.seed != 0 {
+            note.seed = mix_modulation_identity(note.seed, self.config.seed);
+        }
+        note.sequence = self.next_sequence();
+        let frame = note.started_frame;
+        match self.config.mode {
+            VoicingMode::Poly => self.poly_note_on(voices, note),
+            VoicingMode::Mono => {
+                self.insert_held(note);
+                self.apply_mono_selection(voices, frame, self.current_note.is_some());
+            }
+        }
+    }
+
+    fn note_off(&mut self, voices: &mut [GraphVoiceSlot], note_id: u64, frame: u64) {
+        match self.config.mode {
+            VoicingMode::Poly => {
+                for voice in voices {
+                    voice.release(note_id);
+                }
+            }
+            VoicingMode::Mono => {
+                self.remove_held(note_id);
+                if self.current_note == Some(note_id) {
+                    self.apply_mono_selection(voices, frame, true);
+                }
+            }
+        }
+    }
+
+    fn next_sequence(&mut self) -> u64 {
+        self.sequence = self.sequence.saturating_add(1);
+        self.sequence
+    }
+
+    fn insert_held(&mut self, note: HeldGraphNote) {
+        let slot = self
+            .held
+            .iter()
+            .position(|held| held.is_some_and(|held| held.note_id == note.note_id))
+            .or_else(|| self.held.iter().position(Option::is_none))
+            .or_else(|| {
+                self.held
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, held)| held.map(|held| (index, held.sequence)))
+                    .min_by_key(|(_, sequence)| *sequence)
+                    .map(|(index, _)| index)
+            })
+            .unwrap_or(0);
+        self.held[slot] = Some(note);
+    }
+
+    fn remove_held(&mut self, note_id: u64) {
+        for held in &mut self.held {
+            if held.is_some_and(|held| held.note_id == note_id) {
+                *held = None;
+            }
+        }
+    }
+
+    fn selected_held(&self) -> Option<HeldGraphNote> {
+        let mut selected: Option<HeldGraphNote> = None;
+        for candidate in self.held.iter().flatten().copied() {
+            let prefer = selected.is_none_or(|current| match self.config.note_priority {
+                NotePriority::Last => candidate.sequence > current.sequence,
+                NotePriority::Low => {
+                    candidate.pitch < current.pitch
+                        || (candidate.pitch == current.pitch
+                            && candidate.sequence > current.sequence)
+                }
+                NotePriority::High => {
+                    candidate.pitch > current.pitch
+                        || (candidate.pitch == current.pitch
+                            && candidate.sequence > current.sequence)
+                }
+            });
+            if prefer {
+                selected = Some(candidate);
+            }
+        }
+        selected
+    }
+
+    fn apply_mono_selection(&mut self, voices: &mut [GraphVoiceSlot], frame: u64, overlap: bool) {
+        let Some(voice) = voices.first_mut() else {
+            return;
+        };
+        let Some(selected) = self.selected_held() else {
+            if let Some(note_id) = self.current_note.take() {
+                voice.release(note_id);
+            }
+            return;
+        };
+        if self.current_note == Some(selected.note_id) {
+            return;
+        }
+        let glide_start = self.glide_start(voice, overlap);
+        let envelope = selected.envelope_at(frame);
+        if overlap && voice.primary_active() && self.config.retrigger == RetriggerPolicy::Legato {
+            voice.legato(
+                selected.note_id,
+                selected.pitch,
+                selected.velocity,
+                selected.seed,
+                envelope,
+                glide_start,
+                self.config.glide_seconds,
+                self.sample_rate,
+            );
+        } else {
+            voice.activate_with_glide(
+                selected.note_id,
+                selected.pitch,
+                selected.velocity,
+                selected.seed,
+                envelope,
+                glide_start,
+                self.config.glide_seconds,
+                self.sample_rate,
+            );
+        }
+        self.current_note = Some(selected.note_id);
+        self.last_pitch_hz = Some(graph_note_frequency(selected.pitch));
+    }
+
+    fn poly_note_on(&mut self, voices: &mut [GraphVoiceSlot], note: HeldGraphNote) {
+        let overlap = voices.iter().any(GraphVoiceSlot::gate_active);
+        let slot = select_voice_with_priority(voices, self.config.steal_priority);
+        let glide_start = {
+            let voice = &voices[slot];
+            self.glide_start(voice, overlap)
+        };
+        voices[slot].activate_with_glide(
+            note.note_id,
+            note.pitch,
+            note.velocity,
+            note.seed,
+            note.clip_envelope,
+            glide_start,
+            self.config.glide_seconds,
+            self.sample_rate,
+        );
+        self.last_pitch_hz = Some(graph_note_frequency(note.pitch));
+    }
+
+    fn glide_start(&self, voice: &GraphVoiceSlot, overlap: bool) -> Option<f32> {
+        let enabled = match self.config.glide_mode {
+            GlideMode::Off => false,
+            GlideMode::Always => self.last_pitch_hz.is_some(),
+            GlideMode::Legato => overlap,
+        };
+        enabled.then(|| {
+            if overlap && voice.primary_active() {
+                voice.pitch_hz()
+            } else {
+                self.last_pitch_hz.unwrap_or_else(|| voice.pitch_hz())
+            }
+        })
+    }
+}
+
+fn graph_note_frequency(pitch: u8) -> f32 {
+    440.0 * 2.0_f32.powf((f32::from(pitch) - 69.0) / 12.0)
+}
+
+struct SharedGraphInstance {
+    graph: Arc<CompiledGraph>,
+    runtime: SharedGraphRuntime,
+}
+
 enum InstrumentRuntime {
     Graph {
         graph: Arc<CompiledGraph>,
         voices: Vec<GraphVoiceSlot>,
+        shared: Option<SharedGraphInstance>,
+        voicing: Box<GraphVoicingRuntime>,
     },
     Drums {
         synth: DrumSynth,
@@ -1535,17 +2382,114 @@ enum InstrumentRuntime {
 
 impl InstrumentRuntime {
     #[cfg(any(feature = "pipewire", test))]
+    fn transition_compatible(&self, replacement: &Self) -> bool {
+        match (self, replacement) {
+            (
+                Self::Graph {
+                    graph: current,
+                    shared: current_shared,
+                    voicing: current_voicing,
+                    ..
+                },
+                Self::Graph {
+                    graph: replacement,
+                    shared: replacement_shared,
+                    voicing: replacement_voicing,
+                    ..
+                },
+            ) => {
+                current_voicing
+                    .config
+                    .structurally_compatible(replacement_voicing.config)
+                    && current.transition_compatible(replacement)
+                    && match (current_shared, replacement_shared) {
+                        (None, None) => true,
+                        (Some(current), Some(replacement)) => {
+                            current.graph.transition_compatible(&replacement.graph)
+                        }
+                        _ => false,
+                    }
+            }
+            (Self::Drums { .. }, Self::Drums { .. }) | (Self::Sampler(_), Self::Sampler(_)) => true,
+            _ => false,
+        }
+    }
+
+    #[cfg(any(feature = "pipewire", test))]
+    fn begin_compatible_handoff(
+        &mut self,
+        replacement: &Self,
+        upstream_changed: &[bool],
+        frames: u64,
+    ) {
+        let (
+            Self::Graph {
+                graph: current_graph,
+                voices,
+                shared: current_shared,
+                voicing: current_voicing,
+            },
+            Self::Graph {
+                graph: replacement_graph,
+                shared: replacement_shared,
+                voicing: replacement_voicing,
+                ..
+            },
+        ) = (self, replacement)
+        else {
+            return;
+        };
+        let control_count = current_graph.control_count();
+        let mut changed = [false; MAX_CONTROL_TARGETS];
+        let changed = &mut changed[..control_count];
+        debug_assert!(current_graph.compatible_transition_targets(
+            replacement_graph,
+            upstream_changed,
+            changed,
+        ));
+        for voice in voices {
+            voice.begin_route_transition(changed, frames);
+        }
+        *current_graph = replacement_graph.clone();
+        if let (Some(current), Some(replacement)) =
+            (current_shared.as_mut(), replacement_shared.as_ref())
+        {
+            debug_assert!(current.graph.compatible_transition_targets(
+                &replacement.graph,
+                upstream_changed,
+                changed,
+            ));
+            current.runtime.begin_route_transition(changed, frames);
+            current.graph = replacement.graph.clone();
+        }
+        current_voicing.config = replacement_voicing.config;
+    }
+
+    #[cfg(any(feature = "pipewire", test))]
     fn adopt_state_from(&mut self, current: &mut Self) {
         match (self, current) {
             (
                 Self::Graph {
                     voices: replacement,
+                    shared: replacement_shared,
+                    voicing: replacement_voicing,
                     ..
                 },
                 Self::Graph {
-                    voices: current, ..
+                    voices: current,
+                    shared: current_shared,
+                    voicing: current_voicing,
+                    ..
                 },
-            ) => std::mem::swap(replacement, current),
+            ) => {
+                std::mem::swap(replacement, current);
+                replacement_voicing.adopt_state_from(current_voicing);
+                if let (Some(replacement), Some(current)) =
+                    (replacement_shared.as_mut(), current_shared.as_mut())
+                {
+                    std::mem::swap(&mut replacement.runtime, &mut current.runtime);
+                }
+            }
             (
                 Self::Drums {
                     synth: replacement, ..
@@ -1573,10 +2517,12 @@ impl InstrumentRuntime {
         }
     }
 
-    fn dispatch(&mut self, event: RuntimeEvent) {
+    fn dispatch(&mut self, event: RuntimeEvent, frame: u64) {
         match (self, event) {
             (
-                Self::Graph { voices, .. },
+                Self::Graph {
+                    voices, voicing, ..
+                },
                 RuntimeEvent::NoteOn {
                     note_id,
                     pitch,
@@ -1584,15 +2530,24 @@ impl InstrumentRuntime {
                     seed,
                     clip_envelope,
                 },
-            ) => {
-                let slot = select_voice(voices);
-                voices[slot].activate(note_id, pitch, velocity, seed, clip_envelope);
-            }
-            (Self::Graph { voices, .. }, RuntimeEvent::NoteOff { note_id }) => {
-                for voice in voices {
-                    voice.release(note_id);
-                }
-            }
+            ) => voicing.note_on(
+                voices,
+                HeldGraphNote {
+                    note_id,
+                    pitch,
+                    velocity,
+                    seed,
+                    clip_envelope,
+                    started_frame: frame,
+                    sequence: 0,
+                },
+            ),
+            (
+                Self::Graph {
+                    voices, voicing, ..
+                },
+                RuntimeEvent::NoteOff { note_id },
+            ) => voicing.note_off(voices, note_id, frame),
             (
                 Self::Drums { synth: drums, .. },
                 RuntimeEvent::Hit {
@@ -1668,12 +2623,25 @@ impl InstrumentRuntime {
         }
     }
 
+    fn reset_shared_state(&mut self, seed: u64) {
+        if let Self::Graph {
+            shared: Some(shared),
+            ..
+        } = self
+        {
+            shared.runtime.reset(seed);
+        }
+    }
+
     fn all_notes_off(&mut self) {
         match self {
-            Self::Graph { voices, .. } => {
+            Self::Graph {
+                voices, voicing, ..
+            } => {
                 for voice in voices {
                     voice.release_all();
                 }
+                voicing.reset();
             }
             Self::Sampler(sampler) => sampler.all_notes_off(),
             Self::Drums { .. } => {}
@@ -1689,18 +2657,48 @@ impl InstrumentRuntime {
         }
     }
 
-    fn process(&mut self, controls: &[f64], unconstrained_controls: &[f64]) -> ([f32; 2], usize) {
+    fn process(
+        &mut self,
+        controls: &[f64],
+        pre_instrument_unconstrained_controls: &[f64],
+        song_modulation: &[f64],
+        instrument_route_values: &[control::RuntimeInstrumentRouteValue],
+        song_frame: u64,
+        instrument_identity: u64,
+    ) -> ([f32; 2], usize) {
         match self {
-            Self::Graph { graph, voices } => {
+            Self::Graph {
+                graph,
+                voices,
+                shared,
+                ..
+            } => {
                 let mut output = [0.0_f32, 0.0_f32];
                 let mut active = 0;
                 for voice in voices {
                     if voice.active() {
                         active += 1;
-                        let sample = voice.process(graph, controls, unconstrained_controls);
+                        let sample = voice.process(
+                            graph,
+                            controls,
+                            pre_instrument_unconstrained_controls,
+                            song_modulation,
+                            instrument_route_values,
+                            GraphProcessIdentity::new(song_frame, instrument_identity),
+                        );
                         output[0] += sample[0];
                         output[1] += sample[1];
                     }
+                }
+                if let Some(shared) = shared {
+                    output = shared.graph.process_shared(
+                        &mut shared.runtime,
+                        controls,
+                        pre_instrument_unconstrained_controls,
+                        song_modulation,
+                        instrument_route_values,
+                        GraphProcessIdentity::shared(song_frame, instrument_identity, output),
+                    );
                 }
                 (output, active)
             }
@@ -1727,17 +2725,18 @@ fn midi_drum_voice(pitch: u8) -> Option<DrumVoice> {
     }
 }
 
-fn select_voice(voices: &[GraphVoiceSlot]) -> usize {
+fn select_voice_with_priority(voices: &[GraphVoiceSlot], priority: StealPriority) -> usize {
     voices
         .iter()
         .position(|voice| !voice.primary_active())
-        .or_else(|| {
-            voices
+        .or_else(|| match priority {
+            StealPriority::ReleaseOldest => voices
                 .iter()
                 .enumerate()
                 .filter(|(_, voice)| voice.releasing())
                 .max_by_key(|(_, voice)| voice.age_frames())
-                .map(|(index, _)| index)
+                .map(|(index, _)| index),
+            StealPriority::ActiveOldest => None,
         })
         .or_else(|| {
             voices
@@ -1964,7 +2963,8 @@ mod tests {
     use crate::{dsl::parse_project, model::TapPoint};
 
     use super::{
-        ClipEnvelope, CompiledProject, MAX_PROCESSOR_INSTANCES, ProcessingMode, RuntimeTelemetry,
+        ClipEnvelope, CompiledProject, GraphProcessIdentity, MAX_PROCESSOR_INSTANCES,
+        ProcessingMode, RuntimeTelemetry,
     };
 
     fn fixture(source: &str) -> crate::model::Project {
@@ -1975,6 +2975,185 @@ mod tests {
             document.diagnostics.as_slice()
         );
         document.project.expect("parsed fixture")
+    }
+
+    fn lead_graph() -> Arc<super::CompiledGraph> {
+        let project = fixture(include_str!("../../tests/fixtures/minimal.crump"));
+        let compiled = CompiledProject::compile(&project).expect("compile");
+        compiled
+            .tracks
+            .iter()
+            .find_map(|track| match &track.program {
+                super::InstrumentProgram::Graph { graph, .. }
+                    if track.schedule.instrument_id == "lead" =>
+                {
+                    Some(graph.clone())
+                }
+                _ => None,
+            })
+            .expect("lead graph")
+    }
+
+    fn held_note(note_id: u64, pitch: u8, frame: u64) -> super::HeldGraphNote {
+        super::HeldGraphNote {
+            note_id,
+            pitch,
+            velocity: 0.75,
+            seed: note_id.wrapping_mul(17),
+            clip_envelope: ClipEnvelope::TRANSPARENT,
+            started_frame: frame,
+            sequence: 0,
+        }
+    }
+
+    #[test]
+    fn mono_legato_priority_retains_voice_state_and_falls_back_through_held_notes() {
+        let graph = lead_graph();
+        let mut voices = vec![super::GraphVoiceSlot::new(&graph, 7)];
+        let mut voicing = super::GraphVoicingRuntime::new(
+            super::CompiledVoicing {
+                mode: crate::model::VoicingMode::Mono,
+                retrigger: crate::model::RetriggerPolicy::Legato,
+                glide_seconds: 0.01,
+                glide_mode: crate::model::GlideMode::Legato,
+                note_priority: crate::model::NotePriority::Low,
+                steal_priority: crate::model::StealPriority::ReleaseOldest,
+                seed: 99,
+            },
+            48_000,
+        );
+
+        voicing.note_on(&mut voices, held_note(1, 60, 0));
+        assert_eq!(voices[0].voice.test_note_id(), 1);
+        voices[0].voice.test_set_modulation_age_frames(321);
+        let first_seed = voices[0].voice.test_seed();
+
+        voicing.note_on(&mut voices, held_note(2, 72, 10));
+        assert_eq!(
+            voices[0].voice.test_note_id(),
+            1,
+            "low priority must keep the lower held note"
+        );
+        voicing.note_on(&mut voices, held_note(3, 55, 20));
+        assert_eq!(voices[0].voice.test_note_id(), 3);
+        assert_eq!(voices[0].voice.test_modulation_age_frames(), 321);
+        assert_ne!(voices[0].voice.test_seed(), first_seed);
+        assert_eq!(voices[0].voice.test_glide_frames_remaining(), 480);
+        assert_eq!(voices[0].crossfade_remaining, 0);
+
+        voicing.note_off(&mut voices, 3, 30);
+        assert_eq!(voices[0].voice.test_note_id(), 1);
+        assert_eq!(voices[0].voice.test_modulation_age_frames(), 321);
+        voicing.note_off(&mut voices, 1, 40);
+        assert_eq!(voices[0].voice.test_note_id(), 2);
+        voicing.note_off(&mut voices, 2, 50);
+        assert!(voices[0].voice.releasing());
+        assert!(voicing.current_note.is_none());
+    }
+
+    #[test]
+    fn mono_held_note_saturation_evicts_the_oldest_identity_deterministically() {
+        let graph = lead_graph();
+        let mut voices = vec![super::GraphVoiceSlot::new(&graph, 13)];
+        let mut voicing = super::GraphVoicingRuntime::new(
+            super::CompiledVoicing {
+                mode: crate::model::VoicingMode::Mono,
+                retrigger: crate::model::RetriggerPolicy::Legato,
+                glide_seconds: 0.0,
+                glide_mode: crate::model::GlideMode::Off,
+                note_priority: crate::model::NotePriority::Last,
+                steal_priority: crate::model::StealPriority::ReleaseOldest,
+                seed: 0,
+            },
+            48_000,
+        );
+
+        for note_id in 1..=super::MAX_HELD_GRAPH_NOTES as u64 + 1 {
+            voicing.note_on(
+                &mut voices,
+                held_note(note_id, 48 + (note_id % 24) as u8, note_id),
+            );
+        }
+        assert_eq!(
+            voicing.held.iter().flatten().count(),
+            super::MAX_HELD_GRAPH_NOTES
+        );
+        assert!(
+            voicing.held.iter().flatten().all(|held| held.note_id != 1),
+            "the oldest held identity must be evicted first"
+        );
+
+        for note_id in (2..=super::MAX_HELD_GRAPH_NOTES as u64 + 1).rev() {
+            voicing.note_off(&mut voices, note_id, 100 + note_id);
+        }
+        assert!(voicing.current_note.is_none());
+        voicing.note_off(&mut voices, 1, 1_000);
+        assert!(voicing.current_note.is_none());
+    }
+
+    #[test]
+    fn mono_always_retrigger_restarts_state_behind_the_preallocated_crossfade() {
+        let graph = lead_graph();
+        let mut voices = vec![super::GraphVoiceSlot::new(&graph, 11)];
+        let mut voicing = super::GraphVoicingRuntime::new(
+            super::CompiledVoicing {
+                mode: crate::model::VoicingMode::Mono,
+                retrigger: crate::model::RetriggerPolicy::Always,
+                glide_seconds: 0.0,
+                glide_mode: crate::model::GlideMode::Off,
+                note_priority: crate::model::NotePriority::Last,
+                steal_priority: crate::model::StealPriority::ReleaseOldest,
+                seed: 0,
+            },
+            48_000,
+        );
+        voicing.note_on(&mut voices, held_note(1, 60, 0));
+        voices[0].voice.test_set_modulation_age_frames(99);
+        voicing.note_on(&mut voices, held_note(2, 64, 1));
+        assert_eq!(voices[0].voice.test_note_id(), 2);
+        assert_eq!(voices[0].voice.test_modulation_age_frames(), 0);
+        assert_eq!(
+            voices[0].crossfade_remaining,
+            super::GRAPH_STEAL_CROSSFADE_FRAMES
+        );
+    }
+
+    #[test]
+    fn central_glide_is_linear_in_log_frequency_and_voice_stealing_is_explicit() {
+        let graph = lead_graph();
+        let mut voice = graph.create_voice(3);
+        voice.activate(1, 60, 1.0, 5);
+        let start = super::graph_note_frequency(60);
+        let target = super::graph_note_frequency(72);
+        voice.configure_glide(Some(start), 72, 0.01, 1_000);
+        assert!((voice.pitch_hz() - start).abs() < 1.0e-4);
+        for _ in 0..5 {
+            voice.test_advance_glide();
+        }
+        let geometric_midpoint = (start * target).sqrt();
+        assert!((voice.pitch_hz() - geometric_midpoint).abs() < 1.0e-3);
+        for _ in 0..5 {
+            voice.test_advance_glide();
+        }
+        assert!((voice.pitch_hz() - target).abs() < 1.0e-3);
+
+        let mut slots = [
+            super::GraphVoiceSlot::new(&graph, 21),
+            super::GraphVoiceSlot::new(&graph, 22),
+        ];
+        slots[0].activate(1, 60, 1.0, 1, ClipEnvelope::TRANSPARENT);
+        slots[1].activate(2, 64, 1.0, 2, ClipEnvelope::TRANSPARENT);
+        slots[0].voice.test_set_age_frames(100);
+        slots[1].voice.release_all();
+        slots[1].voice.test_set_age_frames(10);
+        assert_eq!(
+            super::select_voice_with_priority(&slots, crate::model::StealPriority::ReleaseOldest),
+            1
+        );
+        assert_eq!(
+            super::select_voice_with_priority(&slots, crate::model::StealPriority::ActiveOldest),
+            0
+        );
     }
 
     #[test]
@@ -2045,8 +3224,15 @@ mod tests {
         let mut slot = super::GraphVoiceSlot::new(&graph, 5);
         slot.activate(1, 60, 1.0, 101, ClipEnvelope::TRANSPARENT);
         let mut previous = [0.0, 0.0];
-        for _ in 0..2_000 {
-            previous = slot.process(&graph, controls.values(), controls.unconstrained_values());
+        for song_frame in 0..2_000 {
+            previous = slot.process(
+                &graph,
+                controls.values(),
+                controls.pre_instrument_unconstrained_values(),
+                controls.song_modulation_values(),
+                controls.instrument_route_values(),
+                GraphProcessIdentity::new(song_frame, 5),
+            );
         }
 
         slot.activate(2, 72, 1.0, 202, ClipEnvelope::TRANSPARENT);
@@ -2054,14 +3240,28 @@ mod tests {
             slot.crossfade_remaining,
             super::GRAPH_STEAL_CROSSFADE_FRAMES
         );
-        let replacement = slot.process(&graph, controls.values(), controls.unconstrained_values());
+        let replacement = slot.process(
+            &graph,
+            controls.values(),
+            controls.pre_instrument_unconstrained_values(),
+            controls.song_modulation_values(),
+            controls.instrument_route_values(),
+            GraphProcessIdentity::new(2_000, 5),
+        );
         assert!(
             (replacement[0] - previous[0]).abs() < 0.1
                 && (replacement[1] - previous[1]).abs() < 0.1,
             "replacement discontinuity: {previous:?} -> {replacement:?}"
         );
-        for _ in 1..super::GRAPH_STEAL_CROSSFADE_FRAMES {
-            let sample = slot.process(&graph, controls.values(), controls.unconstrained_values());
+        for offset in 1..super::GRAPH_STEAL_CROSSFADE_FRAMES {
+            let sample = slot.process(
+                &graph,
+                controls.values(),
+                controls.pre_instrument_unconstrained_values(),
+                controls.song_modulation_values(),
+                controls.instrument_route_values(),
+                GraphProcessIdentity::new(2_000 + u64::from(offset), 5),
+            );
             assert!(sample.into_iter().all(f32::is_finite));
         }
         assert_eq!(slot.crossfade_remaining, 0);
@@ -2156,6 +3356,7 @@ mod tests {
             .saturating_add(resources.meter_bytes)
             .saturating_add(resources.processor_meter_bytes)
             .saturating_add(resources.graph_voice_state_bytes)
+            .saturating_add(resources.shared_graph_state_bytes)
             .saturating_add(resources.drum_voice_state_bytes)
             .saturating_add(resources.sampler_voice_state_bytes)
             .saturating_add(resources.processor_state_bytes)
@@ -2200,8 +3401,39 @@ mod tests {
                 }
             })
             .fold(0_u64, u64::saturating_add);
+        let allocated_graph_state = |runtime: &super::SongRuntime| {
+            runtime
+                .tracks
+                .iter()
+                .map(|track| match &track.instrument {
+                    super::InstrumentRuntime::Graph { voices, .. } => {
+                        assert_eq!(voices.len(), voices.capacity());
+                        voices
+                            .iter()
+                            .map(super::GraphVoiceSlot::allocation_bytes)
+                            .fold(0_u64, u64::saturating_add)
+                    }
+                    super::InstrumentRuntime::Sampler(_)
+                    | super::InstrumentRuntime::Drums { .. } => 0,
+                })
+                .fold(0_u64, u64::saturating_add)
+        };
         assert_eq!(resources.drum_voice_state_bytes, allocated_drum_state);
         assert_eq!(resources.sampler_voice_state_bytes, allocated_sampler_state);
+        assert_eq!(
+            resources.graph_voice_state_bytes,
+            allocated_graph_state(&first)
+        );
+        assert_eq!(
+            resources.graph_voice_state_bytes,
+            allocated_graph_state(&second)
+        );
+        assert_eq!(
+            resources
+                .graph_voice_state_bytes
+                .saturating_mul(resources.publication_runtime_slots),
+            allocated_graph_state(&first).saturating_add(allocated_graph_state(&second))
+        );
         for (first, second) in first.tracks.iter().zip(&second.tracks) {
             assert!(Arc::ptr_eq(&first.schedule, &second.schedule));
             if let (
@@ -2217,6 +3449,77 @@ mod tests {
                 assert!(Arc::ptr_eq(first_graph, second_graph));
             }
         }
+    }
+
+    #[test]
+    fn shared_state_can_independently_fail_the_named_admission_budget() {
+        let source = include_str!("../../tests/fixtures/shared_graph_foundation.crump").replace(
+            "      graph shared 2 {\n        node shared-delay delay time 5ms feedback 0.5 mix $fx\n        node shared-out output\n        bus voice-sum voice_sum.audio -> shared-delay.audio\n        bus shared-output shared-delay.audio -> shared-out.audio\n      }",
+            "      graph shared 8 {\n        node shared-delay delay time 2s feedback 0.5 mix $fx\n        node shared-delay-2 delay time 2s feedback 0.5 mix $fx\n        node shared-delay-3 delay time 2s feedback 0.5 mix $fx\n        node shared-delay-4 delay time 2s feedback 0.5 mix $fx\n        node shared-delay-5 delay time 2s feedback 0.5 mix $fx\n        node shared-delay-6 delay time 2s feedback 0.5 mix $fx\n        node shared-delay-7 delay time 2s feedback 0.5 mix $fx\n        node shared-out output\n        bus voice-sum voice_sum.audio -> shared-delay.audio\n        bus delay-chain-2 shared-delay.audio -> shared-delay-2.audio\n        bus delay-chain-3 shared-delay-2.audio -> shared-delay-3.audio\n        bus delay-chain-4 shared-delay-3.audio -> shared-delay-4.audio\n        bus delay-chain-5 shared-delay-4.audio -> shared-delay-5.audio\n        bus delay-chain-6 shared-delay-5.audio -> shared-delay-6.audio\n        bus delay-chain-7 shared-delay-6.audio -> shared-delay-7.audio\n        bus shared-output shared-delay-7.audio -> shared-out.audio\n      }",
+        );
+        let mut heavy = fixture(&source);
+        let template = heavy.song.tracks[0].clone();
+        for index in 1..super::schedule::MAX_RUNTIME_TRACKS {
+            let mut track = template.clone();
+            track.id = format!("lead-track-{index}");
+            track.name = format!("Lead {index}");
+            track.clips[0].id = format!("notes-{index}");
+            heavy.song.tracks.push(track);
+        }
+
+        let mut without_shared = heavy.clone();
+        without_shared.song.instruments[0].shared_graph = None;
+        without_shared.song.instruments[0]
+            .faceplate
+            .retain(|control| control.key != "fx");
+        CompiledProject::compile(&without_shared)
+            .expect("the same Project without shared state must fit the budget");
+
+        let diagnostics = crate::validate::validate_project(&heavy);
+        assert!(
+            diagnostics
+                .as_slice()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "CRV092"),
+            "shared Delay state alone should cross the named publication budget: {diagnostics:?}"
+        );
+        assert!(CompiledProject::compile(&heavy).is_err());
+    }
+
+    #[test]
+    fn shared_graph_admission_matches_allocated_track_state() {
+        let project = fixture(include_str!(
+            "../../tests/fixtures/shared_graph_foundation.crump"
+        ));
+        let compiled = CompiledProject::compile(&project).expect("compile shared graph");
+        let resources = &compiled.mix_graph_inspection().resources;
+        let allocated = |runtime: &super::SongRuntime| {
+            runtime
+                .tracks
+                .iter()
+                .map(|track| match &track.instrument {
+                    super::InstrumentRuntime::Graph {
+                        shared: Some(shared),
+                        ..
+                    } => shared.runtime.allocation_bytes(),
+                    super::InstrumentRuntime::Graph { shared: None, .. }
+                    | super::InstrumentRuntime::Sampler(_)
+                    | super::InstrumentRuntime::Drums { .. } => 0,
+                })
+                .fold(0_u64, u64::saturating_add)
+        };
+        let first = compiled.runtime();
+        let second = compiled.runtime();
+        assert_eq!(resources.shared_graphs, 1);
+        assert!(resources.shared_graph_work_units_per_frame > 0);
+        assert_eq!(resources.shared_graph_state_bytes, allocated(&first));
+        assert_eq!(resources.shared_graph_state_bytes, allocated(&second));
+        assert_eq!(
+            resources
+                .shared_graph_state_bytes
+                .saturating_mul(resources.publication_runtime_slots),
+            allocated(&first).saturating_add(allocated(&second))
+        );
     }
 
     #[test]
@@ -2446,6 +3749,338 @@ mod tests {
             next.telemetry.processor_activity,
             current.telemetry.processor_activity
         );
+    }
+
+    #[test]
+    fn compatible_shared_graph_state_runs_once_and_survives_publication() {
+        let source = include_str!("../../tests/fixtures/shared_graph_foundation.crump");
+        let reordered = source
+            .replace(
+                "        node shared-delay delay time 5ms feedback 0.5 mix $fx\n        node shared-out output",
+                "        node shared-out output\n        node shared-delay delay time 5ms feedback 0.5 mix $fx",
+            )
+            .replace(
+                "        bus voice-sum voice_sum.audio -> shared-delay.audio\n        bus shared-output shared-delay.audio -> shared-out.audio",
+                "        bus shared-output shared-delay.audio -> shared-out.audio\n        bus voice-sum voice_sum.audio -> shared-delay.audio",
+            );
+        let compiled = CompiledProject::compile(&fixture(source)).expect("compile shared graph");
+        let shifted =
+            CompiledProject::compile(&fixture(&reordered)).expect("compile reordered shared graph");
+        let mut baseline = compiled.runtime();
+        let mut current = compiled.runtime();
+        let mut next = shifted.runtime();
+        baseline.advance_to(10_000).expect("advance baseline");
+        current.advance_to(10_000).expect("advance current");
+        current.prepare_transition(&mut next);
+        assert!(current.tracks[0].transition_unchanged);
+
+        for position in 1..=480_u64 {
+            let expected = baseline
+                .process_frame(ProcessingMode::Monitoring)
+                .expect("baseline shared frame");
+            let phase = position as f64 / 480.0;
+            let actual = current
+                .process_transition_frame(
+                    &mut next,
+                    (phase * std::f64::consts::FRAC_PI_2).cos() as f32,
+                    (phase * std::f64::consts::FRAC_PI_2).sin() as f32,
+                )
+                .expect("shared transition frame");
+            assert_eq!(actual, expected, "shared frame {position}");
+        }
+        current.complete_transition(&mut next);
+        for _ in 0..256 {
+            assert_eq!(
+                next.process_frame(ProcessingMode::Monitoring)
+                    .expect("replacement shared frame"),
+                baseline
+                    .process_frame(ProcessingMode::Monitoring)
+                    .expect("baseline shared continuation")
+            );
+        }
+    }
+
+    #[test]
+    fn track_parameter_locks_do_not_leak_into_another_tracks_shared_tail() {
+        let source = r#"crump 2
+project "Track Lock Isolation" {
+  id track-lock-isolation
+  seed 91
+  sample_rate 48000
+  render_tail 20ms
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument lead "Lead" graph {
+      polyphony 1
+      parameter level "Level" ratio 0 1 0.4 0.4
+      parameter fx "FX" ratio 0 1 0.25 0.25 automatable
+      faceplate {
+        control level "Level" "Voice level" maps level
+        control fx "FX" "Shared delay mix" maps fx
+      }
+      graph voice 5 {
+        node oscillator oscillator waveform saw level $level
+        node envelope envelope attack 1ms decay 1ms sustain 1 release 1ms
+        node amplifier amplifier level 1
+        node widen mono_to_stereo
+        node voice-out output
+        bus pitch note.pitch -> oscillator.pitch
+        bus gate note.gate -> envelope.gate
+        bus gain envelope.control -> amplifier.gain
+        bus mono oscillator.audio -> amplifier.audio
+        bus widened amplifier.audio -> widen.audio
+        bus stereo widen.audio -> voice-out.audio
+      }
+      graph shared 2 {
+        node delay delay time 5ms feedback 0.6 mix $fx
+        node shared-out output
+        bus crossing voice_sum.audio -> delay.audio
+        bus output delay.audio -> shared-out.audio
+      }
+    }
+    pattern controller 1bar {
+      lock controller-fx at 0beat parameter fx value 0.1
+    }
+    pattern audible 1bar {
+      note 0beat C4 1/64beat 0.8
+    }
+    track controller "Controller" instrument lead level 0db pan 0 {
+      clip controller-clip pattern controller start 1/16beat duration 1/16beat mode once
+    }
+    track audible "Audible" instrument lead level 0db pan 0 {
+      clip audible-clip pattern audible start 0beat duration 1/16beat mode once
+    }
+  }
+}
+"#;
+        let render = |source: &str| {
+            let compiled =
+                CompiledProject::compile(&fixture(source)).expect("compile lock fixture");
+            let mut runtime = compiled.runtime();
+            (0..4_096)
+                .map(|_| {
+                    runtime
+                        .process_frame(ProcessingMode::Offline)
+                        .expect("render lock isolation frame")
+                })
+                .collect::<Vec<_>>()
+        };
+        let low_lock = render(source);
+        let high_lock = render(&source.replace("value 0.1", "value 0.9"));
+        assert!(low_lock.iter().any(|sample| sample != &[0.0, 0.0]));
+        assert_eq!(
+            low_lock, high_lock,
+            "a silent controller Track's lock must not alter another Track's shared tail"
+        );
+    }
+
+    #[test]
+    fn shared_graph_runs_after_voice_sum_and_before_instrument_processors() {
+        let source = r#"crump 2
+project "Shared Ordering" {
+  id shared-ordering
+  seed 17
+  sample_rate 48000
+  render_tail 20ms
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument lead "Lead" graph {
+      polyphony 1
+      parameter level "Level" ratio 0 1 0.8 0.8
+      faceplate {
+        control level "Level" "Voice level" maps level
+      }
+      processor mono-post utility {
+        setting mono true
+      }
+      graph voice 3 {
+        node oscillator oscillator waveform saw level $level
+        node position pan position -0.75
+        node voice-out output
+        bus pitch note.pitch -> oscillator.pitch
+        bus positioned oscillator.audio -> position.audio
+        bus output position.audio -> voice-out.audio
+      }
+      graph shared 2 {
+        node room reverb room 0.8 damping 0.2 mix 1
+        node shared-out output
+        bus crossing voice_sum.audio -> room.audio
+        bus output room.audio -> shared-out.audio
+      }
+    }
+    pattern notes 1bar {
+      note 0beat C4 1beat 0.8
+    }
+    track lead "Lead" instrument lead level 0db pan 0 {
+      clip notes pattern notes start 0bar duration 1bar mode once
+    }
+  }
+}
+"#;
+        let without_post = source.replace(
+            "      processor mono-post utility {\n        setting mono true\n      }\n",
+            "",
+        );
+        let render = |source: &str| {
+            let compiled =
+                CompiledProject::compile(&fixture(source)).expect("compile ordering fixture");
+            let mut runtime = compiled.runtime();
+            (0..4_096)
+                .map(|_| {
+                    runtime
+                        .process_frame(ProcessingMode::Offline)
+                        .expect("render ordering frame")
+                })
+                .collect::<Vec<_>>()
+        };
+        let post_processed = render(source);
+        let shared_only = render(&without_post);
+        assert!(
+            shared_only
+                .iter()
+                .any(|sample| sample[0].to_bits() != sample[1].to_bits()),
+            "the asymmetric voice and shared reverb must exercise stereo ordering"
+        );
+        for (frame, (actual, shared)) in post_processed.iter().zip(&shared_only).enumerate() {
+            let mono = (shared[0] + shared[1]) * 0.5;
+            assert_eq!(
+                *actual,
+                [mono, mono],
+                "Instrument processor did not receive shared output at frame {frame}"
+            );
+        }
+    }
+
+    #[test]
+    fn shared_graph_callback_path_reuses_preallocated_state() {
+        let compiled = CompiledProject::compile(&fixture(include_str!(
+            "../../tests/fixtures/shared_graph_foundation.crump"
+        )))
+        .expect("compile shared allocation fixture");
+        let mut runtime = compiled.runtime();
+        let mut block = vec![[0.0_f32; 2]; 256];
+        runtime
+            .process_block(&mut block, ProcessingMode::Offline)
+            .expect("warm shared callback");
+        let shared_allocation = |runtime: &super::SongRuntime| match &runtime.tracks[0].instrument {
+            super::InstrumentRuntime::Graph {
+                shared: Some(shared),
+                ..
+            } => shared.runtime.allocation_bytes(),
+            _ => panic!("shared graph runtime"),
+        };
+        let before = shared_allocation(&runtime);
+        let block_capacity = block.capacity();
+        let mut processed = 0;
+        for _ in 0..128 {
+            processed += runtime
+                .process_block(&mut block, ProcessingMode::Offline)
+                .expect("shared callback block");
+        }
+        assert_eq!(processed, 128 * block.len());
+        assert_eq!(block.capacity(), block_capacity);
+        assert_eq!(
+            shared_allocation(&runtime),
+            before,
+            "shared Node, signal, control, transition, and tail buffers must never resize"
+        );
+    }
+
+    #[test]
+    fn seeking_resets_track_owned_shared_dsp_state() {
+        let compiled = CompiledProject::compile(&fixture(include_str!(
+            "../../tests/fixtures/shared_graph_foundation.crump"
+        )))
+        .expect("compile shared seek fixture");
+        let mut used = compiled.runtime();
+        for _ in 0..1_024 {
+            used.process_frame(ProcessingMode::Offline)
+                .expect("excite shared delay");
+        }
+        used.tracks[0].instrument.all_notes_off();
+        for _ in 0..7_000 {
+            used.process_frame(ProcessingMode::Offline)
+                .expect("release voices while retaining shared tail");
+        }
+        assert_eq!(used.tracks[0].active_voice_count(), 0);
+        used.seek_transport(0);
+        let mut fresh = compiled.runtime();
+        for frame in 0..1_024 {
+            assert_eq!(
+                used.process_frame(ProcessingMode::Offline)
+                    .expect("post-seek frame"),
+                fresh
+                    .process_frame(ProcessingMode::Offline)
+                    .expect("fresh frame"),
+                "shared state leaked across seek at frame {frame}"
+            );
+        }
+    }
+
+    #[test]
+    fn compatible_shared_scalar_edits_ramp_but_allocation_edits_restart() {
+        fn shared_control(
+            runtime: &super::SongRuntime,
+            target: super::control::ControlIndex,
+        ) -> f64 {
+            let super::InstrumentRuntime::Graph {
+                shared: Some(shared),
+                ..
+            } = &runtime.tracks[0].instrument
+            else {
+                panic!("shared graph runtime");
+            };
+            shared.runtime.effective_control(target)
+        }
+
+        let source = include_str!("../../tests/fixtures/shared_graph_foundation.crump");
+        let edited = source.replace(
+            "parameter fx \"Shared FX\" ratio 0 1 0.25 0.25 modulatable",
+            "parameter fx \"Shared FX\" ratio 0 1 0.75 0.75 modulatable",
+        );
+        let compiled = CompiledProject::compile(&fixture(source)).expect("compile shared graph");
+        let replacement =
+            CompiledProject::compile(&fixture(&edited)).expect("compile shared scalar edit");
+        let fx = compiled
+            .controls
+            .index(&crate::model::ParameterTarget::Instrument {
+                instrument: "lead".to_owned(),
+                parameter: "fx".to_owned(),
+            })
+            .expect("fx target");
+        let mut current = compiled.runtime();
+        let mut next = replacement.runtime();
+        current.advance_to(1_000).expect("advance current");
+        let before = shared_control(&current, fx);
+        current.prepare_transition(&mut next);
+        assert!(current.tracks[0].transition_unchanged);
+        for position in 1..=480_u64 {
+            let phase = position as f64 / 480.0;
+            current
+                .process_transition_frame(
+                    &mut next,
+                    (phase * std::f64::consts::FRAC_PI_2).cos() as f32,
+                    (phase * std::f64::consts::FRAC_PI_2).sin() as f32,
+                )
+                .expect("shared scalar transition");
+        }
+        let after = shared_control(&current, fx);
+        assert!(after > before + 0.45, "{before} -> {after}");
+        current.complete_transition(&mut next);
+        assert_eq!(shared_control(&next, fx), after);
+
+        let allocation_edit = source.replace("time 5ms", "time 10ms");
+        let allocation = CompiledProject::compile(&fixture(&allocation_edit))
+            .expect("compile shared allocation edit");
+        let mut current = compiled.runtime();
+        let mut next = allocation.runtime();
+        current.advance_to(1_000).expect("advance current");
+        current.prepare_transition(&mut next);
+        assert!(!current.tracks[0].transition_unchanged);
     }
 
     #[test]
@@ -2709,6 +4344,62 @@ mod tests {
     }
 
     #[test]
+    fn stable_graph_declaration_reordering_preserves_active_voice_state() {
+        let project = fixture(include_str!("../../tests/fixtures/stereo_foundation.crump"));
+        let original = CompiledProject::compile(&project).expect("compile original graph");
+        let mut reordered = project.clone();
+        let graph = reordered.song.instruments[0].graph.as_mut().unwrap();
+        graph.nodes.reverse();
+        for node in &mut graph.nodes {
+            node.settings.reverse();
+        }
+        graph.connections.reverse();
+        let reordered = CompiledProject::compile(&reordered).expect("compile reordered graph");
+
+        let mut current = original.runtime();
+        let mut next = reordered.runtime();
+        current.advance_to(1_000).expect("activate graph voice");
+        assert!(current.tracks[0].active_voice_count() > 0);
+        current.prepare_transition(&mut next);
+        assert!(current.tracks[0].transition_unchanged);
+        for _ in 0..480 {
+            current
+                .process_transition_frame(&mut next, 1.0, 0.0)
+                .expect("compatible transition frame");
+        }
+        current.complete_transition(&mut next);
+        assert!(next.tracks[0].active_voice_count() > 0);
+    }
+
+    #[test]
+    fn legacy_connection_source_reordering_preserves_active_voice_state() {
+        let original_source = include_str!("../../tests/fixtures/minimal.crump");
+        let reordered_source = original_source.replace(
+            "        connect note.pitch -> oscillator.pitch\n        connect note.gate -> envelope.gate",
+            "        connect note.gate -> envelope.gate\n        connect note.pitch -> oscillator.pitch",
+        );
+        assert_ne!(original_source, reordered_source);
+        let original =
+            CompiledProject::compile(&fixture(original_source)).expect("compile original");
+        let reordered =
+            CompiledProject::compile(&fixture(&reordered_source)).expect("compile reordered");
+
+        let mut current = original.runtime();
+        let mut next = reordered.runtime();
+        current.advance_to(1_000).expect("activate graph voice");
+        assert!(current.tracks[0].active_voice_count() > 0);
+        current.prepare_transition(&mut next);
+        assert!(current.tracks[0].transition_unchanged);
+        for _ in 0..480 {
+            current
+                .process_transition_frame(&mut next, 1.0, 0.0)
+                .expect("compatible transition frame");
+        }
+        current.complete_transition(&mut next);
+        assert!(next.tracks[0].active_voice_count() > 0);
+    }
+
+    #[test]
     fn scalar_control_edits_preserve_state_but_topology_edits_do_not() {
         let project = fixture(include_str!("../../tests/fixtures/minimal.crump"));
         let original = CompiledProject::compile(&project).expect("compile original");
@@ -2788,10 +4479,10 @@ mod tests {
             .expect("lead graph")
             .nodes[0]
             .settings
-            .insert(
-                "waveform".to_owned(),
-                crate::model::SettingValue::Text("square".to_owned()),
-            );
+            .iter_mut()
+            .find(|setting| setting.key == "waveform")
+            .expect("waveform setting")
+            .value = crate::model::SettingValue::Text("square".to_owned());
         let topology_changed =
             CompiledProject::compile(&topology_changed).expect("compile topology edit");
         let mut current = original.runtime();
@@ -2804,6 +4495,545 @@ mod tests {
                 .find(|track| track.schedule.track_id == "lead")
                 .expect("lead Track")
                 .transition_unchanged
+        );
+    }
+
+    #[test]
+    fn modulation_declaration_reordering_preserves_active_voice_state() {
+        let project = fixture(include_str!(
+            "../../tests/fixtures/instrument_modulation.crump"
+        ));
+        let original = CompiledProject::compile(&project).expect("compile original order");
+        let mut reordered = project;
+        let instrument = &mut reordered.song.instruments[0];
+        instrument.parameters.reverse();
+        instrument.modulation_sources.reverse();
+        instrument.modulation_routes.reverse();
+        reordered.song.modulations.reverse();
+        reordered.song.envelope_followers.reverse();
+        let reordered = CompiledProject::compile(&reordered).expect("compile reordered program");
+
+        let mut current = original.runtime();
+        for _ in 0..64 {
+            current
+                .process_frame(ProcessingMode::Offline)
+                .expect("warm voice");
+        }
+        let mut next = reordered.runtime();
+        current.prepare_transition(&mut next);
+        assert!(
+            current
+                .tracks
+                .iter()
+                .all(|track| track.transition_unchanged),
+            "semantically unordered declarations must not restart Tracks"
+        );
+        current.complete_transition(&mut next);
+        assert!(
+            next.tracks
+                .iter()
+                .all(|track| track.active_voice_count() > 0)
+        );
+    }
+
+    #[test]
+    fn active_parameter_lock_edits_adopt_the_program_with_a_bounded_handoff() {
+        let source = include_str!("../../tests/fixtures/minimal.crump")
+            .replace(
+                "parameter tone \"Tone\" hz 100hz 10000hz 3000hz 3200hz",
+                "parameter tone \"Tone\" hz 100hz 10000hz 3000hz 3200hz automatable",
+            )
+            .replace(
+                "      note 0beat C4 1beat 0.8",
+                "      lock tone-lock at 0beat parameter tone value 3200hz\n      note 0beat C4 1beat 0.8",
+            );
+        let original_project = fixture(&source);
+        let original = CompiledProject::compile(&original_project).expect("compile original lock");
+        let changed_source = source.replace(
+            "lock tone-lock at 0beat parameter tone value 3200hz",
+            "lock tone-lock at 0beat parameter tone value 4000hz",
+        );
+        let changed =
+            CompiledProject::compile(&fixture(&changed_source)).expect("compile changed lock");
+        let tone = original
+            .controls
+            .index(&crate::model::ParameterTarget::Instrument {
+                instrument: "lead".to_owned(),
+                parameter: "tone".to_owned(),
+            })
+            .expect("tone");
+        let locked_value = |runtime: &super::SongRuntime| {
+            runtime
+                .tracks
+                .iter()
+                .find(|track| track.schedule.track_id == "lead")
+                .and_then(|track| track.parameter_locks.as_ref())
+                .map(|locks| locks.effective_value(tone))
+                .expect("lead Track lock projection")
+        };
+        let mut current = original.runtime();
+        for _ in 0..64 {
+            current
+                .process_frame(ProcessingMode::Offline)
+                .expect("warm locked voice");
+        }
+        let mut next = changed.runtime();
+        current.prepare_transition(&mut next);
+        assert!(current.scalar_control_handoff);
+        assert_eq!(locked_value(&current), 3_200.0);
+        current
+            .process_transition_frame(&mut next, 1.0, 0.0)
+            .expect("first lock handoff frame");
+        assert!(locked_value(&current) > 3_200.0);
+        assert!(locked_value(&current) < 4_000.0);
+        for _ in 1..480 {
+            current
+                .process_transition_frame(&mut next, 1.0, 0.0)
+                .expect("lock handoff frame");
+        }
+        assert_eq!(locked_value(&current), 4_000.0);
+        current.complete_transition(&mut next);
+        assert_eq!(locked_value(&next), 4_000.0);
+        assert!(
+            next.tracks
+                .iter()
+                .find(|track| track.schedule.track_id == "lead")
+                .expect("lead Track")
+                .active_voice_count()
+                > 0
+        );
+    }
+
+    #[test]
+    fn parameter_lock_addition_and_removal_keep_track_projection_through_handoff() {
+        let base_source = include_str!("../../tests/fixtures/minimal.crump").replace(
+            "parameter tone \"Tone\" hz 100hz 10000hz 3000hz 3200hz",
+            "parameter tone \"Tone\" hz 100hz 10000hz 3000hz 3200hz automatable",
+        );
+        let locked_source = base_source.replace(
+            "      note 0beat C4 1beat 0.8",
+            "      lock tone-lock at 0beat parameter tone value 1000hz\n      note 0beat C4 1beat 0.8",
+        );
+        let base = CompiledProject::compile(&fixture(&base_source)).expect("compile unlocked");
+        let locked = CompiledProject::compile(&fixture(&locked_source)).expect("compile locked");
+        let tone = base
+            .controls
+            .index(&crate::model::ParameterTarget::Instrument {
+                instrument: "lead".to_owned(),
+                parameter: "tone".to_owned(),
+            })
+            .expect("tone");
+
+        let mut current = base.runtime();
+        for _ in 0..64 {
+            current
+                .process_frame(ProcessingMode::Offline)
+                .expect("warm unlocked runtime");
+        }
+        let mut next = locked.runtime();
+        current.prepare_transition(&mut next);
+        assert!(current.scalar_control_handoff);
+        for _ in 0..480 {
+            current
+                .process_transition_frame(&mut next, 1.0, 0.0)
+                .expect("add-lock handoff");
+        }
+        let lock_value = |runtime: &super::SongRuntime| {
+            runtime
+                .tracks
+                .iter()
+                .find(|track| track.schedule.track_id == "lead")
+                .and_then(|track| track.parameter_locks.as_ref())
+                .map(|locks| locks.effective_value(tone))
+        };
+        assert_eq!(lock_value(&current), Some(1_000.0));
+        current.complete_transition(&mut next);
+        assert_eq!(lock_value(&next), Some(1_000.0));
+
+        let mut current = locked.runtime();
+        for _ in 0..64 {
+            current
+                .process_frame(ProcessingMode::Offline)
+                .expect("warm locked runtime");
+        }
+        let mut next = base.runtime();
+        current.prepare_transition(&mut next);
+        assert!(current.scalar_control_handoff);
+        assert!(
+            current
+                .tracks
+                .iter()
+                .find(|track| track.schedule.track_id == "lead")
+                .is_some_and(|track| track.parameter_locks_handoff),
+            "the departing Track must own the lock-removal ramp"
+        );
+        for _ in 0..480 {
+            current
+                .process_transition_frame(&mut next, 1.0, 0.0)
+                .expect("remove-lock handoff");
+        }
+        assert_eq!(lock_value(&current), Some(3_200.0));
+        current.complete_transition(&mut next);
+        assert!(
+            next.tracks
+                .iter()
+                .find(|track| track.schedule.track_id == "lead")
+                .is_some_and(|track| track.parameter_locks.is_none())
+        );
+        next.process_frame(ProcessingMode::Offline)
+            .expect("post-removal frame");
+        assert_eq!(next.controls.values()[tone.0], 3_200.0);
+    }
+
+    #[test]
+    fn lock_edits_crossfade_the_owner_when_an_unrelated_track_is_incompatible() {
+        let source = include_str!("../../tests/fixtures/minimal.crump")
+            .replace(
+                "parameter tone \"Tone\" hz 100hz 10000hz 3000hz 3200hz",
+                "parameter tone \"Tone\" hz 100hz 10000hz 3000hz 3200hz automatable",
+            )
+            .replace(
+                "      note 0beat C4 1beat 0.8",
+                "      lock tone-lock at 0beat parameter tone value 3200hz\n      note 0beat C4 1beat 0.8",
+            );
+        let original = CompiledProject::compile(&fixture(&source)).expect("compile original");
+        let replacement = source
+            .replace(
+                "lock tone-lock at 0beat parameter tone value 3200hz",
+                "lock tone-lock at 0beat parameter tone value 4000hz",
+            )
+            .replace("hit 0beat kick 0.9", "hit 0beat kick 0.8");
+        let changed =
+            CompiledProject::compile(&fixture(&replacement)).expect("compile replacement");
+        let tone = changed
+            .controls
+            .index(&crate::model::ParameterTarget::Instrument {
+                instrument: "lead".to_owned(),
+                parameter: "tone".to_owned(),
+            })
+            .expect("tone");
+
+        let mut current = original.runtime();
+        for _ in 0..64 {
+            current
+                .process_frame(ProcessingMode::Offline)
+                .expect("warm current runtime");
+        }
+        let mut next = changed.runtime();
+        current.prepare_transition(&mut next);
+        assert!(!current.scalar_control_handoff);
+        assert!(
+            !current
+                .tracks
+                .iter()
+                .find(|track| track.schedule.track_id == "lead")
+                .expect("current lead Track")
+                .transition_unchanged,
+            "the lock owner must be rendered on both sides of the publication fade"
+        );
+        assert!(
+            !next
+                .tracks
+                .iter()
+                .find(|track| track.schedule.track_id == "lead")
+                .expect("replacement lead Track")
+                .transition_unchanged
+        );
+        current
+            .process_transition_frame(&mut next, 1.0, 0.0)
+            .expect("first transition frame");
+        assert_eq!(
+            next.tracks
+                .iter()
+                .find(|track| track.schedule.track_id == "lead")
+                .and_then(|track| track.parameter_locks.as_ref())
+                .map(|locks| locks.effective_value(tone)),
+            Some(4_000.0)
+        );
+    }
+
+    #[test]
+    fn instrument_route_scalar_edits_crossfade_active_voices_and_macro_dependents() {
+        fn active_voice_control(
+            runtime: &super::SongRuntime,
+            target: super::control::ControlIndex,
+        ) -> f64 {
+            let track = runtime
+                .tracks
+                .iter()
+                .find(|track| track.schedule.track_id == "lead-track")
+                .expect("lead Track");
+            let super::InstrumentRuntime::Graph { voices, .. } = &track.instrument else {
+                panic!("lead must use a graph Instrument");
+            };
+            voices
+                .iter()
+                .find(|slot| slot.voice.active())
+                .expect("active graph voice")
+                .voice
+                .effective_control(target)
+        }
+
+        fn active_voice_target_changed(
+            runtime: &super::SongRuntime,
+            target: super::control::ControlIndex,
+        ) -> bool {
+            let track = runtime
+                .tracks
+                .iter()
+                .find(|track| track.schedule.track_id == "lead-track")
+                .expect("lead Track");
+            let super::InstrumentRuntime::Graph { voices, .. } = &track.instrument else {
+                panic!("lead must use a graph Instrument");
+            };
+            voices
+                .iter()
+                .find(|slot| slot.voice.active())
+                .expect("active graph voice")
+                .voice
+                .transition_target_changed(target)
+        }
+
+        let mut project = fixture(include_str!(
+            "../../tests/fixtures/instrument_modulation.crump"
+        ));
+        project.song.modulations.clear();
+        for route in &mut project.song.instruments[0].modulation_routes {
+            route.bypass = route.id != "velocity-tone";
+        }
+        let original = CompiledProject::compile(&project).expect("compile original routes");
+        let tone = original
+            .controls
+            .index(&crate::model::ParameterTarget::Instrument {
+                instrument: "lead".to_owned(),
+                parameter: "tone".to_owned(),
+            })
+            .expect("tone");
+        let mut changed = project.clone();
+        changed.song.instruments[0]
+            .modulation_routes
+            .iter_mut()
+            .find(|route| route.id == "velocity-tone")
+            .expect("velocity route")
+            .depth = "0.4".to_owned();
+        let changed = CompiledProject::compile(&changed).expect("compile changed route");
+
+        let mut current = original.runtime();
+        for _ in 0..64 {
+            current
+                .process_frame(ProcessingMode::Offline)
+                .expect("warm active voice");
+        }
+        let before = active_voice_control(&current, tone);
+        let mut next = changed.runtime();
+        current.prepare_transition(&mut next);
+        assert!(
+            current
+                .tracks
+                .iter()
+                .find(|track| track.schedule.track_id == "lead-track")
+                .expect("lead Track")
+                .transition_unchanged,
+            "route depth is a compatible scalar edit"
+        );
+        assert!(active_voice_target_changed(&current, tone));
+        current
+            .process_transition_frame(&mut next, 1.0, 0.0)
+            .expect("first route handoff frame");
+        let first = active_voice_control(&current, tone);
+        assert!(first > before);
+        assert!(
+            first - before < 0.01,
+            "route target must ramp instead of stepping: {before} -> {first}"
+        );
+        for _ in 1..480 {
+            current
+                .process_transition_frame(&mut next, 1.0, 0.0)
+                .expect("route handoff frame");
+        }
+        assert!(active_voice_control(&current, tone) > before + 0.2);
+        current.complete_transition(&mut next);
+        assert!(
+            next.tracks
+                .iter()
+                .find(|track| track.schedule.track_id == "lead-track")
+                .expect("lead Track after handoff")
+                .active_voice_count()
+                > 0
+        );
+
+        let mut bypass_project = project.clone();
+        bypass_project.song.instruments[0]
+            .modulation_routes
+            .iter_mut()
+            .find(|route| route.id == "velocity-tone")
+            .expect("velocity route")
+            .bypass = true;
+        let bypass_changed =
+            CompiledProject::compile(&bypass_project).expect("compile bypass edit");
+        let mut current = original.runtime();
+        for _ in 0..64 {
+            current
+                .process_frame(ProcessingMode::Offline)
+                .expect("warm bypass voice");
+        }
+        let mut next = bypass_changed.runtime();
+        current.prepare_transition(&mut next);
+        assert!(
+            current
+                .tracks
+                .iter()
+                .all(|track| track.transition_unchanged)
+        );
+        assert!(active_voice_target_changed(&current, tone));
+
+        let mut topology_project = project.clone();
+        topology_project.song.instruments[0]
+            .modulation_routes
+            .iter_mut()
+            .find(|route| route.id == "velocity-tone")
+            .expect("velocity route")
+            .source = "key-position".to_owned();
+        let topology_changed =
+            CompiledProject::compile(&topology_project).expect("compile route topology edit");
+        let mut current = original.runtime();
+        let mut next = topology_changed.runtime();
+        current.prepare_transition(&mut next);
+        assert!(
+            !current
+                .tracks
+                .iter()
+                .find(|track| track.schedule.track_id == "lead-track")
+                .expect("lead Track")
+                .transition_unchanged,
+            "route source topology changes must restart the affected Track"
+        );
+
+        let mut macro_project = project;
+        macro_project.song.instruments[0]
+            .modulation_sources
+            .iter_mut()
+            .find(|source| source.id == "macro-source")
+            .expect("macro source")
+            .scope = crate::model::InstrumentModulationScope::Instrument;
+        for route in &mut macro_project.song.instruments[0].modulation_routes {
+            route.bypass = route.id != "macro-tone";
+        }
+        let macro_original =
+            CompiledProject::compile(&macro_project).expect("compile macro original");
+        let mut macro_changed = macro_project;
+        macro_changed.song.instruments[0]
+            .parameters
+            .iter_mut()
+            .find(|parameter| parameter.key == "macro")
+            .expect("macro Parameter")
+            .value = 0.9;
+        let macro_changed = CompiledProject::compile(&macro_changed).expect("compile macro edit");
+        let mut current = macro_original.runtime();
+        for _ in 0..64 {
+            current
+                .process_frame(ProcessingMode::Offline)
+                .expect("warm macro voice");
+        }
+        let mut next = macro_changed.runtime();
+        current.prepare_transition(&mut next);
+        assert!(
+            active_voice_target_changed(&current, tone),
+            "macro dependency closure must include downstream route targets"
+        );
+    }
+
+    #[test]
+    fn two_tracks_share_global_modulation_but_isolate_instrument_state() {
+        fn active_tones(
+            runtime: &super::SongRuntime,
+            tone: super::control::ControlIndex,
+        ) -> Vec<(String, f64)> {
+            runtime
+                .tracks
+                .iter()
+                .map(|track| {
+                    let super::InstrumentRuntime::Graph { voices, .. } = &track.instrument else {
+                        panic!("test Tracks must use the graph Instrument");
+                    };
+                    let value = voices
+                        .iter()
+                        .find(|slot| slot.voice.active())
+                        .expect("active voice")
+                        .voice
+                        .effective_control(tone);
+                    (track.schedule.track_id.clone(), value)
+                })
+                .collect()
+        }
+
+        fn runtime_tones(
+            mut project: crate::model::Project,
+            scope: crate::model::InstrumentModulationScope,
+        ) -> Vec<(String, f64)> {
+            project.song.modulations.clear();
+            let instrument = &mut project.song.instruments[0];
+            instrument
+                .modulation_sources
+                .iter_mut()
+                .find(|source| source.id == "random")
+                .expect("random source")
+                .scope = scope;
+            for route in &mut instrument.modulation_routes {
+                route.bypass = route.id != "random-tone";
+            }
+            let mut duplicate = project.song.tracks[0].clone();
+            duplicate.id = "lead-copy".to_owned();
+            duplicate.name = "Lead Copy".to_owned();
+            duplicate.clips[0].id = "lead-copy-clip".to_owned();
+            project.song.tracks.push(duplicate);
+
+            let compiled = CompiledProject::compile(&project).expect("compile two Tracks");
+            let tone = compiled
+                .controls
+                .index(&crate::model::ParameterTarget::Instrument {
+                    instrument: "lead".to_owned(),
+                    parameter: "tone".to_owned(),
+                })
+                .expect("tone");
+            let mut runtime = compiled.runtime();
+            runtime
+                .process_frame(ProcessingMode::Offline)
+                .expect("activate both Tracks");
+            active_tones(&runtime, tone)
+        }
+
+        let project = fixture(include_str!(
+            "../../tests/fixtures/instrument_modulation.crump"
+        ));
+        let instrument = runtime_tones(
+            project.clone(),
+            crate::model::InstrumentModulationScope::Instrument,
+        );
+        assert_eq!(instrument.len(), 2);
+        assert_ne!(
+            instrument[0].1.to_bits(),
+            instrument[1].1.to_bits(),
+            "Instrument random state must be isolated by durable Track identity"
+        );
+
+        let per_voice = runtime_tones(
+            project.clone(),
+            crate::model::InstrumentModulationScope::PerVoice,
+        );
+        assert_eq!(per_voice.len(), 2);
+        assert_ne!(
+            per_voice[0].1.to_bits(),
+            per_voice[1].1.to_bits(),
+            "per-voice random state must include each Track Event identity"
+        );
+
+        let global = runtime_tones(project, crate::model::InstrumentModulationScope::Global);
+        assert_eq!(global.len(), 2);
+        assert_eq!(
+            global[0].1.to_bits(),
+            global[1].1.to_bits(),
+            "global modulation must be shared across Tracks using one Instrument"
         );
     }
 

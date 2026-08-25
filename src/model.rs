@@ -1,6 +1,6 @@
 //! Immutable authored model produced by parsing and consumed by validation.
 
-use std::{collections::BTreeMap, fmt, path::PathBuf, str::FromStr};
+use std::{fmt, path::PathBuf, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
@@ -9,8 +9,14 @@ use crate::{
     time::{Meter, MusicalTime},
 };
 
-/// The supported Crump source-language major version.
-pub const SOURCE_VERSION: u32 = 1;
+/// The original Crump source-language major version.
+pub const SOURCE_VERSION_V1: u32 = 1;
+/// The graph-synthesis foundation source-language major version.
+pub const SOURCE_VERSION_V2: u32 = 2;
+/// The latest supported Crump source-language major version.
+pub const LATEST_SOURCE_VERSION: u32 = SOURCE_VERSION_V2;
+/// Backward-compatible name for the original source-language version.
+pub const SOURCE_VERSION: u32 = SOURCE_VERSION_V1;
 
 /// A fully parsed Project candidate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +52,12 @@ pub struct MediaAsset {
     pub path: PathBuf,
     /// Required lowercase SHA-256 of exact file bytes.
     pub sha256: String,
+    /// Declared synthesis uses for source-version-2 asset compilation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub usages: Vec<MediaAssetUsage>,
+    /// Exact wavetable frame interpretation when `wavetable` is a declared usage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wavetable: Option<WavetableAssetDefinition>,
     /// Complete source-backed provenance when Crump generated this asset.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub generated: Option<GeneratedAssetProvenance>,
@@ -55,6 +67,65 @@ pub struct MediaAsset {
     pub sha256_site: ValueSite,
     /// Declaration location.
     pub location: SourceLocation,
+}
+
+/// Declared synthesis role for one Project-owned exact-byte asset.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum MediaAssetUsage {
+    /// Periodic frames compiled into band-limited table levels.
+    Wavetable,
+    /// One-shot or looped sample-oscillator source.
+    Sample,
+    /// Key/velocity-zoned sample source.
+    Multisample,
+    /// Granular source material.
+    Granular,
+    /// Offline-analyzed spectral source material.
+    Spectral,
+}
+
+/// Exact source-amplitude policy used before wavetable mip compilation.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WavetableNormalization {
+    /// Keep decoded WAV amplitude unchanged.
+    Preserve,
+    /// Normalize all authored frames by one source-wide peak.
+    GlobalPeak,
+    /// Normalize each non-silent authored frame independently to unit peak.
+    FramePeak,
+}
+
+/// Deterministic interpolation law between authored wavetable frames.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WavetableMorph {
+    /// Linear interpolation between adjacent frames at the same phase.
+    Linear,
+    /// Four-frame Catmull–Rom interpolation with repeated boundary frames.
+    CatmullRom,
+}
+
+/// Source-backed interpretation of one exact WAV as periodic wavetable frames.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WavetableAssetDefinition {
+    /// Samples in each periodic authored frame; a bounded power of two.
+    pub frame_length: u32,
+    /// Number of consecutive authored frames in the mono WAV.
+    pub frames: u16,
+    /// Source-amplitude normalization policy.
+    pub normalization: WavetableNormalization,
+    /// Inter-frame morph law.
+    pub morph: WavetableMorph,
+    /// Exact frame-length literal.
+    pub frame_length_site: ValueSite,
+    /// Exact frame-count literal.
+    pub frames_site: ValueSite,
+    /// Exact normalization literal.
+    pub normalization_site: ValueSite,
+    /// Exact morph literal.
+    pub morph_site: ValueSite,
 }
 
 /// Explicit formant behavior for independent pitch preparation.
@@ -277,20 +348,330 @@ pub struct Instrument {
     pub kind: InstrumentKind,
     /// Maximum simultaneous voices.
     pub polyphony: u16,
+    /// Track-instance voicing, note-priority, and central glide policy.
+    #[serde(default)]
+    pub voicing: Voicing,
     /// Physical-unit Parameters.
     pub parameters: Vec<Parameter>,
     /// Shallow progressive controls.
     pub faceplate: Vec<FaceplateControl>,
-    /// Declarative graph for a graph-authored synth.
+    /// Portable Instrument-owned Modulation sources.
+    #[serde(default)]
+    pub modulation_sources: Vec<InstrumentModulationSource>,
+    /// Portable Instrument-owned Parameter routes.
+    #[serde(default)]
+    pub modulation_routes: Vec<InstrumentModulationRoute>,
+    /// Sound-neutral grouping metadata for generated Instrument section views.
+    #[serde(default)]
+    pub presentation: InstrumentPresentation,
+    /// Declarative per-voice graph for a graph-authored synth.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub graph: Option<Graph>,
+    /// Optional shared post-voice graph evaluated once per referencing Track after voice summing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared_graph: Option<Graph>,
     /// Portable zone map for a sample-backed Instrument.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sampler: Option<SamplerDefinition>,
-    /// Ordered shared stereo processors after the per-voice sum.
+    /// Ordered shared stereo processors after the optional shared graph.
     pub post_processors: Vec<Processor>,
     /// Declaration location.
     pub location: SourceLocation,
+}
+
+/// Sound-neutral authored metadata for generated Instrument section views.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct InstrumentPresentation {
+    /// Searchable, source-readable patch tags; never DSP state.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// Suggested bounded three-note preview range and excitation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preview: Option<InstrumentPreview>,
+    /// Ordered stable sections. Empty metadata requests deterministic generated grouping.
+    pub sections: Vec<PresentationSection>,
+}
+
+/// Sound-neutral suggested phrase for deterministic Module preview rendering.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct InstrumentPreview {
+    /// Inclusive lowest scientific-pitch note.
+    pub low_pitch: u8,
+    /// Inclusive highest scientific-pitch note.
+    pub high_pitch: u8,
+    /// Lowest normalized preview velocity.
+    pub low_velocity: f64,
+    /// Highest normalized preview velocity.
+    pub high_velocity: f64,
+    /// Exact duration of each of the three preview notes.
+    pub note_duration: MusicalTime,
+    /// Exact authored metadata location.
+    pub location: SourceLocation,
+}
+
+/// One durable generated-view section.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PresentationSection {
+    /// Stable Instrument-local identity.
+    pub id: String,
+    /// Closed semantic view category.
+    pub kind: PresentationSectionKind,
+    /// Human-facing section title.
+    pub name: String,
+    /// Ordered references into the authoritative Instrument definition.
+    pub items: Vec<PresentationItem>,
+    /// Declaration location.
+    pub location: SourceLocation,
+}
+
+/// Closed first-release Instrument section vocabulary.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum PresentationSectionKind {
+    /// Primary oscillators and source generators.
+    Sources,
+    /// Source gains, summing, and immediate routing.
+    SourceMixer,
+    /// Voice or shared filters.
+    Filters,
+    /// Envelope and LFO generators.
+    EnvelopesLfos,
+    /// Instrument-owned Modulation sources and routes.
+    Modulation,
+    /// Polyphony, unison, glide, and allocation policy.
+    Voicing,
+    /// Voice/shared graph crossings and ordinary Buses.
+    Routing,
+    /// Shared graph and post-voice processors.
+    Effects,
+}
+
+impl PresentationSectionKind {
+    /// Stable source-language spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Sources => "sources",
+            Self::SourceMixer => "source_mixer",
+            Self::Filters => "filters",
+            Self::EnvelopesLfos => "envelopes_lfos",
+            Self::Modulation => "modulation",
+            Self::Voicing => "voicing",
+            Self::Routing => "routing",
+            Self::Effects => "effects",
+        }
+    }
+}
+
+impl FromStr for PresentationSectionKind {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "sources" => Ok(Self::Sources),
+            "source_mixer" => Ok(Self::SourceMixer),
+            "filters" => Ok(Self::Filters),
+            "envelopes_lfos" => Ok(Self::EnvelopesLfos),
+            "modulation" => Ok(Self::Modulation),
+            "voicing" => Ok(Self::Voicing),
+            "routing" => Ok(Self::Routing),
+            "effects" => Ok(Self::Effects),
+            _ => Err(format!("unknown presentation section kind `{value}`")),
+        }
+    }
+}
+
+/// One stable source-backed reference rendered in a presentation section.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PresentationItem {
+    /// Referenced authored object class.
+    pub kind: PresentationItemKind,
+    /// Durable object identity inside the Instrument or Project.
+    pub id: String,
+    /// Exact source site of the referenced identity.
+    pub id_site: ValueSite,
+}
+
+/// Closed authored-object classes accepted by presentation metadata.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum PresentationItemKind {
+    /// Graph Node identity.
+    Node,
+    /// Graph Bus identity.
+    Bus,
+    /// Instrument Parameter key.
+    Parameter,
+    /// Instrument Modulation source identity.
+    Source,
+    /// Instrument Modulation route identity.
+    Route,
+    /// Instrument-owned post-voice processor identity.
+    Processor,
+    /// Project-owned media asset identity.
+    Asset,
+}
+
+impl FromStr for PresentationItemKind {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "node" => Ok(Self::Node),
+            "bus" => Ok(Self::Bus),
+            "parameter" => Ok(Self::Parameter),
+            "source" => Ok(Self::Source),
+            "route" => Ok(Self::Route),
+            "processor" => Ok(Self::Processor),
+            "asset" => Ok(Self::Asset),
+            _ => Err(format!("unknown presentation item kind `{value}`")),
+        }
+    }
+}
+
+/// Track-owned voice allocation and note-transition contract for a graph Instrument.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Voicing {
+    /// Polyphonic or monophonic allocation.
+    pub mode: VoicingMode,
+    /// Whether overlapping mono note changes restart voice state.
+    pub retrigger: RetriggerPolicy,
+    /// Central pitch-slew duration in seconds.
+    pub glide_seconds: f64,
+    /// Which note transitions apply central pitch slew.
+    pub glide_mode: GlideMode,
+    /// Held-note selection policy for monophonic Instruments.
+    pub note_priority: NotePriority,
+    /// Voice selection policy when all polyphonic slots are occupied.
+    pub steal_priority: StealPriority,
+    /// Authored deterministic identity mixed into note-event identities.
+    pub seed: u64,
+    /// Exact source site of the mode literal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode_site: Option<ValueSite>,
+    /// Exact source site of the retrigger literal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retrigger_site: Option<ValueSite>,
+    /// Exact source site of the glide duration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub glide_site: Option<ValueSite>,
+    /// Exact source site of the glide-mode literal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub glide_mode_site: Option<ValueSite>,
+    /// Exact source site of the note-priority literal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note_priority_site: Option<ValueSite>,
+    /// Exact source site of the steal-priority literal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub steal_priority_site: Option<ValueSite>,
+    /// Exact source site of the authored seed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seed_site: Option<ValueSite>,
+}
+
+impl Default for Voicing {
+    fn default() -> Self {
+        Self {
+            mode: VoicingMode::Poly,
+            retrigger: RetriggerPolicy::Always,
+            glide_seconds: 0.0,
+            glide_mode: GlideMode::Off,
+            note_priority: NotePriority::Last,
+            steal_priority: StealPriority::ReleaseOldest,
+            seed: 0,
+            mode_site: None,
+            retrigger_site: None,
+            glide_site: None,
+            glide_mode_site: None,
+            note_priority_site: None,
+            steal_priority_site: None,
+            seed_site: None,
+        }
+    }
+}
+
+impl Voicing {
+    /// Whether this policy exactly reproduces source-v1 graph allocation behavior.
+    #[must_use]
+    pub fn is_legacy_default(&self) -> bool {
+        self.mode == VoicingMode::Poly
+            && self.retrigger == RetriggerPolicy::Always
+            && self.glide_seconds == 0.0
+            && self.glide_mode == GlideMode::Off
+            && self.note_priority == NotePriority::Last
+            && self.steal_priority == StealPriority::ReleaseOldest
+            && self.seed == 0
+    }
+
+    /// Whether two policies can retain active voice state through publication.
+    #[must_use]
+    pub fn structurally_compatible(&self, replacement: &Self) -> bool {
+        self.mode == replacement.mode
+            && self.retrigger == replacement.retrigger
+            && self.glide_mode == replacement.glide_mode
+            && self.note_priority == replacement.note_priority
+            && self.steal_priority == replacement.steal_priority
+            && self.seed == replacement.seed
+    }
+}
+
+/// Voice-allocation mode.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum VoicingMode {
+    /// Allocate independent voices up to the Instrument's polyphony.
+    #[default]
+    Poly,
+    /// Keep one Track-owned voice and select from held notes.
+    Mono,
+}
+
+/// Monophonic state-retrigger policy.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RetriggerPolicy {
+    /// Restart oscillator, envelope, LFO, and random state for every selected note.
+    #[default]
+    Always,
+    /// Preserve voice state while another note remains held.
+    Legato,
+}
+
+/// Central log-frequency pitch-slew policy.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum GlideMode {
+    /// Never apply central pitch slew.
+    #[default]
+    Off,
+    /// Apply slew whenever a previous Track pitch identity exists.
+    Always,
+    /// Apply slew only to overlapping held-note transitions.
+    Legato,
+}
+
+/// Held-note selection for a monophonic Instrument.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NotePriority {
+    /// Select the most recently pressed held note.
+    #[default]
+    Last,
+    /// Select the lowest held pitch, breaking ties by most recent press.
+    Low,
+    /// Select the highest held pitch, breaking ties by most recent press.
+    High,
+}
+
+/// Polyphonic voice-stealing policy.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StealPriority {
+    /// Prefer the oldest releasing voice, then the oldest active voice.
+    #[default]
+    ReleaseOldest,
+    /// Select the oldest voice regardless of gate state.
+    ActiveOldest,
 }
 
 /// Native instrument implementation kind.
@@ -470,6 +851,9 @@ pub struct Parameter {
     pub automatable: bool,
     /// Whether a graph Control signal may modulate this Parameter.
     pub modulatable: bool,
+    /// Whether this ordinary Parameter is eligible as an Instrument Modulation source.
+    #[serde(default)]
+    pub macro_source: bool,
     /// Literal token used by checked Structured Source Edits.
     pub value_site: ValueSite,
     /// Declaration location.
@@ -1545,6 +1929,161 @@ pub struct ModulationRoute {
     pub location: SourceLocation,
 }
 
+/// Runtime state ownership for an Instrument-owned Modulation source.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum InstrumentModulationScope {
+    /// One phase/state in the Song-wide time domain.
+    Global,
+    /// One phase/state for each Track Instrument instance.
+    Instrument,
+    /// One phase/state for each active note voice.
+    PerVoice,
+}
+
+/// Tempo source for a reusable Instrument Modulation program.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "mode", content = "value", rename_all = "snake_case")]
+pub enum InstrumentModulationRate {
+    /// Free-running cycles per second.
+    FreeHertz(f64),
+    /// Musical-time literal resolved against the owning Song's Meter and Tempo.
+    Synchronized(String),
+}
+
+/// LFO phase-reset ownership.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LfoRetrigger {
+    /// Reset from note-relative time for every activated voice.
+    Note,
+    /// Follow absolute Song transport time for global or Track-Instrument scope.
+    Transport,
+}
+
+/// One stable Instrument-owned normalized Control source.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum InstrumentModulationSourceKind {
+    /// A Control output from an authored graph Node.
+    GraphPort {
+        /// Stable graph Node identity.
+        node: String,
+        /// Control output Port name.
+        port: String,
+    },
+    /// A reusable deterministic LFO.
+    Lfo {
+        /// Closed LFO waveform.
+        waveform: LfoWaveform,
+        /// Free or synchronized phase increment source.
+        rate: InstrumentModulationRate,
+        /// Initial normalized cycle phase.
+        phase: f64,
+        /// Looping or one-shot lifetime.
+        #[serde(default)]
+        mode: LfoMode,
+        /// Forward, reverse, or ping-pong traversal.
+        #[serde(default)]
+        direction: LfoDirection,
+        /// Explicit note- or transport-relative phase reset ownership.
+        retrigger: LfoRetrigger,
+    },
+    /// Normalized note velocity.
+    NoteVelocity,
+    /// Key position around one MIDI reference over a semitone range.
+    NoteKey {
+        /// MIDI note mapping to normalized zero.
+        reference: u8,
+        /// Semitone displacement mapping to unit magnitude.
+        range_semitones: f64,
+    },
+    /// Current note gate.
+    NoteGate,
+    /// Normalized note age over a positive duration.
+    NoteAge {
+        /// Positive time mapping to normalized one.
+        duration_seconds: f64,
+    },
+    /// Deterministic sample-and-hold random source.
+    RandomHold {
+        /// Free or synchronized hold period.
+        rate: InstrumentModulationRate,
+        /// Authored deterministic source seed.
+        seed: u64,
+    },
+    /// An ordinary macro-capable Instrument Parameter.
+    Parameter {
+        /// Stable owner-local Parameter key.
+        parameter: String,
+    },
+}
+
+/// One stable Instrument-owned Modulation source declaration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct InstrumentModulationSource {
+    /// Durable Instrument-local source identity.
+    pub id: String,
+    /// Runtime state ownership.
+    pub scope: InstrumentModulationScope,
+    /// Normalized output domain.
+    pub polarity: ControlPolarity,
+    /// Closed source program.
+    pub kind: InstrumentModulationSourceKind,
+    /// Declaration location.
+    pub location: SourceLocation,
+}
+
+/// Route-local normalized transform curve.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "curve", content = "exponent", rename_all = "snake_case")]
+pub enum ModulationCurve {
+    /// Identity transform.
+    Linear,
+    /// Sign-preserving power transform.
+    Power(f64),
+    /// Cubic smoothstep over the source's normalized domain.
+    Smoothstep,
+}
+
+/// Exact editable sites owned by an Instrument route.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct InstrumentModulationRouteSites {
+    /// Physical depth literal.
+    pub depth: ValueSite,
+    /// Bypass boolean literal.
+    pub bypass: ValueSite,
+}
+
+/// One portable Instrument-owned route into a local Parameter.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct InstrumentModulationRoute {
+    /// Durable Instrument-local route identity.
+    pub id: String,
+    /// Stable source identity.
+    pub source: String,
+    /// Stable local destination Parameter key.
+    pub target: String,
+    /// Physical-unit depth literal.
+    pub depth: String,
+    /// Source mapping domain used by the route.
+    pub polarity: ControlPolarity,
+    /// Route-local curve.
+    pub curve: ModulationCurve,
+    /// Explicit deterministic primary order.
+    pub order: i32,
+    /// Topology-stable route bypass.
+    pub bypass: bool,
+    /// Optional source multiplied with the primary source.
+    pub auxiliary: Option<String>,
+    /// Route-local normalized arithmetic in declaration order.
+    pub operators: Vec<ModulationOperator>,
+    /// Checked editable sites.
+    pub sites: InstrumentModulationRouteSites,
+    /// Declaration location.
+    pub location: SourceLocation,
+}
+
 /// One channel-tap Envelope Follower routed additively into a physical Parameter.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvelopeFollowerRoute {
@@ -1635,6 +2174,36 @@ pub enum LfoWaveform {
     Sine,
     /// Symmetric triangle cycle.
     Triangle,
+    /// Rising bipolar ramp.
+    Saw,
+    /// Symmetric bipolar pulse.
+    Square,
+    /// Deterministic value held for one complete cycle.
+    SampleHold,
+}
+
+/// Looping lifetime for a deterministic LFO program.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LfoMode {
+    /// Continue cycling for the source lifetime.
+    #[default]
+    Loop,
+    /// Traverse once and hold the final value.
+    OneShot,
+}
+
+/// Direction law for an LFO cycle.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LfoDirection {
+    /// Traverse phase from zero toward one.
+    #[default]
+    Forward,
+    /// Traverse phase from one toward zero.
+    Reverse,
+    /// Traverse forward and then backward.
+    PingPong,
 }
 
 /// LFO timing mode.
@@ -1695,16 +2264,61 @@ pub struct FaceplateControl {
     pub location: SourceLocation,
 }
 
+/// One explicit Instrument graph execution domain.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum GraphDomain {
+    /// A separately evaluated graph instance for each active note voice.
+    Voice,
+    /// One graph instance after deterministic voice summing.
+    Shared,
+}
+
 /// One hierarchical graph definition.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Graph {
-    /// Declared resource ceiling for runtime nodes per voice.
+    /// Explicit voice or shared execution domain.
+    pub domain: GraphDomain,
+    /// Declared resource ceiling for runtime nodes in this domain.
     pub max_nodes: u16,
     /// Definition-local processing nodes.
     pub nodes: Vec<GraphNode>,
-    /// Typed directed connections.
+    /// Typed directed Buses.
     pub connections: Vec<Connection>,
     /// Declaration location.
+    pub location: SourceLocation,
+}
+
+/// One source-preserving graph Node setting.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct NodeSetting {
+    /// Setting key in authored declaration order.
+    pub key: String,
+    /// Typed literal or Parameter reference.
+    pub value: SettingValue,
+    /// Exact key token used by checked edits and diagnostics.
+    pub key_site: ValueSite,
+    /// Exact value token used by checked edits and diagnostics.
+    pub value_site: ValueSite,
+}
+
+/// One exact token in a structured Node directive.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NodeDirectiveToken {
+    /// Lossless token text.
+    pub value: String,
+    /// Exact token site.
+    pub site: ValueSite,
+}
+
+/// One ordered, recursively structured directive on a reserved Node or runnable stage program.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NodeDirective {
+    /// Complete directive tokens in source order.
+    pub tokens: Vec<NodeDirectiveToken>,
+    /// Nested directives in source order.
+    pub children: Vec<NodeDirective>,
+    /// Complete directive location.
     pub location: SourceLocation,
 }
 
@@ -1715,10 +2329,56 @@ pub struct GraphNode {
     pub id: String,
     /// Native operation.
     pub kind: NodeKind,
-    /// Named deterministic settings.
-    pub settings: BTreeMap<String, SettingValue>,
+    /// Source-ordered deterministic scalar settings. Validation rejects duplicate keys.
+    pub settings: Vec<NodeSetting>,
+    /// Lossless structured directives for reserved Nodes and bounded runnable stage programs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub directives: Vec<NodeDirective>,
     /// Declaration location.
     pub location: SourceLocation,
+}
+
+impl GraphNode {
+    /// Looks up the first authored setting with this key.
+    #[must_use]
+    pub fn setting(&self, key: &str) -> Option<&SettingValue> {
+        self.settings
+            .iter()
+            .find(|setting| setting.key == key)
+            .map(|setting| &setting.value)
+    }
+
+    /// Looks up the source site of the first authored value with this key.
+    #[must_use]
+    pub fn setting_site(&self, key: &str) -> Option<&ValueSite> {
+        self.settings
+            .iter()
+            .find(|setting| setting.key == key)
+            .map(|setting| &setting.value_site)
+    }
+
+    /// Reports whether a scalar setting or structured stage consumes this Parameter.
+    #[must_use]
+    pub fn references_parameter(&self, parameter: &str) -> bool {
+        self.settings.iter().any(
+            |setting| matches!(&setting.value, SettingValue::Parameter(key) if key == parameter),
+        ) || self
+            .directives
+            .iter()
+            .any(|directive| directive_references_parameter(directive, parameter))
+    }
+}
+
+fn directive_references_parameter(directive: &NodeDirective, parameter: &str) -> bool {
+    directive.tokens.iter().any(|token| {
+        token
+            .value
+            .strip_prefix('$')
+            .is_some_and(|reference| reference == parameter)
+    }) || directive
+        .children
+        .iter()
+        .any(|child| directive_references_parameter(child, parameter))
 }
 
 /// Native first-release graph operations.
@@ -1735,8 +2395,10 @@ pub enum NodeKind {
     Envelope,
     /// Two-input mono sum.
     Mixer,
-    /// Resonant low-pass filter.
+    /// Resonant mono state-variable filter.
     Lowpass,
+    /// Stereo state-variable or driven ladder filter.
+    StereoFilter,
     /// Audio multiplied by a control signal.
     Amplifier,
     /// Soft nonlinear waveshaping.
@@ -1751,6 +2413,26 @@ pub enum NodeKind {
     Output,
     /// Unipolar low-frequency oscillator.
     Lfo,
+    /// Explicit mono Audio duplication into a stereo stream.
+    MonoToStereo,
+    /// Explicit gain-preserving stereo fold-down to mono.
+    StereoToMono,
+    /// Two-input stereo mixer with independent levels.
+    StereoMixer,
+    /// Bounded multi-input stereo summing Node; inputs fold in durable Bus-ID order.
+    StereoSum,
+    /// Bounded stereo virtual-analog oscillator with unison and cross-modulation.
+    AnalogOscillator,
+    /// Exact-asset band-limited stereo wavetable source.
+    Wavetable,
+    /// Exact-asset stereo graph sample source with bounded slices and loops.
+    SampleSource,
+    /// Exact-asset stereo key/velocity/layer/round-robin zone source.
+    Multisample,
+    /// Exact-asset bounded deterministic granular stereo source.
+    Granular,
+    /// Exact-asset deterministic sinusoidal-peak spectral source.
+    Spectral,
 }
 
 impl FromStr for NodeKind {
@@ -1764,6 +2446,7 @@ impl FromStr for NodeKind {
             "envelope" | "adsr" => Ok(Self::Envelope),
             "mixer" | "mix" => Ok(Self::Mixer),
             "lowpass" | "filter" => Ok(Self::Lowpass),
+            "stereo_filter" => Ok(Self::StereoFilter),
             "amplifier" | "amp" => Ok(Self::Amplifier),
             "saturation" | "saturator" => Ok(Self::Saturation),
             "pan" | "panner" => Ok(Self::Pan),
@@ -1771,6 +2454,16 @@ impl FromStr for NodeKind {
             "reverb" => Ok(Self::Reverb),
             "output" => Ok(Self::Output),
             "lfo" => Ok(Self::Lfo),
+            "mono_to_stereo" => Ok(Self::MonoToStereo),
+            "stereo_to_mono" => Ok(Self::StereoToMono),
+            "stereo_mixer" => Ok(Self::StereoMixer),
+            "stereo_sum" => Ok(Self::StereoSum),
+            "analog_oscillator" => Ok(Self::AnalogOscillator),
+            "wavetable" => Ok(Self::Wavetable),
+            "sample_source" => Ok(Self::SampleSource),
+            "multisample" => Ok(Self::Multisample),
+            "granular" => Ok(Self::Granular),
+            "spectral" => Ok(Self::Spectral),
             _ => Err(ValueError::UnknownNode(value.to_owned())),
         }
     }
@@ -1791,7 +2484,7 @@ pub enum SettingValue {
 /// A typed graph endpoint spelled `node.port` in source.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Endpoint {
-    /// Node ID, or the reserved `note` input source.
+    /// Node ID, the per-voice `note` source, or the shared-domain `voice_sum` source.
     pub node: String,
     /// Owner-local port name.
     pub port: String,
@@ -1823,10 +2516,20 @@ impl FromStr for Endpoint {
 /// One graph Bus.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Connection {
+    /// Durable definition-local identity. Version 1 connections receive a compatibility identity;
+    /// version 2 `bus` declarations carry this ID in source.
+    pub id: String,
+    /// Exact authored ID token for a version 2 Bus, absent for a version 1 compatibility Bus.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id_site: Option<ValueSite>,
     /// Output endpoint.
     pub from: Endpoint,
+    /// Exact output endpoint token.
+    pub from_site: ValueSite,
     /// Input endpoint.
     pub to: Endpoint,
+    /// Exact input endpoint token.
+    pub to_site: ValueSite,
     /// Declaration location.
     pub location: SourceLocation,
 }

@@ -69,12 +69,64 @@ for fixture_set in reference expressive production; do
     done < <(find "$repo_root/fixtures/$fixture_set" -type f ! -path '*/.crump/*' -print0)
   fi
 done
+for fixture_set in starter deep-house-reference; do
+  unexpected=$(find "$repo_root/fixtures/$fixture_set" \
+    \( -path '*/.crump' -o -path '*/render' \) -prune -o \
+    ! -type d ! -type f -print -quit)
+  if [[ -n $unexpected ]]; then
+    printf 'crump: refusing non-regular fixture path: %s\n' "$unexpected" >&2
+    exit 1
+  fi
+done
+patches=(
+  dh-bass dh-evolving-texture dh-granular-texture dh-keys dh-lead dh-pad
+  dh-percussion dh-spectral-transform dh-transition
+)
+assets=(basic-table.wav multisample-high.wav multisample-low.wav sample-source.wav)
+fixture_files=(
+  fixtures/starter/README.md
+  fixtures/starter/auditions.crump
+  fixtures/starter/manifest.json
+  fixtures/deep-house-reference/README.md
+  fixtures/deep-house-reference/project.crump
+  fixtures/deep-house-reference/render-evidence.json
+  fixtures/deep-house-reference/media/manifest.json
+  fixtures/synth-alpha/README.md
+  fixtures/synth-alpha/generate_assets.py
+  fixtures/synth-alpha/generate_max_fixture.py
+  fixtures/synth-alpha/hybrid-synth.crump
+  fixtures/synth-alpha/manifest.json
+  fixtures/synth-alpha/maximum-granular-spectral.crump
+  fixtures/synth-alpha/maximum-topology.crump
+  fixtures/synth-alpha/minimal-granular.crump
+  fixtures/synth-alpha/minimal-multisample.crump
+  fixtures/synth-alpha/minimal-sample-source.crump
+  fixtures/synth-alpha/minimal-spectral.crump
+  fixtures/synth-alpha/minimal-wavetable.crump
+  fixtures/synth-alpha/wavetable-demo.crump
+)
+for patch in "${patches[@]}"; do
+  fixture_files+=(
+    "fixtures/starter/instruments/$patch.crump"
+    "fixtures/deep-house-reference/instruments/$patch.crump"
+  )
+done
+for asset in "${assets[@]}"; do
+  fixture_files+=(
+    "fixtures/starter/media/$asset"
+    "fixtures/deep-house-reference/media/$asset"
+    "fixtures/synth-alpha/media/$asset"
+  )
+done
+for relative in "${fixture_files[@]}"; do
+  if [[ ! -f $repo_root/$relative || -L $repo_root/$relative ]]; then
+    printf 'crump: missing or non-regular release fixture: %s\n' "$relative" >&2
+    exit 1
+  fi
+  install -Dm644 "$repo_root/$relative" "$package_root/usr/share/doc/crump/$relative"
+done
 install -Dm644 "$repo_root/fixtures/reference/project.crump" \
   "$package_root/usr/share/doc/crump/examples/reference/project.crump"
-install -Dm644 "$repo_root/skills/crump-authoring/SKILL.md" \
-  "$package_root/usr/share/doc/crump/skills/crump-authoring/SKILL.md"
-install -Dm644 "$repo_root/skills/crump-authoring/SKILL.md" \
-  "$package_root/usr/share/crump/skills/crump-authoring/SKILL.md"
 install -d "$package_root/DEBIAN"
 
 installed_size=$(du -sk "$package_root/usr" | awk '{ print $1 }')

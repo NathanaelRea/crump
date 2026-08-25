@@ -42,9 +42,9 @@ The DSL is declarative rather than general-purpose. It has no arbitrary code, mu
 
 ## Media and generated audio
 
-A Media Asset is a Project-relative `.wav` file identified by an exact lowercase SHA-256 digest. Import copies bytes into the Project; collect moves valid declarations to canonical Project media paths. Absolute paths, traversal, symlinks, unsupported formats, changed bytes, duplicate IDs, and resource-limit violations are rejected.
+A Media Asset is a Project-relative `.wav` file identified by an exact lowercase SHA-256 digest. Import copies bytes into the Project; wavetable import additionally authors an exact mono frame count/length, normalization, and morph interpretation; collect moves valid declarations to canonical Project media paths. Absolute paths, traversal, symlinks, unsupported formats or table shapes, changed bytes, duplicate IDs, and resource-limit violations are rejected.
 
-Sampler Instruments decode and resample declared WAVs away from the audio callback. They support bounded regions, forward or reverse traversal, one-shot or gated playback, bounded loops and crossfades, repitch, gain, pan, envelopes, choke groups, deterministic voice replacement, and checked sample-occurrence edits.
+Sampler Instruments and source-v2 graph `sample_source`/`multisample`/`granular`/`spectral` Nodes share one off-callback decode/resample cache. Samplers support bounded mappings and sample occurrences. Graph sources add exact slices/zones, forward/reverse and bounded loop laws, gated/one-shot playback, repitch-only rate, velocity/key zones, layers, deterministic round robin, gain/pan, and fixed Track-owned voice state; unsupported articulations and transparent time stretching fail closed. Granular voices add 1–64 preallocated semantic-identity grains, bounded density scheduling, finite windows/edge laws, scan/freeze, spray/direction, stereo spread, and a one-second maximum source tail. Spectral voices consume an immutable referenced-only `crump-spectral-peaks-v1` derivative using 2,048/256 periodic-Hann analysis, at most 128 deterministic peaks, independent scan/rate and root-relative pitch, bounded regions, transient policies, and preallocated phase state. Source-v2 `wavetable` graph Nodes instead compile declared consecutive periodic frames into immutable, versioned, Nyquist-bounded mip tables off-callback. Exact Media Asset bytes remain authoritative for every derivative family.
 
 Bounce captures one exact Active Revision from Master or a selected Track, Group, or Return tap. It publishes stereo float WAV bytes and readable provenance atomically without replacing source material. Sample preparation creates a new exact-frame WAV from one source region with independent pitch displacement, the versioned `crump-wsola-effect-v1` algorithm, and `shift` formant policy. Original assets remain unchanged.
 
@@ -52,7 +52,7 @@ Media Tracks, recording, comping, proprietary warp modes, formant preservation, 
 
 ## Instruments, routing, and processing
 
-Native Instruments include stock synthesized drums, sampler Instruments, and polyphonic Composable DSP Graphs. Graphs use typed Event, Audio, and Control ports, explicit layouts and conversions, bounded resources, deterministic processing, and declared latency.
+Native Instruments include stock synthesized drums, sampler Instruments, and polyphonic Composable DSP Graphs. Graphs use typed Event, mono/stereo Audio, and uni/bipolar Control ports, explicit conversion and bounded summing, separate per-voice and one optional Track-owned shared post-voice domain, bounded resources, deterministic processing, and declared latency. Stable source version 2 provides durable Bus IDs, Instrument-owned Modulation, expressive voicing/virtual-analog Nodes, exact-asset wavetable/sample/multisample/granular/spectral Nodes, and sound-neutral generated-section metadata while retaining the complete version-1 floor.
 
 Routing compiles Tracks, nested Groups, Returns, Sends, named sidechains, and Master into one acyclic graph. Channel processing order, pre/post-fader taps, deterministic fan-in, and convergence latency compensation are explicit. Solo, cue, and transient processor bypass are monitoring state and do not affect source or offline rendering.
 
@@ -94,10 +94,12 @@ A render publishes an atomic bundle containing a stereo 48 kHz IEEE 32-bit-float
 
 Finalized-file analysis reports sample peak, a named fixed-oversampling reconstructed-peak estimate, BS.1770/EBU-derived loudness measurements, per-channel DC, clipping, non-finite samples, and analyzed frame count. Crump does not normalize audio or enforce a universal loudness target.
 
-`qualify` measures one exact offline Active range at a selected 64, 128, or 256-frame quantum and can atomically publish a versioned report. It measures offline engine timing and finite output; it does not measure PipeWire xruns, device scheduling, or callback safety.
+`qualify` measures one exact offline Active range at a selected 64, 128, or 256-frame quantum and can atomically publish a versioned report. `--require-pass` preserves the report and returns a failed gate when automated thresholds miss. It measures offline engine timing and finite output; it does not measure PipeWire xruns or device scheduling. Callback allocation/deallocation is separately attested on warmed normal, command, publication-transition, and reclamation paths; lock/blocking/I/O absence remains reviewed call-path evidence.
 
 ## Resource and support limits
 
 Validation and compilation enforce finite Project, schedule, graph, control, media, processor, voice, work, and memory bounds before runtime publication. Numeric limits are documented in the language and support guides and are available through inspection.
 
 Crump does not promise byte identity across builds or architectures, low-latency behavior on undocumented hardware, standards conformance beyond the named analysis method and tested vectors, accessibility solely because the interface is text, or sonic equivalence with named products.
+
+Stable source version 2 and the named sample, wavetable, spectral, schedule, and qualification algorithm identities are support contracts. Filter/default/category sound compatibility and final Serum-class acceptance remain experimental until independent-producer and named Linux/PipeWire/device endurance evidence passes; automated templates or offline reports do not satisfy those gates.

@@ -274,6 +274,9 @@ pub(super) struct QualifyArgs {
     /// Replace an existing report file atomically.
     #[arg(long, requires = "output")]
     pub(super) replace: bool,
+    /// Exit unsuccessfully when the completed offline report does not pass its thresholds.
+    #[arg(long)]
+    pub(super) require_pass: bool,
     /// Resolve the range and resources without timing Audio or writing a report.
     #[arg(long)]
     pub(super) plan: bool,
@@ -350,6 +353,11 @@ pub(super) enum EditCommand {
         #[arg(long, default_value = "Change processor setting")]
         summary: String,
     },
+    /// Edit one durable Instrument-owned Modulation route.
+    ///
+    /// Flattening keeps the public command names stable while bounding derive-time stack use.
+    #[command(flatten)]
+    InstrumentRoute(InstrumentRouteEditCommand),
     /// Set one durable source-backed processor bypass value.
     ProcessorBypass {
         processor: String,
@@ -898,6 +906,62 @@ pub(super) enum EditCommand {
 }
 
 #[derive(Debug, Subcommand)]
+pub(super) enum InstrumentRouteEditCommand {
+    /// Set one Instrument-owned Modulation route depth from an exact physical literal.
+    #[command(name = "instrument-route-depth")]
+    Depth {
+        instrument: String,
+        route: String,
+        #[arg(allow_hyphen_values = true)]
+        depth: String,
+        #[arg(long, default_value = "Change Instrument Modulation route depth")]
+        summary: String,
+    },
+    /// Set one durable Instrument-owned Modulation route bypass value.
+    #[command(name = "instrument-route-bypass")]
+    Bypass {
+        instrument: String,
+        route: String,
+        #[arg(action = clap::ArgAction::Set)]
+        bypass: bool,
+        #[arg(long, default_value = "Change Instrument Modulation route bypass")]
+        summary: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub(super) enum WavetableNormalizationArg {
+    Preserve,
+    GlobalPeak,
+    FramePeak,
+}
+
+impl From<WavetableNormalizationArg> for WavetableNormalization {
+    fn from(value: WavetableNormalizationArg) -> Self {
+        match value {
+            WavetableNormalizationArg::Preserve => Self::Preserve,
+            WavetableNormalizationArg::GlobalPeak => Self::GlobalPeak,
+            WavetableNormalizationArg::FramePeak => Self::FramePeak,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub(super) enum WavetableMorphArg {
+    Linear,
+    CatmullRom,
+}
+
+impl From<WavetableMorphArg> for WavetableMorph {
+    fn from(value: WavetableMorphArg) -> Self {
+        match value {
+            WavetableMorphArg::Linear => Self::Linear,
+            WavetableMorphArg::CatmullRom => Self::CatmullRom,
+        }
+    }
+}
+
+#[derive(Debug, Subcommand)]
 pub(super) enum AssetCommand {
     /// Copy one external WAV into the Project and publish its declaration.
     Import {
@@ -911,6 +975,32 @@ pub(super) enum AssetCommand {
         name: Option<String>,
         /// History summary.
         #[arg(long, default_value = "Import portable WAV asset")]
+        summary: String,
+    },
+    /// Import one exact mono WAV as a bounded multi-frame wavetable.
+    ImportWavetable {
+        /// External mono WAV input; it is never retained as an authority dependency.
+        source: PathBuf,
+        /// Durable Project-local identity and destination filename stem.
+        #[arg(long)]
+        id: String,
+        /// Human-facing asset name; defaults to the ID.
+        #[arg(long)]
+        name: Option<String>,
+        /// Power-of-two samples in each periodic frame.
+        #[arg(long)]
+        frame_length: u32,
+        /// Number of consecutive frames in the exact WAV.
+        #[arg(long)]
+        frames: u16,
+        /// Source-amplitude policy applied before mip compilation.
+        #[arg(long, value_enum, default_value_t = WavetableNormalizationArg::Preserve)]
+        normalization: WavetableNormalizationArg,
+        /// Deterministic inter-frame interpolation law.
+        #[arg(long, value_enum, default_value_t = WavetableMorphArg::Linear)]
+        morph: WavetableMorphArg,
+        /// History summary.
+        #[arg(long, default_value = "Import portable wavetable")]
         summary: String,
     },
     /// Bounce one exact Active Revision range and publish a generated WAV asset atomically.
@@ -1018,8 +1108,37 @@ pub(super) enum ModuleCommand {
         #[arg(long)]
         replace: bool,
     },
-    /// List personal Instrument Modules.
-    List,
-    /// Parse and inspect one personal Instrument Module.
+    /// List and search personal Instrument Modules by source-readable metadata.
+    List {
+        /// Case-insensitive text search across library name, Instrument ID/name, and tags.
+        #[arg(long)]
+        search: Option<String>,
+        /// Require a source-readable tag; repeat for intersection matching.
+        #[arg(long = "tag")]
+        tags: Vec<String>,
+    },
+    /// Parse and inspect one personal Instrument Module and its Project-asset dependencies.
     Inspect { name: String },
+    /// Render the Module's bounded three-note preview to a float WAV.
+    Preview {
+        name: String,
+        /// Explicit output WAV; never becomes Project authority implicitly.
+        #[arg(long)]
+        output: PathBuf,
+        /// Replace an existing output atomically.
+        #[arg(long)]
+        replace: bool,
+    },
+    /// Materialize one personal Module beneath the current Project and report its import line.
+    Copy {
+        name: String,
+        /// Project-local module name; defaults to the library name.
+        #[arg(long)]
+        local_name: Option<String>,
+        /// Replace an existing exact destination atomically.
+        #[arg(long)]
+        replace: bool,
+    },
+    /// Materialize every `library:` import beneath the current Project.
+    Collect,
 }

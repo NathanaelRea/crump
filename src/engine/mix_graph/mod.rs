@@ -33,7 +33,11 @@ use super::{
     EngineError, GRAPH_VOICE_STORAGE_MULTIPLIER, SongRuntime, TrackRuntime,
     control::{CompiledControlProgram, ControlIndex},
     drums::DrumSynth,
-    graph::{CompiledGraph, authored_graph_voice_state_bytes, authored_graph_work_units},
+    graph::{
+        CompiledGraph, authored_graph_voice_state_bytes, authored_graph_work_units,
+        authored_shared_graph_state_bytes, authored_shared_graph_work_units,
+    },
+    graph_voice_slot_overhead_bytes,
     processors::{ProcessorProgram, ProcessorRuntime, authored_processor_estimate},
     sampler::sampler_voice_state_bytes,
     schedule::{MAX_RUNTIME_TRACKS, compile_schedules},

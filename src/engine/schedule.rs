@@ -475,13 +475,13 @@ struct AuthoredParameterLockPoint {
 }
 
 /// Materializes Pattern Parameter locks into bounded deterministic Song-time lanes.
-pub(crate) fn compile_parameter_lock_lanes(
+pub(crate) fn compile_track_parameter_lock_lanes(
     project: &Project,
-) -> Result<BTreeMap<ParameterTarget, Vec<ScheduledParameterLockPoint>>, EngineError> {
+) -> Result<BTreeMap<(String, ParameterTarget), Vec<ScheduledParameterLockPoint>>, EngineError> {
     const MAX_PARAMETER_LOCK_POINTS: usize = 8_192;
 
     let patterns = materialize_patterns(project)?;
-    let mut lanes = BTreeMap::<ParameterTarget, Vec<AuthoredParameterLockPoint>>::new();
+    let mut lanes = BTreeMap::<(String, ParameterTarget), Vec<AuthoredParameterLockPoint>>::new();
     let mut point_count = 0usize;
     for track in &project.song.tracks {
         for clip in &track.clips {
@@ -539,54 +539,61 @@ pub(crate) fn compile_parameter_lock_lanes(
                         .checked_add(relative)?
                         .to_frames(project.song.tempo_bpm, project.sample_rate)?;
                     clip_targets.insert(target.clone());
-                    lanes
-                        .entry(target)
-                        .or_default()
-                        .push(AuthoredParameterLockPoint {
+                    if point_count >= MAX_PARAMETER_LOCK_POINTS {
+                        return Err(EngineError::Compile(format!(
+                            "Project exceeds the {MAX_PARAMETER_LOCK_POINTS}-point Parameter lock maximum"
+                        )));
+                    }
+                    lanes.entry((track.id.clone(), target)).or_default().push(
+                        AuthoredParameterLockPoint {
                             frame,
                             phase: 1,
                             order: format!("{}:{iteration}:{}", clip.id, lock.id),
                             value: Some(lock.value.clone()),
-                        });
-                    point_count = point_count.saturating_add(1);
+                        },
+                    );
+                    point_count += 1;
                 }
             }
             for (target, (_, lock_id, value)) in prior {
+                if point_count >= MAX_PARAMETER_LOCK_POINTS {
+                    return Err(EngineError::Compile(format!(
+                        "Project exceeds the {MAX_PARAMETER_LOCK_POINTS}-point Parameter lock maximum"
+                    )));
+                }
                 clip_targets.insert(target.clone());
-                lanes
-                    .entry(target)
-                    .or_default()
-                    .push(AuthoredParameterLockPoint {
+                lanes.entry((track.id.clone(), target)).or_default().push(
+                    AuthoredParameterLockPoint {
                         frame: clip_start_frame,
                         phase: 1,
                         order: format!("{}:prior:{lock_id}", clip.id),
                         value: Some(value),
-                    });
-                point_count = point_count.saturating_add(1);
+                    },
+                );
+                point_count += 1;
             }
             for target in clip_targets {
-                lanes
-                    .entry(target)
-                    .or_default()
-                    .push(AuthoredParameterLockPoint {
+                if point_count >= MAX_PARAMETER_LOCK_POINTS {
+                    return Err(EngineError::Compile(format!(
+                        "Project exceeds the {MAX_PARAMETER_LOCK_POINTS}-point Parameter lock maximum"
+                    )));
+                }
+                lanes.entry((track.id.clone(), target)).or_default().push(
+                    AuthoredParameterLockPoint {
                         frame: clip_end_frame,
                         phase: 0,
                         order: clip.id.clone(),
                         value: None,
-                    });
-                point_count = point_count.saturating_add(1);
-            }
-            if point_count > MAX_PARAMETER_LOCK_POINTS {
-                return Err(EngineError::Compile(format!(
-                    "Project exceeds the {MAX_PARAMETER_LOCK_POINTS}-point Parameter lock maximum"
-                )));
+                    },
+                );
+                point_count += 1;
             }
         }
     }
 
     Ok(lanes
         .into_iter()
-        .map(|(target, mut points)| {
+        .map(|(owner, mut points)| {
             points.sort_by(|left, right| {
                 (left.frame, left.phase, &left.order).cmp(&(right.frame, right.phase, &right.order))
             });
@@ -597,9 +604,26 @@ pub(crate) fn compile_parameter_lock_lanes(
                     value: point.value,
                 })
                 .collect();
-            (target, points)
+            (owner, points)
         })
         .collect())
+}
+
+/// Materializes the singular inspection view of Track-owned lock lanes.
+pub(crate) fn compile_parameter_lock_lanes(
+    project: &Project,
+) -> Result<BTreeMap<ParameterTarget, Vec<ScheduledParameterLockPoint>>, EngineError> {
+    let mut lanes = BTreeMap::<ParameterTarget, Vec<ScheduledParameterLockPoint>>::new();
+    for ((_track, target), points) in compile_track_parameter_lock_lanes(project)? {
+        lanes.entry(target).or_default().extend(points);
+    }
+    for points in lanes.values_mut() {
+        points.sort_by(|left, right| {
+            (left.frame, u8::from(left.value.is_some()))
+                .cmp(&(right.frame, u8::from(right.value.is_some())))
+        });
+    }
+    Ok(lanes)
 }
 
 #[derive(Debug, Clone)]
@@ -1134,6 +1158,31 @@ project "Groove" {
     }
 
     #[test]
+    fn parameter_lock_limit_short_circuits_high_iteration_loops() {
+        let source = include_str!("../../tests/fixtures/minimal.crump")
+            .replace(
+                "parameter tone \"Tone\" hz 100hz 10000hz 3000hz 3200hz",
+                "parameter tone \"Tone\" hz 100hz 10000hz 3000hz 3200hz automatable",
+            )
+            .replace(
+                "    pattern melody 1bar {\n      note 0beat C4 1beat 0.8\n      note 1beat E4 1beat 0.75\n      note 2beat G4 1beat 0.8\n      note 3beat E4 1beat 0.75\n    }",
+                "    pattern melody 1/100000000beat {\n      lock tiny-loop at 0beat parameter tone value 1000hz\n    }",
+            )
+            .replace(
+                "clip melody pattern melody start 0bar duration 1bar mode once",
+                "clip melody pattern melody start 0bar duration 1bar mode loop",
+            );
+        let project = project(&source);
+        let error = compile_track_parameter_lock_lanes(&project)
+            .expect_err("the bounded compiler must reject before traversing the full loop");
+        assert!(
+            error
+                .to_string()
+                .contains("8192-point Parameter lock maximum")
+        );
+    }
+
+    #[test]
     fn pattern_variations_materialize_deterministic_transforms_off_callback() {
         let source = r#"crump 1
 project "Variation" {
@@ -1152,12 +1201,8 @@ project "Variation" {
         control gain "Gain" "Gain" maps gain
       }
       graph 4 {
-        node osc oscillator {
-          waveform sine
-          gain 0.2
-        }
-        node out output {
-        }
+        node osc oscillator waveform sine gain 0.2
+        node out output
         connect osc.out -> out.in
       }
     }
@@ -1319,12 +1364,8 @@ project "Clip transforms" {
         control gain "Gain" "Gain" maps gain
       }
       graph 4 {
-        node osc oscillator {
-          waveform sine
-          gain 0.2
-        }
-        node out output {
-        }
+        node osc oscillator waveform sine gain 0.2
+        node out output
         connect osc.out -> out.in
       }
     }

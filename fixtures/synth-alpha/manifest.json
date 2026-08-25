@@ -1,20 +1,22 @@
 {
-  "schema_version": 1,
-  "authority": "non-normative-design-snapshot",
-  "production_compatibility": "unsupported-by-crump-module-1",
-  "proposal_contract_status": "active-gap-closure-implementation",
+  "schema_version": 2,
+  "authority": "mixed-production-and-design-fixture-contract",
+  "production_compatibility": "declared-per-fixture",
+  "proposal_contract_status": "milestone-5-runnable",
   "current_compatibility_contract": "docs/native-synthesis-contract.md",
-  "current_architecture_decision": "docs/adr/0014-graph-authored-native-synthesis.md",
-  "fixture_language": "crump-module 2-alpha",
+  "current_architecture_decision": "docs/adr/0022-deterministic-spectral-peak-runtime.md",
+  "fixture_language": "declared-per-fixture",
   "fixtures": [
     {
       "path": "fixtures/synth-alpha/hybrid-synth.crump",
-      "sha256": "27d75e63617d231ef6acf713f7e90c4f69e57615900b01eaef0cd5ecc277c3c4",
+      "sha256": "f34d82fbce107d3f4b4804a1b22485975d2168dbb2dd45d38b6ac1db072b6a8f",
+      "runnable": false,
       "role": "representative-complete-instrument",
       "source_mode": "integrated",
       "required_tokens": [
         "graph voice 64",
         "graph shared 32",
+        "voice_sum.audio",
         "presentation {",
         "section source-panel sources",
         "section mixer-panel source_mixer",
@@ -40,51 +42,130 @@
     },
     {
       "path": "fixtures/synth-alpha/minimal-wavetable.crump",
-      "sha256": "a8cd209e4f7d61e95f08c8aa6ef4a4e77bd85220b5543653a389f04e2591b98f",
+      "sha256": "7976c49eadc54bc1723cdf98c8c5383799c7a1a51f07647e4efe9c0ee0149d83",
+      "runnable": true,
       "role": "minimal-source",
       "source_mode": "wavetable",
-      "required_tokens": ["node source wavetable", "frame_length 2048"]
+      "required_tokens": [
+        "crump 2",
+        "usage wavetable",
+        "node source wavetable",
+        "frame_length 2048",
+        "normalization preserve",
+        "morph linear"
+      ]
+    },
+    {
+      "path": "fixtures/synth-alpha/wavetable-demo.crump",
+      "sha256": "5ae8a28f49f8d7d5c6f781ea39742b5988e4b00784ea2c3dd87b4ec27f92aeab",
+      "runnable": true,
+      "role": "reference-patch-project",
+      "source_mode": "wavetable",
+      "required_tokens": [
+        "crump 2",
+        "normalization global_peak",
+        "morph catmull_rom",
+        "node source wavetable",
+        "warp bend-stage bend",
+        "route scan-position",
+        "pattern phrase 1bar"
+      ]
     },
     {
       "path": "fixtures/synth-alpha/minimal-sample-source.crump",
-      "sha256": "6ac7e964166d673f7afc97f46f5b8f02eb2505c6dec8c05ad1b8d7a232ef6b1b",
+      "sha256": "885f3e9beac3d250d880cff320b621c7bd3525c565e9c2b4c48a51bf975a9792",
+      "runnable": true,
       "role": "minimal-source",
       "source_mode": "sample",
-      "required_tokens": ["node source sample_source", "loop_mode off"]
+      "required_tokens": [
+        "crump 2",
+        "usage sample",
+        "node source sample_source",
+        "selected_slice whole",
+        "loop_mode off",
+        "loop_crossfade 64",
+        "playback gated",
+        "slice whole 0 48000"
+      ]
     },
     {
       "path": "fixtures/synth-alpha/minimal-multisample.crump",
-      "sha256": "109bef42fd58cf2ce9235c9ac4d5a27283f6a98317e82ee7e5d24281fb66fe81",
+      "sha256": "184e629cf19868455e8f9c63524cc1ab5c9c7ff99bbdd191ba1fa3b6a3a3cd58",
+      "runnable": true,
       "role": "minimal-source",
       "source_mode": "multisample",
-      "required_tokens": ["node source multisample", "zone low", "zone high"]
+      "required_tokens": [
+        "crump 2",
+        "usage multisample",
+        "node source multisample",
+        "round_robin low-rr 0",
+        "zone low",
+        "zone high"
+      ]
     },
     {
       "path": "fixtures/synth-alpha/minimal-granular.crump",
-      "sha256": "fbf57ec3b6fb064e04e2e835475f34fc242b2644ec4cab61615023f434633e29",
+      "sha256": "2fa2fb703e5478a94bbfdadfa69a05707c8ba6fcf21d4c232963cdf095e0abe6",
+      "runnable": true,
       "role": "minimal-source",
       "source_mode": "granular",
-      "required_tokens": ["node source granular", "max_grains 16"]
+      "required_tokens": [
+        "crump 2",
+        "usage granular",
+        "node source granular",
+        "max_grains 16",
+        "window hann",
+        "edge reflect",
+        "bus source-gate"
+      ]
     },
     {
       "path": "fixtures/synth-alpha/minimal-spectral.crump",
-      "sha256": "facdd9dc5112539ff959e51efedd2798233518f2a770b91b899d3e5b82590995",
+      "sha256": "e78443a2811fc347959b23d6886dddceae459dd923860ad8d37146c8144267b9",
+      "runnable": true,
       "role": "minimal-source",
       "source_mode": "spectral",
-      "required_tokens": ["node source spectral", "crump-spectral-peaks-v1"]
+      "required_tokens": [
+        "crump 2",
+        "usage spectral",
+        "node source spectral",
+        "crump-spectral-peaks-v1",
+        "max_peaks 128",
+        "transients reset",
+        "bus source-pitch"
+      ]
     },
     {
       "path": "fixtures/synth-alpha/maximum-topology.crump",
-      "sha256": "eb307e452a36ebcc2f71d46804a8ad4e3822b8d6b1edd46573f21fcf1cd93640",
+      "sha256": "5e3bc0506cf38d70b15b55a8fb589ace9d4ca23a552e38601abb8717df92ac3c",
+      "runnable": true,
       "role": "maximum-qualification-profile",
       "source_mode": "integrated",
       "required_tokens": [
+        "crump 2",
         "instrument qualification-max-v1",
-        "polyphony 8",
+        "polyphony 7",
         "graph voice 64",
         "graph shared 64",
+        "voice_sum.audio",
         "route route-64",
         "source lfo-16"
+      ]
+    },
+    {
+      "path": "fixtures/synth-alpha/maximum-granular-spectral.crump",
+      "sha256": "bb79f75d903efcd3216c886300156ae87b2cfec96b8f3459f85eb05666b1cc2d",
+      "runnable": true,
+      "role": "independent-source-mode-maxima",
+      "source_mode": "granular-spectral",
+      "required_tokens": [
+        "crump 2",
+        "instrument source-mode-maxima-v1",
+        "polyphony 5",
+        "max_grains 64",
+        "max_peaks 128",
+        "node grain-b granular",
+        "node spectral-b spectral"
       ]
     }
   ],
@@ -96,7 +177,9 @@
       "frames": 8192,
       "channels": 1,
       "sample_rate": 48000,
-      "uses": ["wavetable"],
+      "uses": [
+        "wavetable"
+      ],
       "origin": "procedurally generated by fixtures/synth-alpha/generate_assets.py",
       "license": "MPL-2.0"
     },
@@ -107,7 +190,11 @@
       "frames": 48000,
       "channels": 1,
       "sample_rate": 48000,
-      "uses": ["sample", "granular", "spectral"],
+      "uses": [
+        "sample",
+        "granular",
+        "spectral"
+      ],
       "origin": "procedurally generated by fixtures/synth-alpha/generate_assets.py",
       "license": "MPL-2.0"
     },
@@ -118,7 +205,9 @@
       "frames": 24000,
       "channels": 1,
       "sample_rate": 48000,
-      "uses": ["multisample"],
+      "uses": [
+        "multisample"
+      ],
       "origin": "procedurally generated by fixtures/synth-alpha/generate_assets.py",
       "license": "MPL-2.0"
     },
@@ -129,7 +218,9 @@
       "frames": 24000,
       "channels": 1,
       "sample_rate": 48000,
-      "uses": ["multisample"],
+      "uses": [
+        "multisample"
+      ],
       "origin": "procedurally generated by fixtures/synth-alpha/generate_assets.py",
       "license": "MPL-2.0"
     }
@@ -150,6 +241,7 @@
     "route_operators": 16,
     "filters_per_instrument": 8,
     "wavetable_frames_per_asset": 256,
+    "sample_slices_per_source": 256,
     "multisample_zones_per_instrument": 256,
     "grains_per_source_voice": 64,
     "grains_per_voice": 128,
@@ -162,7 +254,7 @@
   "qualification_max": {
     "profile": "qualification-max-v1",
     "path": "fixtures/synth-alpha/maximum-topology.crump",
-    "polyphony": 8,
+    "polyphony": 7,
     "primary_sources": 8,
     "unison_lanes_per_voice": 16,
     "envelopes": 8,
@@ -175,7 +267,44 @@
     "spectral_peaks_per_frame": 128,
     "estimated_work_units_per_frame": 36864,
     "estimated_publication_peak_bytes": 25440256,
-    "prototype_measurement": "prototypes/synth-alpha/measurement-2026-08-22.json"
+    "prototype_measurement": "prototypes/synth-alpha/measurement-2026-08-22.json",
+    "actual_admitted_resources": {
+      "graph_voices": 7,
+      "graph_node_instances": 28730,
+      "shared_graphs": 1,
+      "shared_graph_work_units_per_frame": 16,
+      "control_targets": 23,
+      "work_units_per_frame": 28780,
+      "publication_transition_work_units_per_frame": 57626,
+      "runtime_bytes": 2110128,
+      "publication_peak_bytes": 4220256,
+      "admitted": true,
+      "feature_domain": "pipewire-enabled production build"
+    }
+  },
+  "source_mode_maxima": {
+    "profile": "granular-spectral-independent-maxima-v1",
+    "path": "fixtures/synth-alpha/maximum-granular-spectral.crump",
+    "polyphony": 5,
+    "first_rejected_polyphony": 6,
+    "granular_sources_per_voice": 2,
+    "grains_per_source_voice": 64,
+    "grains_per_voice": 128,
+    "spectral_sources_per_voice": 2,
+    "spectral_peaks_per_source": 128,
+    "actual_admitted_resources": {
+      "graph_voices": 5,
+      "graph_node_instances": 30770,
+      "shared_graphs": 0,
+      "shared_graph_work_units_per_frame": 0,
+      "control_targets": 4,
+      "work_units_per_frame": 30794,
+      "publication_transition_work_units_per_frame": 61616,
+      "runtime_bytes": 1039679,
+      "publication_peak_bytes": 2079358,
+      "admitted": true,
+      "feature_domain": "pipewire-enabled production build"
+    }
   },
   "decisions": [
     {

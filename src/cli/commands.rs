@@ -125,8 +125,15 @@ fn command_inspect(cli: &Cli, args: &InspectArgs) -> Result<Success, Failure> {
         .map(|path| path.display().to_string())
         .collect();
     let assets = portable_asset_data(&bundle);
-    let (control_frame, effective_parameters, mix_graph, envelope_followers) = if let Some(project) =
-        project
+    let (
+        control_frame,
+        effective_parameters,
+        mix_graph,
+        envelope_followers,
+        sample_sources,
+        spectral_analyses,
+        wavetables,
+    ) = if let Some(project) = project
         && !bundle.diagnostics.has_errors()
     {
         let at =
@@ -173,9 +180,12 @@ fn command_inspect(cli: &Cli, args: &InspectArgs) -> Result<Success, Failure> {
             Some(compiled.control_snapshot_at_frame(frame)),
             Some(compiled.mix_graph_inspection().clone()),
             Some(compiled.envelope_follower_inspection()),
+            Some(compiled.sample_source_inspection().to_vec()),
+            Some(compiled.spectral_analysis_inspection().to_vec()),
+            Some(compiled.wavetable_inspection().to_vec()),
         )
     } else {
-        (None, None, None, None)
+        (None, None, None, None, None, None, None)
     };
     let audition = if active_revision.as_ref() == Some(&bundle.revision)
         && let Some(project) = project
@@ -224,6 +234,9 @@ fn command_inspect(cli: &Cli, args: &InspectArgs) -> Result<Success, Failure> {
             "effective_parameters": effective_parameters,
             "mix_graph": mix_graph,
             "envelope_followers": envelope_followers,
+            "sample_sources": sample_sources,
+            "spectral_analyses": spectral_analyses,
+            "wavetables": wavetables,
             "audition": audition,
             "diagnostics": bundle.diagnostics.as_slice(),
         }),
@@ -919,10 +932,15 @@ fn command_qualify(cli: &Cli, args: &QualifyArgs) -> Result<Success, Failure> {
                 "would_replace": args.replace && output.as_ref().is_some_and(|path| path.exists()),
                 "would_conflict": !args.replace && output.as_ref().is_some_and(|path| path.exists()),
                 "backend": "offline",
+                "automated_evidence_required": [
+                    "realtime::native::tests::maximum_topology_steady_state_and_controls_are_allocation_free",
+                    "realtime::native::tests::maximum_topology_publication_transition_and_reclamation_are_allocation_free",
+                    "realtime::native::tests::granular_spectral_independent_maxima_callback_is_allocation_free",
+                ],
                 "external_evidence_required": [
+                    "independent producer workflow and level-matched listening judgment",
                     "PipeWire xrun count from the target graph",
                     "named-hardware 30-minute realtime endurance",
-                    "callback allocation/blocking/I/O audit",
                 ],
             }),
         });
@@ -954,6 +972,24 @@ fn command_qualify(cli: &Cli, args: &QualifyArgs) -> Result<Success, Failure> {
             }
             return Err(Failure::operational("qualify", "report_failed", error));
         }
+    }
+    if args.require_pass && !report.passed {
+        return Err(Failure {
+            command: "qualify",
+            code: "qualification_not_passed",
+            message: format!(
+                "qualification failed: p99.9 {:.3} (maximum {:.3}), missed deadlines {}, non-finite samples {}",
+                report.p999_callback_utilization,
+                report.maximum_p999_utilization,
+                report.missed_deadlines,
+                report.non_finite_sample_count,
+            ),
+            exit_code: 1,
+            diagnostics: json!([{
+                "report_path": output,
+                "qualification": report,
+            }]),
+        });
     }
     Ok(Success {
         command: "qualify",
@@ -1727,6 +1763,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
         | EditCommand::TrackLevel { .. }
         | EditCommand::TrackPan { .. }
         | EditCommand::ProcessorSetting { .. }
+        | EditCommand::InstrumentRoute(_)
         | EditCommand::ProcessorBypass { .. }
         | EditCommand::ProcessorMove { .. } => unreachable!("shared operation returned above"),
         EditCommand::AutomationCreate {
@@ -1933,6 +1970,34 @@ fn shared_edit_operation(
             },
             summary.as_str(),
             "edit.processor_setting",
+        ),
+        EditCommand::InstrumentRoute(InstrumentRouteEditCommand::Depth {
+            instrument,
+            route,
+            depth,
+            summary,
+        }) => (
+            ProductionViewOperation::SetInstrumentRouteDepth {
+                instrument: instrument.clone(),
+                route: route.clone(),
+                depth: depth.clone(),
+            },
+            summary.as_str(),
+            "edit.instrument_route_depth",
+        ),
+        EditCommand::InstrumentRoute(InstrumentRouteEditCommand::Bypass {
+            instrument,
+            route,
+            bypass,
+            summary,
+        }) => (
+            ProductionViewOperation::SetInstrumentRouteBypass {
+                instrument: instrument.clone(),
+                route: route.clone(),
+                bypass: *bypass,
+            },
+            summary.as_str(),
+            "edit.instrument_route_bypass",
         ),
         EditCommand::ProcessorBypass {
             processor,
@@ -2406,6 +2471,65 @@ fn command_asset(cli: &Cli, command: &AssetCommand) -> Result<Success, Failure> 
                 data: json!({ "asset_id": id, "history_entry": entry }),
             })
         }
+        AssetCommand::ImportWavetable {
+            source,
+            id,
+            name,
+            frame_length,
+            frames,
+            normalization,
+            morph,
+            summary,
+        } => {
+            let bundle = load(cli, "asset.import-wavetable")?;
+            if bundle.diagnostics.has_errors() {
+                return Err(Failure::blocked(
+                    "asset.import-wavetable",
+                    "invalid_base",
+                    "wavetable import requires a valid source-v2 Active Candidate",
+                    json!(bundle.diagnostics.as_slice()),
+                ));
+            }
+            let options = WavetableImportOptions {
+                frame_length: *frame_length,
+                frames: *frames,
+                normalization: (*normalization).into(),
+                morph: (*morph).into(),
+            };
+            let entry = import_wavetable_asset(
+                &bundle.root,
+                &bundle.revision,
+                source,
+                id,
+                name.as_deref().unwrap_or(id),
+                options,
+                Publication::new(
+                    ChangeOrigin::human("cli"),
+                    summary,
+                    "Copied an exact mono WAV and authored its complete bounded table interpretation",
+                ),
+            )
+            .map_err(|error| {
+                let mut failure = edit_transaction_failure(error);
+                failure.command = "asset.import-wavetable";
+                failure
+            })?;
+            Ok(Success {
+                command: "asset.import-wavetable",
+                human: format!(
+                    "Imported wavetable {id} ({} × {} samples) as history entry {}",
+                    options.frames, options.frame_length, entry.id
+                ),
+                data: json!({
+                    "asset_id": id,
+                    "frame_length": options.frame_length,
+                    "frames": options.frames,
+                    "normalization": options.normalization,
+                    "morph": options.morph,
+                    "history_entry": entry,
+                }),
+            })
+        }
         AssetCommand::Bounce {
             source,
             from,
@@ -2727,6 +2851,10 @@ fn portable_asset_data(bundle: &ProjectBundle) -> Vec<Value> {
         .iter()
         .map(|asset| {
             let metadata = asset.metadata();
+            let declaration = bundle
+                .project
+                .as_ref()
+                .and_then(|project| project.assets.iter().find(|item| item.id == asset.id()));
             json!({
                 "id": asset.id(),
                 "name": asset.name(),
@@ -2738,6 +2866,9 @@ fn portable_asset_data(bundle: &ProjectBundle) -> Vec<Value> {
                 "frames": metadata.frames,
                 "sample_format": format!("{:?}", metadata.sample_format).to_lowercase(),
                 "bits_per_sample": metadata.bits_per_sample,
+                "usages": declaration.map(|item| &item.usages),
+                "wavetable": declaration.and_then(|item| item.wavetable.as_ref()),
+                "generated": declaration.and_then(|item| item.generated.as_ref()),
             })
         })
         .collect()
@@ -2745,12 +2876,12 @@ fn portable_asset_data(bundle: &ProjectBundle) -> Vec<Value> {
 
 fn command_module(cli: &Cli, command: &ModuleCommand) -> Result<Success, Failure> {
     match command {
-        ModuleCommand::List => {
+        ModuleCommand::List { search, tags } => {
             let library = instrument_library_dir()
                 .map_err(|error| Failure::operational("module.list", "library_error", error))?;
             fs::create_dir_all(&library)
                 .map_err(|error| Failure::operational("module.list", "io_error", error))?;
-            let mut modules = fs::read_dir(&library)
+            let mut paths = fs::read_dir(&library)
                 .map_err(|error| Failure::operational("module.list", "io_error", error))?
                 .filter_map(Result::ok)
                 .filter_map(|entry| {
@@ -2761,20 +2892,50 @@ fn command_module(cli: &Cli, command: &ModuleCommand) -> Result<Success, Failure
                     .then_some(path)
                 })
                 .collect::<Vec<_>>();
-            modules.sort();
-            let names: Vec<_> = modules
-                .iter()
-                .filter_map(|path| path.file_stem().and_then(|name| name.to_str()))
-                .map(str::to_owned)
-                .collect();
+            paths.sort();
+            let mut modules = Vec::with_capacity(paths.len());
+            for path in paths {
+                let name = path
+                    .file_stem()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("invalid-name");
+                let bytes = read_module_file(&path, "module.list")?;
+                let source = String::from_utf8_lossy(&bytes);
+                let entry = catalog_entry(name, &path, &source);
+                if catalog_matches(&entry, search.as_deref(), tags) {
+                    modules.push(entry);
+                }
+            }
+            let human = if modules.is_empty() {
+                "No matching personal Instrument Modules".to_owned()
+            } else {
+                modules
+                    .iter()
+                    .map(|module| {
+                        let tags = if module.tags.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" [{}]", module.tags.join(", "))
+                        };
+                        format!(
+                            "{}{}{}",
+                            module.name,
+                            tags,
+                            if module.valid { "" } else { " (invalid)" }
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
             Ok(Success {
                 command: "module.list",
-                human: if names.is_empty() {
-                    "No personal Instrument Modules".to_owned()
-                } else {
-                    names.join("\n")
-                },
-                data: json!({ "library": library, "modules": names }),
+                human,
+                data: json!({
+                    "library": library,
+                    "search": search,
+                    "required_tags": tags,
+                    "modules": modules,
+                }),
             })
         }
         ModuleCommand::Inspect { name } => {
@@ -2788,27 +2949,36 @@ fn command_module(cli: &Cli, command: &ModuleCommand) -> Result<Success, Failure
                     json!([]),
                 )
             })?;
-            let document = parse_module(&path, source);
-            let mut diagnostics = document.diagnostics;
-            diagnostics.extend(validate_instrument_module(&document.instruments).into_vec());
-            let valid = !diagnostics.has_errors();
-            if !valid {
-                return Err(Failure::blocked(
+            let module = validate_module_source(&path, source).map_err(|diagnostics| {
+                Failure::blocked(
                     "module.inspect",
                     "invalid_module",
                     "Instrument Module is invalid",
                     json!(diagnostics.as_slice()),
-                ));
-            }
+                )
+            })?;
             Ok(Success {
                 command: "module.inspect",
-                human: format!("{}: {} Instrument(s)", name, document.instruments.len()),
+                human: format!(
+                    "{}: {} ({})\nTags: {}\nDependencies: {}",
+                    name,
+                    module.instrument.name,
+                    module.instrument.id,
+                    if module.instrument.presentation.tags.is_empty() {
+                        "none".to_owned()
+                    } else {
+                        module.instrument.presentation.tags.join(", ")
+                    },
+                    module.dependencies.len()
+                ),
                 data: json!({
                     "name": name,
                     "path": path,
                     "import": format!("library:{name}"),
-                    "instruments": document.instruments,
-                    "diagnostics": diagnostics.as_slice(),
+                    "source_version": module.source_version,
+                    "instruments": [module.instrument],
+                    "dependencies": module.dependencies,
+                    "diagnostics": [],
                 }),
             })
         }
@@ -2826,17 +2996,14 @@ fn command_module(cli: &Cli, command: &ModuleCommand) -> Result<Success, Failure
                     json!([]),
                 )
             })?;
-            let document = parse_module(source, text);
-            let mut diagnostics = document.diagnostics;
-            diagnostics.extend(validate_instrument_module(&document.instruments).into_vec());
-            if diagnostics.has_errors() {
-                return Err(Failure::blocked(
+            let module = validate_module_source(source, text).map_err(|diagnostics| {
+                Failure::blocked(
                     "module.install",
                     "invalid_module",
                     "Instrument Module is invalid and was not installed",
                     json!(diagnostics.as_slice()),
-                ));
-            }
+                )
+            })?;
             let fallback = source
                 .file_stem()
                 .and_then(|value| value.to_str())
@@ -2856,7 +3023,15 @@ fn command_module(cli: &Cli, command: &ModuleCommand) -> Result<Success, Failure
                     path.display(),
                     name
                 ),
-                data: json!({ "name": name, "path": path, "import": format!("library:{name}") }),
+                data: json!({
+                    "name": name,
+                    "path": path,
+                    "import": format!("library:{name}"),
+                    "source_version": module.source_version,
+                    "instrument_id": module.instrument.id,
+                    "tags": module.instrument.presentation.tags,
+                    "dependencies": module.dependencies,
+                }),
             })
         }
         ModuleCommand::Export {
@@ -2907,18 +3082,20 @@ fn command_module(cli: &Cli, command: &ModuleCommand) -> Result<Success, Failure
                         "Instrument source range is invalid",
                     )
                 })?;
-            let module_source = format!("crump-module 1\n{declaration}\n");
-            let parsed = parse_module(Path::new("export.crump"), &module_source);
-            let mut diagnostics = parsed.diagnostics;
-            diagnostics.extend(validate_instrument_module(&parsed.instruments).into_vec());
-            if diagnostics.has_errors() {
-                return Err(Failure::blocked(
-                    "module.export",
-                    "export_invalid",
-                    "extracted Instrument did not form a valid module",
-                    json!(diagnostics.as_slice()),
-                ));
-            }
+            let source_version = bundle
+                .project
+                .as_ref()
+                .map_or(1, |project| project.source_version);
+            let module_source = format!("crump-module {source_version}\n{declaration}\n");
+            let module = validate_module_source(Path::new("export.crump"), &module_source)
+                .map_err(|diagnostics| {
+                    Failure::blocked(
+                        "module.export",
+                        "export_invalid",
+                        "extracted Instrument did not form a valid module",
+                        json!(diagnostics.as_slice()),
+                    )
+                })?;
             let name = name.as_deref().unwrap_or(instrument);
             let path = library_module_path(name, "module.export")?;
             if let Some(parent) = path.parent() {
@@ -2934,7 +3111,230 @@ fn command_module(cli: &Cli, command: &ModuleCommand) -> Result<Success, Failure
                     path.display(),
                     name
                 ),
-                data: json!({ "name": name, "path": path, "import": format!("library:{name}") }),
+                data: json!({
+                    "name": name,
+                    "path": path,
+                    "import": format!("library:{name}"),
+                    "source_version": module.source_version,
+                    "instrument_id": module.instrument.id,
+                    "tags": module.instrument.presentation.tags,
+                    "dependencies": module.dependencies,
+                }),
+            })
+        }
+        ModuleCommand::Preview {
+            name,
+            output,
+            replace,
+        } => {
+            let path = library_module_path(name, "module.preview")?;
+            let bytes = read_module_file(&path, "module.preview")?;
+            let source = std::str::from_utf8(&bytes).map_err(|error| {
+                Failure::blocked(
+                    "module.preview",
+                    "invalid_utf8",
+                    error.to_string(),
+                    json!([]),
+                )
+            })?;
+            let module = validate_module_source(&path, source).map_err(|diagnostics| {
+                Failure::blocked(
+                    "module.preview",
+                    "invalid_module",
+                    "Instrument Module is invalid",
+                    json!(diagnostics.as_slice()),
+                )
+            })?;
+            validate_module_preview_output(&cli.project, output)?;
+            let (sample_rate, frames) = if module.dependencies.is_empty() {
+                render_module_preview(&module, &[], &crate::media::AssetInventory::default())
+            } else {
+                let bundle = load(cli, "module.preview")?;
+                if bundle.diagnostics.has_errors() {
+                    return Err(Failure::blocked(
+                        "module.preview",
+                        "invalid_candidate",
+                        "asset-backed Module preview requires a valid current Project",
+                        json!(bundle.diagnostics.as_slice()),
+                    ));
+                }
+                let assets = &bundle.project.as_ref().expect("valid Project").assets;
+                render_module_preview(&module, assets, &bundle.assets)
+            }
+            .map_err(|error| {
+                Failure::blocked("module.preview", "preview_compile_failed", error, json!([]))
+            })?;
+            let wav = encode_float_wav(&frames, sample_rate).map_err(|error| {
+                Failure::operational("module.preview", "preview_encode_failed", error)
+            })?;
+            if let Some(parent) = output.parent()
+                && !parent.as_os_str().is_empty()
+            {
+                fs::create_dir_all(parent)
+                    .map_err(|error| Failure::operational("module.preview", "io_error", error))?;
+            }
+            write_atomic_file(output, &wav, *replace)
+                .map_err(|error| module_write_failure("module.preview", error))?;
+            Ok(Success {
+                command: "module.preview",
+                human: format!("Rendered Module preview to {}", output.display()),
+                data: json!({
+                    "name": name,
+                    "output": output,
+                    "sample_rate": sample_rate,
+                    "frames": frames.len(),
+                    "format": "stereo_f32_wav",
+                    "tags": module.instrument.presentation.tags,
+                    "preview": module.instrument.presentation.preview,
+                    "dependencies": module.dependencies,
+                }),
+            })
+        }
+        ModuleCommand::Copy {
+            name,
+            local_name,
+            replace,
+        } => {
+            let source_path = library_module_path(name, "module.copy")?;
+            let bytes = read_module_file(&source_path, "module.copy")?;
+            let source = std::str::from_utf8(&bytes).map_err(|error| {
+                Failure::blocked("module.copy", "invalid_utf8", error.to_string(), json!([]))
+            })?;
+            let module = validate_module_source(&source_path, source).map_err(|diagnostics| {
+                Failure::blocked(
+                    "module.copy",
+                    "invalid_module",
+                    "Instrument Module is invalid",
+                    json!(diagnostics.as_slice()),
+                )
+            })?;
+            let bundle = load(cli, "module.copy")?;
+            if bundle.diagnostics.has_errors() {
+                return Err(Failure::blocked(
+                    "module.copy",
+                    "invalid_candidate",
+                    "Module copy requires a valid Candidate Project",
+                    json!(bundle.diagnostics.as_slice()),
+                ));
+            }
+            let local_name = local_name.as_deref().unwrap_or(name);
+            if !valid_module_name(local_name) {
+                return Err(Failure::blocked(
+                    "module.copy",
+                    "invalid_module_name",
+                    "module name must use only ASCII letters, digits, `_`, or `-`",
+                    json!([]),
+                ));
+            }
+            let directory =
+                secure_project_module_directory(&bundle.root, "instruments", "module.copy")?;
+            let destination = directory.join(format!("{local_name}.crump"));
+            write_atomic_file(&destination, &bytes, *replace)
+                .map_err(|error| module_write_failure("module.copy", error))?;
+            Ok(Success {
+                command: "module.copy",
+                human: format!(
+                    "Copied {}\nAdd: import \"instruments/{}.crump\"",
+                    destination.display(),
+                    local_name
+                ),
+                data: json!({
+                    "name": name,
+                    "local_name": local_name,
+                    "path": destination,
+                    "import": format!("instruments/{local_name}.crump"),
+                    "instrument_id": module.instrument.id,
+                    "dependencies": module.dependencies,
+                }),
+            })
+        }
+        ModuleCommand::Collect => {
+            let bundle = load(cli, "module.collect")?;
+            if bundle.diagnostics.has_errors() {
+                return Err(Failure::blocked(
+                    "module.collect",
+                    "invalid_candidate",
+                    "Module collection requires a valid Candidate Project",
+                    json!(bundle.diagnostics.as_slice()),
+                ));
+            }
+            let imports = bundle
+                .project
+                .as_ref()
+                .expect("valid Project")
+                .imports
+                .iter()
+                .filter_map(|path| {
+                    let relative = path.strip_prefix("library").ok()?;
+                    (relative.components().count() == 1
+                        && relative
+                            .extension()
+                            .is_some_and(|extension| extension == "crump"))
+                    .then(|| {
+                        relative
+                            .file_stem()
+                            .and_then(|name| name.to_str())
+                            .map(str::to_owned)
+                    })
+                    .flatten()
+                })
+                .collect::<BTreeSet<_>>();
+            let directory =
+                secure_project_module_directory(&bundle.root, "library", "module.collect")?;
+            let mut collected = Vec::new();
+            let mut existing = Vec::new();
+            for name in imports {
+                if !valid_module_name(&name) {
+                    return Err(Failure::blocked(
+                        "module.collect",
+                        "invalid_module_name",
+                        format!("invalid library Module name `{name}`"),
+                        json!([]),
+                    ));
+                }
+                let display_path = PathBuf::from("library").join(format!("{name}.crump"));
+                let source = bundle.sources.get(&display_path).ok_or_else(|| {
+                    Failure::operational(
+                        "module.collect",
+                        "missing_source",
+                        format!(
+                            "resolved Module source {} is unavailable",
+                            display_path.display()
+                        ),
+                    )
+                })?;
+                let destination = directory.join(format!("{name}.crump"));
+                if destination.is_file() {
+                    if fs::read(&destination).map_err(|error| {
+                        Failure::operational("module.collect", "io_error", error)
+                    })? != source.as_bytes()
+                    {
+                        return Err(Failure::conflict(
+                            "module.collect",
+                            "module_exists",
+                            format!("{} contains different bytes", destination.display()),
+                        ));
+                    }
+                    existing.push(display_path);
+                } else {
+                    write_atomic_file(&destination, source.as_bytes(), false)
+                        .map_err(|error| module_write_failure("module.collect", error))?;
+                    collected.push(display_path);
+                }
+            }
+            Ok(Success {
+                command: "module.collect",
+                human: format!(
+                    "Collected {} Module(s); {} already local",
+                    collected.len(),
+                    existing.len()
+                ),
+                data: json!({
+                    "revision": bundle.revision,
+                    "collected": collected,
+                    "existing": existing,
+                    "asset_collection": "run `crump asset collect` separately for declared media",
+                }),
             })
         }
     }
@@ -3045,12 +3445,15 @@ fn active_identity(
     }))
 }
 
-fn library_module_path(name: &str, command: &'static str) -> Result<PathBuf, Failure> {
-    if name.is_empty()
-        || !name
+fn valid_module_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
             .chars()
             .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
-    {
+}
+
+fn library_module_path(name: &str, command: &'static str) -> Result<PathBuf, Failure> {
+    if !valid_module_name(name) {
         return Err(Failure::blocked(
             command,
             "invalid_module_name",
@@ -3061,6 +3464,74 @@ fn library_module_path(name: &str, command: &'static str) -> Result<PathBuf, Fai
     instrument_library_dir()
         .map(|directory| directory.join(format!("{name}.crump")))
         .map_err(|error| Failure::operational(command, "library_error", error))
+}
+
+fn secure_project_module_directory(
+    root: &Path,
+    name: &str,
+    command: &'static str,
+) -> Result<PathBuf, Failure> {
+    let root = fs::canonicalize(root)
+        .map_err(|error| Failure::operational(command, "project_io", error))?;
+    let directory = root.join(name);
+    if let Ok(metadata) = fs::symlink_metadata(&directory)
+        && metadata.file_type().is_symlink()
+    {
+        return Err(Failure::blocked(
+            command,
+            "unsafe_module_directory",
+            format!("{} must not be a symbolic link", directory.display()),
+            json!([]),
+        ));
+    }
+    fs::create_dir_all(&directory)
+        .map_err(|error| Failure::operational(command, "io_error", error))?;
+    let canonical = fs::canonicalize(&directory)
+        .map_err(|error| Failure::operational(command, "io_error", error))?;
+    if !canonical.starts_with(&root) {
+        return Err(Failure::blocked(
+            command,
+            "unsafe_module_directory",
+            format!("{} escapes the Project root", directory.display()),
+            json!([]),
+        ));
+    }
+    Ok(canonical)
+}
+
+fn validate_module_preview_output(project_root: &Path, output: &Path) -> Result<(), Failure> {
+    if output
+        .extension()
+        .is_none_or(|extension| extension != "wav")
+        || output
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err(Failure::blocked(
+            "module.preview",
+            "invalid_preview_output",
+            "Module preview output must be a normalized `.wav` path",
+            json!([]),
+        ));
+    }
+    let project_root = fs::canonicalize(project_root).ok();
+    let output_parent = output
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .and_then(|parent| fs::canonicalize(parent).ok());
+    if project_root.as_ref().is_some_and(|root| {
+        output_parent.as_ref().is_some_and(|parent| {
+            parent.starts_with(root.join(".crump")) || parent.starts_with(root.join("media"))
+        }) || output == root.join(crate::project::PROJECT_FILE)
+    }) {
+        return Err(Failure::blocked(
+            "module.preview",
+            "protected_preview_output",
+            "Module preview cannot replace Project source, History, or declared-media locations",
+            json!([]),
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn serialize_response(response: &Value) -> String {

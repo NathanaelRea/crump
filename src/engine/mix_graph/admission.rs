@@ -13,6 +13,21 @@ pub const MAX_WORK_UNITS_PER_FRAME: u64 = 65_536;
 /// Maximum shared processor instances with fixed-capacity callback telemetry.
 pub const MAX_PROCESSOR_INSTANCES: usize = 512;
 
+fn publication_transition_work_units(
+    steady_state: u64,
+    tracks: usize,
+    channels: usize,
+    control_targets: usize,
+) -> u64 {
+    let bookkeeping = (tracks as u64)
+        .saturating_mul(4)
+        .saturating_add((channels as u64).saturating_mul(8))
+        .saturating_add((control_targets as u64).saturating_mul(2));
+    steady_state
+        .saturating_mul(MAX_RESIDENT_PUBLICATION_RUNTIMES)
+        .saturating_add(bookkeeping)
+}
+
 /// Compile-time callback resource admission facts.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RuntimeResourceEstimate {
@@ -36,10 +51,16 @@ pub struct RuntimeResourceEstimate {
     pub graph_voices: u64,
     /// Worst-case per-frame graph work in node-equivalent instances, including unison subvoices.
     pub graph_node_instances: u64,
+    /// Track-owned shared post-voice graph runtime instances.
+    pub shared_graphs: u64,
+    /// Shared-graph work evaluated once per Track and output frame.
+    pub shared_graph_work_units_per_frame: u64,
     /// Dense effective Parameter targets.
     pub control_targets: usize,
-    /// Abstract bounded work performed per output sample.
+    /// Abstract bounded work performed per output sample in steady state.
     pub work_units_per_frame: u64,
+    /// Worst-case callback work while old and replacement runtimes overlap.
+    pub publication_transition_work_units_per_frame: u64,
     /// Preallocated channel/bus block-buffer bytes at the largest quantum.
     pub bus_buffer_bytes: u64,
     /// Preallocated channel meter state bytes.
@@ -48,6 +69,8 @@ pub struct RuntimeResourceEstimate {
     pub processor_meter_bytes: u64,
     /// Mutable preallocated state for every graph voice, including Node buffers.
     pub graph_voice_state_bytes: u64,
+    /// Mutable state for one shared post-voice graph per referencing Track.
+    pub shared_graph_state_bytes: u64,
     /// Mutable preallocated stock-drum voice-vector backing.
     pub drum_voice_state_bytes: u64,
     /// Mutable preallocated sampler voice-vector backing across Track instances.
@@ -87,7 +110,10 @@ impl RuntimeResourceEstimate {
     pub fn for_project(project: &Project, control_targets: usize) -> Result<Self, EngineError> {
         let mut graph_voices = 0_u64;
         let mut graph_node_instances = 0_u64;
+        let mut shared_graphs = 0_u64;
+        let mut shared_graph_work_units_per_frame = 0_u64;
         let mut graph_voice_state_bytes = 0_u64;
+        let mut shared_graph_state_bytes = 0_u64;
         let mut drum_voice_state_bytes = 0_u64;
         let mut sampler_state_bytes = 0_u64;
         let mut processor_state_bytes = 0_u64;
@@ -133,15 +159,30 @@ impl RuntimeResourceEstimate {
             graph_voices = graph_voices.saturating_add(voices);
             if instrument.graph.is_some() {
                 graph_node_instances = graph_node_instances.saturating_add(
-                    stored_voices.saturating_mul(authored_graph_work_units(instrument)),
+                    stored_voices.saturating_mul(authored_graph_work_units(instrument, project)),
                 );
-                graph_voice_state_bytes = graph_voice_state_bytes.saturating_add(
-                    stored_voices.saturating_mul(authored_graph_voice_state_bytes(
+                graph_voice_state_bytes = graph_voice_state_bytes
+                    .saturating_add(
+                        stored_voices.saturating_mul(authored_graph_voice_state_bytes(
+                            instrument,
+                            project.sample_rate,
+                            control_targets,
+                        )),
+                    )
+                    .saturating_add(voices.saturating_mul(graph_voice_slot_overhead_bytes()));
+            }
+            if instrument.shared_graph.is_some() {
+                let shared_work = authored_shared_graph_work_units(instrument, project);
+                shared_graphs = shared_graphs.saturating_add(1);
+                shared_graph_work_units_per_frame =
+                    shared_graph_work_units_per_frame.saturating_add(shared_work);
+                graph_node_instances = graph_node_instances.saturating_add(shared_work);
+                shared_graph_state_bytes =
+                    shared_graph_state_bytes.saturating_add(authored_shared_graph_state_bytes(
                         instrument,
                         project.sample_rate,
                         control_targets,
-                    )),
-                );
+                    ));
             }
         }
         for processor in channel_and_master_processors(project) {
@@ -199,6 +240,7 @@ impl RuntimeResourceEstimate {
             .saturating_mul(256)
             .saturating_add((control_targets as u64).saturating_mul(128));
         let runtime_bytes = graph_voice_state_bytes
+            .saturating_add(shared_graph_state_bytes)
             .saturating_add(drum_voice_state_bytes)
             .saturating_add(sampler_state_bytes)
             .saturating_add(processor_state_bytes)
@@ -214,13 +256,19 @@ impl RuntimeResourceEstimate {
             .saturating_add((routes as u64).saturating_mul(4))
             .saturating_add(processor_work)
             .saturating_add(control_targets as u64);
+        let publication_transition_work_units_per_frame = publication_transition_work_units(
+            work_units_per_frame,
+            tracks,
+            channels,
+            control_targets,
+        );
         let admitted = tracks <= MAX_RUNTIME_TRACKS
             && channels <= MAX_MIX_CHANNELS
             && processors <= MAX_PROCESSOR_INSTANCES
             && graph_voices <= u64::from(MAX_GRAPH_VOICES)
             && control_targets <= MAX_CONTROL_TARGETS
             && publication_peak_bytes <= MAX_PUBLICATION_RUNTIME_BYTES
-            && work_units_per_frame <= MAX_WORK_UNITS_PER_FRAME;
+            && publication_transition_work_units_per_frame <= MAX_WORK_UNITS_PER_FRAME;
         Ok(Self {
             sample_rate: project.sample_rate,
             supported_quanta: SUPPORTED_QUANTA,
@@ -232,12 +280,16 @@ impl RuntimeResourceEstimate {
             routes,
             graph_voices,
             graph_node_instances,
+            shared_graphs,
+            shared_graph_work_units_per_frame,
             control_targets,
             work_units_per_frame,
+            publication_transition_work_units_per_frame,
             bus_buffer_bytes,
             meter_bytes,
             processor_meter_bytes,
             graph_voice_state_bytes,
+            shared_graph_state_bytes,
             drum_voice_state_bytes,
             sampler_voice_state_bytes: sampler_state_bytes,
             processor_state_bytes,
@@ -315,12 +367,18 @@ impl RuntimeResourceEstimate {
         self.recalculate_memory_and_admission();
     }
 
+    pub(crate) fn include_additional_instrument_program_bytes(&mut self, bytes: u64) {
+        self.instrument_program_bytes = self.instrument_program_bytes.saturating_add(bytes);
+        self.recalculate_memory_and_admission();
+    }
+
     pub(super) fn recalculate_memory_and_admission(&mut self) {
         self.runtime_bytes = self
             .bus_buffer_bytes
             .saturating_add(self.meter_bytes)
             .saturating_add(self.processor_meter_bytes)
             .saturating_add(self.graph_voice_state_bytes)
+            .saturating_add(self.shared_graph_state_bytes)
             .saturating_add(self.drum_voice_state_bytes)
             .saturating_add(self.sampler_voice_state_bytes)
             .saturating_add(self.processor_state_bytes)
@@ -334,13 +392,19 @@ impl RuntimeResourceEstimate {
         self.publication_peak_bytes = self
             .runtime_bytes
             .saturating_mul(self.publication_runtime_slots);
+        self.publication_transition_work_units_per_frame = publication_transition_work_units(
+            self.work_units_per_frame,
+            self.tracks,
+            self.channels,
+            self.control_targets,
+        );
         self.admitted = self.tracks <= MAX_RUNTIME_TRACKS
             && self.channels <= MAX_MIX_CHANNELS
             && self.processors <= MAX_PROCESSOR_INSTANCES
             && self.graph_voices <= u64::from(MAX_GRAPH_VOICES)
             && self.control_targets <= MAX_CONTROL_TARGETS
             && self.publication_peak_bytes <= self.publication_budget_bytes
-            && self.work_units_per_frame <= self.work_budget_per_frame;
+            && self.publication_transition_work_units_per_frame <= self.work_budget_per_frame;
     }
 }
 

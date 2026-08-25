@@ -1,7 +1,7 @@
 //! Ratatui production workspace over the terminal-independent Project model.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     io::{self, Stdout},
     path::{Path, PathBuf},
     process::Command,
@@ -37,8 +37,8 @@ use crate::{
     engine::{CompiledProject, mix_graph::MixGraphInspection},
     history::{HistoryEntry, HistoryStore, write_atomic},
     model::{
-        AutomationLane, AutomationPoint, DrumVoice, InstrumentKind, ParameterSpec, ParameterTarget,
-        PatternEvent, Project, TapPoint, Unit,
+        AutomationLane, AutomationPoint, DrumVoice, Graph, InstrumentKind, ParameterSpec,
+        ParameterTarget, PatternEvent, PresentationItemKind, Project, TapPoint, Unit,
     },
     production_view::{
         MoveDirection, Operation as ProductionViewOperation, PhysicalValue,
@@ -52,12 +52,13 @@ use crate::{
 const TICK_RATE: Duration = Duration::from_millis(40);
 const REFRESH_RATE: Duration = Duration::from_millis(400);
 const AUDITION_TIMEOUT: Duration = Duration::from_millis(700);
-const VIEWS: [View; 12] = [
+const VIEWS: [View; 13] = [
     View::Timeline,
     View::Mixer,
     View::Processing,
     View::EventGrid,
     View::Faceplate,
+    View::Instrument,
     View::Parameters,
     View::Automation,
     View::Graph,
@@ -68,12 +69,135 @@ const VIEWS: [View; 12] = [
 ];
 
 mod input;
+mod instrument;
 mod rendering;
 mod terminal;
 
 use input::{parse_fade_pair, parse_frame_pair};
+#[cfg(test)]
+use instrument::instrument_section_views;
+use instrument::{InstrumentSectionRow, instrument_section_views_with_assets};
 use rendering::render;
 pub use terminal::run;
+
+fn graph_processing_node_indexes(
+    instrument: &crate::model::Instrument,
+    graph: &Graph,
+) -> Vec<usize> {
+    let indexes = graph
+        .nodes
+        .iter()
+        .enumerate()
+        .map(|(index, node)| (node.id.as_str(), index))
+        .collect::<BTreeMap<_, _>>();
+    let mut outgoing = graph
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), BTreeSet::<&str>::new()))
+        .collect::<BTreeMap<_, _>>();
+    for connection in &graph.connections {
+        if connection.from.node != "note"
+            && let Some(destinations) = outgoing.get_mut(connection.from.node.as_str())
+        {
+            destinations.insert(connection.to.node.as_str());
+        }
+    }
+    if graph.domain == crate::model::GraphDomain::Voice {
+        for route in &instrument.modulation_routes {
+            let source_nodes = std::iter::once(route.source.as_str())
+                .chain(route.auxiliary.as_deref())
+                .filter_map(|source_id| {
+                    instrument
+                        .modulation_sources
+                        .iter()
+                        .find(|source| source.id == source_id)
+                })
+                .filter_map(|source| match &source.kind {
+                    crate::model::InstrumentModulationSourceKind::GraphPort { node, .. } => {
+                        Some(node.as_str())
+                    }
+                    _ => None,
+                });
+            for source_node in source_nodes {
+                if let Some(destinations) = outgoing.get_mut(source_node) {
+                    destinations.extend(graph.nodes.iter().filter_map(|node| {
+                        node.references_parameter(&route.target)
+                            .then_some(node.id.as_str())
+                    }));
+                }
+            }
+        }
+    }
+    let mut incoming = graph
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), 0_usize))
+        .collect::<BTreeMap<_, _>>();
+    for destinations in outgoing.values() {
+        for destination in destinations {
+            if let Some(count) = incoming.get_mut(destination) {
+                *count += 1;
+            }
+        }
+    }
+    let mut ready = incoming
+        .iter()
+        .filter_map(|(id, count)| (*count == 0).then_some(*id))
+        .collect::<BTreeSet<_>>();
+    let mut order = Vec::with_capacity(graph.nodes.len());
+    while let Some(id) = ready.pop_first() {
+        order.push(indexes[id]);
+        for destination in &outgoing[id] {
+            if let Some(count) = incoming.get_mut(destination) {
+                *count = count.saturating_sub(1);
+                if *count == 0 {
+                    ready.insert(destination);
+                }
+            }
+        }
+    }
+    if order.len() == graph.nodes.len() {
+        order
+    } else {
+        (0..graph.nodes.len()).collect()
+    }
+}
+
+fn graph_processing_bus_indexes(graph: &Graph, node_order: &[usize]) -> Vec<usize> {
+    let mut order = Vec::with_capacity(graph.connections.len());
+    let mut included = vec![false; graph.connections.len()];
+    for node_index in node_order {
+        let node_id = graph.nodes[*node_index].id.as_str();
+        let mut incoming = graph
+            .connections
+            .iter()
+            .enumerate()
+            .filter(|(_, connection)| connection.to.node == node_id)
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        incoming.sort_by(|left, right| {
+            graph.connections[*left]
+                .id
+                .cmp(&graph.connections[*right].id)
+        });
+        for index in incoming {
+            included[index] = true;
+            order.push(index);
+        }
+    }
+    let mut remainder = included
+        .iter()
+        .enumerate()
+        .filter_map(|(index, included)| (!included).then_some(index))
+        .collect::<Vec<_>>();
+    remainder.sort_by(|left, right| {
+        graph.connections[*left]
+            .id
+            .cmp(&graph.connections[*right].id)
+    });
+    order.extend(remainder);
+    order
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum View {
@@ -82,6 +206,7 @@ enum View {
     Processing,
     EventGrid,
     Faceplate,
+    Instrument,
     Parameters,
     Automation,
     Graph,
@@ -99,6 +224,7 @@ impl View {
             Self::Processing => "Processing",
             Self::EventGrid => "Event Grid",
             Self::Faceplate => "Faceplate",
+            Self::Instrument => "Instrument",
             Self::Parameters => "Parameters",
             Self::Automation => "Automation",
             Self::Graph => "Graph",
@@ -124,6 +250,8 @@ struct Workspace {
     selected_pattern: usize,
     selected_event: usize,
     selected_instrument: usize,
+    selected_instrument_section: usize,
+    selected_instrument_row: usize,
     selected_parameter: usize,
     selected_automation: usize,
     selected_automation_point: usize,
@@ -140,6 +268,7 @@ struct Workspace {
     telemetry: PlayerTelemetry,
     mix_channel_identities: Vec<String>,
     processing_graph: Option<MixGraphInspection>,
+    instrument_section_cache: Vec<Vec<instrument::InstrumentSectionView>>,
     audition_plan: AuditionPlan,
     audition_status: Option<AuditionStatus>,
     held_notes: BTreeMap<char, HeldNote>,
@@ -179,6 +308,10 @@ enum InputAction {
     Parameter {
         instrument: String,
         parameter: String,
+    },
+    InstrumentRouteDepth {
+        instrument: String,
+        route: String,
     },
     TrackLevel {
         track: String,
@@ -248,6 +381,7 @@ impl Workspace {
         let root = bundle.root.clone();
         let (active_entry, active_revision, history, active_project) = history_state(&root)?;
         let processing_graph = candidate_processing_graph(&bundle);
+        let instrument_section_cache = candidate_instrument_sections(&bundle);
         let mut workspace = Self {
             root,
             bundle,
@@ -262,6 +396,8 @@ impl Workspace {
             selected_pattern: 0,
             selected_event: 0,
             selected_instrument: 0,
+            selected_instrument_section: 0,
+            selected_instrument_row: 0,
             selected_parameter: 0,
             selected_automation: 0,
             selected_automation_point: 0,
@@ -278,6 +414,7 @@ impl Workspace {
             telemetry: PlayerTelemetry::default(),
             mix_channel_identities: Vec::new(),
             processing_graph,
+            instrument_section_cache,
             audition_plan: AuditionPlan::default(),
             audition_status: None,
             held_notes: BTreeMap::new(),
@@ -310,6 +447,7 @@ impl Workspace {
             self.publish_runtime_for_active(state.1.as_ref(), false);
         }
         let candidate_changed = candidate.revision != self.bundle.revision;
+        self.instrument_section_cache = candidate_instrument_sections(&candidate);
         self.bundle = candidate;
         self.active_entry = state.0;
         self.active_revision = state.1;
@@ -973,6 +1111,9 @@ impl Workspace {
             (KeyCode::Char('b'), _) if self.view == View::Processing => {
                 self.toggle_transient_processor_bypass()
             }
+            (KeyCode::Char('b'), _) if self.view == View::Instrument => {
+                self.toggle_instrument_route_bypass()
+            }
             (KeyCode::Char('B'), _) if self.view == View::Processing => {
                 self.toggle_durable_processor_bypass()
             }
@@ -1109,9 +1250,11 @@ impl Workspace {
                     wrap_selection(self.selected_pattern, self.pattern_count(), delta);
                 self.selected_event = 0;
             }
-            View::Faceplate | View::Parameters | View::Graph => {
+            View::Faceplate | View::Instrument | View::Parameters | View::Graph => {
                 self.selected_instrument =
                     wrap_selection(self.selected_instrument, self.instrument_count(), delta);
+                self.selected_instrument_section = 0;
+                self.selected_instrument_row = 0;
                 self.selected_parameter = 0;
                 self.selected_graph_node = 0;
             }
@@ -1152,6 +1295,13 @@ impl Workspace {
                 self.selected_parameter =
                     wrap_selection(self.selected_parameter, self.faceplate_count(), delta)
             }
+            View::Instrument => {
+                self.selected_instrument_row = wrap_selection(
+                    self.selected_instrument_row,
+                    self.instrument_row_count(),
+                    delta,
+                )
+            }
             View::Parameters => {
                 self.selected_parameter =
                     wrap_selection(self.selected_parameter, self.parameter_count(), delta)
@@ -1183,6 +1333,14 @@ impl Workspace {
             View::Processing => {}
             View::EventGrid => self.step_note(direction),
             View::Faceplate | View::Parameters => self.step_parameter(direction as f64),
+            View::Instrument => {
+                self.selected_instrument_section = wrap_selection(
+                    self.selected_instrument_section,
+                    self.instrument_section_count(),
+                    direction,
+                );
+                self.selected_instrument_row = 0;
+            }
             View::Automation => self.step_automation(direction as f64),
             View::Graph => {
                 self.selected_instrument =
@@ -1238,11 +1396,130 @@ impl Workspace {
             View::Processing => self.open_processor_setting(),
             View::EventGrid => self.open_event_primary(),
             View::Faceplate | View::Parameters => self.open_parameter(),
+            View::Instrument => self.open_instrument_item(),
             View::Automation => self.open_automation_value(),
             View::Graph => self.open_graph_source(),
             View::History => self.open_history_diff(),
             _ => {}
         }
+    }
+
+    fn open_instrument_item(&mut self) {
+        let Some(row) = self.selected_instrument_row() else {
+            self.status = "Selected Instrument section item is unavailable".to_owned();
+            return;
+        };
+        match row.kind {
+            Some(PresentationItemKind::Parameter) => {
+                let Some(index) = self
+                    .bundle
+                    .project
+                    .as_ref()
+                    .and_then(|project| project.song.instruments.get(self.selected_instrument))
+                    .and_then(|instrument| {
+                        instrument
+                            .parameters
+                            .iter()
+                            .position(|parameter| parameter.key == row.id)
+                    })
+                else {
+                    self.status = "Selected Instrument Parameter is unavailable".to_owned();
+                    return;
+                };
+                self.selected_parameter = index;
+                self.open_parameter();
+            }
+            Some(PresentationItemKind::Route) => {
+                let Some((instrument, route, depth)) = self
+                    .bundle
+                    .project
+                    .as_ref()
+                    .and_then(|project| project.song.instruments.get(self.selected_instrument))
+                    .and_then(|instrument| {
+                        instrument
+                            .modulation_routes
+                            .iter()
+                            .find(|route| route.id == row.id)
+                            .map(|route| {
+                                (instrument.id.clone(), route.id.clone(), route.depth.clone())
+                            })
+                    })
+                else {
+                    self.status = "Selected Instrument Modulation route is unavailable".to_owned();
+                    return;
+                };
+                self.modal = Some(Modal::Input {
+                    title: format!("Exact route depth · {instrument}.{route}"),
+                    prompt: "Enter a physical depth literal in the target Parameter unit"
+                        .to_owned(),
+                    value: depth,
+                    replace_on_type: true,
+                    action: InputAction::InstrumentRouteDepth { instrument, route },
+                });
+            }
+            _ => self.open_instrument_source(&row),
+        }
+    }
+
+    fn open_instrument_source(&mut self, row: &InstrumentSectionRow) {
+        let Some(source_index) = self
+            .bundle
+            .sources
+            .keys()
+            .position(|path| path == &row.source_file)
+        else {
+            self.status = format!("Source {} is unavailable", row.source_file.display());
+            return;
+        };
+        let line = self
+            .bundle
+            .sources
+            .get(&row.source_file)
+            .map_or(1, |source| {
+                source[..row.source_offset.min(source.len())]
+                    .bytes()
+                    .filter(|byte| *byte == b'\n')
+                    .count()
+                    + 1
+            });
+        self.selected_source = source_index;
+        self.source_scroll = line.saturating_sub(1);
+        self.view = View::Source;
+        self.status = format!("{} at {}:{line}", row.id, row.source_file.display());
+    }
+
+    fn toggle_instrument_route_bypass(&mut self) {
+        let Some(row) = self.selected_instrument_row() else {
+            return;
+        };
+        if row.kind != Some(PresentationItemKind::Route) {
+            self.status = "Select a Modulation route to toggle bypass".to_owned();
+            return;
+        }
+        let Some((instrument, route, bypass)) = self
+            .bundle
+            .project
+            .as_ref()
+            .and_then(|project| project.song.instruments.get(self.selected_instrument))
+            .and_then(|instrument| {
+                instrument
+                    .modulation_routes
+                    .iter()
+                    .find(|route| route.id == row.id)
+                    .map(|route| (instrument.id.clone(), route.id.clone(), !route.bypass))
+            })
+        else {
+            self.status = "Selected Instrument Modulation route is unavailable".to_owned();
+            return;
+        };
+        self.apply_operation(
+            ProductionViewOperation::SetInstrumentRouteBypass {
+                instrument: instrument.clone(),
+                route: route.clone(),
+                bypass,
+            },
+            format!("Set {instrument}.{route} bypass to {bypass}"),
+        );
     }
 
     fn open_graph_source(&mut self) {
@@ -1260,16 +1537,63 @@ impl Workspace {
             return;
         };
         let index = self.selected_graph_node;
-        let (location, description) = if let Some(node) = graph.nodes.get(index) {
-            (&node.location, format!("Graph Node `{}`", node.id))
+        let node_order = graph_processing_node_indexes(instrument, graph);
+        let bus_order = graph_processing_bus_indexes(graph, &node_order);
+        let voice_items = graph.nodes.len() + graph.connections.len();
+        let shared = instrument.shared_graph.as_ref();
+        let shared_node_order = shared
+            .map(|graph| graph_processing_node_indexes(instrument, graph))
+            .unwrap_or_default();
+        let shared_bus_order = shared
+            .map(|graph| graph_processing_bus_indexes(graph, &shared_node_order))
+            .unwrap_or_default();
+        let shared_items = shared
+            .map(|graph| graph.nodes.len() + graph.connections.len())
+            .unwrap_or(0);
+        let (location, description) = if let Some(node) = node_order
+            .get(index)
+            .and_then(|node_index| graph.nodes.get(*node_index))
+        {
+            (&node.location, format!("Voice Graph Node `{}`", node.id))
         } else if let Some(connection) = index
             .checked_sub(graph.nodes.len())
-            .and_then(|index| graph.connections.get(index))
+            .and_then(|index| bus_order.get(index))
+            .and_then(|connection_index| graph.connections.get(*connection_index))
         {
             (
                 &connection.location,
                 format!(
-                    "Bus `{}.{} -> {}.{}`",
+                    "Voice Bus `{}` `{}.{} -> {}.{}`",
+                    connection.id,
+                    connection.from.node,
+                    connection.from.port,
+                    connection.to.node,
+                    connection.to.port
+                ),
+            )
+        } else if let Some(node) =
+            shared
+                .zip(index.checked_sub(voice_items))
+                .and_then(|(graph, index)| {
+                    shared_node_order
+                        .get(index)
+                        .and_then(|node_index| graph.nodes.get(*node_index))
+                })
+        {
+            (&node.location, format!("Shared Graph Node `{}`", node.id))
+        } else if let Some(connection) = shared
+            .zip(index.checked_sub(voice_items + shared_node_order.len()))
+            .and_then(|(graph, index)| {
+                shared_bus_order
+                    .get(index)
+                    .and_then(|bus_index| graph.connections.get(*bus_index))
+            })
+        {
+            (
+                &connection.location,
+                format!(
+                    "Shared Bus `{}` `{}.{} -> {}.{}`",
+                    connection.id,
                     connection.from.node,
                     connection.from.port,
                     connection.to.node,
@@ -1277,7 +1601,7 @@ impl Workspace {
                 ),
             )
         } else if let Some(parameter) = index
-            .checked_sub(graph.nodes.len() + graph.connections.len())
+            .checked_sub(voice_items + shared_items)
             .and_then(|index| instrument.parameters.get(index))
         {
             (
@@ -1285,7 +1609,7 @@ impl Workspace {
                 format!("Parameter `{}`", parameter.key),
             )
         } else if let Some(control) = index
-            .checked_sub(graph.nodes.len() + graph.connections.len() + instrument.parameters.len())
+            .checked_sub(voice_items + shared_items + instrument.parameters.len())
             .and_then(|index| instrument.faceplate.get(index))
         {
             (
@@ -1762,6 +2086,14 @@ impl Workspace {
                 },
                 format!("Set {instrument}.{parameter}"),
             ),
+            InputAction::InstrumentRouteDepth { instrument, route } => self.apply_operation(
+                ProductionViewOperation::SetInstrumentRouteDepth {
+                    instrument: instrument.clone(),
+                    route: route.clone(),
+                    depth: value,
+                },
+                format!("Set {instrument}.{route} depth"),
+            ),
             InputAction::TrackLevel { track } => self.apply_operation(
                 ProductionViewOperation::SetTrackLevel {
                     track: track.clone(),
@@ -2139,7 +2471,10 @@ impl Workspace {
     }
 
     fn handle_audition_key(&mut self, key: KeyEvent) -> bool {
-        if !matches!(self.view, View::Faceplate | View::Parameters | View::Graph) {
+        if !matches!(
+            self.view,
+            View::Faceplate | View::Instrument | View::Parameters | View::Graph
+        ) {
             return false;
         }
         let KeyCode::Char(character) = key.code else {
@@ -2342,6 +2677,12 @@ impl Workspace {
         self.selected_pattern = clamp_index(self.selected_pattern, self.pattern_count());
         self.selected_event = clamp_index(self.selected_event, self.event_count());
         self.selected_instrument = clamp_index(self.selected_instrument, self.instrument_count());
+        self.selected_instrument_section = clamp_index(
+            self.selected_instrument_section,
+            self.instrument_section_count(),
+        );
+        self.selected_instrument_row =
+            clamp_index(self.selected_instrument_row, self.instrument_row_count());
         self.selected_parameter = clamp_index(
             self.selected_parameter,
             if self.view == View::Faceplate {
@@ -2396,6 +2737,30 @@ impl Workspace {
             .map_or(0, |project| project.song.instruments.len())
     }
 
+    fn instrument_sections(&self) -> Vec<instrument::InstrumentSectionView> {
+        self.instrument_section_cache
+            .get(self.selected_instrument)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn instrument_section_count(&self) -> usize {
+        self.instrument_sections().len()
+    }
+
+    fn instrument_row_count(&self) -> usize {
+        self.instrument_sections()
+            .get(self.selected_instrument_section)
+            .map_or(0, |section| section.rows.len())
+    }
+
+    fn selected_instrument_row(&self) -> Option<InstrumentSectionRow> {
+        self.instrument_sections()
+            .get(self.selected_instrument_section)
+            .and_then(|section| section.rows.get(self.selected_instrument_row))
+            .cloned()
+    }
+
     fn automation_count(&self) -> usize {
         self.bundle
             .project
@@ -2418,8 +2783,13 @@ impl Workspace {
             .and_then(|project| project.song.instruments.get(self.selected_instrument))
             .and_then(|instrument| {
                 instrument.graph.as_ref().map(|graph| {
+                    let shared_items = instrument
+                        .shared_graph
+                        .as_ref()
+                        .map_or(0, |shared| shared.nodes.len() + shared.connections.len());
                     graph.nodes.len()
                         + graph.connections.len()
+                        + shared_items
                         + instrument.parameters.len()
                         + instrument.faceplate.len()
                 })
@@ -2660,6 +3030,20 @@ fn project_processor<'a>(
                 .flat_map(|master| &master.inserts),
         )
         .find(|processor| processor.id == processor_id)
+}
+
+fn candidate_instrument_sections(
+    bundle: &ProjectBundle,
+) -> Vec<Vec<instrument::InstrumentSectionView>> {
+    let Some(project) = bundle.project.as_ref() else {
+        return Vec::new();
+    };
+    project
+        .song
+        .instruments
+        .iter()
+        .map(|instrument| instrument_section_views_with_assets(project, instrument, &bundle.assets))
+        .collect()
 }
 
 fn candidate_processing_graph(bundle: &ProjectBundle) -> Option<MixGraphInspection> {

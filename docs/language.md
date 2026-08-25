@@ -67,7 +67,7 @@ project "Example" {
 
 ## Headers, files, and imports
 
-Root Projects begin with `crump 1`. A root may place quoted imports before the Project declaration:
+Root Projects begin with stable `crump 1` or `crump 2`; the header must be the first non-comment declaration. A root may place quoted imports before the Project declaration:
 
 ```crump
 crump 1
@@ -79,7 +79,7 @@ project "Portable Project" {
 
 Imports must be normalized, relative `.crump` paths beneath the Project root. Absolute paths, `..` traversal, symlink escape, non-source extensions, duplicate canonical paths, and import cycles are rejected.
 
-A reusable module begins with `crump-module 1` and contains exactly one Instrument:
+A reusable module begins with `crump-module 1` or `crump-module 2` as its first non-comment declaration and contains exactly one Instrument:
 
 ```crump
 crump-module 1
@@ -88,7 +88,7 @@ instrument bass "Pulse Bass" graph {
 }
 ```
 
-Use `crump module export`, `install`, `list`, and `inspect` rather than copying into the personal library by hand. The library is resolved through the platform user data directory.
+A version-1 root imports only version-1 modules. A version-2 root may import version-1 or version-2 modules. Unsupported versions and suffixes such as `2-alpha` fail closed. Use `crump module export`, `install`, `list`, and `inspect` rather than copying into the personal library by hand. The library is resolved through the platform user data directory.
 
 ## Project and Song
 
@@ -102,7 +102,7 @@ A Project declares:
 | `render_tail` | Explicit finite effect/release tail, at most 30 seconds |
 | `asset` | Optional portable Project-owned WAV identity, described below |
 
-### Portable WAV assets and sampler sources
+### Portable WAV assets, sampler sources, and wavetables
 
 A Project-level declaration is explicit source:
 
@@ -112,16 +112,43 @@ asset voice "Voice fragment" wav "media/voice.wav" sha256 "0123456789abcdef01234
 
 The path must already be a normalized UTF-8 Project-relative path with a lowercase `.wav` extension. Absolute paths, `.`/`..`, repeated separators, backslashes, `.crump/`, symbolic links (including linked parent directories), duplicate IDs, and duplicate paths are rejected. The digest is exactly 64 lowercase hexadecimal characters and identifies the complete file bytes, not decoded samples or filesystem metadata. A file is **changed** when its current exact-byte SHA-256 differs from the declaration. Distinct paths with identical bytes are allowed with a warning.
 
+A source-v2 asset may declare an exact periodic-frame interpretation:
+
+```crump
+asset table "Four-frame table" wav "media/table.wav" sha256 "..." {
+  usage wavetable
+  frame_length 2048
+  frames 4
+  normalization global_peak
+  morph catmull_rom
+}
+```
+
+A wavetable WAV is mono and contains exactly `frame_length × frames` consecutive decoded samples. Frame length is a power of two from 32 through 8,192; frame count is 1 through 256; one asset may interpret at most 2,097,152 samples. `preserve` retains source amplitude, `global_peak` scales all frames by one complete-table peak, and `frame_peak` scales each non-silent frame independently. Frame order is exact source order. `linear` interpolates adjacent frames; `catmull_rom` uses a four-frame cubic with repeated boundary frames. The container sample rate does not retime these periodic cycles.
+
+Graph sample assets use the same exact Media Asset declaration with one or more source-v2 usage tags:
+
+```crump
+asset texture "Texture" wav "media/texture.wav" sha256 "..." {
+  usage sample multisample granular spectral
+}
+```
+
+`sample` admits a direct graph sample source; `multisample` admits readable zone maps; `granular` admits bounded grain reads; and `spectral` admits versioned off-callback analysis. These tags do not copy, trim, normalize, or reinterpret bytes. Verified source container frames remain the coordinate space for slices/zones. Only assets reached by Track-assigned sampler or graph programs compile to immutable Project-rate stereo frames and, for spectral sources, a second disposable analysis derivative.
+
 Inventory loading currently admits at most 256 assets, 64 MiB per file, and 256 MiB total. It validates non-empty mono/stereo WAV containers with a positive source rate and PCM 8/16/24/32-bit or IEEE float32 storage. Engine sample compilation happens away from the callback: it decodes to immutable stereo float frames, rejects non-finite float input, duplicates mono without a gain change, and deterministically converts source rates to the Project rate with a windowed-sinc low-pass converter. Compiled storage is bounded to 256 MiB per source. Sampler mappings retain these immutable project-rate frames; the callback only performs bounded interpolation, envelopes, fades, panning, and deterministic voice selection.
 
-Use the checked import rather than authoring an external path:
+Use a checked import rather than authoring an external path:
 
 ```bash
 crump --project ./song asset import ../recordings/phrase.wav \
   --id phrase --name "Spoken phrase"
+crump --project ./song asset import-wavetable ../tables/four-frame.wav \
+  --id table --name "Four-frame table" --frame-length 2048 --frames 4 \
+  --normalization global-peak --morph catmull-rom
 ```
 
-Import reads and validates the external regular file, copies its exact bytes without replacement to `media/phrase.wav`, inserts the hash-bearing declaration, validates the staged Project, and publishes source plus binary bytes as one recoverable History transaction. External paths are command inputs only and never enter Authoritative Source. `asset collect` atomically moves already-declared files to canonical `media/ASSET_ID.wav` paths without changing exact bytes or hashes. `asset list` and `inspect` report portable path, content hash, byte length, and WAV container metadata without exposing retained bytes or host backing paths.
+Both imports read and validate an external regular file, copy its exact bytes without replacement to `media/ID.wav`, insert the hash-bearing declaration, validate the staged Project, and publish source plus binary bytes as one recoverable History transaction. Wavetable import additionally requires stable source version 2, mono input, exact declared sample count, and bounded complete interpretation metadata. External paths are command inputs only and never enter Authoritative Source. `asset collect` atomically moves already-declared files to canonical `media/ASSET_ID.wav` paths without changing exact bytes or hashes. `asset list` and `inspect` report portable path, content hash, byte length, WAV container metadata, and authored wavetable interpretation without exposing retained bytes or host backing paths.
 
 An exact Active range can instead be rendered to a new source-backed asset:
 
@@ -180,7 +207,7 @@ Authored Timeline values are exact rational quarter-note durations. Accepted spe
 
 A `beat` is one quarter note; a `bar` is derived from the Song meter. Decimal input is converted to a normalized exact rational. Conversion to frames uses the fixed tempo and sample rate with deterministic half-up rounding. Clip ranges and loop expansion are half-open, preventing a boundary Event from firing twice.
 
-DSP time settings use seconds instead: `2s`, `250ms`, or a bare finite seconds value.
+DSP time settings ordinarily use seconds (`2s`, `250ms`, or a bare finite seconds value). In source version 2, graph AHDSR `attack`, `hold`, `decay`, and `release` also accept exact musical periods such as `1/8beat` or `1/2bar`; compilation resolves them with the owning Song meter, tempo, and sample rate.
 
 ## Instruments and Parameters
 
@@ -242,6 +269,32 @@ faceplate {
 }
 ```
 
+Source-version-2 graph Instruments may additionally declare bounded, Track-instance voicing:
+
+```crump
+voicing poly retrigger always glide 40ms glide_mode always \
+  note_priority last steal_priority release_oldest seed 41041
+```
+
+`poly` allocates independent slots up to `polyphony`; `mono` requires `polyphony 1` and selects held notes by `last`, `low`, or `high`. Polyphonic stealing chooses a releasing oldest slot before an active oldest slot with `release_oldest`, or the active oldest slot directly with `active_oldest`; stable slot index breaks ties. Mono `legato` retains general graph state while switching held notes, although a Node's more-specific `retrigger always`/`retrigger note` policy still restarts that envelope/LFO; voicing `always` restarts the complete voice behind the preallocated replacement fade. Central glide is linear in log frequency, may apply `off`, `always`, or only to overlapping `legato` transitions, and is independent of optional oscillator-local drift/glide. Note-Off restores the selected surviving held note. Each Track remembers at most 64 simultaneously held mono Note-On identities; on saturation, the oldest identity is evicted deterministically, and its later Note-Off has no effect. Held-note storage, replacement tails, and work are fixed at compilation, deterministic from the authored seed and note-event identity, and owned separately by every referencing Track runtime.
+
+Sound-neutral `presentation` metadata groups stable declarations into generated Instrument sections without becoming DSP state:
+
+```crump
+presentation {
+  section source-panel sources "Sources" {
+    node carrier
+  }
+  section matrix-panel modulation "Modulation" {
+    source motion
+    route motion-cutoff
+    parameter cutoff
+  }
+}
+```
+
+Section kinds are `sources`, `source_mixer`, `filters`, `envelopes_lfos`, `modulation`, `voicing`, `routing`, and `effects`. Items are `node`, `bus`, `parameter`, `source`, `route`, `processor`, or Project `asset` IDs. References and limits (16 sections, 256 items) validate before publication, retain exact source sites, and may intentionally repeat an item in different sections. The Workspace preserves authored section order, generates every missing first-release section, appends unassigned custom topology deterministically, opens exact source locations, and uses checked edits for Parameters and route depth/bypass. Presentation-only edits do not restart audio state.
+
 `$parameter_key` in a Node setting binds that setting to the Parameter's effective physical value. Without Automation this is the authored base value. The setting's required physical unit must match.
 
 Channel controls are built-in Parameters. Tracks, Groups, and Returns expose `level`, mode-specific `pan`/`balance` or `left_pan` + `right_pan`, and step-only `mute`. The existing Track header continues to spell its backward-compatible balance literal as `pan`; an explicit `panner` directive selects `mono_pan`, `balance`, or `stereo_pan`. Mute is authoritative source state. Solo and cue exist only as transient monitoring state and never affect offline rendering.
@@ -281,7 +334,7 @@ The curve on a point describes the segment leaving that point:
 - `linear` uses normalized linear progress; and
 - `power(P)` raises normalized progress to finite positive exponent `P` before interpolating.
 
-The final point holds through the arrangement and Render Tail. Evaluation is sample-accurate and independent of callback block size. Boolean Mute Automation must use `step`; continuous targets may use all three curves. Pattern Parameter locks provide a narrower step override described below. The effective control order is base value → optional absolute Automation → optional Pattern Parameter lock → additive Modulation contribution → domain constraint → node-owned smoothing.
+The final point holds through the arrangement and Render Tail. Evaluation is sample-accurate and independent of callback block size. Boolean Mute Automation must use `step`; continuous targets may use all three curves. Pattern Parameter locks provide a narrower step override described below. The effective control order is base value → optional absolute Automation → optional Pattern Parameter lock → Instrument-owned Modulation routes → Song-owned Modulation/Envelope Follower contributions → domain constraint → node-owned smoothing.
 
 ## Routed Modulation
 
@@ -295,11 +348,41 @@ modulation cutoff-motion lfo per_voice/lead bipolar sine sync 1bar target instru
 }
 ```
 
-Scopes are `global`, `instrument/INSTRUMENT_ID`, and `per_voice/INSTRUMENT_ID`. Global and Instrument phases follow absolute Song time; every per-voice phase resets when its note activates. Sine and triangle LFOs may use `free RATE` in hertz or `sync PERIOD`, where the period is the exact musical duration of one cycle. Sources explicitly choose `unipolar` (`0…1`) or `bipolar` (`-1…1`).
+Scopes are `global`, `instrument/INSTRUMENT_ID`, and `per_voice/INSTRUMENT_ID`. Global and Instrument phases follow absolute Song time; global state is evaluated once for the Song, while Instrument state is owned separately by every Track runtime instance and includes durable Track identity. Every per-voice phase resets when its note activates and continues through its release. Sine and triangle LFOs may use `free RATE` in hertz or `sync PERIOD`, where the period is the exact musical duration of one cycle. Sources explicitly choose `unipolar` (`0…1`) or `bipolar` (`-1…1`).
 
 Operators transform the normalized source in declaration order. `add`/`bias` add a unitless scalar, `multiply`/`scale` multiply by one, and `clamp MIN MAX` constrains the route-local value. The result is multiplied by `depth` in the target's physical unit. Routes combine additively in durable route-ID order, then the Parameter domain is applied. Instrument and per-voice routes may target only their owning Instrument; per-voice routes require a graph Instrument. Inspection reports each route in deterministic order; per-voice contributions are note-relative and therefore do not pretend to have one Song-time value.
 
-A per-voice graph Delay whose `time` is Parameter-bound changes voice-buffer allocation and is therefore rejected as an Automation or Modulation target. An authored edit recompiles and restarts the affected topology behind the protective publication fade. Other graph scalars, stock-drum tone/punch, channel fader/panner/Mute, Send gain, supported processor scalars, and Master level use the shared stable target model.
+### Instrument-owned Modulation (source version 2)
+
+A graph Instrument may carry portable sources and routes with the patch:
+
+```crump
+parameter motion "Motion" ratio 0 1 0.5 0.5 automatable modulatable macro
+parameter cutoff "Cutoff" hz 20hz 20khz 800hz 1200hz modulatable
+modulation {
+  source motion-source parameter motion instrument unipolar
+  source envelope-source port envelope.control per_voice unipolar
+  source velocity note_velocity per_voice unipolar
+  source slow lfo instrument bipolar sine sync 1bar phase 0.25
+  source held random_hold per_voice bipolar rate free 4hz seed 81
+  route envelope-cutoff source envelope-source target cutoff depth 6khz map unipolar curve power(0.7) order 20 bypass false {
+    auxiliary motion-source multiply
+    clamp 0 1
+  }
+}
+```
+
+Source IDs and route IDs are unique within the Instrument. Supported sources are `port NODE.control`, `parameter KEY`, `lfo SCOPE POLARITY sine|triangle|saw|square|sample_hold free RATE|sync PERIOD [phase RATIO] [retrigger note|transport] [loop|one_shot] [forward|reverse|ping_pong]`, `note_velocity`, `note_key ... reference PITCH range SEMITONES`, `note_gate`, `note_age ... duration TIME`, and `random_hold ... rate free RATE|sync PERIOD seed INTEGER`. Graph-port and note-relative sources are `per_voice`; other sources may be `global`, `instrument`, or `per_voice`. A per-voice LFO uses note-relative time and therefore requires `retrigger note`; global and per-Track Instrument LFOs use absolute Song time and require `retrigger transport`. Omitting the token selects that scope-correct behavior. Native Envelope Control Ports are unipolar and native LFO Control Ports are bipolar, so graph-source declarations must use that matching polarity.
+
+A `parameter` source must name a `macro` Parameter with exact `ratio 0 1` domain. Macro routes form a validated acyclic same-frame DAG; a broader-scope consumer cannot read a macro produced by a narrower-scope route. Source and auxiliary scopes cannot require narrower state than the route's primary source. A Song-global Parameter source cannot read a macro with a Track-owned Pattern lock, because no singular Track projection exists at global scope; that combination fails validation. Random holds derive repeatable values from Project/Instrument/source identity, authored seed, durable Track or voice/note-event identity as required by scope, and exact hold index; callback grouping does not participate.
+
+Routes use `linear`, positive sign-preserving `power(P)`, or `smoothstep` curves. `power(P)` requires a finite positive exponent. The optional auxiliary source multiplies the curved primary source before authored `add`, `multiply`, `scale`, `bias`, and `clamp` operators. The physical depth is applied last. Routes targeting one Parameter fold by signed `order` and then durable route ID; macro dependencies and both primary and auxiliary graph-Control dependencies add required DAG edges without introducing a sample delay. A graph Envelope or LFO Control output therefore affects a downstream Parameter consumer on the same frame. Cycles, backward graph dependencies, invalid scope/type/unit, nested source/operator directives, duplicate auxiliary/clamp directives, allocation-changing targets, excess sources/routes/operators, and non-finite domains fail before publication.
+
+Instrument-owned routes fold after base, Automation, and the Pattern lock but before the separate Song-owned route tier and final Parameter constraint. Provenance distinguishes the two ownership tiers and reports Instrument source, scope, order, bypass, normalized/auxiliary values where singular, physical depth, contribution, unconstrained value, clamp, and held-non-finite status. Per-voice values remain explicitly note-relative rather than pretending to have one Song-time value.
+
+`crump edit instrument-route-depth INSTRUMENT ROUTE DEPTH` and `crump edit instrument-route-bypass INSTRUMENT ROUTE BOOL` use exact route sites, whole-Project validation, atomic publication, and History. Macro values use the ordinary checked Instrument Parameter edit. Depth, bypass, and macro value edits retain compatible voice state while changed route targets and their macro-dependent closure ramp over ADR 0011's 10 ms scalar handoff; source/target/topology changes restart the affected Instrument behind the protective fade.
+
+A graph Delay whose `time` is Parameter-bound changes its voice- or Track-owned buffer allocation and is therefore rejected as an Automation or Modulation target. An authored edit recompiles and restarts the affected topology behind the protective publication fade. Other graph scalars, stock-drum tone/punch, channel fader/panner/Mute, Send gain, supported processor scalars, and Master level use the shared stable target model.
 
 A channel-tap Envelope Follower is a separate Audio-derived additive route:
 
@@ -315,7 +398,20 @@ Controls are evaluated before current-frame Audio, so a tap observed at frame N 
 
 ## Graphs
 
-`graph N` declares a per-voice Node ceiling; the actual graph cannot exceed it or the global resource limits. Nodes have durable graph-local IDs, one native kind, and named settings. Connections are typed and directed.
+In source version 1, `graph N` declares a per-voice Node ceiling. Source version 2 additionally accepts the explicit `graph voice N` form and one optional Track-owned `graph shared N` post-voice domain. The actual graphs cannot exceed their authored or global resource limits. Nodes have durable graph-local IDs, one native kind, and ordered, typed settings with exact source sites. Connections are typed and directed. The complete version-1 floor, including `connect FROM -> TO`, remains accepted by version 2; these legacy connections receive deterministic compatibility IDs in an internal namespace that cannot collide with a valid authored ID. Version 2 additionally provides the durable authored form `bus ID FROM -> TO`, whose IDs must be valid and graph-local unique. Neither connection form accepts nested directives.
+
+A shared graph consumes the deterministic stereo voice sum through exactly one authored `voice_sum.audio` Bus and produces one stereo Instrument output:
+
+```crump
+graph shared 2 {
+  node echo delay time 187.5ms feedback 0.28 mix $delay_mix
+  node shared-out output
+  bus voice-sum voice_sum.audio -> echo.audio
+  bus shared-output echo.audio -> shared-out.audio
+}
+```
+
+The voice graph runs for each active voice; its outputs sum in stable voice-slot order. One separate shared Node runtime then runs once per Track and frame—even when the sum is silent so tails continue—before that Track's ordinary native processor chain. `note.*` is voice-only, `voice_sum.audio` is shared-only, and no shared-to-voice edge exists. Shared Parameter consumers use base, Automation, the Track's active lock, global/Instrument routes, and the non-per-voice Song tier; all per-voice route contributions are omitted. Shared Node/control/transition state is preallocated per Track, counted for both resident publication runtimes, and retained across compatible ADR 0011 scalar publications. Topology and allocation changes restart the affected Instrument state; an explicit seek resets shared Node and tail state off-callback before publication.
 
 Graph Nodes:
 
@@ -324,10 +420,21 @@ Graph Nodes:
 | `oscillator` | `pitch` | mono `audio` | `waveform`, `detune`, `glide`, `level` |
 | `unison` | `pitch`, optional `gain`, `velocity`, `mod` | stereo `audio` | `waveform`, `voices`, `detune`, `width`, `drift`, `glide`, `mod_depth`, `velocity_amount`, `level` |
 | `noise` | — | `audio` | `level` |
-| `envelope` | `gate` | `control` | `attack`, `decay`, `sustain`, `release` |
-| `lfo` | — | `control` | `rate`, `depth`, `waveform` |
-| `mixer` | `a`, optional `b` | `audio` | `a_level`, `b_level` |
-| `lowpass` / `filter` | `audio`, optional `mod`, `velocity`, `key` | `audio` | `mode`, `cutoff`, `resonance`, `mod_depth`, `velocity_depth`, `key_track`, `key_reference` |
+| `envelope` | `gate` | `control` | `mode`, `attack`, `hold`, `decay`, `sustain`, `release`, three segment curves, `retrigger` |
+| `lfo` | — | `control` | `rate`, `depth`, `phase`, `random_phase`, `swing`, `waveform`, `mode`, `direction`, `polarity`, `retrigger` |
+| `mixer` | mono `a`, optional mono `b` | mono `audio` | `a_level`, `b_level` |
+| `mono_to_stereo` | mono `audio` | stereo `audio` | — |
+| `stereo_to_mono` | stereo `audio` | mono `audio` | — |
+| `stereo_mixer` | stereo `a`, optional stereo `b` | stereo `audio` | `a_level`, `b_level` |
+| `stereo_sum` | one or more stereo `inputs` | stereo `audio` | `max_inputs` (`1…64`, default `64`) |
+| `lowpass` / `filter` | mono `audio`, optional `mod`, `velocity`, `key` | mono `audio` | `mode`, `cutoff`, `resonance`, `mod_depth`, `velocity_depth`, `key_track`, `key_reference` |
+| `stereo_filter` | stereo `audio`, optional `mod`, `velocity`, `key` | stereo `audio` | `model`, `mode`, `cutoff`, `resonance`, `drive`, `mix`, `pan`, `mod_depth`, `velocity_depth`, `key_track`, `key_reference` |
+| `analog_oscillator` | `pitch`, optional mono `fm`, `pm`, `sync`, `am`, Control `gain`, `velocity` | stereo `audio` | waveform, tuning, unison/blend, phase, drift/glide, cross-mod depths, level/pan, bounded warp/distortion stages |
+| `wavetable` | `pitch`, optional mono `fm`, `pm`, `sync`, Control `gain`, `velocity` | stereo `audio` | exact asset, table position, tuning, unison/blend, phase, drift/glide, FM/PM depth, velocity, level/pan, bounded phase-warp stages |
+| `sample_source` | `pitch`, `gate`, optional Control `gain`, `velocity` | stereo `audio` | exact asset/slice, normalized region/loop, direction/playback, root/tune/rate, velocity, level/pan |
+| `multisample` | `pitch`, `gate`, `velocity`, optional Control `gain` | stereo `audio` | 1–256 exact zones, playback, tune/rate, velocity, level/pan |
+| `granular` | `pitch`, `gate` | stereo `audio` | exact asset, 1–64 grains, position/scan/freeze, size/density, tune, spray/direction, window/edge, spread, seed, level |
+| `spectral` | `pitch` | stereo `audio` | exact asset/algorithm, 1–128 peaks, scan/rate/freeze, root/tune, low/high region, transient policy, phase randomization, seed, level |
 | `amplifier` | `audio`, `gain` | `audio` | `level` |
 | `saturation` | `audio` | `audio` | `drive` |
 | `pan` | mono `audio` | stereo `audio` | `position` |
@@ -335,9 +442,35 @@ Graph Nodes:
 | `reverb` | stereo `audio` | stereo `audio` | `room`, `damping`, `mix` |
 | `output` | stereo `audio` | — | — |
 
-Special per-note sources are `note.pitch`, `note.gate`, and normalized `note.velocity`. Every required input must have exactly one compatible source, the graph must be acyclic, every authored Node must reach the one Output, and unknown settings are errors. Topological compilation is deterministic.
+Version-1 Node settings remain inline on the `node` declaration. Version-2 runnable Node block settings are normally non-nested scalar `key value` directives. `analog_oscillator` and `wavetable` each admit at most two ordered `warp ID KIND amount VALUE` stages; analog oscillator additionally admits one ordered `distortion ID KIND amount VALUE` stage. A custom graph LFO admits 2–64 strictly phase-ordered `point ID phase 0..1 value -1..1` directives beginning at phase 0 and ending at phase 1. `sample_source` admits `slice ID START END`; `multisample` admits the complete zone form described below. Other nested or multi-token runnable directives fail closed, including on `granular` and `spectral`.
 
-A filter `mod` input accepts either uni- or bipolar Control, so an ADSR timbre envelope and an LFO use the same explicit port without weakening Audio typing. `velocity` adds `velocity_depth` hertz. `key` scales the base cutoff around `key_reference` (C4 / 261.625565 Hz by default); `key_track 1` doubles cutoff for each played-note octave. Filter modes are `lowpass`, `highpass`, `bandpass`, and `notch`.
+Special per-note sources are `note.pitch`, `note.gate`, and normalized `note.velocity` in the voice domain; the shared domain instead has only the external stereo source `voice_sum.audio`. Every required input must have exactly one compatible source except the bounded repeated `stereo_sum.inputs` Port. Stereo-sum inputs fold in durable Bus-ID order. Mono-to-stereo duplicates the sample without gain change; stereo-to-mono produces `(left + right) / 2`. No other channel coercion or fan-in is implicit. Each graph must be acyclic, every authored Node must reach its one Output, and duplicate or unknown settings are errors. Topological compilation is deterministic.
+
+A filter `mod` input accepts either uni- or bipolar Control, so an AHDSR timbre envelope and an LFO use the same explicit port without weakening Audio typing. `velocity` adds `velocity_depth` hertz. `key` scales the base cutoff around `key_reference` (C4 / 261.625565 Hz by default); `key_track 1` doubles cutoff for each played-note octave. The stereo `svf_clean` model provides low-pass, high-pass, band-pass, and notch modes. `ladder_drive` is the bounded nonlinear four-pole low-pass model; unsupported ladder mode combinations fail closed rather than silently approximating another response. `svf_clean` applies its smoothed `drive` as normalized input soft saturation before the state-variable stages; zero drive is exact clean input. `ladder_drive` uses deterministic 2× oversampling with midpoint interpolation, four saturating stages, and per-substep resonance feedback. Both models use 1 ms cutoff/resonance/drive smoothing, zero declared latency, channel-isolated state, and deterministic reset. Resonance is clamped to `0…1`: `svf_clean` does not promise self-oscillation, and ladder feedback may ring but is deliberately saturating and not specified as a free-running oscillator. `mix 0` is exact dry; `pan` attenuates the opposite output side.
+
+`analog_oscillator` owns 1–8 preallocated subvoices and supports sine, polyBLEP saw, square/pulse, and triangle laws, coarse/fine tuning, deterministic phase/random-phase/drift, blend, power normalization, width, velocity, level, and pan. Typed mono Audio ports provide linear-FM pitch, phase modulation, rising-edge hard sync, and AM or bipolar ring multiplication. FM/PM/sync are applied before the phase read; authored warp stages then transform phase in declaration order; one optional normalized post-read distortion stage follows; amplitude, blend/power normalization, and pan follow last. Pulse-width and phase-remap/bend stages are structural and bounded; unsupported stage counts/kinds, wrong Audio/Control types, and non-finite domains fail validation and defensive compilation. The Project, Instrument, Track, graph Node, voice slot, note event, and authored seed identities mix without callback order or block size.
+
+`wavetable` reuses the same fixed 1–8-subvoice phase, tuning, glide, detune, drift, blend, width, velocity, level, pan, FM, PM, and rising-edge sync contracts. Its required `asset` resolves only to a complete exact wavetable declaration. At most two `pulse_width`, `bend`, `remap`, or `phase_remap` stages run in authored order before the read. Off-callback `crump-wavetable-radix2-v1` compilation materializes only Track-referenced tables, normalizes as declared, transforms each frame, and stores immutable mip levels from `frame_length / 2` harmonics down by powers of two to one. Runtime picks the first level within the current Nyquist bound, uses cyclic linear phase interpolation, and then applies the authored linear or boundary-clamped Catmull–Rom frame morph. Table data is `Arc`-shared and immutable; complete table storage, per-subvoice work/state, and both resident publication runtimes are admitted conservatively. Exact WAV bytes remain Authoritative Source, while decoded samples and mip tables are disposable. Structural asset/metadata/stage/allocation changes restart only affected Track Instrument state under ADR 0011; compatible position, warp, Parameter, and Modulation changes retain state.
+
+`sample_source` uses exact half-open original-source frames for at most 256 `slice ID START END` directives. `selected_slice` chooses one; omission chooses the first declared slice or the complete asset. Normalized `start`/`end` and loop bounds are evaluated from the same-frame Parameter/Modulation projection and latched on note start; their complete Parameter domains must remain ordered. `loop_mode` is `off`, forward wrap, or reflected `ping_pong`; `loop_crossfade` is a bounded original-source frame count. Direction is forward/reverse. `playback gated` applies a fixed 64-frame source release on Note Off; `one_shot` ignores Note Off, forbids loops, and ends at the region boundary. Linear interpolation reads immutable Project-rate stereo frames. Root/tune and positive `rate 0.125…8` are repitch only—pitch and duration move together, with no implied time stretch or formant preservation.
+
+A multisample zone has the complete readable form:
+
+```crump
+zone low asset piano-c3 keys C1 B3 velocity 0 1 root C3 layer body articulation default round_robin body-low 0 region 0 24000 gain -3db pan -0.2
+```
+
+`multisample` owns 1–256 zones. Key bounds are inclusive; source regions remain exact half-open original frames. Every matching round-robin group chooses one stable index from semantic note identity, while distinct groups layer additively with authored gain/pan. The first stable articulation selector accepts only `default`; unsupported values fail rather than becoming inert labels. Pitch/root/tune/rate, linear interpolation, gate/one-shot release, velocity response, immutable cache sharing, and callback bounds match `sample_source`. SFZ import is deferred; no external mapping path is runtime authority.
+
+`crump-sample-windowed-sinc-v1` binds each disposable decoded cache to exact source SHA-256 and Project sample rate. Asset-aware admission computes converted frame storage before payload allocation, counts per-zone cursor state and worst-case zone scans, and includes both publication runtimes. Asset/cache, slice/loop/playback/direction/root, and zone-map changes restart only affected Track Instrument state; compatible scalar changes retain state and apply to future note-on-latched regions.
+
+`granular` reuses that immutable exact-asset cache and owns 1–64 preallocated slots per graph voice. A sample-accurate fractional density accumulator may spawn at most one grain per sample. Stable authored/note/Node identity plus a monotonic per-note spawn index determines spray, reverse probability, and equal-power pan, independently of callback grouping and unrelated topology insertion. Position combines normalized control, signed scan phase, and spray; `freeze true` stops scan movement. Grain sizes are 5 ms…1 s, density is 0.1…1,000 Hz, and pitch is root-relative repitch. `hann`, `triangle`, and `tukey` windows are exact finite laws. `wrap`, `reflect`, and `clamp` define source edges; reflect uses bounded triangular folding for any admitted multi-boundary overshoot. Note Off stops spawning while active grains finish, bounding source tail to one second. Maximum slots, window, edge, root, and seed are structural; compatible scalar changes affect future spawn snapshots. Work/state for every slot, both graph-voice storage positions, and both publication runtimes is admitted before callback execution.
+
+`spectral` requires `algorithm crump-spectral-peaks-v1`. Away from the callback it converts the exact asset through the shared Project-rate sample cache, applies a fixed 2,048-frame periodic Hann window every 256 frames, performs deterministic radix-2 stereo FFT analysis, and retains up to 128 local-magnitude peaks per frame in magnitude-descending/bin-ascending order. Runtime linearly interpolates corresponding ranked peak slots and advances one preallocated stereo phase pair per admitted peak. `scan` selects normalized analysis position; non-frozen `rate -4…4` advances source time independently of root-relative note/tune pitch. `low`/`high` select source-analysis frequencies before repitch and their complete domains must remain ordered. `transients preserve` keeps oscillator phase, `reset` adopts analyzed phase on versioned spectral-flux transient frames, and `suppress` applies a fixed 0.25 transient gain. `phase_randomization` adds a deterministic semantic-identity phase offset when phases initialize/reset; it is not stochastic callback state. Analysis-frame interpolation is linear by deterministic ranked slot and is not claimed as transparent time stretching, phase-vocoder reconstruction, or formant preservation. Frequencies at or above resynthesis Nyquist are omitted; active-peak power normalization and finite-output clamping bound malformed extreme-but-finite media behavior. The exact asset hash, sample-cache identity, Project rate, 2,048/256 geometry, 128-slot ceiling, channel/ranking law, and algorithm name form the disposable cache identity. One voice graph admits at most two spectral sources. Immutable analysis payload, fixed phase state, peak work, graph replacement storage, and both publication runtimes are admitted before publication. Analysis/cache, peak-count, transient-policy, root, seed, or Node-identity changes are structural; scalar scan/rate/tune/region/phase-randomization/freeze/level changes retain state.
+
+An `envelope` defaults to backward-compatible `mode adsr` and additionally supports `mode ahdsr`, hold, signed curve amounts for attack/decay/release, and `retrigger always|legato`. ADSR rejects an authored `hold`; AHDSR accepts it with a zero default, so `mode` is never an inert label. `always` restarts on a gate edge or a retained mono selected-note transition, while `legato` preserves the current level. Zero-duration boundaries advance deterministically; release begins from the current level. Segment durations may be physical seconds or source-v2 synchronized musical time. Several envelope Nodes require no shared mutable state and are bounded by the ordinary graph Node limit.
+
+A graph `lfo` supports sine, triangle, saw, square, sample-and-hold, or a bounded custom piecewise-linear shape; free hertz or synchronized musical period; phase/random phase; bipolar/unipolar output; loop/one-shot; forward/reverse/ping-pong; bounded swing phase relation; and `retrigger note|transport`. Note retrigger state is per graph voice; transport mode derives phase from the absolute Song frame. Sample-hold and random phase use stable semantic identity. All laws are finite and callback-block independent, and custom-point interpolation work is charged per point by admission.
 
 `unison` owns 1–8 deterministic subvoices, equal-power stereo placement, bounded semitone spread/drift, power normalization, optional envelope gain and velocity response, and bounded Control-port pitch movement. `width 0` collapses placement to a mono-compatible center. Oscillator `glide` is a deterministic note-to-note exponential frequency slew in seconds. Unison subvoice work and the preallocated short graph-voice replacement tail are included in runtime admission. For tempo-synchronized global or per-voice movement, bind these scalar settings to Parameters and use authored Modulation routes rather than inventing callback state. The curated readable modules and their frozen abstract CPU/memory costs are documented in [Expressive native Instrument Modules](expressive-instruments.md).
 
@@ -382,7 +515,7 @@ pattern answer 1bar from groove {
 
 Every directive is required. Source and derived spans must match, lineage must be acyclic, rotation lies inside the half-open span, transposition is whole-semitone, velocity scales into `[0, 1]`, and probability lies in `[0, 1]`. Reverse and rotation transform onsets; transpose affects notes; velocity affects every Event kind. Probability uses canonical semantic Event identity, so reordering source lines does not change inclusion. Variations may chain. Compilation recursively materializes them once off the realtime callback while the authored model and Event Grid retain the lineage. Inherited Parameter-lock times follow reverse and rotation, but Event probability never removes locks.
 
-A Parameter lock is a physical-unit step override for the consuming Track's assigned Instrument Parameter. Its onset lies inside the Pattern span, the key must resolve to a topology-stable `automatable` Parameter, and the value must match that Parameter's unit and domain. A lock takes precedence over Song Automation, then routed Modulation remains additive. It follows source offset, looping, and Variation timing and resets at the Clip end. To keep precedence unambiguous, Clips that share one Instrument may not overlap when either contains locks.
+A Parameter lock is a physical-unit step override for the consuming Track's assigned Instrument Parameter. Its onset lies inside the Pattern span, the key must resolve to a topology-stable `automatable` Parameter, and the value must match that Parameter's unit and domain. Runtime lanes retain durable Track ownership: a lock changes only that Track's voices and shared tail, never another Track that references the same Instrument. A lock takes precedence over Song Automation, then routed Modulation remains additive. It follows source offset, looping, and Variation timing and resets at the Clip end. To keep precedence unambiguous, Clips that share one Instrument may not overlap when either contains locks.
 
 Tracks assign one Instrument and begin with backward-compatible level/balance values. Their bodies may add an explicit panner, ordered processors, Sends, Mute, main output, and Clips:
 
@@ -543,4 +676,4 @@ Arbitrary text editors and Agents may edit source directly. Such bytes remain a 
 
 ## Limits
 
-The validator enforces finite numbers, domains, unique IDs, references, portable asset identities and exact hashes, graph compatibility/reachability, acyclic legal channel routing, Send/sidechain destinations, panner modes, processor schemas and latency, supported sample rate, maximum render tail, maximum Nodes, at most 256 media assets within the declared byte ceilings, at most 256 graph voices across actual runtime Track instances, at most 128 Automation lanes, at most 1,024 points per lane, at most 8,192 Automation points per Project, at most 8,192 materialized Parameter-lock points, and at most 1,024 dense callback-time Parameter targets. It also rejects duplicate targets, non-automatable or allocation-changing targets, non-step boolean Automation, ambiguous same-frame points, conflicting lock-bearing Clips, out-of-domain physical values, and Projects exceeding named compiled runtime work/memory budgets before allocation. These are safety and product-scope limits, not invitations to generate at the ceiling. Use `crump check` for the narrower Reference Musical Sketch structural checks.
+The validator enforces finite numbers, domains, unique IDs, references, portable asset identities and exact hashes, exact mono wavetable shape and its 32…8,192-sample power-of-two frame / 1…256-frame / 2,097,152-sample interpretation ceilings, at most 256 sample slices or multisample zones with exact asset-frame bounds, at most 64 preallocated grains per granular source, at most two spectral sources per voice with 1–128 peaks each and ordered frequency domains, graph compatibility/reachability, acyclic legal channel routing, Send/sidechain destinations, panner modes, processor schemas and latency, supported sample rate, maximum render tail, maximum Nodes, at most 256 media assets within the declared byte ceilings, at most 256 graph voices across actual runtime Track instances, at most 128 Automation lanes, at most 1,024 points per lane, at most 8,192 Automation points per Project, at most 8,192 materialized Parameter-lock points, and at most 1,024 dense callback-time Parameter targets. It also rejects duplicate targets, non-automatable or allocation-changing targets, non-step boolean Automation, ambiguous same-frame points, conflicting lock-bearing Clips, out-of-domain physical values, and Projects exceeding named compiled runtime work/memory budgets before allocation. These are safety and product-scope limits, not invitations to generate at the ceiling. Use `crump check` for the narrower Reference Musical Sketch structural checks.

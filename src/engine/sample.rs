@@ -4,14 +4,45 @@
 //! callback. Playback and rendering can consequently share the same bounded,
 //! random-access stereo frame representation.
 
-use std::{io::Cursor, sync::Arc};
+use std::{collections::BTreeSet, io::Cursor, sync::Arc};
 
-use crate::media::{AssetInventory, LoadedAsset, WavSampleFormat};
+use serde::Serialize;
+use sha2::{Digest, Sha256};
+
+use crate::{
+    media::{AssetInventory, LoadedAsset, WavSampleFormat},
+    model::{MediaAsset, NodeKind, Project, SettingValue},
+};
 
 /// Maximum decoded stereo storage admitted for one compiled source.
 pub const MAX_COMPILED_SAMPLE_BYTES: u64 = 256 * 1_048_576;
+/// Versioned exact-byte sample decode and project-rate conversion identity.
+pub const SAMPLE_COMPILE_ALGORITHM: &str = "crump-sample-windowed-sinc-v1";
 
 const RESAMPLER_RADIUS: i64 = 24;
+
+/// Inspectable identity and shape of one immutable decoded sample derivative.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct SampleSourceInspection {
+    /// Durable Project-local asset ID.
+    pub asset_id: String,
+    /// Exact authoritative source-byte SHA-256.
+    pub source_sha256: String,
+    /// Versioned derived-cache identity.
+    pub cache_identity: String,
+    /// Decode/resampling algorithm identity.
+    pub algorithm: &'static str,
+    /// Source WAV channel count.
+    pub source_channels: u16,
+    /// Source WAV sample rate.
+    pub source_sample_rate: u32,
+    /// Project-rate compiled sample rate.
+    pub sample_rate: u32,
+    /// Immutable project-rate stereo frame count.
+    pub frames: usize,
+    /// Conservatively counted immutable frame payload bytes.
+    pub compiled_bytes: u64,
+}
 
 /// Immutable compiled sources for one Project revision.
 #[derive(Debug, Clone, Default)]
@@ -30,6 +61,56 @@ impl CompiledSampleLibrary {
             .map(|asset| CompiledSampleSource::compile(asset, sample_rate))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self { sources })
+    }
+
+    /// Decodes only assets reachable from Track-assigned sampler or graph programs.
+    pub(crate) fn compile_for_project(
+        project: &Project,
+        inventory: &AssetInventory,
+        sample_rate: u32,
+    ) -> Result<Self, SampleCompileError> {
+        let referenced = runtime_sample_asset_ids(project);
+        let sources = inventory
+            .iter()
+            .filter(|asset| referenced.contains(asset.id()))
+            .map(|asset| CompiledSampleSource::compile(asset, sample_rate))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self { sources })
+    }
+
+    /// Computes exact converted payload storage before decoding or allocating frame buffers.
+    pub(crate) fn estimated_allocation_bytes_for_project(
+        project: &Project,
+        inventory: &AssetInventory,
+        sample_rate: u32,
+    ) -> Result<u64, SampleCompileError> {
+        let referenced = runtime_sample_asset_ids(project);
+        let source_capacity = if referenced.is_empty() {
+            0
+        } else {
+            referenced.len().saturating_mul(2).max(4)
+        };
+        let mut bytes = (source_capacity as u64)
+            .saturating_mul(std::mem::size_of::<CompiledSampleSource>() as u64);
+        for asset in inventory
+            .iter()
+            .filter(|asset| referenced.contains(asset.id()))
+        {
+            let metadata = asset.metadata();
+            let source_frames =
+                usize::try_from(metadata.frames).map_err(|_| SampleCompileError::TooLarge)?;
+            let output_frames =
+                converted_frame_count(source_frames, metadata.sample_rate, sample_rate)?;
+            admit_frame_storage(output_frames)?;
+            bytes = bytes
+                .saturating_add((asset.id().len() as u64).saturating_mul(2))
+                .saturating_add((asset.sha256().len() as u64).saturating_mul(2))
+                .saturating_add((2 * std::mem::size_of::<usize>()) as u64)
+                .saturating_add(
+                    (output_frames as u64).saturating_mul(std::mem::size_of::<[f32; 2]>() as u64),
+                );
+        }
+        Ok(bytes)
     }
 
     /// Looks up one immutable source by durable asset ID.
@@ -51,6 +132,13 @@ impl CompiledSampleLibrary {
         self.sources.is_empty()
     }
 
+    pub(crate) fn inspection(&self) -> Vec<SampleSourceInspection> {
+        self.sources
+            .iter()
+            .map(CompiledSampleSource::inspection)
+            .collect()
+    }
+
     /// Heap storage retained by one publication's immutable decoded media.
     pub(crate) fn allocation_bytes(&self) -> u64 {
         (self.sources.capacity() as u64)
@@ -58,24 +146,72 @@ impl CompiledSampleLibrary {
             .saturating_add(
                 self.sources
                     .iter()
-                    .map(|source| {
-                        (source.asset_id.capacity() as u64).saturating_add(
-                            (source.frames.len() as u64)
-                                .saturating_mul(std::mem::size_of::<[f32; 2]>() as u64),
-                        )
-                    })
+                    .map(CompiledSampleSource::allocation_bytes)
                     .fold(0_u64, u64::saturating_add),
             )
     }
+}
+
+fn runtime_sample_asset_ids(project: &Project) -> BTreeSet<&str> {
+    let runtime_instruments = project
+        .song
+        .tracks
+        .iter()
+        .map(|track| track.instrument.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut assets = BTreeSet::new();
+    for instrument in &project.song.instruments {
+        if !runtime_instruments.contains(instrument.id.as_str()) {
+            continue;
+        }
+        if let Some(sampler) = &instrument.sampler {
+            assets.extend(
+                sampler
+                    .mappings
+                    .iter()
+                    .map(|mapping| mapping.asset.as_str()),
+            );
+        }
+        for graph in instrument
+            .graph
+            .iter()
+            .chain(instrument.shared_graph.iter())
+        {
+            for node in &graph.nodes {
+                match node.kind {
+                    NodeKind::SampleSource | NodeKind::Granular | NodeKind::Spectral => {
+                        if let Some(SettingValue::Text(asset)) = node.setting("asset") {
+                            assets.insert(asset.as_str());
+                        }
+                    }
+                    NodeKind::Multisample => {
+                        for directive in &node.directives {
+                            for pair in directive.tokens.windows(2) {
+                                if pair[0].value == "asset" {
+                                    assets.insert(pair[1].value.as_str());
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    assets
 }
 
 /// An immutable, predecoded and project-rate-converted sample source.
 #[derive(Debug, Clone)]
 pub struct CompiledSampleSource {
     asset_id: String,
+    source_sha256: String,
+    cache_identity: [u8; 32],
     source_channels: u16,
     source_sample_rate: u32,
     sample_rate: u32,
+    frame_count: usize,
+    estimated_storage_bytes: u64,
     frames: Arc<[[f32; 2]]>,
 }
 
@@ -98,12 +234,43 @@ impl CompiledSampleSource {
         } else {
             resample(&decoded, metadata.sample_rate, sample_rate, output_frames)
         };
+        let frame_count = frames.len();
+        let estimated_storage_bytes =
+            (frame_count as u64).saturating_mul(std::mem::size_of::<[f32; 2]>() as u64);
         Ok(Self {
             asset_id: asset.id().to_owned(),
+            source_sha256: asset.sha256().to_owned(),
+            cache_identity: sample_cache_identity(asset.sha256(), sample_rate),
             source_channels: metadata.channels,
             source_sample_rate: metadata.sample_rate,
             sample_rate,
+            frame_count,
+            estimated_storage_bytes,
             frames: Arc::from(frames),
+        })
+    }
+
+    pub(crate) fn placeholder(
+        declaration: &MediaAsset,
+        sample_rate: u32,
+        minimum_frames: usize,
+    ) -> Result<Self, SampleCompileError> {
+        if sample_rate == 0 {
+            return Err(SampleCompileError::InvalidTargetSampleRate);
+        }
+        let frame_count = minimum_frames.max(1);
+        admit_frame_storage(frame_count)?;
+        Ok(Self {
+            asset_id: declaration.id.clone(),
+            source_sha256: declaration.sha256.clone(),
+            cache_identity: sample_cache_identity(&declaration.sha256, sample_rate),
+            source_channels: 1,
+            source_sample_rate: sample_rate,
+            sample_rate,
+            frame_count,
+            estimated_storage_bytes: (frame_count as u64)
+                .saturating_mul(std::mem::size_of::<[f32; 2]>() as u64),
+            frames: Arc::from([]),
         })
     }
 
@@ -111,6 +278,16 @@ impl CompiledSampleSource {
     #[must_use]
     pub fn asset_id(&self) -> &str {
         &self.asset_id
+    }
+
+    /// Exact authoritative source-byte SHA-256.
+    #[must_use]
+    pub fn source_sha256(&self) -> &str {
+        &self.source_sha256
+    }
+
+    pub(crate) const fn cache_identity(&self) -> [u8; 32] {
+        self.cache_identity
     }
 
     /// Channel count in the source WAV before mono duplication.
@@ -133,14 +310,14 @@ impl CompiledSampleSource {
 
     /// Number of random-access compiled frames.
     #[must_use]
-    pub fn len(&self) -> usize {
-        self.frames.len()
+    pub const fn len(&self) -> usize {
+        self.frame_count
     }
 
     /// Whether this source contains no compiled frames.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.frames.is_empty()
+    pub const fn is_empty(&self) -> bool {
+        self.frame_count == 0
     }
 
     /// Returns one stereo frame. Mono WAVs are duplicated without gain change.
@@ -154,6 +331,39 @@ impl CompiledSampleSource {
     pub fn frames(&self) -> &[[f32; 2]] {
         &self.frames
     }
+
+    pub(crate) fn allocation_bytes(&self) -> u64 {
+        self.estimated_storage_bytes
+            .saturating_add(self.asset_id.capacity() as u64)
+            .saturating_add(self.source_sha256.capacity() as u64)
+            .saturating_add((2 * std::mem::size_of::<usize>()) as u64)
+    }
+
+    fn inspection(&self) -> SampleSourceInspection {
+        SampleSourceInspection {
+            asset_id: self.asset_id.clone(),
+            source_sha256: self.source_sha256.clone(),
+            cache_identity: hex(&self.cache_identity),
+            algorithm: SAMPLE_COMPILE_ALGORITHM,
+            source_channels: self.source_channels,
+            source_sample_rate: self.source_sample_rate,
+            sample_rate: self.sample_rate,
+            frames: self.frame_count,
+            compiled_bytes: self.estimated_storage_bytes,
+        }
+    }
+}
+
+fn sample_cache_identity(source_sha256: &str, sample_rate: u32) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(SAMPLE_COMPILE_ALGORITHM.as_bytes());
+    digest.update(source_sha256.as_bytes());
+    digest.update(sample_rate.to_le_bytes());
+    digest.finalize().into()
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 /// A failure while preparing an immutable sample source.
@@ -183,7 +393,7 @@ pub enum SampleCompileError {
     },
 }
 
-fn decode_wav(asset: &LoadedAsset) -> Result<Vec<[f32; 2]>, SampleCompileError> {
+pub(crate) fn decode_wav(asset: &LoadedAsset) -> Result<Vec<[f32; 2]>, SampleCompileError> {
     let metadata = asset.metadata();
     let mut reader = hound::WavReader::new(Cursor::new(asset.bytes()))
         .map_err(|error| decode_error(asset, error))?;
@@ -247,7 +457,7 @@ fn admit_frame_storage(frames: usize) -> Result<(), SampleCompileError> {
     Ok(())
 }
 
-fn converted_frame_count(
+pub(crate) fn converted_frame_count(
     source_frames: usize,
     source_rate: u32,
     target_rate: u32,
@@ -328,6 +538,8 @@ mod tests {
             name: "Sample".to_owned(),
             path: PathBuf::from("media/sample.wav"),
             sha256: digest,
+            usages: Vec::new(),
+            wavetable: None,
             generated: None,
             path_site: ValueSite::new("project.crump", 0, 0, ""),
             sha256_site: ValueSite::new("project.crump", 0, 0, ""),
@@ -419,6 +631,31 @@ mod tests {
                 .iter()
                 .all(|frame| (frame[0] - 0.25).abs() < 1.0e-6)
         );
+    }
+
+    #[test]
+    fn runtime_referenced_sample_storage_is_preflighted_conservatively() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/synth-alpha");
+        let path = root.join("minimal-multisample.crump");
+        let source = std::fs::read_to_string(&path).expect("fixture");
+        let parsed = crate::dsl::parse_project(&path, &source);
+        assert!(!parsed.diagnostics.has_errors(), "{:?}", parsed.diagnostics);
+        let project = parsed.project.expect("Project");
+        let (inventory, diagnostics) = crate::media::load_asset_inventory(&root, &project.assets);
+        assert!(!diagnostics.has_errors(), "{diagnostics:?}");
+        let estimated = CompiledSampleLibrary::estimated_allocation_bytes_for_project(
+            &project, &inventory, 48_000,
+        )
+        .expect("estimate");
+        let library = CompiledSampleLibrary::compile_for_project(&project, &inventory, 48_000)
+            .expect("compile");
+        assert!(estimated >= library.allocation_bytes());
+        assert_eq!(library.inspection().len(), 2);
+        assert!(library.inspection().iter().all(|source| {
+            source.algorithm == SAMPLE_COMPILE_ALGORITHM
+                && source.cache_identity.len() == 64
+                && source.compiled_bytes > 0
+        }));
     }
 
     #[test]

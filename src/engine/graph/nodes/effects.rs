@@ -23,6 +23,11 @@ impl DelayState {
         }
     }
 
+    pub(super) fn reset(&mut self) {
+        self.buffer.fill([0.0, 0.0]);
+        self.index = 0;
+    }
+
     pub(super) fn process(&mut self, input: [f32; 2], feedback: f32, mix: f32) -> [f32; 2] {
         let delayed = self.buffer[self.index];
         self.buffer[self.index] = [
@@ -79,6 +84,20 @@ impl ReverbState {
         Self {
             left: ReverbChannel::new(sample_rate, 0),
             right: ReverbChannel::new(sample_rate, 23),
+        }
+    }
+
+    pub(super) fn reset(&mut self) {
+        for channel in [&mut self.left, &mut self.right] {
+            for comb in &mut channel.combs {
+                comb.buffer.fill(0.0);
+                comb.index = 0;
+                comb.filtered = 0.0;
+            }
+            for allpass in &mut channel.allpasses {
+                allpass.buffer.fill(0.0);
+                allpass.index = 0;
+            }
         }
     }
 

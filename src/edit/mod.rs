@@ -31,6 +31,31 @@ mod automation;
 mod media;
 mod timeline;
 
+#[cfg(test)]
+thread_local! {
+    static INJECT_SOURCE_WRITE_FAILURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+fn with_injected_source_write_failure<T>(operation: impl FnOnce() -> T) -> T {
+    struct ResetFailureInjection;
+
+    impl Drop for ResetFailureInjection {
+        fn drop(&mut self) {
+            INJECT_SOURCE_WRITE_FAILURE.with(|enabled| enabled.set(false));
+        }
+    }
+
+    INJECT_SOURCE_WRITE_FAILURE.with(|enabled| {
+        assert!(
+            !enabled.replace(true),
+            "source-write failure already injected"
+        );
+    });
+    let _reset = ResetFailureInjection;
+    operation()
+}
+
 pub use automation::*;
 pub use media::*;
 use media::{quote_source_string, valid_source_id};
@@ -247,6 +272,71 @@ pub fn set_parameter(
     Ok(CheckedReplacement::at(
         &parameter.value_site,
         parameter.unit.format_value(value),
+    ))
+}
+
+/// Builds a checked exact physical-depth replacement for one Instrument route.
+pub fn set_instrument_route_depth(
+    bundle: &ProjectBundle,
+    instrument_id: &str,
+    route_id: &str,
+    depth: &str,
+) -> Result<CheckedReplacement, EditError> {
+    if depth.is_empty() || depth.chars().any(char::is_whitespace) {
+        return Err(EditError::InvalidValue(
+            "Instrument route depth must be one non-empty source token".to_owned(),
+        ));
+    }
+    let project = bundle.project.as_ref().ok_or(EditError::InvalidBase)?;
+    let instrument = project
+        .song
+        .instruments
+        .iter()
+        .find(|instrument| instrument.id == instrument_id)
+        .ok_or_else(|| EditError::UnknownTarget(format!("instrument `{instrument_id}`")))?;
+    let route = instrument
+        .modulation_routes
+        .iter()
+        .find(|route| route.id == route_id)
+        .ok_or_else(|| {
+            EditError::UnknownTarget(format!("Instrument route `{instrument_id}/{route_id}`"))
+        })?;
+    let parameter = instrument
+        .parameters
+        .iter()
+        .find(|parameter| parameter.key == route.target)
+        .ok_or_else(|| EditError::UnknownTarget(format!("Parameter `{}`", route.target)))?;
+    parameter
+        .unit
+        .parse_value(depth)
+        .map_err(|error| EditError::InvalidValue(error.to_string()))?;
+    Ok(CheckedReplacement::at(&route.sites.depth, depth))
+}
+
+/// Builds a checked durable bypass replacement for one Instrument route.
+pub fn set_instrument_route_bypass(
+    bundle: &ProjectBundle,
+    instrument_id: &str,
+    route_id: &str,
+    bypass: bool,
+) -> Result<CheckedReplacement, EditError> {
+    let project = bundle.project.as_ref().ok_or(EditError::InvalidBase)?;
+    let instrument = project
+        .song
+        .instruments
+        .iter()
+        .find(|instrument| instrument.id == instrument_id)
+        .ok_or_else(|| EditError::UnknownTarget(format!("instrument `{instrument_id}`")))?;
+    let route = instrument
+        .modulation_routes
+        .iter()
+        .find(|route| route.id == route_id)
+        .ok_or_else(|| {
+            EditError::UnknownTarget(format!("Instrument route `{instrument_id}/{route_id}`"))
+        })?;
+    Ok(CheckedReplacement::at(
+        &route.sites.bypass,
+        if bypass { "true" } else { "false" },
     ))
 }
 
@@ -976,6 +1066,14 @@ fn write_changed_sources(
     paths: &[PathBuf],
     sources: &BTreeMap<PathBuf, String>,
 ) -> Result<(), EditError> {
+    #[cfg(test)]
+    if INJECT_SOURCE_WRITE_FAILURE.with(std::cell::Cell::get) {
+        return Err(HistoryError::Corrupt(
+            "injected source-write interruption after asset staging".to_owned(),
+        )
+        .into());
+    }
+
     let unique: std::collections::BTreeSet<_> = paths.iter().collect();
     for path in unique {
         let source = sources

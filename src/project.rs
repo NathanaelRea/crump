@@ -14,7 +14,7 @@ use crate::{
     diagnostic::{Diagnostic, Diagnostics, SourceLocation},
     dsl::{ImportDeclaration, parse_module, parse_project},
     media::{AssetInventory, load_asset_inventory, load_asset_inventory_from_bytes},
-    model::Project,
+    model::{Project, SOURCE_VERSION_V1},
     validate::{validate_project, validate_project_assets},
 };
 
@@ -73,25 +73,40 @@ struct CandidateAssembly {
     project: Option<Project>,
     diagnostics: Diagnostics,
     canonical_imports: Vec<PathBuf>,
+    root_source_version: u32,
 }
 
 impl CandidateAssembly {
     fn parse_root(path: &Path, source: &str) -> (Self, Vec<ImportDeclaration>) {
         let document = parse_project(path, source);
+        let root_source_version = document.source_version.unwrap_or(SOURCE_VERSION_V1);
         (
             Self {
                 project: document.project,
                 diagnostics: document.diagnostics,
                 canonical_imports: Vec::new(),
+                root_source_version,
             },
             document.imports,
         )
     }
 
-    fn push_import(&mut self, path: &Path, source: &str) {
+    fn push_import(&mut self, path: &Path, source: &str, import_location: &SourceLocation) {
         let module = parse_module(path, source);
+        let incompatible = self.root_source_version == SOURCE_VERSION_V1
+            && module
+                .source_version
+                .is_some_and(|version| version > SOURCE_VERSION_V1);
         self.diagnostics.extend(module.diagnostics);
-        if let Some(project) = self.project.as_mut() {
+        if incompatible {
+            self.diagnostics.push(
+                Diagnostic::error(
+                    "CRL009",
+                    "a `crump 1` Project may import only `crump-module 1`; use `crump 2` for version 2 modules",
+                )
+                .at(import_location.clone()),
+            );
+        } else if let Some(project) = self.project.as_mut() {
             project.song.instruments.extend(module.instruments);
         }
         self.canonical_imports.push(path.to_path_buf());
@@ -195,7 +210,7 @@ pub fn load_project(path: impl AsRef<Path>) -> Result<ProjectBundle, ProjectIoEr
                 }
                 match read_source(&resolved.real_path) {
                     Ok(source) => {
-                        assembly.push_import(&resolved.display_path, &source);
+                        assembly.push_import(&resolved.display_path, &source, &import.location);
                         if sources
                             .insert(resolved.display_path.clone(), source)
                             .is_some()
@@ -305,7 +320,7 @@ fn load_project_sources_inner(
             );
             continue;
         };
-        assembly.push_import(&display_path, source);
+        assembly.push_import(&display_path, source, &import.location);
     }
     let mut authoritative = imported;
     authoritative.insert(PathBuf::from(PROJECT_FILE));
@@ -734,6 +749,76 @@ instrument shared "Shared" stock_drums {
                 Some(Path::new(PROJECT_FILE))
             );
         }
+    }
+
+    #[test]
+    fn source_version_import_rules_preserve_v1_and_allow_v2_to_compose() {
+        let version_one_module = r#"crump-module 1
+instrument imported-v1 "Imported V1" stock_drums {
+  polyphony 4
+  parameter tone "Tone" ratio 0 1 0.4 0.4
+  faceplate {
+    control tone "Tone" "Brightness" maps tone
+  }
+}
+"#;
+        let version_two_module = version_one_module
+            .replacen("crump-module 1", "crump-module 2", 1)
+            .replace("imported-v1", "imported-v2")
+            .replace("Imported V1", "Imported V2");
+
+        let version_one_root = tempdir().expect("version 1 root");
+        let source = include_str!("../tests/fixtures/minimal.crump").replacen(
+            "crump 1\n",
+            "crump 1\nimport \"v2.crump\"\n",
+            1,
+        );
+        fs::write(version_one_root.path().join(PROJECT_FILE), source).unwrap();
+        fs::write(
+            version_one_root.path().join("v2.crump"),
+            &version_two_module,
+        )
+        .unwrap();
+        let rejected = load_project(version_one_root.path()).expect("version 1 Candidate");
+        assert!(rejected.diagnostics.as_slice().iter().any(|diagnostic| {
+            diagnostic.code == "CRL009"
+                && diagnostic
+                    .location
+                    .as_ref()
+                    .is_some_and(|location| location.file == Path::new(PROJECT_FILE))
+        }));
+
+        let version_two_root = tempdir().expect("version 2 root");
+        let source = include_str!("../tests/fixtures/minimal.crump").replacen(
+            "crump 1\n",
+            "crump 2\nimport \"v1.crump\"\nimport \"v2.crump\"\n",
+            1,
+        );
+        fs::write(version_two_root.path().join(PROJECT_FILE), source).unwrap();
+        fs::write(version_two_root.path().join("v1.crump"), version_one_module).unwrap();
+        fs::write(version_two_root.path().join("v2.crump"), version_two_module).unwrap();
+        let accepted = load_project(version_two_root.path()).expect("version 2 Candidate");
+        assert!(
+            !accepted.diagnostics.has_errors(),
+            "{:?}",
+            accepted.diagnostics.as_slice()
+        );
+        let project = accepted.project.expect("version 2 Project");
+        assert_eq!(project.source_version, 2);
+        assert!(
+            project
+                .song
+                .instruments
+                .iter()
+                .any(|instrument| instrument.id == "imported-v1")
+        );
+        assert!(
+            project
+                .song
+                .instruments
+                .iter()
+                .any(|instrument| instrument.id == "imported-v2")
+        );
     }
 
     #[test]

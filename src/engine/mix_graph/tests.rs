@@ -288,7 +288,24 @@ fn estimate_includes_voice_nodes_buffers_and_transition_headroom() {
         resources.publication_peak_bytes,
         resources.runtime_bytes * 2
     );
+    assert_eq!(
+        resources.publication_transition_work_units_per_frame,
+        resources
+            .work_units_per_frame
+            .saturating_mul(MAX_RESIDENT_PUBLICATION_RUNTIMES)
+            .saturating_add((resources.tracks as u64).saturating_mul(4))
+            .saturating_add((resources.channels as u64).saturating_mul(8))
+            .saturating_add((resources.control_targets as u64).saturating_mul(2))
+    );
     assert!(resources.admitted);
+
+    let mut near_budget = resources.clone();
+    near_budget.work_units_per_frame = MAX_WORK_UNITS_PER_FRAME / 2;
+    near_budget.recalculate_memory_and_admission();
+    assert!(
+        !near_budget.admitted,
+        "two-runtime publication work must be admitted, not only steady-state work"
+    );
 }
 
 #[test]

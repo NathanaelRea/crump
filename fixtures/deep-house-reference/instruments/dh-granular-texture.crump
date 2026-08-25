@@ -1,0 +1,48 @@
+crump-module 2
+instrument dh-granular-texture "Deep House Granular Texture" graph {
+  polyphony 4
+  parameter position "Position" ratio 0 1 0.1 0.3 automatable modulatable
+  parameter density "Density" hz 2hz 80hz 14hz 16hz automatable modulatable
+  faceplate {
+    control position "Position" "Selects the exact source-texture region" maps position
+    control density "Density" "Controls the bounded grain cloud" maps density
+  }
+  presentation {
+    tags texture granular evolving
+    preview C2 C5 velocity 35% 85% duration 2beat
+    section source-panel sources "Granular Source" {
+      node source
+      asset source-texture
+    }
+  }
+  modulation {
+    source motion lfo per_voice bipolar triangle sync 2bar phase 0 retrigger note loop forward
+    source velocity note_velocity per_voice unipolar
+    route scan source motion target position depth 26% map bipolar curve smoothstep order 0 bypass false
+    route touch-density source velocity target density depth 8hz map unipolar curve linear order 10 bypass false
+  }
+  graph voice 5 {
+    node source granular {
+      asset source-texture
+      max_grains 16
+      position $position
+      scan 0.08
+      size 120ms
+      density $density
+      root C4
+      tune 0st
+      spray 0.08
+      window hann
+      edge reflect
+      direction_probability 0.12
+      stereo_spread 0.72
+      freeze false
+      seed 7301
+      level 0.28
+    }
+    node voice-out output
+    bus source-pitch note.pitch -> source.pitch
+    bus source-gate note.gate -> source.gate
+    bus output-audio source.audio -> voice-out.audio
+  }
+}

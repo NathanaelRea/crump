@@ -1,42 +1,65 @@
-crump-module 2-alpha
-asset source-texture "Deterministic source texture" wav "media/sample-source.wav" sha256 "ae8757e2a42ad7602b7bd6825ab0987444677a8e7f8515d0447e86aa01907de9" {
-  usage granular
-}
-instrument alpha-minimal-granular "Minimal Granular" graph {
-  polyphony 4
-  parameter position "Position" ratio 0 1 0 0.2 modulatable
-  parameter density "Density" hz 1hz 100hz 12hz 12hz modulatable
-  faceplate {
-    control position "Position" "Chooses the grain source area" maps position
-    control density "Density" "Sets bounded grain spawn density" maps density
+crump 2
+project "Minimal Granular" {
+  id minimal-granular
+  seed 71
+  sample_rate 48000
+  render_tail 1s
+  asset source-texture "Deterministic source texture" wav "media/sample-source.wav" sha256 "ae8757e2a42ad7602b7bd6825ab0987444677a8e7f8515d0447e86aa01907de9" {
+    usage granular
   }
-  presentation {
-    section source-panel sources "Granular Source" { node source asset source-texture }
-  }
-  modulation {
-    source motion lfo per_voice bipolar triangle sync 1bar phase 0 retrigger note loop forward
-    route scan source motion target position depth 30% map bipolar curve smoothstep order 0 bypass false
-  }
-  graph voice 8 {
-    node source granular {
-      asset source-texture
-      max_grains 16
-      position $position
-      scan 0
-      size 100ms
-      density $density
-      tune 0st
-      spray 0.05
-      window hann
-      edge reflect
-      direction_probability 0
-      stereo_spread 0.6
-      freeze false
-      seed 71
-      level 0.4
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument alpha-minimal-granular "Minimal Granular" graph {
+      polyphony 4
+      parameter position "Position" ratio 0 1 0 0.2 modulatable
+      parameter density "Density" hz 1hz 100hz 12hz 12hz modulatable
+      faceplate {
+        control position "Position" "Chooses the grain source area" maps position
+        control density "Density" "Sets bounded grain spawn density" maps density
+      }
+      presentation {
+        section source-panel sources "Granular Source" {
+          node source
+          asset source-texture
+        }
+      }
+      modulation {
+        source motion lfo per_voice bipolar triangle sync 1bar phase 0 retrigger note loop forward
+        route scan source motion target position depth 30% map bipolar curve smoothstep order 0 bypass false
+      }
+      graph voice 8 {
+        node source granular {
+          asset source-texture
+          max_grains 16
+          position $position
+          scan 0
+          size 100ms
+          density $density
+          root C4
+          tune 0st
+          spray 0.05
+          window hann
+          edge reflect
+          direction_probability 0
+          stereo_spread 0.6
+          freeze false
+          seed 71
+          level 0.4
+        }
+        node voice-out output
+        bus source-pitch note.pitch -> source.pitch
+        bus source-gate note.gate -> source.gate
+        bus output-audio source.audio -> voice-out.audio
+      }
     }
-    node output voice_output
-    bus pitch note.pitch -> source.pitch
-    bus output-audio source.audio -> output.audio
+    pattern phrase 1bar {
+      note 0beat C4 2beat 0.8
+      note 2beat G4 2beat 0.7
+    }
+    track granular "Granular" instrument alpha-minimal-granular level -9db pan 0 {
+      clip phrase pattern phrase start 0bar duration 1bar mode once
+    }
   }
 }

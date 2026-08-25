@@ -3,9 +3,14 @@
 /renders/
 *.wav
 !fixtures/cookbook/**/*.wav
+!fixtures/starter/**/*.wav
+!fixtures/deep-house-reference/**/*.wav
+!fixtures/synth-alpha/**/*.wav
+fixtures/deep-house-reference/render/
 *.deb
 .DS_Store
 
 renders/
 productions/
 plan-*.md
+!plan-capabilities-2.md

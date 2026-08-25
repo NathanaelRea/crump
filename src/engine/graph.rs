@@ -7,5 +7,7 @@ mod nodes;
 mod runtime;
 
 pub(crate) use runtime::{
-    CompiledGraph, GraphVoice, authored_graph_voice_state_bytes, authored_graph_work_units,
+    CompiledGraph, GraphProcessIdentity, GraphVoice, SharedGraphRuntime,
+    authored_graph_voice_state_bytes, authored_graph_work_units, authored_shared_graph_state_bytes,
+    authored_shared_graph_work_units,
 };

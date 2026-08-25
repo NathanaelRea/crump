@@ -18,12 +18,12 @@ Short Candidate and Active hashes are shown side by side. During playback the sa
 
 | Key | Action |
 | --- | --- |
-| `1`–`9`, `0` | Select Timeline, Mixer, Processing, Event Grid, Faceplate, Parameters, Automation, Graph, Source, or Diagnostics |
+| `1`–`9`, `0` | Select Timeline, Mixer, Processing, Event Grid, Faceplate, Instrument, Parameters, Automation, Graph, or Source; Tab reaches Diagnostics/History/Help |
 | `H` / `?` | Open History / keyboard Help |
 | `Tab` / `Shift-Tab` | Next / previous view |
 | `↑` / `↓` | Move the current selection |
 | `Page Up` / `Page Down` | Move by eight rows |
-| `←` / `→` | Make the view's bounded adjustment or change the Source/Graph context |
+| `←` / `→` | Make the view's bounded adjustment, change an Instrument section, or change Source/Graph context |
 | `[` / `]` | Previous / next Pattern, Instrument, or Automation lane where applicable |
 | `Enter` | Open an exact-value editor or selected History diff |
 | `Space` | Start, pause, or resume the armed Audition Plan against the exact Active Revision |
@@ -106,15 +106,28 @@ Faceplate exposes the Instrument author's shallow controls with exact physical v
 
 The same Instrument receives transient computer-keyboard and PipeWire MIDI audition.
 
+## Generated Instrument sections
+
+Instrument is a sound-neutral projection of one graph Instrument's authoritative definition. Optional source-backed `presentation` metadata supplies stable section IDs, labels, order, and item references. The Workspace always exposes Sources/Oscillators, Source Mixer, Filters, Envelopes/LFOs, Modulation, Voicing/Unison/Glide, Routing, and Shared Effects: missing sections are generated, and Nodes, Buses, Parameters, sources, routes, or processors omitted by metadata are appended deterministically instead of being hidden. Custom/reordered topology therefore remains visible rather than being forced into fixed synth slots.
+
+Each row shows object class, stable identity, effective authored contract, and exact metadata or object source location. The Voicing section also synthesizes one policy row from the authoritative mono/poly, retrigger, priority, stealing, seed, and glide declaration. A wavetable asset row shows exact relative path/hash, mono container shape, authored frame length/count/order, normalization and morph law, plus a deterministic per-frame waveform preview decoded from the verified Candidate inventory. Sample/multisample/granular/spectral asset rows show exact path/hash, channels, source rate/frame count, and deterministic whole-source previews; their Node rows expose selected slices, complete key/velocity/root/region/layer/round-robin mappings, bounded grain pool/window/edge/scan controls, or the spectral algorithm/peak/scan/region/transient contract. CLI inspection additionally exposes the spectral sample/cache identities, fixed 2,048/256 geometry, frame/peak/transient counts, and admitted payload size without exposing peak arrays. Associated Node rows retain scalar playback settings, while Modulation rows retain their live normalized and physical contribution telemetry. No generated row owns DSP or cache state.
+
+- `[` / `]` selects an Instrument.
+- `←` / `→` selects a generated section; `↑` / `↓` selects a row.
+- `Enter` opens exact checked input for a Parameter or route depth. Other rows open their exact source location.
+- `b` toggles a selected Instrument Modulation route's durable bypass through the checked Production View transaction.
+
+Edits use expected-revision/source-site guards, whole-Project validation, atomic publication, and History. Presentation-only edits are excluded from the audio semantic hash and do not restart voices. Topology creation/deletion/reconnection remains source or Agent work.
+
 ## Exact Parameters
 
-Parameters exposes every authored Parameter, including its durable key, unit, current base value, inclusive domain, default, and Automation/Modulation eligibility. Controls are identical to Faceplate, but this view is intentionally denser for experienced producers.
+Parameters exposes every authored Parameter, including its durable key, unit, current base value, inclusive domain, default, and Automation/Modulation eligibility. Controls are identical to Faceplate, but this view is intentionally denser for experienced producers. Normalized macro Parameters use the same checked value editor. Instrument route depth and bypass are available through the shared Production View executor and `edit instrument-route-depth` / `edit instrument-route-bypass` CLI adapters; all use exact sites, validation, publication, and History.
 
 The exact input field initially selects the existing literal: typing replaces it, `Ctrl-A` reselects it, Backspace clears/removes characters, Enter applies, and Escape cancels.
 
 ## Automation
 
-Automation shows one Song-scoped absolute lane at a time. Its header names the stable `ParameterTarget`, source location, base → Automation → Parameter lock → Modulation → effective provenance at the visible transport frame, and whether domain constraint occurred. The point table keeps durable point IDs, exact Song times, physical values, outgoing curves, and source locations visible.
+Automation shows one Song-scoped absolute lane at a time. Its header names the stable `ParameterTarget`, source location, base → Automation → Parameter lock → Instrument route tier → Song route tier → effective provenance at the visible transport frame, and whether domain constraint occurred. Instrument route labels include durable bypass and scope: global contributions are singular, Instrument contributions are identified as per Track runtime instance, and per-voice contributions remain explicitly note-relative rather than being collapsed into a false Song-time scalar. The point table keeps durable point IDs, exact Song times, physical values, outgoing curves, and source locations visible.
 
 - `[` / `]` selects a lane.
 - `↑` / `↓` selects a durable point.
@@ -127,7 +140,7 @@ The workspace intentionally stays shallow rather than becoming a dense desktop c
 
 ## Graph
 
-Graph is an inspectable topology view. It lists selectable stable Nodes, typed Bus connections, Parameters, and Faceplate mappings in processing order, including Node kinds and setting/Parameter bindings. `↑` / `↓` selects any item; `Enter` opens its exact authoritative source location. `[` / `]` or `←` / `→` changes Instrument. Topology creation, deletion, and reconnection are source or Agent operations; whole-graph Structured Source Edits are unsupported.
+Graph is an inspectable topology view. It lists selectable stable Nodes and typed Bus connections in separate **Voice** and **Shared Post-Voice** sections, followed by Parameters and Faceplate mappings. Both domains use deterministic processing order and show Node kinds, setting/Parameter bindings, activity, source files, and lines; the shared heading also exposes its single `voice_sum.audio` boundary. `↑` / `↓` selects any item, including a shared Node or Bus; `Enter` opens its exact authoritative source location. `[` / `]` or `←` / `→` changes Instrument. Topology creation, deletion, and reconnection are source or Agent operations; whole-graph Structured Source Edits are unsupported. Diagnostics and processing resource inspection separately report shared instance, work, and state admission facts.
 
 ## Source
 
@@ -157,13 +170,17 @@ Space compiles and prerolls the armed Audition Plan from the Active snapshot bef
 3. reapplies transient path, bypass, Solo, and cue state and publishes through a bounded lock-free queue; and
 4. at the audio block boundary, uses the callback's exact current offset or loop phase to realign into the newly resolved bounds (clamped only when the range became shorter), then begins a bounded 10 ms protective transition.
 
-Tracks with unchanged schedule/topology semantics retain running voice state when publication stays at the same absolute timeline point. A range-relative jump does not import processor state from a different old timeline point. A compatible compiled mix graph otherwise retains shared processor and compensation state and executes once during publication. In a wholly compatible scalar publication, only changed continuous targets receive a monitoring-only 10 ms handoff ramp; unrelated linear/step Automation stays exact and boolean Mute stays discrete. Configuration/topology changes use the aligned equal-power old/new transition. If publication cannot be queued immediately, the old runtime continues. Invalid source never enters this path. If PipeWire stops or disconnects after playback began, the workspace reports the failure and offers `Space` to restart.
+Tracks with unchanged schedule/topology semantics retain running voice and Track-owned shared post-voice state when publication stays at the same absolute timeline point. A range-relative jump does not import processor state from a different old timeline point. A compatible compiled mix graph otherwise retains shared processor and compensation state and executes once during publication. In a wholly compatible scalar publication, only changed continuous targets receive a monitoring-only 10 ms handoff ramp; unrelated linear/step Automation stays exact and boolean Mute stays discrete. Configuration/topology changes use the aligned equal-power old/new transition. If publication cannot be queued immediately, the old runtime continues. Invalid source never enters this path. If PipeWire stops or disconnects after playback began, the workspace reports the failure and offers `Space` to restart.
 
 ## Note Audition
 
-In Faceplate, Parameters, and Graph views, `A W S E D F T G Y H U J K` plays C4–C5 on a graph Instrument. On stock drums, `A/S/D/F` (or `Z/X/C/V`) trigger kick/snare/hat/clap. Terminal key-release events send Note Off; a bounded timeout recovers terminals that report key presses only.
+In Faceplate, Instrument, Parameters, and Graph views, `A W S E D F T G Y H U J K` plays C4–C5 on a graph Instrument. On stock drums, `A/S/D/F` (or `Z/X/C/V`) trigger kick/snare/hat/clap. Terminal key-release events send Note Off; a bounded timeout recovers terminals that report key presses only.
 
 Audition is transient: it does not change source, Active Revision, or History. PipeWire MIDI follows the selected Instrument and uses normal Note On/Off velocity. See [Audio and MIDI](audio-and-midi.md).
+
+## Qualification boundary
+
+Generated views, callback telemetry, deterministic renders, and `qualify` reports expose engineering facts but do not assign musical credibility. The offline qualifier opens no PipeWire device and records no xruns. Use the [native-synthesis qualification runbook](qualification/native-synthesis.md) for the separate repository, independent-producer, and named-hardware evidence paths; the workspace must not present one class as another.
 
 ## Terminal recovery
 

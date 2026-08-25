@@ -715,6 +715,23 @@ pub fn valid_asset_path(path: &Path) -> bool {
         && path.extension().and_then(|extension| extension.to_str()) == Some("wav")
 }
 
+pub(crate) fn validate_finite_wav_samples(asset: &LoadedAsset) -> Result<(), String> {
+    if asset.metadata.sample_format != WavSampleFormat::Float {
+        return Ok(());
+    }
+    let mut reader = hound::WavReader::new(Cursor::new(asset.bytes.as_ref()))
+        .map_err(|error| error.to_string())?;
+    for (index, sample) in reader.samples::<f32>().enumerate() {
+        let sample = sample.map_err(|error| error.to_string())?;
+        if !sample.is_finite() {
+            return Err(format!(
+                "non-finite float sample at interleaved index {index}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn inspect_wav(bytes: &[u8]) -> Result<WavMetadata, String> {
     let reader = hound::WavReader::new(Cursor::new(bytes)).map_err(|error| error.to_string())?;
     let specification = reader.spec();
@@ -792,6 +809,8 @@ mod tests {
             name: id.to_owned(),
             path: PathBuf::from(path),
             sha256: digest,
+            usages: Vec::new(),
+            wavetable: None,
             generated: None,
             path_site: ValueSite::new("project.crump", 0, 0, ""),
             sha256_site: ValueSite::new("project.crump", 0, 0, ""),

@@ -1,40 +1,59 @@
-crump-module 2-alpha
-asset wt-basic "Basic four-frame table" wav "media/basic-table.wav" sha256 "2302bf70124b6017439eb385a62677b13284f112e968a2725d64e8f738bf3ca7" {
-  usage wavetable
-  frame_length 2048
-  frames 4
-  normalization preserve
-  morph linear
-}
-instrument alpha-minimal-wavetable "Minimal Wavetable" graph {
-  polyphony 4
-  parameter position "Position" ratio 0 1 0 0 modulatable
-  faceplate {
-    control position "Position" "Scans the exact four-frame table" maps position
+crump 2
+project "Minimal Wavetable" {
+  id minimal-wavetable
+  seed 41
+  sample_rate 48000
+  render_tail 120ms
+  asset wt-basic "Basic four-frame table" wav "media/basic-table.wav" sha256 "2302bf70124b6017439eb385a62677b13284f112e968a2725d64e8f738bf3ca7" {
+    usage wavetable
+    frame_length 2048
+    frames 4
+    normalization preserve
+    morph linear
   }
-  presentation {
-    section source-panel sources "Wavetable Source" { node source asset wt-basic }
-  }
-  modulation {
-    source velocity note_velocity per_voice unipolar
-    route velocity-scan source velocity target position depth 25% map unipolar curve linear order 0 bypass false
-  }
-  graph voice 8 {
-    node source wavetable {
-      asset wt-basic
-      unison 1
-      phase 0
-      random_phase 0
-      table_position $position
-      level 0.5
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument alpha-minimal-wavetable "Minimal Wavetable" graph {
+      polyphony 4
+      parameter position "Position" ratio 0 1 0 0 modulatable
+      faceplate {
+        control position "Position" "Scans the exact four-frame table" maps position
+      }
+      presentation {
+        section source-panel sources "Wavetable Source" {
+          node source
+          asset wt-basic
+        }
+      }
+      modulation {
+        source velocity note_velocity per_voice unipolar
+        route velocity-scan source velocity target position depth 25% map unipolar curve linear order 0 bypass false
+      }
+      graph voice 8 {
+        node source wavetable {
+          asset wt-basic
+          unison 1
+          phase 0
+          random_phase 0
+          table_position $position
+          level 0.5
+        }
+        node envelope envelope mode ahdsr attack 2ms hold 0ms decay 80ms sustain 0.8 release 120ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+        node voice-out output
+        bus pitch note.pitch -> source.pitch
+        bus gate note.gate -> envelope.gate
+        bus envelope-gain envelope.control -> source.gain
+        bus source-velocity note.velocity -> source.velocity
+        bus output-audio source.audio -> voice-out.audio
+      }
     }
-    node envelope envelope mode ahdsr attack 2ms hold 0ms decay 80ms sustain 0.8 release 120ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
-    node amplifier amplifier level 1
-    node output voice_output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> envelope.gate
-    bus source-audio source.audio -> amplifier.audio
-    bus envelope-gain envelope.control -> amplifier.gain
-    bus output-audio amplifier.audio -> output.audio
+    pattern phrase 1bar {
+      note 0beat C4 1bar 0.8
+    }
+    track wavetable "Wavetable" instrument alpha-minimal-wavetable level -12db pan 0 {
+      clip phrase pattern phrase start 0bar duration 1bar mode once
+    }
   }
 }

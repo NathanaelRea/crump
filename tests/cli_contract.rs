@@ -138,6 +138,26 @@ fn publish(root: &TempDir) -> Value {
     response(&output)
 }
 
+fn write_wav_samples(path: &std::path::Path, samples: usize) -> Vec<u8> {
+    let mut writer = hound::WavWriter::create(
+        path,
+        hound::WavSpec {
+            channels: 1,
+            sample_rate: 44_100,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        },
+    )
+    .expect("WAV writer");
+    for index in 0..samples {
+        writer
+            .write_sample(((std::f32::consts::TAU * index as f32 / 32.0).sin()) * 0.5)
+            .expect("sample");
+    }
+    writer.finalize().expect("finalize");
+    fs::read(path).expect("WAV bytes")
+}
+
 #[test]
 fn portable_asset_import_and_list_are_source_backed() {
     let root = fixture_project();
@@ -174,6 +194,205 @@ fn portable_asset_import_and_list_are_source_backed() {
     let inspected = response(&inspected);
     assert_eq!(inspected["data"]["assets"][0]["id"], "voice");
     assert!(inspected["data"]["assets"][0].get("bytes").is_none());
+}
+
+#[test]
+fn wavetable_import_cli_is_atomic_source_v2_only_and_uses_stable_value_names() {
+    let root = fixture_project();
+    let project_path = root.path().join("project.crump");
+    let source = fs::read_to_string(&project_path)
+        .expect("source")
+        .replacen("crump 1", "crump 2", 1);
+    fs::write(&project_path, source).expect("source v2");
+    publish(&root);
+
+    let input = root.path().join("external-table.wav");
+    let bytes = write_wav_samples(&input, 64);
+    let imported = invoke(
+        &root,
+        &[
+            "asset",
+            "import-wavetable",
+            input.to_str().expect("UTF-8 path"),
+            "--id",
+            "table",
+            "--name",
+            "Table",
+            "--frame-length",
+            "32",
+            "--frames",
+            "2",
+            "--normalization",
+            "global-peak",
+            "--morph",
+            "catmull-rom",
+        ],
+    );
+    assert!(
+        imported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&imported.stdout)
+    );
+    let imported = response(&imported);
+    assert_eq!(imported["command"], "asset.import-wavetable");
+    assert_eq!(imported["data"]["frame_length"], 32);
+    assert_eq!(imported["data"]["frames"], 2);
+    assert_eq!(imported["data"]["normalization"], "global_peak");
+    assert_eq!(imported["data"]["morph"], "catmull_rom");
+    assert!(imported["data"]["history_entry"]["id"].is_string());
+    assert_eq!(
+        fs::read(root.path().join("media/table.wav")).expect("exact table copy"),
+        bytes
+    );
+    let imported_source = fs::read_to_string(&project_path).expect("imported source");
+    for token in [
+        "usage wavetable",
+        "frame_length 32",
+        "frames 2",
+        "normalization global_peak",
+        "morph catmull_rom",
+    ] {
+        assert!(imported_source.contains(token), "missing {token:?}");
+    }
+    let listed = response(&invoke(&root, &["asset", "list"]));
+    assert_eq!(listed["data"]["assets"][0]["wavetable"]["frame_length"], 32);
+    assert_eq!(listed["data"]["assets"][0]["wavetable"]["frames"], 2);
+    let history = response(&invoke(&root, &["history", "list"]));
+    assert_eq!(
+        history["data"]["entries"]
+            .as_array()
+            .expect("entries")
+            .len(),
+        2
+    );
+
+    let wrong = root.path().join("wrong-table.wav");
+    write_test_wav(&wrong);
+    let before_wrong = fs::read_to_string(&project_path).expect("source before rejection");
+    let rejected = invoke(
+        &root,
+        &[
+            "asset",
+            "import-wavetable",
+            wrong.to_str().expect("UTF-8 path"),
+            "--id",
+            "wrong",
+            "--frame-length",
+            "32",
+            "--frames",
+            "2",
+        ],
+    );
+    assert!(!rejected.status.success());
+    assert_eq!(response(&rejected)["command"], "asset.import-wavetable");
+    assert_eq!(
+        fs::read_to_string(&project_path).expect("source after rejection"),
+        before_wrong
+    );
+    assert!(!root.path().join("media/wrong.wav").exists());
+
+    let source_v1 = fixture_project();
+    publish(&source_v1);
+    let v1_input = source_v1.path().join("external-table.wav");
+    fs::write(&v1_input, &bytes).expect("source-v1 input");
+    let v1_source =
+        fs::read_to_string(source_v1.path().join("project.crump")).expect("source-v1 candidate");
+    let rejected = invoke(
+        &source_v1,
+        &[
+            "asset",
+            "import-wavetable",
+            v1_input.to_str().expect("UTF-8 path"),
+            "--id",
+            "table",
+            "--frame-length",
+            "32",
+            "--frames",
+            "2",
+        ],
+    );
+    assert!(!rejected.status.success());
+    assert_eq!(response(&rejected)["command"], "asset.import-wavetable");
+    assert_eq!(
+        fs::read_to_string(source_v1.path().join("project.crump")).expect("source-v1 after"),
+        v1_source
+    );
+    assert!(!source_v1.path().join("media/table.wav").exists());
+}
+
+#[test]
+fn inspect_reports_graph_sample_derivative_identity_without_external_paths() {
+    let root = tempfile::tempdir().expect("temporary sample Project");
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/synth-alpha");
+    fs::copy(
+        fixture.join("minimal-sample-source.crump"),
+        root.path().join("project.crump"),
+    )
+    .expect("copy sample source");
+    fs::create_dir(root.path().join("media")).expect("media directory");
+    fs::copy(
+        fixture.join("media/sample-source.wav"),
+        root.path().join("media/sample-source.wav"),
+    )
+    .expect("copy exact sample");
+    publish(&root);
+
+    let inspected = invoke(&root, &["inspect"]);
+    assert!(
+        inspected.status.success(),
+        "{}",
+        String::from_utf8_lossy(&inspected.stdout)
+    );
+    let inspected = response(&inspected);
+    let source = &inspected["data"]["sample_sources"][0];
+    assert_eq!(source["asset_id"], "source-texture");
+    assert_eq!(source["algorithm"], "crump-sample-windowed-sinc-v1");
+    assert_eq!(source["source_sample_rate"], 48_000);
+    assert_eq!(source["sample_rate"], 48_000);
+    assert_eq!(source["frames"], 48_000);
+    assert_eq!(
+        source["cache_identity"].as_str().expect("identity").len(),
+        64
+    );
+    assert!(source.get("bytes").is_none());
+}
+
+#[test]
+fn inspect_reports_spectral_analysis_identity_without_external_paths() {
+    let root = tempfile::tempdir().expect("temporary spectral Project");
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/synth-alpha");
+    fs::copy(
+        fixture.join("minimal-spectral.crump"),
+        root.path().join("project.crump"),
+    )
+    .expect("copy spectral source");
+    fs::create_dir(root.path().join("media")).expect("media directory");
+    fs::copy(
+        fixture.join("media/sample-source.wav"),
+        root.path().join("media/sample-source.wav"),
+    )
+    .expect("copy exact sample");
+    publish(&root);
+
+    let inspected = invoke(&root, &["inspect"]);
+    assert!(
+        inspected.status.success(),
+        "{}",
+        String::from_utf8_lossy(&inspected.stdout)
+    );
+    let inspected = response(&inspected);
+    let analysis = &inspected["data"]["spectral_analyses"][0];
+    assert_eq!(analysis["asset_id"], "source-texture");
+    assert_eq!(analysis["algorithm"], "crump-spectral-peaks-v1");
+    assert_eq!(analysis["window_frames"], 2_048);
+    assert_eq!(analysis["hop_frames"], 256);
+    assert_eq!(analysis["peaks_per_frame"], 128);
+    assert_eq!(analysis["sample_rate"], 48_000);
+    assert_eq!(
+        analysis["cache_identity"].as_str().expect("identity").len(),
+        64
+    );
+    assert!(analysis.get("peaks").is_none());
 }
 
 #[test]
@@ -489,12 +708,10 @@ project "Sampler CLI" {{
         ],
     );
     assert_eq!(routed_asset.status.code(), Some(2));
-    assert!(
-        response(&routed_asset)["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("supports only the raw audition path")
-    );
+    assert!(response(&routed_asset)["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("supports only the raw audition path"));
 
     let collected = invoke(&root, &["asset", "collect"]);
     assert!(
@@ -598,11 +815,9 @@ project "Sampler CLI" {{
     assert_eq!(rendered["command"], "render");
     let mut reader =
         hound::WavReader::open(root.path().join("master/master.wav")).expect("rendered master WAV");
-    assert!(
-        reader
-            .samples::<f32>()
-            .any(|sample| sample.expect("rendered sample").abs() > 1.0e-5)
-    );
+    assert!(reader
+        .samples::<f32>()
+        .any(|sample| sample.expect("rendered sample").abs() > 1.0e-5));
 }
 
 #[test]
@@ -709,11 +924,10 @@ fn render_plan_is_non_mutating_and_no_replace_is_a_conflict() {
         rendered_response["data"]["render"]["manifest"]["analysis"]["non_finite_sample_count"],
         0
     );
-    assert!(
-        root.path()
-            .join("master/stem-track-lead-post_fader.wav")
-            .is_file()
-    );
+    assert!(root
+        .path()
+        .join("master/stem-track-lead-post_fader.wav")
+        .is_file());
     let wav_before = fs::read(root.path().join("master/master.wav")).unwrap();
     let conflict = invoke(&root, &["render", "--output", "master", "--no-replace"]);
     assert_eq!(conflict.status.code(), Some(3));
@@ -780,6 +994,13 @@ fn qualification_plan_and_report_keep_offline_and_external_evidence_distinct() {
         serde_json::json!([64, 128, 256])
     );
     assert_eq!(
+        plan["data"]["automated_evidence_required"]
+            .as_array()
+            .expect("required automated evidence")
+            .len(),
+        3
+    );
+    assert_eq!(
         plan["data"]["external_evidence_required"]
             .as_array()
             .expect("external evidence")
@@ -817,6 +1038,13 @@ fn qualification_plan_and_report_keep_offline_and_external_evidence_distinct() {
     assert_eq!(report["non_finite_sample_count"], 0);
     assert!(report["callback_blocks"].as_u64().unwrap() > 0);
     assert_eq!(
+        report["automated_evidence_required"]
+            .as_array()
+            .expect("required automated evidence")
+            .len(),
+        3
+    );
+    assert_eq!(
         report["external_evidence_required"]
             .as_array()
             .expect("external evidence")
@@ -848,6 +1076,34 @@ fn qualification_plan_and_report_keep_offline_and_external_evidence_distinct() {
         .expect("preserved report JSON"),
         written
     );
+}
+
+#[test]
+fn qualification_require_pass_returns_failure_and_preserves_the_report() {
+    let root = fixture_project();
+    publish(&root);
+    let report_path = root.path().join("evidence/required.json");
+    let qualified = invoke(
+        &root,
+        &[
+            "qualify",
+            "--quantum",
+            "256",
+            "--maximum-p999-utilization",
+            "0.000000000001",
+            "--require-pass",
+            "--output",
+            "evidence/required.json",
+        ],
+    );
+    assert_eq!(qualified.status.code(), Some(1));
+    let qualified = response(&qualified);
+    assert_eq!(qualified["error"]["code"], "qualification_not_passed");
+    let diagnostic = &qualified["error"]["diagnostics"][0];
+    assert_eq!(diagnostic["qualification"]["passed"], false);
+    assert!(report_path.is_file());
+    let written: Value = serde_json::from_slice(&fs::read(report_path).unwrap()).unwrap();
+    assert_eq!(written, diagnostic["qualification"]);
 }
 
 #[test]
@@ -1134,11 +1390,9 @@ fn inspect_exposes_resolved_processor_contracts_and_admission_facts() {
     assert_eq!(followers[0]["source"], "track/drums");
     assert_eq!(followers[0]["control_latency_frames"], 1);
     assert_eq!(followers[0]["target"]["owner"], "processor");
-    assert!(
-        mix_graph["resources"]["processor_meter_bytes"]
-            .as_u64()
-            .is_some_and(|bytes| bytes > 0)
-    );
+    assert!(mix_graph["resources"]["processor_meter_bytes"]
+        .as_u64()
+        .is_some_and(|bytes| bytes > 0));
 }
 
 #[test]
@@ -1402,11 +1656,9 @@ fn parameter_lock_cli_is_source_backed_snapped_and_inspectable() {
         &["edit", "parameter-lock-delete", "melody", "opened"],
     );
     assert!(delete.status.success());
-    assert!(
-        !fs::read_to_string(project_path)
-            .expect("deleted lock source")
-            .contains("lock opened ")
-    );
+    assert!(!fs::read_to_string(project_path)
+        .expect("deleted lock source")
+        .contains("lock opened "));
 }
 
 #[test]
@@ -1514,11 +1766,9 @@ fn pattern_variation_cli_preserves_lineage_and_checks_references() {
             String::from_utf8_lossy(&output.stdout)
         );
     }
-    assert!(
-        !fs::read_to_string(project_path)
-            .expect("deleted Variation source")
-            .contains("pattern answer ")
-    );
+    assert!(!fs::read_to_string(project_path)
+        .expect("deleted Variation source")
+        .contains("pattern answer "));
 }
 
 #[test]
@@ -1920,12 +2170,10 @@ fn oversized_modules_are_rejected_before_parsing_or_installation() {
     );
     assert_eq!(output.status.code(), Some(2));
     assert_eq!(response(&output)["error"]["code"], "module_too_large");
-    assert!(
-        !root
-            .path()
-            .join("xdg-data/Crump/instruments/oversized.crump")
-            .exists()
-    );
+    assert!(!root
+        .path()
+        .join("xdg-data/Crump/instruments/oversized.crump")
+        .exists());
 }
 
 #[test]
@@ -1964,13 +2212,11 @@ fn module_export_is_validated_atomic_and_conflict_safe() {
     assert_eq!(invalid_output.status.code(), Some(2));
     let rejected = response(&invalid_output);
     assert_eq!(rejected["error"]["code"], "invalid_module");
-    assert!(
-        rejected["error"]["diagnostics"]
-            .as_array()
-            .expect("diagnostics")
-            .iter()
-            .any(|diagnostic| diagnostic["code"] == "CRV024")
-    );
+    assert!(rejected["error"]["diagnostics"]
+        .as_array()
+        .expect("diagnostics")
+        .iter()
+        .any(|diagnostic| diagnostic["code"] == "CRV024"));
 
     let consumer = tempfile::tempdir().expect("consumer Project");
     let consumer_source = r#"crump 1
@@ -2003,13 +2249,11 @@ project "Library Consumer" {
         String::from_utf8_lossy(&validate.stdout)
     );
     let inspect = response(&invoke_with_data(&consumer, &data_home, &["inspect"]));
-    assert!(
-        inspect["data"]["source_files"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|path| path == "library/test-lead.crump")
-    );
+    assert!(inspect["data"]["source_files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|path| path == "library/test-lead.crump"));
 
     let publication = invoke_with_data(
         &consumer,
@@ -2070,4 +2314,248 @@ project "Library Consumer" {
             .expect("materialized Module"),
         original_module
     );
+}
+
+#[test]
+fn source_v2_module_export_preserves_metadata_dependencies_and_asset_preview() {
+    let root = tempfile::tempdir().expect("temporary spectral Project");
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/synth-alpha");
+    fs::copy(
+        fixture.join("minimal-spectral.crump"),
+        root.path().join("project.crump"),
+    )
+    .expect("copy spectral source");
+    fs::create_dir(root.path().join("media")).expect("media directory");
+    fs::copy(
+        fixture.join("media/sample-source.wav"),
+        root.path().join("media/sample-source.wav"),
+    )
+    .expect("copy exact sample");
+
+    let exported = invoke(
+        &root,
+        &[
+            "module",
+            "export",
+            "alpha-minimal-spectral",
+            "--name",
+            "spectral-patch",
+        ],
+    );
+    assert!(
+        exported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported.stdout)
+    );
+    let exported = response(&exported);
+    assert_eq!(exported["data"]["source_version"], 2);
+    assert_eq!(
+        exported["data"]["dependencies"][0]["asset_id"],
+        "source-texture"
+    );
+    assert_eq!(
+        exported["data"]["dependencies"][0]["usages"],
+        serde_json::json!(["spectral"])
+    );
+    let module_path = exported["data"]["path"].as_str().expect("Module path");
+    assert!(fs::read_to_string(module_path)
+        .expect("Module source")
+        .starts_with("crump-module 2\n"));
+
+    let preview_path = root.path().join("spectral-preview.wav");
+    let preview = invoke(
+        &root,
+        &[
+            "module",
+            "preview",
+            "spectral-patch",
+            "--output",
+            preview_path.to_str().expect("preview path"),
+        ],
+    );
+    assert!(
+        preview.status.success(),
+        "{}",
+        String::from_utf8_lossy(&preview.stdout)
+    );
+    assert_eq!(
+        response(&preview)["data"]["dependencies"][0]["asset_id"],
+        "source-texture"
+    );
+    let mut wav = hound::WavReader::open(preview_path).expect("spectral preview WAV");
+    assert!(wav
+        .samples::<f32>()
+        .any(|sample| sample.expect("preview sample").abs() > 1.0e-6));
+}
+
+#[test]
+fn module_catalog_preview_copy_and_collection_are_source_readable() {
+    let root = fixture_project();
+    let module_source = r#"crump-module 2
+instrument tagged "Tagged Lead" graph {
+  polyphony 4
+  parameter level "Level" ratio 0 1 0.2 0.2 modulatable
+  faceplate {
+    control level "Level" "Preview level" maps level
+  }
+  presentation {
+    tags lead analog bright
+    preview C3 C5 velocity 25% 90% duration 1beat
+  }
+  graph voice 3 {
+    node tone oscillator waveform saw level $level
+    node position pan position 0
+    node out output
+    bus pitch note.pitch -> tone.pitch
+    bus stereo tone.audio -> position.audio
+    bus output position.audio -> out.audio
+  }
+}
+"#;
+    let source_path = root.path().join("tagged.crump");
+    fs::write(&source_path, module_source).expect("Module source");
+    let installed = invoke(
+        &root,
+        &[
+            "module",
+            "install",
+            source_path.to_str().expect("Module path"),
+            "--name",
+            "tagged-lead",
+        ],
+    );
+    assert!(
+        installed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&installed.stdout)
+    );
+    let installed = response(&installed);
+    assert_eq!(installed["data"]["source_version"], 2);
+    assert_eq!(
+        installed["data"]["tags"],
+        serde_json::json!(["lead", "analog", "bright"])
+    );
+
+    let listed = invoke(
+        &root,
+        &["module", "list", "--search", "tagged", "--tag", "lead"],
+    );
+    assert!(listed.status.success());
+    let listed = response(&listed);
+    assert_eq!(listed["data"]["modules"].as_array().unwrap().len(), 1);
+    assert_eq!(listed["data"]["modules"][0]["name"], "tagged-lead");
+    assert_eq!(listed["data"]["modules"][0]["valid"], true);
+
+    let inspected = response(&invoke(&root, &["module", "inspect", "tagged-lead"]));
+    assert_eq!(inspected["data"]["source_version"], 2);
+    assert_eq!(inspected["data"]["dependencies"], serde_json::json!([]));
+    assert_eq!(
+        inspected["data"]["instruments"][0]["presentation"]["preview"]["low_pitch"],
+        48
+    );
+
+    let preview_path = root.path().join("previews/tagged-lead.wav");
+    let preview = invoke(
+        &root,
+        &[
+            "module",
+            "preview",
+            "tagged-lead",
+            "--output",
+            preview_path.to_str().expect("preview path"),
+        ],
+    );
+    assert!(
+        preview.status.success(),
+        "{}",
+        String::from_utf8_lossy(&preview.stdout)
+    );
+    let preview_response = response(&preview);
+    assert_eq!(preview_response["data"]["format"], "stereo_f32_wav");
+    let mut wav = hound::WavReader::open(&preview_path).expect("preview WAV");
+    assert_eq!(wav.spec().channels, 2);
+    assert!(wav
+        .samples::<f32>()
+        .any(|sample| sample.expect("preview sample").abs() > 1.0e-5));
+
+    let copied = invoke(
+        &root,
+        &[
+            "module",
+            "copy",
+            "tagged-lead",
+            "--local-name",
+            "copied-lead",
+        ],
+    );
+    assert!(copied.status.success());
+    assert_eq!(
+        fs::read_to_string(root.path().join("instruments/copied-lead.crump"))
+            .expect("copied Module"),
+        module_source
+    );
+    assert_eq!(
+        response(&copied)["data"]["import"],
+        "instruments/copied-lead.crump"
+    );
+
+    let project_path = root.path().join("project.crump");
+    let project_source = fs::read_to_string(&project_path)
+        .expect("Project source")
+        .replacen("crump 1", "crump 2\nimport \"library:tagged-lead\"", 1);
+    fs::write(&project_path, project_source).expect("Project import");
+    let collected = invoke(&root, &["module", "collect"]);
+    assert!(
+        collected.status.success(),
+        "{}",
+        String::from_utf8_lossy(&collected.stdout)
+    );
+    let collected_response = response(&collected);
+    assert_eq!(
+        collected_response["data"]["collected"][0], "library/tagged-lead.crump",
+        "{collected_response:?}"
+    );
+    assert_eq!(
+        fs::read_to_string(root.path().join("library/tagged-lead.crump"))
+            .expect("collected Module"),
+        module_source
+    );
+    fs::remove_file(
+        installed["data"]["path"]
+            .as_str()
+            .expect("installed Module path"),
+    )
+    .expect("remove personal Module");
+    assert!(invoke(&root, &["validate"]).status.success());
+}
+
+#[test]
+fn instrument_modulation_route_edits_use_checked_cli_operations() {
+    let root = fixture_named("instrument_modulation.crump");
+    for arguments in [
+        [
+            "edit",
+            "instrument-route-depth",
+            "lead",
+            "macro-tone",
+            "0.4",
+        ],
+        [
+            "edit",
+            "instrument-route-bypass",
+            "lead",
+            "macro-tone",
+            "true",
+        ],
+    ] {
+        let output = invoke(&root, &arguments);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+    }
+    let source = fs::read_to_string(root.path().join("project.crump")).expect("edited source");
+    assert!(source.contains("macro-tone source macro-source target tone depth 0.4"));
+    assert!(source.contains("order -20 bypass true"));
 }

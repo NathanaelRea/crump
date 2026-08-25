@@ -7,7 +7,7 @@ Crump is a Linux-first, terminal Guided Production Instrument for electronic and
 - Human-readable, lossless `.crump` Project and Instrument Module source
 - Source-located parse, semantic, graph, route, media, and resource diagnostics
 - Timeline Tracks, reusable Patterns, Pattern Variations, Clips, Locators, and Groove Templates
-- Polyphonic Composable DSP Graphs, stock drums, expressive native devices, and portable WAV-backed sampler Instruments
+- Polyphonic Composable DSP Graphs, stock drums, expressive virtual-analog, wavetable, sample, multisample, granular, and deterministic spectral devices, and portable WAV-backed sampler Instruments
 - Source-backed point Automation, Pattern Parameter Locks, routed LFO Modulation, and an Envelope Follower
 - Sample-accurate control evaluation shared by playback and rendering, with value provenance
 - Track, Group, Return, Send, sidechain, and Master routing with latency compensation
@@ -16,7 +16,7 @@ Crump is a Linux-first, terminal Guided Production Instrument for electronic and
 - Native stereo 48 kHz PipeWire playback and transient MIDI Note Audition
 - Checked source-preserving edits with stale-revision protection
 - Explicit Candidate → Active publication and append-only exact Project History
-- Portable WAV import/collection, off-callback decode/resampling, sampler playback, bounce, and exact-frame sample preparation
+- Portable WAV and exact mono wavetable import/collection, off-callback sample decode/resampling, deterministic mip and spectral-peak compilation, graph sample/multisample/granular/spectral and sampler playback, bounce, and exact-frame sample preparation
 - Safe runtime publication through compatible state handoff or an aligned topology fade
 - Deterministic stereo float Master/Stem bundles with hashes and finalized-file audio analysis
 - Versioned exact-range offline workload reports
@@ -41,7 +41,7 @@ cargo install --path . --locked
 crump doctor
 ```
 
-To build the unconfined Ubuntu `amd64` package, run `packaging/build-deb.sh dist`. It includes the user guides, Reference Project, and provider-neutral Authoring skill as well as the binary. A build without native PipeWire is available for parser, history, workspace inspection, and render tooling only:
+To build the unconfined Ubuntu `amd64` package, run `packaging/build-deb.sh dist`. It includes the user guides, Reference Project, starter Instrument library, deep-house integration Project, and native-synthesis qualification fixtures as well as the binary. A build without native PipeWire is available for parser, history, workspace inspection, and render tooling only:
 
 ```bash
 cargo build --release --no-default-features
@@ -87,6 +87,8 @@ The render bundle contains analyzed `master.wav` and `manifest.json`; each reque
 
 [`fixtures/production/`](fixtures/production/) is a self-contained 96-bar Project used by resource, routing, sampler, and deterministic grouping tests.
 
+[`fixtures/starter/`](fixtures/starter/) contains nine source-readable native-synthesis Instrument Modules, exact lawful assets, and authored Audition Phrases. [`fixtures/deep-house-reference/`](fixtures/deep-house-reference/) is an original portable 112-bar (3:40) integration fixture using every runnable source family with Patterns, Automation, Modulation, routing, effects, stems, and deterministic delivery evidence. These fixtures are engineering/content preparation; independent listening and named-hardware acceptance remain pending under the [native-synthesis qualification runbook](docs/qualification/native-synthesis.md).
+
 ## Safe source workflow
 
 `project.crump`, imported `.crump` modules, and declared Project-owned media are authoritative. Crump never makes an invalid Candidate audible:
@@ -108,8 +110,8 @@ history list|show|diff|restore
 edit parameter|track-level|track-pan|note-pitch|event-time|note-duration|event-velocity|hit-voice
 edit automation-*|clip-*|locator-*|time-*|groove-*|pattern-variation-*|parameter-lock-*
 edit sample-place|sample-move|sample-duplicate|sample-split|sample-trim|sample-slip|sample-fade|sample-gain|sample-pan
-asset import|collect|list
-module export|install|list|inspect
+asset import|import-wavetable|collect|bounce|prepare|list
+module export|install|list|inspect|preview|copy|collect
 ```
 
 Every non-interactive command supports `--json` and emits exactly one response with `schema_version`, `ok`, `command`, and either `data` or `error`. The interactive workspace intentionally rejects `--json`.
@@ -121,7 +123,7 @@ Every non-interactive command supports `--json` and emits exactly one response w
 - [Project Language](docs/language.md)
 - [CLI and Authoring Agents](docs/cli-and-agents.md)
 - [Production Cookbook](docs/cookbook/README.md)
-- [Provider-neutral Authoring skill](skills/crump-authoring/SKILL.md)
+- [Project Agent Skills](.agents/skills/README.md)
 - [Audio, revision transitions, and MIDI](docs/audio-and-midi.md)
 - [History and deterministic rendering](docs/history-and-rendering.md)
 - [Supported environment and troubleshooting](docs/support.md)

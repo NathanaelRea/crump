@@ -1,7 +1,7 @@
 //! Semantic parser for Crump's deliberately small first-release language.
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeSet,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -11,15 +11,22 @@ use crate::{
     model::{
         AutomationInterpolation, AutomationLane, AutomationPoint, ChannelRef, ChannelStrip, Clip,
         ClipMode, ClipSites, Connection, ControlPolarity, DrumVoice, Endpoint, EnvelopeDetector,
-        EnvelopeFollowerRoute, FaceplateControl, FormantPolicy, GeneratedAssetProvenance, Graph,
-        GraphNode, GrooveSites, GrooveTemplate, Group, Instrument, InstrumentKind, LfoWaveform,
-        Locator, Master, MediaAsset, ModulationOperator, ModulationRate, ModulationRoute,
-        ModulationScope, NodeKind, OutputTarget, Panner, Parameter, ParameterLock,
-        ParameterLockSites, ParameterTarget, Pattern, PatternEvent, PatternVariation,
-        PatternVariationSites, Processor, ProcessorKind, ProcessorSetting, Project, Return,
-        SOURCE_VERSION, SampleDirection, SampleEventSites, SampleLoopRegion, SampleMapping,
+        EnvelopeFollowerRoute, FaceplateControl, FormantPolicy, GeneratedAssetProvenance,
+        GlideMode, Graph, GraphDomain, GraphNode, GrooveSites, GrooveTemplate, Group, Instrument,
+        InstrumentKind, InstrumentModulationRate, InstrumentModulationRoute,
+        InstrumentModulationRouteSites, InstrumentModulationScope, InstrumentModulationSource,
+        InstrumentModulationSourceKind, InstrumentPreview, LATEST_SOURCE_VERSION, LfoDirection,
+        LfoMode, LfoRetrigger, LfoWaveform, Locator, Master, MediaAsset, MediaAssetUsage,
+        ModulationCurve, ModulationOperator, ModulationRate, ModulationRoute, ModulationScope,
+        NodeDirective, NodeDirectiveToken, NodeKind, NodeSetting, NotePriority, OutputTarget,
+        Panner, Parameter, ParameterLock, ParameterLockSites, ParameterTarget, Pattern,
+        PatternEvent, PatternVariation, PatternVariationSites, PresentationItem,
+        PresentationItemKind, PresentationSection, PresentationSectionKind, Processor,
+        ProcessorKind, ProcessorSetting, Project, RetriggerPolicy, Return, SOURCE_VERSION_V1,
+        SOURCE_VERSION_V2, SampleDirection, SampleEventSites, SampleLoopRegion, SampleMapping,
         SamplePlayback, SampleTransformQuality, SamplerDefinition, Send, SettingValue,
-        SidechainRoute, Song, TapPoint, Track, Unit, ValueSite, parse_pitch,
+        SidechainRoute, Song, StealPriority, TapPoint, Track, Unit, ValueSite, Voicing,
+        VoicingMode, WavetableAssetDefinition, WavetableMorph, WavetableNormalization, parse_pitch,
     },
     time::{Meter, MusicalTime, parse_musical_time, parse_seconds},
 };
@@ -38,6 +45,8 @@ pub struct ImportDeclaration {
 /// Parsed root document before imported modules are loaded.
 #[derive(Debug)]
 pub struct ProjectDocument {
+    /// Recovered supported source major version, absent for an invalid or missing header.
+    pub source_version: Option<u32>,
     /// Root Project when its required declarations could be recovered.
     pub project: Option<Project>,
     /// Top-level imports.
@@ -49,6 +58,8 @@ pub struct ProjectDocument {
 /// Parsed human-readable Instrument Module.
 #[derive(Debug)]
 pub struct ModuleDocument {
+    /// Recovered supported source major version, absent for an invalid or missing header.
+    pub source_version: Option<u32>,
     /// Instruments declared by the module.
     pub instruments: Vec<Instrument>,
     /// Complete parser diagnostics.
@@ -63,19 +74,26 @@ pub fn parse_project(file: &Path, source: &str) -> ProjectDocument {
         file,
         source,
         diagnostics,
+        source_version: None,
     };
     let mut imports = Vec::new();
     let mut project = None;
     let mut saw_header = false;
 
-    for statement in &statements {
+    for (index, statement) in statements.iter().enumerate() {
         match statement.keyword() {
             Some("crump") => {
                 if saw_header {
                     parser.error_at("CRP100", "duplicate `crump` source header", statement);
+                } else if index != 0 {
+                    parser.error_at(
+                        "CRP108",
+                        "`crump` source header must be the first non-comment declaration",
+                        statement,
+                    );
                 } else {
                     saw_header = true;
-                    parser.parse_version_header(statement, "crump");
+                    parser.source_version = parser.parse_version_header(statement, "crump");
                 }
             }
             Some("import") => {
@@ -106,9 +124,9 @@ pub fn parse_project(file: &Path, source: &str) -> ProjectDocument {
 
     if !saw_header {
         parser.diagnostics.push(
-            Diagnostic::error("CRP103", "missing `crump 1` source header")
+            Diagnostic::error("CRP103", "missing `crump 1` or `crump 2` source header")
                 .at(SourceLocation::file(file.to_path_buf()))
-                .with_help("put `crump 1` on the first non-comment line"),
+                .with_help("put a supported `crump` major version on the first non-comment line"),
         );
     }
     if project.is_none() {
@@ -128,6 +146,7 @@ pub fn parse_project(file: &Path, source: &str) -> ProjectDocument {
     }
 
     ProjectDocument {
+        source_version: parser.source_version,
         project,
         imports,
         diagnostics: parser.diagnostics,
@@ -142,10 +161,11 @@ pub fn parse_module(file: &Path, source: &str) -> ModuleDocument {
         file,
         source,
         diagnostics,
+        source_version: None,
     };
     let mut instruments = Vec::new();
     let mut saw_header = false;
-    for statement in &statements {
+    for (index, statement) in statements.iter().enumerate() {
         match statement.keyword() {
             Some("crump-module") => {
                 if saw_header {
@@ -154,9 +174,15 @@ pub fn parse_module(file: &Path, source: &str) -> ModuleDocument {
                         "duplicate `crump-module` source header",
                         statement,
                     );
+                } else if index != 0 {
+                    parser.error_at(
+                        "CRP110",
+                        "`crump-module` source header must be the first non-comment declaration",
+                        statement,
+                    );
                 } else {
                     saw_header = true;
-                    parser.parse_version_header(statement, "crump-module");
+                    parser.source_version = parser.parse_version_header(statement, "crump-module");
                 }
             }
             Some("instrument") => {
@@ -170,8 +196,11 @@ pub fn parse_module(file: &Path, source: &str) -> ModuleDocument {
     }
     if !saw_header {
         parser.diagnostics.push(
-            Diagnostic::error("CRP105", "missing `crump-module 1` source header")
-                .at(SourceLocation::file(file.to_path_buf())),
+            Diagnostic::error(
+                "CRP105",
+                "missing `crump-module 1` or `crump-module 2` source header",
+            )
+            .at(SourceLocation::file(file.to_path_buf())),
         );
     }
     if instruments.len() != 1 {
@@ -187,25 +216,68 @@ pub fn parse_module(file: &Path, source: &str) -> ModuleDocument {
         );
     }
     ModuleDocument {
+        source_version: parser.source_version,
         instruments,
         diagnostics: parser.diagnostics,
     }
+}
+
+const fn node_kind_is_v1(kind: NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::Oscillator
+            | NodeKind::Unison
+            | NodeKind::Noise
+            | NodeKind::Envelope
+            | NodeKind::Mixer
+            | NodeKind::Lowpass
+            | NodeKind::Amplifier
+            | NodeKind::Saturation
+            | NodeKind::Pan
+            | NodeKind::Delay
+            | NodeKind::Reverb
+            | NodeKind::Output
+            | NodeKind::Lfo
+    )
+}
+
+const fn node_kind_has_runtime(kind: NodeKind) -> bool {
+    node_kind_is_v1(kind)
+        || matches!(
+            kind,
+            NodeKind::MonoToStereo
+                | NodeKind::StereoToMono
+                | NodeKind::StereoMixer
+                | NodeKind::StereoSum
+                | NodeKind::AnalogOscillator
+                | NodeKind::Wavetable
+                | NodeKind::SampleSource
+                | NodeKind::Multisample
+                | NodeKind::Granular
+                | NodeKind::Spectral
+                | NodeKind::StereoFilter
+        )
 }
 
 struct Parser<'a> {
     file: &'a Path,
     source: &'a str,
     diagnostics: Diagnostics,
+    source_version: Option<u32>,
 }
 
 impl Parser<'_> {
-    fn parse_version_header(&mut self, statement: &Statement, header: &str) {
-        if statement.tokens.len() != 2
-            || statement.tokens[1].value.parse::<u32>() != Ok(SOURCE_VERSION)
-        {
+    fn parse_version_header(&mut self, statement: &Statement, header: &str) -> Option<u32> {
+        let version = (statement.tokens.len() == 2)
+            .then(|| statement.tokens[1].value.parse::<u32>().ok())
+            .flatten()
+            .filter(|version| matches!(*version, SOURCE_VERSION_V1 | SOURCE_VERSION_V2));
+        if version.is_none() {
             self.error_at(
                 "CRP107",
-                format!("`{header}` header must declare supported version {SOURCE_VERSION}"),
+                format!(
+                    "`{header}` header must declare supported version {SOURCE_VERSION_V1} or {LATEST_SOURCE_VERSION}"
+                ),
                 statement,
             );
         }
@@ -216,6 +288,7 @@ impl Parser<'_> {
                 statement,
             );
         }
+        version
     }
 
     fn parse_project_block(&mut self, statement: &Statement) -> Option<Project> {
@@ -297,7 +370,7 @@ impl Parser<'_> {
         )?;
         let song = self.required(song, "CRP119", "Project is missing its Song", statement)?;
         Some(Project {
-            source_version: SOURCE_VERSION,
+            source_version: self.source_version.unwrap_or(SOURCE_VERSION_V1),
             id,
             name,
             seed,
@@ -319,30 +392,207 @@ impl Parser<'_> {
         {
             self.error_at(
                 "CRP230",
-                "asset syntax is `asset id \"Name\" wav \"media/file.wav\" sha256 \"lowercase-hex\"` with an optional generated provenance block",
+                "asset syntax is `asset id \"Name\" wav \"media/file.wav\" sha256 \"lowercase-hex\"` with an optional source-backed metadata block",
                 statement,
             );
             return None;
         }
-        let generated = if statement.children.is_empty() {
-            None
-        } else if statement.children.len() == 1
-            && statement.children[0].keyword() == Some("generated")
+
+        let mut usages = Vec::new();
+        let mut seen_usages = BTreeSet::new();
+        let mut generated = None;
+        let mut frame_length = None;
+        let mut frames = None;
+        let mut normalization = None;
+        let mut morph = None;
+        for child in &statement.children {
+            match child.keyword() {
+                Some("generated") => {
+                    if generated.is_some() {
+                        self.error_at(
+                            "CRP231",
+                            "an asset may contain at most one generated provenance block",
+                            child,
+                        );
+                    } else {
+                        generated = self.parse_generated_asset(child);
+                    }
+                }
+                Some("usage") => {
+                    if child.tokens.len() < 2 || !child.children.is_empty() {
+                        self.error_at(
+                            "CRP232",
+                            "asset usage requires one or more of wavetable, sample, multisample, granular, or spectral",
+                            child,
+                        );
+                        continue;
+                    }
+                    for token in &child.tokens[1..] {
+                        let usage = match token.value.as_str() {
+                            "wavetable" => MediaAssetUsage::Wavetable,
+                            "sample" => MediaAssetUsage::Sample,
+                            "multisample" => MediaAssetUsage::Multisample,
+                            "granular" => MediaAssetUsage::Granular,
+                            "spectral" => MediaAssetUsage::Spectral,
+                            value => {
+                                self.token_error(
+                                    "CRP232",
+                                    format!("unsupported asset usage `{value}`"),
+                                    token,
+                                );
+                                continue;
+                            }
+                        };
+                        if !seen_usages.insert(usage) {
+                            self.token_error(
+                                "CRP232",
+                                format!("duplicate asset usage `{}`", token.value),
+                                token,
+                            );
+                        } else {
+                            usages.push(usage);
+                        }
+                    }
+                }
+                Some("frame_length") => {
+                    if frame_length.is_some() {
+                        self.error_at("CRP232", "duplicate asset frame_length", child);
+                    } else if let Some(token) = self.single_argument(
+                        child,
+                        "CRP232",
+                        "frame_length requires one integer sample count",
+                    ) {
+                        frame_length = self
+                            .parse_u32_token(token, "wavetable frame_length")
+                            .map(|value| (value, self.site(token)));
+                    }
+                }
+                Some("frames") => {
+                    if frames.is_some() {
+                        self.error_at("CRP232", "duplicate asset frames", child);
+                    } else if let Some(token) = self.single_argument(
+                        child,
+                        "CRP232",
+                        "frames requires one integer frame count",
+                    ) {
+                        frames = self
+                            .parse_u16_token(token, "wavetable frames")
+                            .map(|value| (value, self.site(token)));
+                    }
+                }
+                Some("normalization") => {
+                    if normalization.is_some() {
+                        self.error_at("CRP232", "duplicate asset normalization", child);
+                    } else if let Some(token) = self.single_argument(
+                        child,
+                        "CRP232",
+                        "normalization requires preserve, global_peak, or frame_peak",
+                    ) {
+                        let value = match token.value.as_str() {
+                            "preserve" => Some(WavetableNormalization::Preserve),
+                            "global_peak" => Some(WavetableNormalization::GlobalPeak),
+                            "frame_peak" => Some(WavetableNormalization::FramePeak),
+                            _ => {
+                                self.token_error(
+                                    "CRP232",
+                                    "wavetable normalization must be preserve, global_peak, or frame_peak",
+                                    token,
+                                );
+                                None
+                            }
+                        };
+                        normalization = value.map(|value| (value, self.site(token)));
+                    }
+                }
+                Some("morph") => {
+                    if morph.is_some() {
+                        self.error_at("CRP232", "duplicate asset morph", child);
+                    } else if let Some(token) = self.single_argument(
+                        child,
+                        "CRP232",
+                        "morph requires linear or catmull_rom",
+                    ) {
+                        let value = match token.value.as_str() {
+                            "linear" => Some(WavetableMorph::Linear),
+                            "catmull_rom" => Some(WavetableMorph::CatmullRom),
+                            _ => {
+                                self.token_error(
+                                    "CRP232",
+                                    "wavetable morph must be linear or catmull_rom",
+                                    token,
+                                );
+                                None
+                            }
+                        };
+                        morph = value.map(|value| (value, self.site(token)));
+                    }
+                }
+                Some(keyword) => self.unknown("asset", keyword, child),
+                None => {}
+            }
+        }
+
+        let has_synthesis_metadata = !usages.is_empty()
+            || frame_length.is_some()
+            || frames.is_some()
+            || normalization.is_some()
+            || morph.is_some();
+        if has_synthesis_metadata
+            && self.source_version.unwrap_or(SOURCE_VERSION_V1) < SOURCE_VERSION_V2
         {
-            self.parse_generated_asset(&statement.children[0])
-        } else {
             self.error_at(
-                "CRP231",
-                "an asset may contain only one `generated { ... }` provenance block",
+                "CRP232",
+                "asset synthesis metadata requires source version 2",
                 statement,
             );
-            return None;
+        }
+        let wants_wavetable = usages.contains(&MediaAssetUsage::Wavetable);
+        let has_wavetable_metadata = frame_length.is_some()
+            || frames.is_some()
+            || normalization.is_some()
+            || morph.is_some();
+        let wavetable = match (frame_length, frames, normalization, morph) {
+            (
+                Some((frame_length, frame_length_site)),
+                Some((frames, frames_site)),
+                Some((normalization, normalization_site)),
+                Some((morph, morph_site)),
+            ) => Some(WavetableAssetDefinition {
+                frame_length,
+                frames,
+                normalization,
+                morph,
+                frame_length_site,
+                frames_site,
+                normalization_site,
+                morph_site,
+            }),
+            _ => {
+                if wants_wavetable || has_wavetable_metadata {
+                    self.error_at(
+                        "CRP232",
+                        "wavetable assets require usage wavetable plus frame_length, frames, normalization, and morph",
+                        statement,
+                    );
+                }
+                None
+            }
         };
+        if wavetable.is_some() && !wants_wavetable {
+            self.error_at(
+                "CRP232",
+                "wavetable frame metadata requires `usage wavetable`",
+                statement,
+            );
+        }
+
         Some(MediaAsset {
             id: statement.tokens[1].value.clone(),
             name: statement.tokens[2].value.clone(),
             path: PathBuf::from(&statement.tokens[4].value),
             sha256: statement.tokens[6].value.clone(),
+            usages,
+            wavetable,
             generated,
             path_site: self.site(&statement.tokens[4]),
             sha256_site: self.site(&statement.tokens[6]),
@@ -862,25 +1112,91 @@ impl Parser<'_> {
             }
         };
         let mut polyphony = None;
+        let mut voicing = None;
         let mut parameters = Vec::new();
         let mut faceplate = Vec::new();
         let mut graph = None;
+        let mut shared_graph = None;
+        let mut modulation_sources = Vec::new();
+        let mut modulation_routes = Vec::new();
+        let mut presentation = None;
         let mut sample_mappings = Vec::new();
         let mut post_processors = Vec::new();
         for child in &statement.children {
             match child.keyword() {
                 Some("polyphony") => polyphony = self.parse_u16_value(child, "polyphony"),
+                Some("voicing") => {
+                    if self.source_version != Some(SOURCE_VERSION_V2) {
+                        self.error_at(
+                            "CRP176",
+                            "Instrument voicing requires source version 2",
+                            child,
+                        );
+                    } else if voicing.is_some() {
+                        self.error_at(
+                            "CRP176",
+                            "instrument contains more than one voicing declaration",
+                            child,
+                        );
+                    } else {
+                        voicing = self.parse_voicing(child);
+                    }
+                }
                 Some("parameter") => {
                     if let Some(parameter) = self.parse_parameter(child) {
                         parameters.push(parameter);
                     }
                 }
                 Some("faceplate") => faceplate = self.parse_faceplate(child),
-                Some("graph") => {
-                    if graph.is_some() {
-                        self.error_at("CRP132", "instrument contains more than one graph", child);
+                Some("modulation") => {
+                    if self.source_version != Some(SOURCE_VERSION_V2) {
+                        self.error_at(
+                            "CRP174",
+                            "Instrument-owned Modulation requires source version 2",
+                            child,
+                        );
                     } else {
-                        graph = self.parse_graph(child);
+                        let (sources, routes) = self.parse_instrument_modulation(child);
+                        modulation_sources.extend(sources);
+                        modulation_routes.extend(routes);
+                    }
+                }
+                Some("presentation") => {
+                    if self.source_version != Some(SOURCE_VERSION_V2) {
+                        self.error_at(
+                            "CRP177",
+                            "Instrument presentation metadata requires source version 2",
+                            child,
+                        );
+                    } else if presentation.is_some() {
+                        self.error_at(
+                            "CRP177",
+                            "instrument contains more than one presentation declaration",
+                            child,
+                        );
+                    } else {
+                        presentation = Some(self.parse_presentation(child));
+                    }
+                }
+                Some("graph") => {
+                    if let Some(parsed) = self.parse_graph(child) {
+                        let destination = match parsed.domain {
+                            GraphDomain::Voice => &mut graph,
+                            GraphDomain::Shared => &mut shared_graph,
+                        };
+                        if destination.is_some() {
+                            self.error_at(
+                                "CRP132",
+                                format!(
+                                    "instrument contains more than one {:?} graph",
+                                    parsed.domain
+                                )
+                                .to_lowercase(),
+                                child,
+                            );
+                        } else {
+                            *destination = Some(parsed);
+                        }
                     }
                 }
                 Some("mapping") => {
@@ -908,9 +1224,14 @@ impl Parser<'_> {
             name,
             kind,
             polyphony,
+            voicing: voicing.unwrap_or_default(),
             parameters,
             faceplate,
+            modulation_sources,
+            modulation_routes,
+            presentation: presentation.unwrap_or_default(),
             graph,
+            shared_graph,
             sampler: (kind == InstrumentKind::Sampler).then(|| SamplerDefinition {
                 mappings: sample_mappings,
                 location: statement.location(self.file, self.source),
@@ -918,6 +1239,591 @@ impl Parser<'_> {
             post_processors,
             location: statement.location(self.file, self.source),
         })
+    }
+
+    fn parse_instrument_modulation(
+        &mut self,
+        statement: &Statement,
+    ) -> (
+        Vec<InstrumentModulationSource>,
+        Vec<InstrumentModulationRoute>,
+    ) {
+        if statement.tokens.len() != 1 {
+            self.error_at(
+                "CRP174",
+                "Instrument Modulation syntax is `modulation {`",
+                statement,
+            );
+        }
+        let mut sources = Vec::new();
+        let mut routes = Vec::new();
+        for child in &statement.children {
+            match child.keyword() {
+                Some("source") => {
+                    if let Some(source) = self.parse_instrument_modulation_source(child) {
+                        sources.push(source);
+                    }
+                }
+                Some("route") => {
+                    if let Some(route) = self.parse_instrument_modulation_route(child) {
+                        routes.push(route);
+                    }
+                }
+                Some(keyword) => self.unknown("Instrument Modulation", keyword, child),
+                None => {}
+            }
+        }
+        (sources, routes)
+    }
+
+    fn parse_instrument_modulation_source(
+        &mut self,
+        statement: &Statement,
+    ) -> Option<InstrumentModulationSource> {
+        if !statement.children.is_empty() {
+            self.error_at(
+                "CRP175",
+                "Instrument Modulation sources cannot contain nested directives",
+                statement,
+            );
+        }
+        if statement.tokens.len() < 5 {
+            self.error_at(
+                "CRP175",
+                "Modulation source declaration is incomplete",
+                statement,
+            );
+            return None;
+        }
+        let id = statement.tokens[1].value.clone();
+        let source_kind = statement.tokens[2].value.as_str();
+        let (kind, scope_index, polarity_index) = match source_kind {
+            "port" if statement.tokens.len() == 6 => {
+                let endpoint = self.parse_endpoint(&statement.tokens[3])?;
+                (
+                    InstrumentModulationSourceKind::GraphPort {
+                        node: endpoint.node,
+                        port: endpoint.port,
+                    },
+                    4,
+                    5,
+                )
+            }
+            "parameter" if statement.tokens.len() == 6 => (
+                InstrumentModulationSourceKind::Parameter {
+                    parameter: statement.tokens[3].value.clone(),
+                },
+                4,
+                5,
+            ),
+            "lfo" if (8..=14).contains(&statement.tokens.len()) => {
+                let scope_index = 3;
+                let polarity_index = 4;
+                let waveform = match statement.tokens[5].value.as_str() {
+                    "sine" => LfoWaveform::Sine,
+                    "triangle" => LfoWaveform::Triangle,
+                    "saw" => LfoWaveform::Saw,
+                    "square" => LfoWaveform::Square,
+                    "sample_hold" => LfoWaveform::SampleHold,
+                    other => {
+                        self.token_error(
+                            "CRP175",
+                            format!("unknown LFO waveform `{other}`"),
+                            &statement.tokens[5],
+                        );
+                        return None;
+                    }
+                };
+                let rate = self.parse_instrument_modulation_rate(&statement.tokens[6..8])?;
+                let mut cursor = 8;
+                let phase = if statement
+                    .tokens
+                    .get(cursor)
+                    .is_some_and(|token| token.value == "phase")
+                {
+                    cursor += 1;
+                    let phase = self.parse_ratio(statement.tokens.get(cursor)?)?;
+                    cursor += 1;
+                    phase
+                } else {
+                    0.0
+                };
+                let retrigger = if statement
+                    .tokens
+                    .get(cursor)
+                    .is_some_and(|token| token.value == "retrigger")
+                {
+                    cursor += 1;
+                    let value = statement.tokens.get(cursor)?;
+                    cursor += 1;
+                    match value.value.as_str() {
+                        "note" => LfoRetrigger::Note,
+                        "transport" => LfoRetrigger::Transport,
+                        _ => {
+                            self.token_error(
+                                "CRP175",
+                                "LFO retrigger must be `note` or `transport`",
+                                value,
+                            );
+                            return None;
+                        }
+                    }
+                } else if statement.tokens[scope_index].value == "per_voice" {
+                    LfoRetrigger::Note
+                } else {
+                    LfoRetrigger::Transport
+                };
+                let mode = match statement
+                    .tokens
+                    .get(cursor)
+                    .map(|token| token.value.as_str())
+                {
+                    Some("loop") => {
+                        cursor += 1;
+                        LfoMode::Loop
+                    }
+                    Some("one_shot") => {
+                        cursor += 1;
+                        LfoMode::OneShot
+                    }
+                    _ => LfoMode::Loop,
+                };
+                let direction = match statement
+                    .tokens
+                    .get(cursor)
+                    .map(|token| token.value.as_str())
+                {
+                    Some("forward") => {
+                        cursor += 1;
+                        LfoDirection::Forward
+                    }
+                    Some("reverse") => {
+                        cursor += 1;
+                        LfoDirection::Reverse
+                    }
+                    Some("ping_pong") => {
+                        cursor += 1;
+                        LfoDirection::PingPong
+                    }
+                    _ => LfoDirection::Forward,
+                };
+                if cursor != statement.tokens.len() {
+                    self.token_error(
+                        "CRP175",
+                        "LFO suffix is `[phase VALUE] [retrigger note|transport] [loop|one_shot] [forward|reverse|ping_pong]`",
+                        &statement.tokens[cursor],
+                    );
+                    return None;
+                }
+                (
+                    InstrumentModulationSourceKind::Lfo {
+                        waveform,
+                        rate,
+                        phase,
+                        mode,
+                        direction,
+                        retrigger,
+                    },
+                    scope_index,
+                    polarity_index,
+                )
+            }
+            "note_velocity" if statement.tokens.len() == 5 => {
+                (InstrumentModulationSourceKind::NoteVelocity, 3, 4)
+            }
+            "note_gate" if statement.tokens.len() == 5 => {
+                (InstrumentModulationSourceKind::NoteGate, 3, 4)
+            }
+            "note_key"
+                if statement.tokens.len() == 9
+                    && statement.tokens[5].value == "reference"
+                    && statement.tokens[7].value == "range" =>
+            {
+                let reference = self.parse_pitch_token(&statement.tokens[6])?;
+                let range_semitones = self.parse_physical(Unit::Semitones, &statement.tokens[8])?;
+                (
+                    InstrumentModulationSourceKind::NoteKey {
+                        reference,
+                        range_semitones,
+                    },
+                    3,
+                    4,
+                )
+            }
+            "note_age"
+                if statement.tokens.len() == 7 && statement.tokens[5].value == "duration" =>
+            {
+                let duration_seconds = self.parse_physical(Unit::Seconds, &statement.tokens[6])?;
+                (
+                    InstrumentModulationSourceKind::NoteAge { duration_seconds },
+                    3,
+                    4,
+                )
+            }
+            "random_hold"
+                if statement.tokens.len() == 10
+                    && statement.tokens[5].value == "rate"
+                    && statement.tokens[8].value == "seed" =>
+            {
+                let rate = self.parse_instrument_modulation_rate(&statement.tokens[6..8])?;
+                let seed = self.parse_u64_token(&statement.tokens[9], "random seed")?;
+                (
+                    InstrumentModulationSourceKind::RandomHold { rate, seed },
+                    3,
+                    4,
+                )
+            }
+            other => {
+                self.token_error(
+                    "CRP175",
+                    format!("unknown Instrument Modulation source `{other}`"),
+                    &statement.tokens[2],
+                );
+                return None;
+            }
+        };
+        let scope = match statement.tokens.get(scope_index)?.value.as_str() {
+            "global" => InstrumentModulationScope::Global,
+            "instrument" => InstrumentModulationScope::Instrument,
+            "per_voice" => InstrumentModulationScope::PerVoice,
+            other => {
+                self.token_error(
+                    "CRP175",
+                    format!("unknown Modulation scope `{other}`"),
+                    &statement.tokens[scope_index],
+                );
+                return None;
+            }
+        };
+        let polarity = self.parse_control_polarity(&statement.tokens[polarity_index])?;
+        Some(InstrumentModulationSource {
+            id,
+            scope,
+            polarity,
+            kind,
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_instrument_modulation_rate(
+        &mut self,
+        tokens: &[Token],
+    ) -> Option<InstrumentModulationRate> {
+        if tokens.len() != 2 {
+            return None;
+        }
+        match tokens[0].value.as_str() {
+            "free" => self
+                .parse_physical(Unit::Hertz, &tokens[1])
+                .map(InstrumentModulationRate::FreeHertz),
+            "sync" => Some(InstrumentModulationRate::Synchronized(
+                tokens[1].value.clone(),
+            )),
+            other => {
+                self.token_error(
+                    "CRP175",
+                    format!("unknown Modulation rate mode `{other}`"),
+                    &tokens[0],
+                );
+                None
+            }
+        }
+    }
+
+    fn parse_control_polarity(&mut self, token: &Token) -> Option<ControlPolarity> {
+        match token.value.as_str() {
+            "unipolar" => Some(ControlPolarity::Unipolar),
+            "bipolar" => Some(ControlPolarity::Bipolar),
+            other => {
+                self.token_error(
+                    "CRP175",
+                    format!("unknown Control polarity `{other}`"),
+                    token,
+                );
+                None
+            }
+        }
+    }
+
+    fn parse_instrument_modulation_route(
+        &mut self,
+        statement: &Statement,
+    ) -> Option<InstrumentModulationRoute> {
+        if statement.tokens.len() != 16
+            || statement.tokens[2].value != "source"
+            || statement.tokens[4].value != "target"
+            || statement.tokens[6].value != "depth"
+            || statement.tokens[8].value != "map"
+            || statement.tokens[10].value != "curve"
+            || statement.tokens[12].value != "order"
+            || statement.tokens[14].value != "bypass"
+        {
+            self.error_at(
+                "CRP176",
+                "route syntax is `route ID source SOURCE target PARAMETER depth VALUE map unipolar|bipolar curve linear|power(P)|smoothstep order INTEGER bypass BOOL`",
+                statement,
+            );
+            return None;
+        }
+        let curve = match statement.tokens[11].value.as_str() {
+            "linear" => ModulationCurve::Linear,
+            "smoothstep" => ModulationCurve::Smoothstep,
+            value if value.starts_with("power(") && value.ends_with(')') => {
+                let exponent = match value[6..value.len() - 1].parse::<f64>() {
+                    Ok(exponent) => exponent,
+                    Err(_) => {
+                        self.token_error(
+                            "CRP176",
+                            "Modulation power curve requires a numeric exponent",
+                            &statement.tokens[11],
+                        );
+                        return None;
+                    }
+                };
+                ModulationCurve::Power(exponent)
+            }
+            other => {
+                self.token_error(
+                    "CRP176",
+                    format!("unknown Modulation curve `{other}`"),
+                    &statement.tokens[11],
+                );
+                return None;
+            }
+        };
+        let order = match statement.tokens[13].value.parse::<i32>() {
+            Ok(value) => value,
+            Err(_) => {
+                self.token_error(
+                    "CRP176",
+                    "route order must be a signed integer",
+                    &statement.tokens[13],
+                );
+                return None;
+            }
+        };
+        let bypass = self.parse_bool(&statement.tokens[15], "route bypass")?;
+        let mut auxiliary = None;
+        let mut clamp_seen = false;
+        let mut operators = Vec::new();
+        for child in &statement.children {
+            if !child.children.is_empty() {
+                self.error_at(
+                    "CRP176",
+                    "route operator directives cannot contain nested directives",
+                    child,
+                );
+                continue;
+            }
+            match child.tokens.as_slice() {
+                [keyword, source, operation]
+                    if keyword.value == "auxiliary" && operation.value == "multiply" =>
+                {
+                    if auxiliary.replace(source.value.clone()).is_some() {
+                        self.error_at(
+                            "CRP176",
+                            "route may contain at most one auxiliary directive",
+                            child,
+                        );
+                    }
+                }
+                [keyword, value]
+                    if matches!(
+                        keyword.value.as_str(),
+                        "add" | "multiply" | "scale" | "bias"
+                    ) =>
+                {
+                    let operand = self.parse_ratio(value)?;
+                    operators.push(match keyword.value.as_str() {
+                        "add" => ModulationOperator::Add { value: operand },
+                        "multiply" => ModulationOperator::Multiply { value: operand },
+                        "scale" => ModulationOperator::Scale { value: operand },
+                        _ => ModulationOperator::Bias { value: operand },
+                    });
+                }
+                [keyword, minimum, maximum] if keyword.value == "clamp" => {
+                    if clamp_seen {
+                        self.error_at(
+                            "CRP176",
+                            "route may contain at most one clamp directive",
+                            child,
+                        );
+                        continue;
+                    }
+                    clamp_seen = true;
+                    operators.push(ModulationOperator::Clamp {
+                        minimum: self.parse_ratio(minimum)?,
+                        maximum: self.parse_ratio(maximum)?,
+                    });
+                }
+                _ => self.error_at("CRP176", "unknown route operator directive", child),
+            }
+        }
+        Some(InstrumentModulationRoute {
+            id: statement.tokens[1].value.clone(),
+            source: statement.tokens[3].value.clone(),
+            target: statement.tokens[5].value.clone(),
+            depth: statement.tokens[7].value.clone(),
+            polarity: self.parse_control_polarity(&statement.tokens[9])?,
+            curve,
+            order,
+            bypass,
+            auxiliary,
+            operators,
+            sites: InstrumentModulationRouteSites {
+                depth: self.site(&statement.tokens[7]),
+                bypass: self.site(&statement.tokens[15]),
+            },
+            location: statement.location(self.file, self.source),
+        })
+    }
+
+    fn parse_voicing(&mut self, statement: &Statement) -> Option<Voicing> {
+        if statement.tokens.len() < 2 || !statement.children.is_empty() {
+            self.error_at(
+                "CRP176",
+                "voicing syntax is `voicing poly|mono retrigger always|legato glide DURATION glide_mode off|always|legato note_priority last|low|high steal_priority release_oldest|active_oldest seed INTEGER`",
+                statement,
+            );
+            return None;
+        }
+        let mode = match statement.tokens[1].value.as_str() {
+            "poly" => VoicingMode::Poly,
+            "mono" => VoicingMode::Mono,
+            _ => {
+                self.token_error(
+                    "CRP176",
+                    "voicing mode must be `poly` or `mono`",
+                    &statement.tokens[1],
+                );
+                return None;
+            }
+        };
+        let mut voicing = Voicing {
+            mode,
+            mode_site: Some(self.site(&statement.tokens[1])),
+            ..Voicing::default()
+        };
+
+        let mut seen = BTreeSet::new();
+        let mut index = 2;
+        let mut explicit_glide_mode = false;
+        while index < statement.tokens.len() {
+            if index + 1 >= statement.tokens.len() {
+                self.token_error(
+                    "CRP176",
+                    "voicing options require a keyword followed by one value",
+                    &statement.tokens[index],
+                );
+                return None;
+            }
+            let key = statement.tokens[index].value.as_str();
+            let value = &statement.tokens[index + 1];
+            let canonical_key = if key == "priority" {
+                "steal_priority"
+            } else {
+                key
+            };
+            if !seen.insert(canonical_key.to_owned()) {
+                self.token_error(
+                    "CRP176",
+                    format!("duplicate voicing option `{canonical_key}`"),
+                    &statement.tokens[index],
+                );
+                return None;
+            }
+            match key {
+                "retrigger" => {
+                    voicing.retrigger = match value.value.as_str() {
+                        "always" => RetriggerPolicy::Always,
+                        "legato" => RetriggerPolicy::Legato,
+                        _ => {
+                            self.token_error(
+                                "CRP176",
+                                "retrigger must be `always` or `legato`",
+                                value,
+                            );
+                            return None;
+                        }
+                    };
+                    voicing.retrigger_site = Some(self.site(value));
+                }
+                "glide" => {
+                    if value.value == "off" {
+                        voicing.glide_seconds = 0.0;
+                        voicing.glide_mode = GlideMode::Off;
+                    } else {
+                        voicing.glide_seconds = self.parse_physical(Unit::Seconds, value)?;
+                    }
+                    voicing.glide_site = Some(self.site(value));
+                }
+                "glide_mode" => {
+                    voicing.glide_mode = match value.value.as_str() {
+                        "off" => GlideMode::Off,
+                        "always" => GlideMode::Always,
+                        "legato" => GlideMode::Legato,
+                        _ => {
+                            self.token_error(
+                                "CRP176",
+                                "glide_mode must be `off`, `always`, or `legato`",
+                                value,
+                            );
+                            return None;
+                        }
+                    };
+                    voicing.glide_mode_site = Some(self.site(value));
+                    explicit_glide_mode = true;
+                }
+                "note_priority" => {
+                    voicing.note_priority = match value.value.as_str() {
+                        "last" => NotePriority::Last,
+                        "low" => NotePriority::Low,
+                        "high" => NotePriority::High,
+                        _ => {
+                            self.token_error(
+                                "CRP176",
+                                "note_priority must be `last`, `low`, or `high`",
+                                value,
+                            );
+                            return None;
+                        }
+                    };
+                    voicing.note_priority_site = Some(self.site(value));
+                }
+                "priority" | "steal_priority" => {
+                    voicing.steal_priority = match value.value.as_str() {
+                        "oldest" | "release_oldest" => StealPriority::ReleaseOldest,
+                        "active_oldest" => StealPriority::ActiveOldest,
+                        _ => {
+                            self.token_error(
+                                "CRP176",
+                                "steal_priority must be `release_oldest` or `active_oldest` (`priority oldest` is the source-v2 candidate alias)",
+                                value,
+                            );
+                            return None;
+                        }
+                    };
+                    voicing.steal_priority_site = Some(self.site(value));
+                }
+                "seed" => {
+                    voicing.seed = self.parse_u64_token(value, "voicing seed")?;
+                    voicing.seed_site = Some(self.site(value));
+                }
+                _ => {
+                    self.token_error(
+                        "CRP176",
+                        format!("unknown voicing option `{key}`"),
+                        &statement.tokens[index],
+                    );
+                    return None;
+                }
+            }
+            index += 2;
+        }
+        if !explicit_glide_mode && voicing.glide_seconds > 0.0 {
+            voicing.glide_mode = GlideMode::Always;
+        }
+        Some(voicing)
     }
 
     fn parse_sample_mapping(&mut self, statement: &Statement) -> Option<SampleMapping> {
@@ -1127,11 +2033,15 @@ impl Parser<'_> {
         let value = self.parse_physical(unit, value_token)?;
         let mut automatable = false;
         let mut modulatable = false;
+        let mut macro_source = false;
         for token in &statement.tokens[8..] {
             let capability = match token.value.as_str() {
                 "automatable" if !automatable => &mut automatable,
                 "modulatable" if !modulatable => &mut modulatable,
-                "automatable" | "modulatable" => {
+                "macro" if !macro_source && self.source_version == Some(SOURCE_VERSION_V2) => {
+                    &mut macro_source
+                }
+                "automatable" | "modulatable" | "macro" => {
                     self.token_error(
                         "CRP142",
                         format!("duplicate parameter capability `{}`", token.value),
@@ -1160,6 +2070,7 @@ impl Parser<'_> {
             value,
             automatable,
             modulatable,
+            macro_source,
             value_site: self.site(value_token),
             location: statement.location(self.file, self.source),
         })
@@ -1198,10 +2109,180 @@ impl Parser<'_> {
         controls
     }
 
+    fn parse_presentation(
+        &mut self,
+        statement: &Statement,
+    ) -> crate::model::InstrumentPresentation {
+        if statement.tokens.len() != 1 {
+            self.error_at(
+                "CRP177",
+                "presentation syntax is `presentation {`",
+                statement,
+            );
+        }
+        let mut tags = Vec::new();
+        let mut preview = None;
+        let mut sections = Vec::new();
+        for child in &statement.children {
+            match child.keyword() {
+                Some("tags") => {
+                    if child.tokens.len() < 2 || !child.children.is_empty() {
+                        self.error_at(
+                            "CRP177",
+                            "presentation tags use `tags TAG [TAG ...]`",
+                            child,
+                        );
+                    } else if !tags.is_empty() {
+                        self.error_at("CRP177", "presentation may declare tags once", child);
+                    } else {
+                        tags.extend(child.tokens[1..].iter().map(|token| token.value.clone()));
+                    }
+                }
+                Some("preview") => {
+                    if preview.is_some() {
+                        self.error_at("CRP177", "presentation may declare preview once", child);
+                        continue;
+                    }
+                    if child.tokens.len() != 8
+                        || child.tokens[3].value != "velocity"
+                        || child.tokens[6].value != "duration"
+                        || !child.children.is_empty()
+                    {
+                        self.error_at(
+                            "CRP177",
+                            "presentation preview syntax is `preview LOW_PITCH HIGH_PITCH velocity LOW HIGH duration MUSICAL_TIME`",
+                            child,
+                        );
+                        continue;
+                    }
+                    let low_pitch = parse_pitch(&child.tokens[1].value);
+                    let high_pitch = parse_pitch(&child.tokens[2].value);
+                    let low_velocity = Unit::Ratio.parse_value(&child.tokens[4].value);
+                    let high_velocity = Unit::Ratio.parse_value(&child.tokens[5].value);
+                    let note_duration =
+                        parse_musical_time(&child.tokens[7].value, Meter::default());
+                    match (
+                        low_pitch,
+                        high_pitch,
+                        low_velocity,
+                        high_velocity,
+                        note_duration,
+                    ) {
+                        (
+                            Ok(low_pitch),
+                            Ok(high_pitch),
+                            Ok(low_velocity),
+                            Ok(high_velocity),
+                            Ok(note_duration),
+                        ) => {
+                            preview = Some(InstrumentPreview {
+                                low_pitch,
+                                high_pitch,
+                                low_velocity,
+                                high_velocity,
+                                note_duration,
+                                location: child.location(self.file, self.source),
+                            });
+                        }
+                        _ => self.error_at(
+                            "CRP177",
+                            "preview requires scientific pitches, normalized velocities, and positive musical duration",
+                            child,
+                        ),
+                    }
+                }
+                Some("section") => {
+                    if child.tokens.len() != 4 || child.tokens[3].kind != TokenKind::String {
+                        self.error_at(
+                            "CRP177",
+                            "presentation section syntax is `section ID KIND \"Name\" {`",
+                            child,
+                        );
+                        continue;
+                    }
+                    let kind = match PresentationSectionKind::from_str(&child.tokens[2].value) {
+                        Ok(kind) => kind,
+                        Err(error) => {
+                            self.token_error("CRP177", error, &child.tokens[2]);
+                            continue;
+                        }
+                    };
+                    let mut items = Vec::new();
+                    for item in &child.children {
+                        if item.tokens.len() != 2 || !item.children.is_empty() {
+                            self.error_at(
+                                "CRP177",
+                                "presentation items use `node|bus|parameter|source|route|processor|asset ID`",
+                                item,
+                            );
+                            continue;
+                        }
+                        let item_kind = match PresentationItemKind::from_str(&item.tokens[0].value)
+                        {
+                            Ok(kind) => kind,
+                            Err(error) => {
+                                self.token_error("CRP177", error, &item.tokens[0]);
+                                continue;
+                            }
+                        };
+                        items.push(PresentationItem {
+                            kind: item_kind,
+                            id: item.tokens[1].value.clone(),
+                            id_site: self.site(&item.tokens[1]),
+                        });
+                    }
+                    sections.push(PresentationSection {
+                        id: child.tokens[1].value.clone(),
+                        kind,
+                        name: child.tokens[3].value.clone(),
+                        items,
+                        location: child.location(self.file, self.source),
+                    });
+                }
+                Some(keyword) => self.unknown("presentation", keyword, child),
+                None => {}
+            }
+        }
+        crate::model::InstrumentPresentation {
+            tags,
+            preview,
+            sections,
+        }
+    }
+
     fn parse_graph(&mut self, statement: &Statement) -> Option<Graph> {
-        let max_nodes = self
-            .single_argument(statement, "CRP160", "graph syntax is `graph max_nodes {`")
-            .and_then(|token| self.parse_u16_token(token, "max_nodes"))?;
+        let version = self.source_version.unwrap_or(SOURCE_VERSION_V1);
+        let (domain, max_token) = match statement.tokens.as_slice() {
+            [_, max] => (GraphDomain::Voice, max),
+            [_, domain, max] if version >= SOURCE_VERSION_V2 => {
+                let domain = match domain.value.as_str() {
+                    "voice" => GraphDomain::Voice,
+                    "shared" => GraphDomain::Shared,
+                    _ => {
+                        self.token_error(
+                            "CRP160",
+                            "version 2 graph domain must be `voice` or `shared`",
+                            domain,
+                        );
+                        return None;
+                    }
+                };
+                (domain, max)
+            }
+            _ => {
+                self.error_at(
+                    "CRP160",
+                    if version >= SOURCE_VERSION_V2 {
+                        "graph syntax is `graph [voice|shared] max_nodes {`"
+                    } else {
+                        "graph syntax is `graph max_nodes {`"
+                    },
+                    statement,
+                );
+                return None;
+            }
+        };
+        let max_nodes = self.parse_u16_token(max_token, "max_nodes")?;
         let mut nodes = Vec::new();
         let mut connections = Vec::new();
         for child in &statement.children {
@@ -1212,6 +2293,14 @@ impl Parser<'_> {
                     }
                 }
                 Some("connect") => {
+                    if !child.children.is_empty() {
+                        self.error_at(
+                            "CRP163",
+                            "connection declarations cannot contain nested directives",
+                            child,
+                        );
+                        continue;
+                    }
                     if child.tokens.len() != 4 || child.tokens[2].value != "->" {
                         self.error_at(
                             "CRP161",
@@ -1224,8 +2313,51 @@ impl Parser<'_> {
                     let to = self.parse_endpoint(&child.tokens[3]);
                     if let (Some(from), Some(to)) = (from, to) {
                         connections.push(Connection {
+                            id: format!("@internal-connect:{:04}", connections.len() + 1),
+                            id_site: None,
                             from,
+                            from_site: self.site(&child.tokens[1]),
                             to,
+                            to_site: self.site(&child.tokens[3]),
+                            location: child.location(self.file, self.source),
+                        });
+                    }
+                }
+                Some("bus") => {
+                    if !child.children.is_empty() {
+                        self.error_at(
+                            "CRP163",
+                            "Bus declarations cannot contain nested directives",
+                            child,
+                        );
+                        continue;
+                    }
+                    if version < SOURCE_VERSION_V2 {
+                        self.error_at(
+                            "CRP162",
+                            "durably identified `bus` declarations require source version 2",
+                            child,
+                        );
+                        continue;
+                    }
+                    if child.tokens.len() != 5 || child.tokens[3].value != "->" {
+                        self.error_at(
+                            "CRP162",
+                            "Bus syntax is `bus ID node.port -> node.port`",
+                            child,
+                        );
+                        continue;
+                    }
+                    let from = self.parse_endpoint(&child.tokens[2]);
+                    let to = self.parse_endpoint(&child.tokens[4]);
+                    if let (Some(from), Some(to)) = (from, to) {
+                        connections.push(Connection {
+                            id: child.tokens[1].value.clone(),
+                            id_site: Some(self.site(&child.tokens[1])),
+                            from,
+                            from_site: self.site(&child.tokens[2]),
+                            to,
+                            to_site: self.site(&child.tokens[4]),
                             location: child.location(self.file, self.source),
                         });
                     }
@@ -1235,6 +2367,7 @@ impl Parser<'_> {
             }
         }
         Some(Graph {
+            domain,
             max_nodes,
             nodes,
             connections,
@@ -1258,30 +2391,134 @@ impl Parser<'_> {
                 return None;
             }
         };
-        let mut settings = BTreeMap::new();
+        let version = self.source_version.unwrap_or(SOURCE_VERSION_V1);
+        if version < SOURCE_VERSION_V2 && !node_kind_is_v1(kind) {
+            self.token_error(
+                "CRP173",
+                format!(
+                    "{} node requires source version 2",
+                    statement.tokens[2].value
+                ),
+                &statement.tokens[2],
+            );
+            return None;
+        }
+        let supported = node_kind_has_runtime(kind);
+        let mut settings = Vec::new();
+        let mut directives = Vec::new();
         for pair in statement.tokens[3..].chunks_exact(2) {
-            let key = pair[0].value.clone();
-            let value = if let Some(parameter) = pair[1].value.strip_prefix('$') {
-                SettingValue::Parameter(parameter.to_owned())
-            } else if let Ok(number) = pair[1].value.parse::<f64>() {
-                SettingValue::Number(number)
-            } else {
-                SettingValue::Text(pair[1].value.clone())
-            };
-            if settings.insert(key.clone(), value).is_some() {
-                self.token_error(
-                    "CRP172",
-                    format!("duplicate node setting `{key}`"),
-                    &pair[0],
-                );
+            settings.push(self.parse_node_setting(&pair[0], &pair[1]));
+        }
+        if version < SOURCE_VERSION_V2 && !statement.children.is_empty() {
+            self.error_at(
+                "CRP174",
+                "source version 1 Node settings must be authored on the `node` declaration line",
+                statement,
+            );
+        } else if supported {
+            for child in &statement.children {
+                let structured_directive =
+                    (matches!(kind, NodeKind::AnalogOscillator | NodeKind::Wavetable)
+                        && child.tokens.first().is_some_and(|token| {
+                            token.value == "warp"
+                                || (kind == NodeKind::AnalogOscillator
+                                    && token.value == "distortion")
+                        })
+                        && (child.tokens.len() != 2 || !child.children.is_empty()))
+                        || (kind == NodeKind::Lfo
+                            && child
+                                .tokens
+                                .first()
+                                .is_some_and(|token| token.value == "point"))
+                        || (kind == NodeKind::SampleSource
+                            && child
+                                .tokens
+                                .first()
+                                .is_some_and(|token| token.value == "slice"))
+                        || (kind == NodeKind::Multisample
+                            && child
+                                .tokens
+                                .first()
+                                .is_some_and(|token| token.value == "zone"));
+                if structured_directive {
+                    directives.push(self.parse_node_directive(child));
+                } else if child.tokens.len() == 2 && child.children.is_empty() {
+                    settings.push(self.parse_node_setting(&child.tokens[0], &child.tokens[1]));
+                } else {
+                    self.error_at(
+                        "CRP170",
+                        "runnable Node block settings use one non-nested `key value` directive per line; supported structured forms are oscillator warp/distortion, custom LFO point, sample slice, and multisample zone directives",
+                        child,
+                    );
+                }
+            }
+        } else {
+            directives.extend(
+                statement
+                    .children
+                    .iter()
+                    .map(|child| self.parse_node_directive(child)),
+            );
+        }
+        if supported {
+            let mut keys = BTreeSet::new();
+            for setting in &settings {
+                if !keys.insert(setting.key.as_str()) {
+                    self.token_error(
+                        "CRP172",
+                        format!("duplicate node setting `{}`", setting.key),
+                        &Token {
+                            kind: TokenKind::Word,
+                            value: setting.key.clone(),
+                            start: setting.key_site.start,
+                            end: setting.key_site.end,
+                        },
+                    );
+                }
             }
         }
         Some(GraphNode {
             id: statement.tokens[1].value.clone(),
             kind,
             settings,
+            directives,
             location: statement.location(self.file, self.source),
         })
+    }
+
+    fn parse_node_directive(&self, statement: &Statement) -> NodeDirective {
+        NodeDirective {
+            tokens: statement
+                .tokens
+                .iter()
+                .map(|token| NodeDirectiveToken {
+                    value: token.value.clone(),
+                    site: self.site(token),
+                })
+                .collect(),
+            children: statement
+                .children
+                .iter()
+                .map(|child| self.parse_node_directive(child))
+                .collect(),
+            location: statement.location(self.file, self.source),
+        }
+    }
+
+    fn parse_node_setting(&self, key: &Token, token: &Token) -> NodeSetting {
+        let value = if let Some(parameter) = token.value.strip_prefix('$') {
+            SettingValue::Parameter(parameter.to_owned())
+        } else if let Ok(number) = token.value.parse::<f64>() {
+            SettingValue::Number(number)
+        } else {
+            SettingValue::Text(token.value.clone())
+        };
+        NodeSetting {
+            key: key.value.clone(),
+            value,
+            key_site: self.site(key),
+            value_site: self.site(token),
+        }
     }
 
     fn parse_pattern(&mut self, statement: &Statement, meter: Meter) -> Option<Pattern> {
@@ -2498,7 +3735,7 @@ impl Parser<'_> {
         {
             self.error_at(
                 "CRP197",
-                "Modulation syntax is `modulation ID lfo SCOPE unipolar|bipolar sine|triangle free|sync RATE target TARGET depth VALUE {`",
+                "Modulation syntax is `modulation ID lfo SCOPE unipolar|bipolar sine|triangle|saw|square|sample_hold free|sync RATE target TARGET depth VALUE {`",
                 statement,
             );
             return None;
@@ -2533,10 +3770,13 @@ impl Parser<'_> {
         let waveform = match statement.tokens[5].value.as_str() {
             "sine" => LfoWaveform::Sine,
             "triangle" => LfoWaveform::Triangle,
+            "saw" => LfoWaveform::Saw,
+            "square" => LfoWaveform::Square,
+            "sample_hold" => LfoWaveform::SampleHold,
             _ => {
                 self.token_error(
                     "CRP200",
-                    "LFO waveform must be `sine` or `triangle`",
+                    "LFO waveform must be sine, triangle, saw, square, or sample_hold",
                     &statement.tokens[5],
                 );
                 return None;
@@ -2867,6 +4107,61 @@ project "Parser Test" {
 }
 "#;
 
+    const V2_PROJECT: &str = r#"crump 2
+project "Stereo Foundation" {
+  id stereo-foundation
+  seed 9
+  sample_rate 48000
+  render_tail 1s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument lead "Lead" graph {
+      polyphony 2
+      parameter gain "Gain" ratio 0 1 0.5 0.5
+      faceplate {
+        control gain "Gain" "Source level" maps gain
+      }
+      graph voice 8 {
+        node osc oscillator waveform saw level $gain
+        node widen mono_to_stereo
+        node sum stereo_sum max_inputs 2
+        node out output
+        bus pitch note.pitch -> osc.pitch
+        bus widen osc.audio -> widen.audio
+        bus sum-a widen.audio -> sum.inputs
+        bus output sum.audio -> out.audio
+      }
+    }
+    pattern notes 1bar {
+      note 0beat C4 1beat 0.8
+    }
+    track lead-track "Lead" instrument lead level -6db pan 0 {
+      clip lead-clip pattern notes start 0bar duration 1bar mode once
+    }
+  }
+}
+"#;
+
+    const V2_MODULE: &str = r#"crump-module 2
+instrument module-lead "Module Lead" graph {
+  polyphony 2
+  parameter gain "Gain" ratio 0 1 0.5 0.5
+  faceplate {
+    control gain "Gain" "Source level" maps gain
+  }
+  graph voice 4 {
+    node osc oscillator waveform sine level $gain
+    node widen mono_to_stereo
+    node out output
+    bus pitch note.pitch -> osc.pitch
+    bus widen osc.audio -> widen.audio
+    bus output widen.audio -> out.audio
+  }
+}
+"#;
+
     #[test]
     fn parses_minimal_project_and_edit_sites() {
         let document = parse_project(Path::new("project.crump"), PROJECT);
@@ -2879,6 +4174,284 @@ project "Parser Test" {
         assert_eq!(project.song.patterns[0].events.len(), 1);
         let site = &project.song.instruments[0].parameters[0].value_site;
         assert_eq!(&PROJECT[site.start..site.end], "3000hz");
+    }
+
+    #[test]
+    fn source_v2_voicing_parses_explicit_policies_and_exact_sites() {
+        let source = V2_PROJECT.replacen(
+            "      polyphony 2",
+            "      polyphony 2\n      voicing poly retrigger always glide 40ms glide_mode always note_priority last steal_priority active_oldest seed 41041",
+            1,
+        );
+        let document = parse_project(Path::new("voicing.crump"), &source);
+        assert!(
+            !document.diagnostics.has_errors(),
+            "{:?}",
+            document.diagnostics
+        );
+        let voicing = &document.project.expect("Project").song.instruments[0].voicing;
+        assert_eq!(voicing.mode, VoicingMode::Poly);
+        assert_eq!(voicing.retrigger, RetriggerPolicy::Always);
+        assert_eq!(voicing.glide_seconds, 0.04);
+        assert_eq!(voicing.glide_mode, GlideMode::Always);
+        assert_eq!(voicing.note_priority, NotePriority::Last);
+        assert_eq!(voicing.steal_priority, StealPriority::ActiveOldest);
+        assert_eq!(voicing.seed, 41_041);
+        for site in [
+            voicing.mode_site.as_ref(),
+            voicing.retrigger_site.as_ref(),
+            voicing.glide_site.as_ref(),
+            voicing.glide_mode_site.as_ref(),
+            voicing.note_priority_site.as_ref(),
+            voicing.steal_priority_site.as_ref(),
+            voicing.seed_site.as_ref(),
+        ] {
+            let site = site.expect("authored voicing site");
+            assert_eq!(&source[site.start..site.end], site.expected);
+        }
+
+        let candidate = V2_PROJECT.replacen(
+            "      polyphony 2",
+            "      polyphony 2\n      voicing poly retrigger always glide 40ms priority oldest seed 41041",
+            1,
+        );
+        let candidate = parse_project(Path::new("candidate-voicing.crump"), &candidate);
+        assert!(
+            !candidate.diagnostics.has_errors(),
+            "{:?}",
+            candidate.diagnostics
+        );
+        let voicing = &candidate.project.expect("Project").song.instruments[0].voicing;
+        assert_eq!(voicing.glide_mode, GlideMode::Always);
+        assert_eq!(voicing.steal_priority, StealPriority::ReleaseOldest);
+    }
+
+    #[test]
+    fn voicing_is_source_v2_only_and_malformed_options_fail_closed() {
+        let source_v1 = PROJECT.replacen(
+            "      polyphony 8",
+            "      polyphony 8\n      voicing poly retrigger always",
+            1,
+        );
+        let parsed = parse_project(Path::new("v1-voicing.crump"), &source_v1);
+        assert!(parsed.diagnostics.has_errors());
+        assert!(parsed.diagnostics.as_slice().iter().any(|diagnostic| {
+            diagnostic.code == "CRP176" && diagnostic.message.contains("requires source version 2")
+        }));
+
+        let duplicate = V2_PROJECT.replacen(
+            "      polyphony 2",
+            "      polyphony 2\n      voicing poly glide 20ms glide 30ms",
+            1,
+        );
+        let parsed = parse_project(Path::new("duplicate-voicing.crump"), &duplicate);
+        assert!(parsed.diagnostics.has_errors());
+        assert!(parsed.diagnostics.as_slice().iter().any(|diagnostic| {
+            diagnostic.code == "CRP176" && diagnostic.message.contains("duplicate voicing")
+        }));
+    }
+
+    #[test]
+    fn version_two_project_and_module_preserve_graph_value_and_bus_sites() {
+        let document = parse_project(Path::new("project.crump"), V2_PROJECT);
+        assert!(
+            !document.diagnostics.has_errors(),
+            "{:?}",
+            document.diagnostics
+        );
+        assert_eq!(document.source_version, Some(SOURCE_VERSION_V2));
+        let project = document.project.expect("version 2 Project");
+        assert_eq!(project.source_version, SOURCE_VERSION_V2);
+        let graph = project.song.instruments[0]
+            .graph
+            .as_ref()
+            .expect("voice graph");
+        assert_eq!(graph.domain, GraphDomain::Voice);
+        assert_eq!(graph.connections[0].id, "pitch");
+        assert_eq!(
+            graph.connections[0]
+                .id_site
+                .as_ref()
+                .expect("Bus site")
+                .expected,
+            "pitch"
+        );
+        assert_eq!(graph.connections[0].from_site.expected, "note.pitch");
+        assert_eq!(graph.connections[0].to_site.expected, "osc.pitch");
+        let level = graph.nodes[0].setting_site("level").expect("level site");
+        assert_eq!(&V2_PROJECT[level.start..level.end], "$gain");
+
+        let module = parse_module(Path::new("lead.crump"), V2_MODULE);
+        assert!(!module.diagnostics.has_errors(), "{:?}", module.diagnostics);
+        assert_eq!(module.source_version, Some(SOURCE_VERSION_V2));
+        assert_eq!(
+            module.instruments[0].graph.as_ref().unwrap().domain,
+            GraphDomain::Voice
+        );
+
+        let legacy_floor = parse_project(
+            Path::new("legacy-v2.crump"),
+            &PROJECT.replacen("crump 1", "crump 2", 1),
+        );
+        assert!(
+            !legacy_floor.diagnostics.has_errors(),
+            "{:?}",
+            legacy_floor.diagnostics
+        );
+        let legacy_graph = legacy_floor.project.unwrap().song.instruments[0]
+            .graph
+            .as_ref()
+            .unwrap()
+            .clone();
+        assert_eq!(legacy_graph.connections[0].id, "@internal-connect:0001");
+        assert!(legacy_graph.connections[0].id_site.is_none());
+
+        let mixed = V2_PROJECT
+            .replace(
+                "bus pitch note.pitch -> osc.pitch",
+                "connect note.pitch -> osc.pitch",
+            )
+            .replace(
+                "bus widen osc.audio -> widen.audio",
+                "bus compat-bus-0001 osc.audio -> widen.audio",
+            );
+        let mixed = parse_project(Path::new("mixed-connections.crump"), &mixed);
+        assert!(!mixed.diagnostics.has_errors(), "{:?}", mixed.diagnostics);
+        let mixed_project = mixed.project.unwrap();
+        let connections = &mixed_project.song.instruments[0]
+            .graph
+            .as_ref()
+            .unwrap()
+            .connections;
+        assert_eq!(connections[0].id, "@internal-connect:0001");
+        assert_eq!(connections[1].id, "compat-bus-0001");
+    }
+
+    #[test]
+    fn headers_must_be_first_and_never_contradict_recovered_model_versions() {
+        let trailing_root = format!("{}\ncrump 2\n", V2_PROJECT.replacen("crump 2\n", "", 1));
+        let root = parse_project(Path::new("trailing-root.crump"), &trailing_root);
+        assert!(root.diagnostics.as_slice().iter().any(|diagnostic| {
+            diagnostic.code == "CRP108" && diagnostic.message.contains("first")
+        }));
+        assert_eq!(root.source_version, None);
+        assert_eq!(root.project.unwrap().source_version, SOURCE_VERSION_V1);
+
+        let trailing_module = format!(
+            "{}\ncrump-module 2\n",
+            V2_MODULE.replacen("crump-module 2\n", "", 1)
+        );
+        let module = parse_module(Path::new("trailing-module.crump"), &trailing_module);
+        assert!(module.diagnostics.as_slice().iter().any(|diagnostic| {
+            diagnostic.code == "CRP110" && diagnostic.message.contains("first")
+        }));
+        assert_eq!(module.source_version, None);
+    }
+
+    #[test]
+    fn nested_connections_and_runnable_settings_fail_closed() {
+        let nested_bus = V2_PROJECT.replace(
+            "bus pitch note.pitch -> osc.pitch",
+            "bus pitch note.pitch -> osc.pitch {\n          ignored yes\n        }",
+        );
+        let parsed = parse_project(Path::new("nested-bus.crump"), &nested_bus);
+        assert!(
+            parsed
+                .diagnostics
+                .as_slice()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "CRP163")
+        );
+
+        let nested_connect = PROJECT.replace(
+            "connect note.pitch -> osc.pitch",
+            "connect note.pitch -> osc.pitch {\n          ignored yes\n        }",
+        );
+        let parsed = parse_project(Path::new("nested-connect.crump"), &nested_connect);
+        assert!(
+            parsed
+                .diagnostics
+                .as_slice()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "CRP163")
+        );
+
+        let version_one_block = PROJECT.replace(
+            "node osc oscillator waveform saw",
+            "node osc oscillator {\n          waveform saw\n        }",
+        );
+        let parsed = parse_project(Path::new("v1-node-block.crump"), &version_one_block);
+        assert!(
+            parsed
+                .diagnostics
+                .as_slice()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "CRP174")
+        );
+
+        let nested_setting = V2_PROJECT.replace(
+            "node osc oscillator waveform saw level $gain",
+            "node osc oscillator {\n          waveform saw {\n            ignored yes\n          }\n          level $gain\n        }",
+        );
+        let parsed = parse_project(Path::new("nested-setting.crump"), &nested_setting);
+        assert!(
+            parsed
+                .diagnostics
+                .as_slice()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "CRP170")
+        );
+    }
+
+    #[test]
+    fn runnable_spectral_block_preserves_ordered_exact_setting_sites() {
+        let source = V2_MODULE.replace(
+            "node osc oscillator waveform sine level $gain",
+            "node osc spectral {\n      asset texture\n      algorithm crump-spectral-peaks-v1\n      max_peaks 128\n      scan $gain\n      transients reset\n    }",
+        );
+        let parsed = parse_module(Path::new("spectral.crump"), &source);
+        assert!(!parsed.diagnostics.has_errors(), "{:?}", parsed.diagnostics);
+        let node = &parsed.instruments[0].graph.as_ref().unwrap().nodes[0];
+        assert!(node.directives.is_empty());
+        assert_eq!(
+            node.settings
+                .iter()
+                .map(|setting| setting.key.as_str())
+                .collect::<Vec<_>>(),
+            ["asset", "algorithm", "max_peaks", "scan", "transients"]
+        );
+        for setting in &node.settings {
+            assert_eq!(
+                &source[setting.key_site.start..setting.key_site.end],
+                setting.key
+            );
+            let authored = &source[setting.value_site.start..setting.value_site.end];
+            match &setting.value {
+                SettingValue::Number(value) => assert_eq!(authored, value.to_string()),
+                SettingValue::Parameter(value) => assert_eq!(authored, format!("${value}")),
+                SettingValue::Text(value) => assert_eq!(authored, value),
+            }
+        }
+    }
+
+    #[test]
+    fn alpha_and_version_one_synthesis_forms_fail_closed() {
+        let alpha = parse_module(
+            Path::new("alpha.crump"),
+            &V2_MODULE.replacen("crump-module 2", "crump-module 2-alpha", 1),
+        );
+        assert!(alpha.diagnostics.has_errors());
+        assert_eq!(alpha.source_version, None);
+
+        let version_one = parse_project(
+            Path::new("project.crump"),
+            &V2_PROJECT.replacen("crump 2", "crump 1", 1),
+        );
+        assert!(version_one.diagnostics.as_slice().iter().any(|diagnostic| {
+            diagnostic.code == "CRP160"
+                || diagnostic.code == "CRP173"
+                || diagnostic.code == "CRP162"
+        }));
     }
 
     #[test]
@@ -2911,7 +4484,7 @@ project "Parser Test" {
 
     #[test]
     fn recovers_multiple_diagnostics() {
-        let document = parse_project(Path::new("project.crump"), "crump 2\nwat nope\n");
+        let document = parse_project(Path::new("project.crump"), "crump 2-alpha\nwat nope\n");
         assert!(document.diagnostics.as_slice().len() >= 3);
     }
 }

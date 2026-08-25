@@ -1,0 +1,476 @@
+crump 2
+import "instruments/dh-bass.crump"
+import "instruments/dh-lead.crump"
+import "instruments/dh-pad.crump"
+import "instruments/dh-keys.crump"
+import "instruments/dh-percussion.crump"
+import "instruments/dh-transition.crump"
+import "instruments/dh-evolving-texture.crump"
+import "instruments/dh-granular-texture.crump"
+import "instruments/dh-spectral-transform.crump"
+project "Portable Deep House Synthesis Reference" {
+  id deep-house-reference
+  seed 122112
+  sample_rate 48000
+  render_tail 4s
+  asset wt-basic "Basic four-frame wavetable" wav "media/basic-table.wav" sha256 "2302bf70124b6017439eb385a62677b13284f112e968a2725d64e8f738bf3ca7" {
+    usage wavetable
+    frame_length 2048
+    frames 4
+    normalization preserve
+    morph linear
+  }
+  asset source-texture "Procedural source texture" wav "media/sample-source.wav" sha256 "ae8757e2a42ad7602b7bd6825ab0987444677a8e7f8515d0447e86aa01907de9" {
+    usage sample granular spectral
+  }
+  asset zone-low "Procedural low multisample zone" wav "media/multisample-low.wav" sha256 "5675332919d951ff59291a90b991e596a443e5b368b4360dfca3b157e161a0e0" {
+    usage multisample
+  }
+  asset zone-high "Procedural high multisample zone" wav "media/multisample-high.wav" sha256 "1e3309e6b805299f66308bd603d304387cba4e7affadf63f57d6835e82d5345d" {
+    usage multisample
+  }
+  song {
+    tempo 122bpm
+    meter 4/4
+    end 112bar
+
+    groove deep-swing grid 1/2beat swing 0.57 timing 1/64beat velocity 0.02 probability 1 seed 122
+
+    pattern kick-four 1bar {
+      hit 0beat kick 0.9
+      hit 1beat kick 0.86
+      hit 2beat kick 0.9
+      hit 3beat kick 0.86
+    }
+    pattern kick-fill 1bar from kick-four {
+      rotate 1/2beat
+      transpose 0st
+      velocity 0.94
+      reverse true
+      probability 1
+      seed 301
+    }
+    pattern perc-pocket 2bar {
+      hit 1beat clap 0.58
+      hit 3beat clap 0.62
+      hit 5beat snare 0.5
+      hit 7beat clap 0.64
+      hit 1/2beat hat 0.34
+      hit 3/2beat hat 0.4
+      hit 5/2beat hat 0.36
+      hit 7/2beat hat 0.44
+      hit 9/2beat hat 0.36
+      hit 11/2beat hat 0.42
+      hit 13/2beat hat 0.38
+      hit 15/2beat hat 0.48
+    }
+    pattern perc-answer 2bar from perc-pocket {
+      rotate 1beat
+      transpose 0st
+      velocity 0.9
+      reverse false
+      probability 0.92
+      seed 307
+    }
+    pattern bass-line 4bar {
+      lock dark at 0beat parameter cutoff value 360hz
+      lock open at 14beat parameter cutoff value 760hz
+      note 1/2beat F2 3/8beat 0.84
+      note 3/2beat C2 3/8beat 0.68
+      note 5/2beat F2 3/8beat 0.78
+      note 7/2beat Eb2 3/8beat 0.68
+      note 9/2beat C2 3/8beat 0.82
+      note 11/2beat G1 3/8beat 0.67
+      note 13/2beat C2 3/8beat 0.76
+      note 15/2beat Bb1 3/8beat 0.66
+      note 17/2beat Db2 3/8beat 0.84
+      note 19/2beat Ab1 3/8beat 0.7
+      note 21/2beat Db2 3/8beat 0.78
+      note 23/2beat C2 3/8beat 0.66
+      note 25/2beat Ab1 3/8beat 0.82
+      note 27/2beat Eb2 3/8beat 0.7
+      note 29/2beat Ab1 3/8beat 0.78
+      note 31/2beat C2 3/8beat 0.72
+    }
+    pattern keys-chords 4bar {
+      lock texture-front at 0beat parameter start value 0.08
+      lock short-tail at 0beat parameter decay value 210ms
+      lock texture-back at 12beat parameter start value 0.3
+      note 0beat F3 7/2beat 0.54
+      note 0beat Ab3 7/2beat 0.5
+      note 0beat C4 7/2beat 0.48
+      note 4beat C3 7/2beat 0.52
+      note 4beat Eb3 7/2beat 0.48
+      note 4beat G3 7/2beat 0.5
+      note 8beat Db3 7/2beat 0.56
+      note 8beat F3 7/2beat 0.5
+      note 8beat Ab3 7/2beat 0.52
+      note 12beat Ab2 7/2beat 0.54
+      note 12beat C3 7/2beat 0.5
+      note 12beat Eb3 7/2beat 0.48
+    }
+    pattern lead-hook 2bar {
+      note 1/4beat F5 1/4beat 0.66
+      note 3/4beat C5 1/4beat 0.54
+      note 3/2beat Eb5 1/4beat 0.58
+      note 9/4beat Ab5 1/4beat 0.68
+      note 11/4beat G5 1/4beat 0.58
+      note 7/2beat Eb5 1/4beat 0.54
+      note 17/4beat F5 1/4beat 0.68
+      note 19/4beat C5 1/4beat 0.56
+      note 11/2beat F5 1/4beat 0.62
+      note 25/4beat Ab5 1/4beat 0.7
+      note 27/4beat C6 1/4beat 0.66
+      note 15/2beat G5 1/4beat 0.58
+    }
+    pattern lead-answer 2bar from lead-hook {
+      rotate 1beat
+      transpose -5st
+      velocity 0.88
+      reverse false
+      probability 1
+      seed 401
+    }
+    pattern pad-chords 4bar {
+      note 0beat F3 15/4beat 0.46
+      note 0beat Ab3 15/4beat 0.43
+      note 0beat C4 15/4beat 0.45
+      note 0beat Eb4 15/4beat 0.4
+      note 4beat C3 15/4beat 0.44
+      note 4beat Eb3 15/4beat 0.42
+      note 4beat G3 15/4beat 0.43
+      note 4beat Bb3 15/4beat 0.39
+      note 8beat Db3 15/4beat 0.47
+      note 8beat F3 15/4beat 0.43
+      note 8beat Ab3 15/4beat 0.45
+      note 8beat C4 15/4beat 0.4
+      note 12beat Ab2 15/4beat 0.45
+      note 12beat C3 15/4beat 0.42
+      note 12beat Eb3 15/4beat 0.43
+      note 12beat G3 15/4beat 0.39
+    }
+    pattern evolving-bed 4bar {
+      note 0beat F3 8beat 0.46
+      note 0beat C4 8beat 0.42
+      note 8beat Db3 8beat 0.48
+      note 8beat Ab3 8beat 0.43
+    }
+    pattern granular-cloud 4bar {
+      note 0beat C4 4beat 0.45
+      note 4beat Eb4 4beat 0.4
+      note 8beat Ab3 4beat 0.46
+      note 12beat F4 4beat 0.42
+    }
+    pattern spectral-air 4bar {
+      note 0beat F3 8beat 0.38
+      note 8beat C4 8beat 0.4
+    }
+    pattern transition-rise 4bar {
+      note 12beat C4 4beat 0.7
+    }
+
+    modulation pad-width-drift lfo global bipolar sine sync 8bar target instrument/dh-pad/width depth 8%
+    modulation lead-color lfo instrument/dh-lead bipolar triangle sync 4bar target instrument/dh-lead/position depth 8%
+    modulation bass-touch lfo per_voice/dh-bass unipolar sine sync 1bar target instrument/dh-bass/drive depth 5%
+
+    automation bass-cutoff target instrument/dh-bass/cutoff {
+      point intro 0bar 280hz linear
+      point groove 16bar 420hz linear
+      point break 48bar 260hz linear
+      point drop 64bar 520hz linear
+      point outro 96bar 340hz linear
+      point end 112bar 220hz step
+    }
+    automation pad-cutoff target instrument/dh-pad/cutoff {
+      point intro 0bar 900hz linear
+      point groove 16bar 2600hz power(1.5)
+      point break 48bar 1100hz linear
+      point drop 64bar 4200hz power(1.4)
+      point outro 96bar 1600hz linear
+      point end 112bar 600hz step
+    }
+    automation pad-width target instrument/dh-pad/width {
+      point intro 0bar 0.5 linear
+      point theme 32bar 0.78 linear
+      point break 48bar 0.42 linear
+      point drop 64bar 0.9 linear
+      point outro 96bar 0.64 linear
+      point end 112bar 0.35 step
+    }
+    automation transition-rise target instrument/dh-transition/cutoff {
+      point intro 0bar 500hz step
+      point theme-a 28bar 500hz power(2)
+      point theme-a-hit 32bar 14khz step
+      point break-rise 44bar 600hz power(2)
+      point break-hit 48bar 13khz step
+      point drop-rise 60bar 500hz power(2)
+      point drop 64bar 15khz step
+      point outro-rise 92bar 600hz power(2)
+      point outro 96bar 12khz step
+      point end 112bar 500hz step
+    }
+    automation evolving-level target track/evolving/level {
+      point intro 0bar -24db linear
+      point theme 32bar -17db linear
+      point break 48bar -13db linear
+      point drop 64bar -18db linear
+      point outro 96bar -22db linear
+      point end 112bar -36db step
+    }
+    automation granular-level target track/granular/level {
+      point intro 0bar -36db linear
+      point prebreak 40bar -20db linear
+      point break 48bar -14db linear
+      point drop 64bar -22db linear
+      point theme-b 80bar -17db linear
+      point outro 96bar -36db step
+      point end 112bar -36db step
+    }
+    automation spectral-level target track/spectral/level {
+      point intro 0bar -36db linear
+      point prebreak 44bar -22db linear
+      point break 48bar -17db linear
+      point drop 64bar -24db linear
+      point theme-b 80bar -19db linear
+      point outro 96bar -36db step
+      point end 112bar -36db step
+    }
+    automation transition-send target send/transition-echo/level {
+      point intro 0bar -30db step
+      point theme-a 28bar -24db linear
+      point theme-a-hit 32bar -8db step
+      point break-rise 44bar -22db linear
+      point break-hit 48bar -7db step
+      point drop-rise 60bar -20db linear
+      point drop 64bar -6db step
+      point outro-rise 92bar -22db linear
+      point outro 96bar -8db step
+      point end 112bar -30db step
+    }
+    automation lead-throw target send/lead-echo/level {
+      point intro 0bar -30db step
+      point theme-a 32bar -16db linear
+      point break 48bar -30db step
+      point drop 64bar -14db linear
+      point theme-b 80bar -10db linear
+      point outro 96bar -30db step
+      point end 112bar -30db step
+    }
+
+    track kick-drums "Four-on-the-floor Kick" instrument dh-percussion level -9db pan 0 {
+      processor kick-eq eq {
+        setting high_pass 24hz
+        setting mid1_frequency 320hz
+        setting mid1_gain -1.5db
+        setting mid1_q 1
+      }
+      send kick-room target return/room tap post level -24db
+      output group/drums
+      clip kick-groove pattern kick-four start 8bar duration 40bar mode loop
+      clip kick-drop pattern kick-four start 64bar duration 40bar mode loop
+      clip kick-out pattern kick-fill start 104bar duration 8bar mode loop
+    }
+    track percussion "Swing Percussion" instrument dh-percussion level -14db pan 0 {
+      panner stereo_pan -0.65 0.65
+      send percussion-room target return/room tap post level -17db
+      output group/drums
+      clip perc-groove pattern perc-pocket start 12bar duration 36bar mode loop {
+        groove deep-swing
+      }
+      clip perc-drop pattern perc-answer start 64bar duration 40bar mode loop {
+        groove deep-swing
+      }
+    }
+    track bass "Sub and Analog Bass" instrument dh-bass level -11db pan 0 {
+      processor bass-duck compressor {
+        setting detector peak
+        setting threshold -25db
+        setting ratio 4
+        setting attack 4ms
+        setting release 105ms
+        setting knee 3db
+        setting makeup 0db
+        setting mix 1
+        sidechain input detector
+      }
+      processor bass-color saturation {
+        setting drive 1.08
+        setting mix 0.14
+        setting output 0db
+        setting mode soft_clip
+      }
+      send bass-room target return/room tap post level -28db
+      output group/music
+      clip bass-groove pattern bass-line start 16bar duration 32bar mode loop {
+        groove deep-swing
+      }
+      clip bass-drop pattern bass-line start 64bar duration 32bar mode loop {
+        groove deep-swing
+      }
+    }
+    track keys "Hybrid Sample and Multisample Keys" instrument dh-keys level -16db pan -0.08 {
+      panner stereo_pan -0.72 0.72
+      processor keys-eq eq {
+        setting high_pass 150hz
+        setting mid1_frequency 900hz
+        setting mid1_gain -1db
+        setting mid1_q 1
+      }
+      send keys-room target return/room tap post level -15db
+      send keys-echo target return/echo tap post level -22db
+      output group/music
+      clip keys-groove pattern keys-chords start 16bar duration 32bar mode loop {
+        groove deep-swing
+      }
+      clip keys-drop pattern keys-chords start 64bar duration 32bar mode loop {
+        groove deep-swing
+      }
+    }
+    track lead "Wavetable Hook" instrument dh-lead level -18db pan 0.12 {
+      panner stereo_pan -0.72 0.72
+      send lead-room target return/room tap post level -18db
+      send lead-echo target return/echo tap post level -30db
+      output group/music
+      clip lead-theme pattern lead-hook start 32bar duration 16bar mode loop {
+        groove deep-swing
+        fade 1bar 1bar
+      }
+      clip lead-drop pattern lead-answer start 64bar duration 16bar mode loop {
+        groove deep-swing
+        fade 1bar 0bar
+      }
+      clip lead-theme-b pattern lead-hook start 80bar duration 16bar mode loop {
+        groove deep-swing
+        fade 0bar 1bar
+      }
+    }
+    track pad "Analog Pad" instrument dh-pad level -18db pan 0 {
+      panner stereo_pan -0.85 0.85
+      send pad-room target return/room tap post level -14db
+      output group/music
+      clip pad-song pattern pad-chords start 0bar duration 112bar mode loop {
+        fade 4bar 4bar
+      }
+    }
+    track evolving "Evolving Wavetable Bed" instrument dh-evolving-texture level -24db pan 0 {
+      panner stereo_pan -0.9 0.9
+      send evolving-room target return/room tap post level -13db
+      output group/music
+      clip evolving-song pattern evolving-bed start 0bar duration 112bar mode loop {
+        fade 4bar 4bar
+      }
+    }
+    track granular "Granular Cloud" instrument dh-granular-texture level -36db pan -0.18 {
+      send granular-room target return/room tap post level -11db
+      send granular-echo target return/echo tap post level -21db
+      output group/music
+      clip granular-prebreak pattern granular-cloud start 40bar duration 24bar mode loop {
+        fade 2bar 2bar
+      }
+      clip granular-theme-b pattern granular-cloud start 72bar duration 24bar mode loop {
+        transpose 7st
+        fade 2bar 2bar
+      }
+    }
+    track spectral "Spectral Air" instrument dh-spectral-transform level -36db pan 0.2 {
+      send spectral-room target return/room tap post level -10db
+      output group/music
+      clip spectral-break pattern spectral-air start 44bar duration 20bar mode loop {
+        fade 2bar 2bar
+      }
+      clip spectral-theme-b pattern spectral-air start 76bar duration 20bar mode loop {
+        transpose -5st
+        fade 2bar 2bar
+      }
+    }
+    track transition "Noise and Analog Transitions" instrument dh-transition level -17db pan 0 {
+      panner stereo_pan -0.88 0.88
+      send transition-room target return/room tap post level -12db
+      send transition-echo target return/echo tap post level -30db
+      output group/music
+      clip rise-theme-a pattern transition-rise start 28bar duration 4bar mode once
+      clip rise-break pattern transition-rise start 44bar duration 4bar mode once
+      clip rise-drop pattern transition-rise start 60bar duration 4bar mode once
+      clip rise-outro pattern transition-rise start 92bar duration 4bar mode once
+    }
+
+    group music "Music" level -1db {
+      processor music-eq eq {
+        setting high_pass 28hz
+        setting mid1_frequency 280hz
+        setting mid1_gain -0.8db
+        setting mid1_q 0.8
+      }
+      processor music-color saturation {
+        setting drive 1.08
+        setting mix 0.12
+        setting output -0.3db
+        setting mode soft_clip
+      }
+      output master
+    }
+    group drums "Drums" level -1db {
+      processor drum-color saturation {
+        setting drive 1.06
+        setting mix 0.1
+        setting output -0.2db
+        setting mode soft_clip
+      }
+      output master
+    }
+    return room "Shared Room" level -10db {
+      processor room-reverb reverb {
+        setting pre_delay 18ms
+        setting diffusion 0.72
+        setting decay 0.66
+        setting damping 0.58
+        setting modulation 0.1
+        setting width 0.9
+        setting mix 1
+      }
+      output master
+    }
+    return echo "Shared Echo" level -12db {
+      processor echo-delay delay {
+        setting tempo_sync true
+        setting division 1/8d
+        setting feedback 0.32
+        setting low_pass 6khz
+        setting high_pass 240hz
+        setting mode ping_pong
+        setting mix 0.999
+      }
+      output master
+    }
+    sidechain kick-detector from track/kick-drums tap post to processor/bass-duck/detector
+    follower kick-motion from track/kick-drums tap post detector peak attack 3ms release 110ms floor -54db ceiling -8db target instrument/dh-bass/cutoff depth 120hz {
+      clamp 0 1
+    }
+    master level -2db {
+      processor master-glue compressor {
+        setting detector rms
+        setting threshold -18db
+        setting ratio 1.5
+        setting attack 20ms
+        setting release 120ms
+        setting knee 3db
+        setting makeup 0db
+        setting mix 0.7
+      }
+      processor ceiling limiter {
+        setting ceiling -1db
+        setting release 80ms
+        setting lookahead 5ms
+      }
+    }
+
+    locator intro "Intro" at 0bar
+    locator groove-in "Groove In" at 16bar
+    locator theme-a "Theme A" at 32bar
+    locator break "Break" at 48bar
+    locator drop "Drop" at 64bar
+    locator theme-b "Theme B" at 80bar
+    locator outro "Outro" at 96bar
+    locator end "End" at 112bar
+  }
+}

@@ -1,8 +1,9 @@
-use std::{collections::BTreeMap, path::Path};
+use std::path::Path;
 
 use crate::{
     dsl::parse_project,
-    model::{ChannelRef, OutputTarget, SettingValue, Unit},
+    engine::CompiledProject,
+    model::{ChannelRef, GraphDomain, OutputTarget, SettingValue, Unit},
 };
 
 use super::*;
@@ -49,6 +50,15 @@ project "Validation" {
 }
 "#;
 
+fn graph_setting<'a>(node: &'a mut crate::model::GraphNode, key: &str) -> &'a mut SettingValue {
+    &mut node
+        .settings
+        .iter_mut()
+        .find(|setting| setting.key == key)
+        .unwrap_or_else(|| panic!("missing graph setting `{key}`"))
+        .value
+}
+
 fn automation_project() -> Project {
     let source = VALID
         .replace(
@@ -77,6 +87,97 @@ fn accepts_valid_graph_and_timeline() {
         eprintln!("{diagnostic}");
     }
     assert!(!diagnostics.has_errors());
+}
+
+#[test]
+fn accepts_version_two_explicit_stereo_graph_and_exact_domains() {
+    let source = include_str!("../../tests/fixtures/stereo_foundation.crump");
+    let document = parse_project(Path::new("stereo_foundation.crump"), source);
+    assert!(
+        !document.diagnostics.has_errors(),
+        "{:?}",
+        document.diagnostics
+    );
+    let project = document.project.expect("version 2 Project");
+    let graph = project.song.instruments[0]
+        .graph
+        .as_ref()
+        .expect("voice graph");
+    assert_eq!(graph.domain, GraphDomain::Voice);
+    assert!(graph.connections.iter().all(|bus| bus.id_site.is_some()));
+    let diagnostics = validate_project(&project);
+    assert!(!diagnostics.has_errors(), "{:?}", diagnostics.as_slice());
+
+    let mixed = source
+        .replace(
+            "bus pitch-a note.pitch -> osc-a.pitch",
+            "connect note.pitch -> osc-a.pitch",
+        )
+        .replace("bus pitch-b", "bus compat-bus-0001");
+    let parsed = parse_project(Path::new("mixed-connections.crump"), &mixed);
+    assert!(!parsed.diagnostics.has_errors(), "{:?}", parsed.diagnostics);
+    let diagnostics = validate_project(parsed.project.as_ref().expect("Project"));
+    assert!(!diagnostics.has_errors(), "{:?}", diagnostics.as_slice());
+}
+
+#[test]
+fn rejects_stereo_type_cardinality_sum_bound_and_duplicate_bus_ids() {
+    let source = include_str!("../../tests/fixtures/stereo_foundation.crump");
+    let cases = [
+        (
+            source.replace(
+                "bus widen-a osc-a.audio -> widen-a.audio",
+                "bus widen-a osc-a.audio -> sum.inputs",
+            ),
+            "CRV044",
+        ),
+        (
+            source.replace(
+                "bus output sum.audio -> out.audio",
+                "bus output sum.audio -> out.audio\n        bus output-two widen-a.audio -> out.audio",
+            ),
+            "CRV046",
+        ),
+        (source.replace("max_inputs 3", "max_inputs 2"), "CRV061"),
+        (source.replace("bus z-cancel", "bus a-large"), "CRV060"),
+    ];
+    for (candidate, code) in cases {
+        let document = parse_project(Path::new("invalid-stereo.crump"), &candidate);
+        assert!(
+            !document.diagnostics.has_errors(),
+            "{code}: {:?}",
+            document.diagnostics
+        );
+        let diagnostics = validate_project(document.project.as_ref().expect("Project"));
+        assert!(
+            diagnostics
+                .as_slice()
+                .iter()
+                .any(|diagnostic| diagnostic.code == code),
+            "missing {code}: {:?}",
+            diagnostics.as_slice()
+        );
+    }
+}
+
+#[test]
+fn incomplete_asset_source_forms_fail_validation_and_compilation() {
+    let source = include_str!("../../tests/fixtures/stereo_foundation.crump");
+    let incomplete = source.replace(
+        "node osc-a oscillator waveform saw level $gain",
+        "node osc-a spectral asset pending-sample",
+    );
+    let parsed = parse_project(Path::new("incomplete-spectral.crump"), &incomplete);
+    assert!(!parsed.diagnostics.has_errors(), "{:?}", parsed.diagnostics);
+    let project = parsed.project.as_ref().expect("Project");
+    let diagnostics = validate_project(project);
+    assert!(diagnostics.as_slice().iter().any(|diagnostic| {
+        diagnostic.code == "CRV200" && diagnostic.message.contains("algorithm")
+    }));
+    assert!(diagnostics.as_slice().iter().any(|diagnostic| {
+        diagnostic.code == "CRV196" && diagnostic.message.contains("pending-sample")
+    }));
+    assert!(CompiledProject::compile(project).is_err());
 }
 
 #[test]
@@ -218,14 +319,9 @@ fn validates_automation_identity_time_domain_and_runtime_safety() {
         .find(|node| node.id == "filter")
         .expect("filter");
     filter.kind = NodeKind::Delay;
-    filter.settings = BTreeMap::from([
-        (
-            "time".to_owned(),
-            SettingValue::Parameter("tone".to_owned()),
-        ),
-        ("feedback".to_owned(), SettingValue::Number(0.2)),
-        ("mix".to_owned(), SettingValue::Number(0.5)),
-    ]);
+    filter.settings.retain(|setting| setting.key == "cutoff");
+    filter.settings[0].key = "time".to_owned();
+    filter.settings[0].value = SettingValue::Parameter("tone".to_owned());
     allocation_changing.song.automations[0].points[0].value = "100ms".to_owned();
     allocation_changing.song.automations[0].points[1].value = "1s".to_owned();
     assert!(
@@ -368,9 +464,7 @@ fn rejects_runtime_only_graph_setting_failures_before_publication() {
         .iter_mut()
         .find(|node| node.kind == NodeKind::Envelope)
         .expect("envelope");
-    envelope
-        .settings
-        .insert("release".to_owned(), SettingValue::Text("9s".to_owned()));
+    *graph_setting(envelope, "release") = SettingValue::Text("9s".to_owned());
     let diagnostics = validate_project(&project);
     assert!(
         diagnostics
@@ -390,9 +484,7 @@ fn rejects_missing_physical_unit_suffixes() {
         .iter_mut()
         .find(|node| node.kind == NodeKind::Envelope)
         .expect("envelope");
-    envelope
-        .settings
-        .insert("attack".to_owned(), SettingValue::Number(0.01));
+    *graph_setting(envelope, "attack") = SettingValue::Number(0.01);
     let diagnostics = validate_project(&project);
     assert!(
         diagnostics
@@ -421,10 +513,7 @@ fn rejects_parameter_domains_that_exceed_mapped_setting_domain() {
         .iter_mut()
         .find(|node| node.kind == NodeKind::Envelope)
         .expect("envelope");
-    envelope.settings.insert(
-        "release".to_owned(),
-        SettingValue::Parameter("tone".to_owned()),
-    );
+    *graph_setting(envelope, "release") = SettingValue::Parameter("tone".to_owned());
     let diagnostics = validate_project(&project);
     assert!(
         diagnostics
@@ -444,9 +533,7 @@ fn rejects_faceplate_controls_without_a_sound_mapping() {
         .iter_mut()
         .find(|node| node.kind == NodeKind::Lowpass)
         .expect("filter");
-    filter
-        .settings
-        .insert("cutoff".to_owned(), SettingValue::Text("2000hz".to_owned()));
+    *graph_setting(filter, "cutoff") = SettingValue::Text("2000hz".to_owned());
     let diagnostics = validate_project(&project);
     assert!(
         diagnostics

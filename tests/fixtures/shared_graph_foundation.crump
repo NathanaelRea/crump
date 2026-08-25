@@ -1,0 +1,53 @@
+crump 2
+project "Shared Graph Foundation" {
+  id shared-graph-foundation
+  seed 73
+  sample_rate 48000
+  render_tail 100ms
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument lead "Shared Lead" graph {
+      polyphony 2
+      parameter tone "Tone" ratio 0 1 0.2 0.2 modulatable
+      parameter fx "Shared FX" ratio 0 1 0.25 0.25 modulatable
+      faceplate {
+        control tone "Tone" "Voice level" maps tone
+        control fx "Shared FX" "Track-local shared delay mix" maps fx
+      }
+      modulation {
+        source track-motion lfo instrument bipolar sine free 1hz phase 0.25
+        source velocity note_velocity per_voice unipolar
+        route track-fx source track-motion target fx depth 0.25 map bipolar curve linear order -10 bypass false
+        route velocity-fx source velocity target fx depth 0.5 map unipolar curve linear order 0 bypass false
+      }
+      graph voice 5 {
+        node oscillator oscillator waveform saw level $tone
+        node envelope envelope attack 1ms decay 20ms sustain 0.8 release 40ms
+        node amplifier amplifier level 0.8
+        node widen mono_to_stereo
+        node voice-out output
+        bus pitch note.pitch -> oscillator.pitch
+        bus gate note.gate -> envelope.gate
+        bus voice-gain envelope.control -> amplifier.gain
+        bus voice-audio oscillator.audio -> amplifier.audio
+        bus widen amplifier.audio -> widen.audio
+        bus voice-output widen.audio -> voice-out.audio
+      }
+      graph shared 2 {
+        node shared-delay delay time 5ms feedback 0.5 mix $fx
+        node shared-out output
+        bus voice-sum voice_sum.audio -> shared-delay.audio
+        bus shared-output shared-delay.audio -> shared-out.audio
+      }
+    }
+    pattern notes 1bar {
+      note 0beat C4 1beat 0.8
+      note 0beat E4 1beat 0.4
+    }
+    track lead-track "Lead" instrument lead level -12db pan 0 {
+      clip notes pattern notes start 0bar duration 1bar mode once
+    }
+  }
+}

@@ -1,0 +1,73 @@
+crump 2
+project "Granular and Spectral Independent Maxima" {
+  id granular-spectral-independent-maxima
+  seed 65519
+  sample_rate 48000
+  render_tail 1s
+  asset source-texture "Deterministic source texture" wav "media/sample-source.wav" sha256 "ae8757e2a42ad7602b7bd6825ab0987444677a8e7f8515d0447e86aa01907de9" {
+    usage granular
+    usage spectral
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument source-mode-maxima-v1 "Granular and Spectral Independent Maxima" graph {
+      polyphony 5
+      parameter source-level "Source Level" ratio 0 1 0.15 0.15 modulatable
+      faceplate {
+        control source-level "Source Level" "Balances each independent maximum source" maps source-level
+      }
+      presentation {
+        tags "qualification" "granular" "spectral" "independent-maxima"
+        preview C2 G4 velocity 0.6 0.9 duration 2beat
+        section source-view sources "Two 64-Grain and Two 128-Peak Sources" {
+          node grain-a
+          node grain-b
+          node spectral-a
+          node spectral-b
+          asset source-texture
+        }
+        section routing-view routing "Explicit Maxima Sum" {
+          bus grain-a-sum
+          bus grain-b-sum
+          bus spectral-a-sum
+          bus spectral-b-sum
+          bus source-output
+        }
+      }
+      graph voice 64 {
+        node grain-a granular asset source-texture max_grains 64 position 0.25 scan 0.1 size 500ms density 200hz tune 0st spray 0.1 window hann edge reflect direction_probability 0.25 stereo_spread 1 freeze false seed 1 level $source-level
+        node grain-b granular asset source-texture max_grains 64 position 0.65 scan -0.08 size 500ms density 200hz tune 7st spray 0.1 window tukey edge wrap direction_probability 0.5 stereo_spread 1 freeze false seed 2 level $source-level
+        node spectral-a spectral asset source-texture algorithm crump-spectral-peaks-v1 max_peaks 128 scan 0.25 rate 0.5 tune 0st low 20hz high 20khz transients reset phase_randomization 0.1 freeze false level $source-level
+        node spectral-b spectral asset source-texture algorithm crump-spectral-peaks-v1 max_peaks 128 scan 0.75 rate -0.5 tune 12st low 20hz high 20khz transients preserve phase_randomization 0.2 freeze false level $source-level
+        node source-sum stereo_sum
+        node voice-output output
+        bus grain-a-pitch note.pitch -> grain-a.pitch
+        bus grain-a-gate note.gate -> grain-a.gate
+        bus grain-b-pitch note.pitch -> grain-b.pitch
+        bus grain-b-gate note.gate -> grain-b.gate
+        bus spectral-a-pitch note.pitch -> spectral-a.pitch
+        bus spectral-b-pitch note.pitch -> spectral-b.pitch
+        bus grain-a-sum grain-a.audio -> source-sum.inputs
+        bus grain-b-sum grain-b.audio -> source-sum.inputs
+        bus spectral-a-sum spectral-a.audio -> source-sum.inputs
+        bus spectral-b-sum spectral-b.audio -> source-sum.inputs
+        bus source-output source-sum.audio -> voice-output.audio
+      }
+    }
+    pattern maxima-chord 1bar {
+      note 0beat C2 1bar 0.7
+      note 0beat G2 1bar 0.7
+      note 0beat C3 1bar 0.7
+      note 0beat E3 1bar 0.7
+      note 0beat G3 1bar 0.7
+      note 0beat C4 1bar 0.7
+      note 0beat E4 1bar 0.7
+      note 0beat G4 1bar 0.7
+    }
+    track maxima-track "Granular and Spectral Maxima" instrument source-mode-maxima-v1 level -18db pan 0 {
+      clip maxima-phrase pattern maxima-chord start 0bar duration 1bar mode once
+    }
+  }
+}

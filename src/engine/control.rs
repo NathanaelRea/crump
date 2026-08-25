@@ -5,11 +5,16 @@ use std::{collections::BTreeMap, sync::Arc};
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    AutomationInterpolation, ControlPolarity, LfoWaveform, ModulationOperator, ModulationRate,
-    ModulationScope, ParameterTarget, Project, Unit,
+    AutomationInterpolation, ControlPolarity, GraphDomain, Instrument, InstrumentModulationRate,
+    InstrumentModulationScope, InstrumentModulationSourceKind, LfoDirection, LfoMode, LfoRetrigger,
+    LfoWaveform, ModulationCurve, ModulationOperator, ModulationRate, ModulationScope,
+    ParameterTarget, Project, Unit,
 };
 
-use super::{EngineError, schedule::compile_parameter_lock_lanes};
+use super::{
+    EngineError,
+    schedule::{compile_parameter_lock_lanes, compile_track_parameter_lock_lanes},
+};
 
 /// Dense callback-time index resolved from a stable authored target during compilation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -20,6 +25,9 @@ pub(crate) struct ControlIndex(pub(crate) usize);
 pub struct CompiledControlProgram {
     targets: Arc<Vec<CompiledTarget>>,
     indexes: Arc<BTreeMap<ParameterTarget, ControlIndex>>,
+    instrument_routes: Arc<Vec<CompiledInstrumentRoute>>,
+    instrument_local_routes: Arc<Vec<CompiledInstrumentRoute>>,
+    track_parameter_locks: Arc<BTreeMap<String, Arc<Vec<CompiledIndexedParameterLockLane>>>>,
 }
 
 impl CompiledControlProgram {
@@ -32,6 +40,7 @@ impl CompiledControlProgram {
             .map(|lane| (&lane.target, lane))
             .collect();
         let parameter_lock_lanes = compile_parameter_lock_lanes(project)?;
+        let track_parameter_lock_lanes = compile_track_parameter_lock_lanes(project)?;
         let authored = project
             .parameter_specs()
             .into_iter()
@@ -122,9 +131,110 @@ impl CompiledControlProgram {
                 routes,
             });
         }
+        let mut instruments = project.song.instruments.iter().collect::<Vec<_>>();
+        instruments.sort_by(|left, right| left.id.cmp(&right.id));
+        let instrument_routes: Vec<CompiledInstrumentRoute> = instruments
+            .iter()
+            .map(|instrument| {
+                compile_instrument_routes(
+                    instrument,
+                    project,
+                    &indexes,
+                    &[InstrumentModulationScope::Global],
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect();
+        let instrument_local_routes: Vec<CompiledInstrumentRoute> = instruments
+            .iter()
+            .map(|instrument| {
+                compile_instrument_routes(
+                    instrument,
+                    project,
+                    &indexes,
+                    &[
+                        InstrumentModulationScope::Instrument,
+                        InstrumentModulationScope::PerVoice,
+                    ],
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect();
+        let locked_targets = track_parameter_lock_lanes
+            .keys()
+            .filter_map(|(_, target)| indexes.get(target).copied())
+            .collect::<std::collections::BTreeSet<_>>();
+        if instrument_routes.iter().any(|route| {
+            std::iter::once(&route.source)
+                .chain(route.auxiliary.as_ref())
+                .any(|source| {
+                    matches!(
+                        source.kind,
+                        CompiledInstrumentSourceKind::Parameter { parameter }
+                            if locked_targets.contains(&parameter)
+                    )
+                })
+        }) {
+            return Err(EngineError::Compile(
+                "a Song-global Parameter modulation source cannot read a Track-owned Parameter lock"
+                    .to_owned(),
+            ));
+        }
+        let mut compiled_track_locks =
+            BTreeMap::<String, Vec<CompiledIndexedParameterLockLane>>::new();
+        for ((track, target), points) in track_parameter_lock_lanes {
+            let index = indexes.get(&target).copied().ok_or_else(|| {
+                EngineError::Compile(format!(
+                    "Parameter lock targets missing Parameter `{target}`"
+                ))
+            })?;
+            let unit = targets[index.0].unit;
+            let points = points
+                .into_iter()
+                .map(|point| {
+                    let value = point
+                        .value
+                        .as_ref()
+                        .map(|value| {
+                            unit.parse_value(value).map_err(|error| {
+                                EngineError::Compile(format!(
+                                    "Parameter lock for `{target}` at frame {}: {error}",
+                                    point.frame
+                                ))
+                            })
+                        })
+                        .transpose()?;
+                    Ok(CompiledParameterLockPoint {
+                        frame: point.frame,
+                        value,
+                    })
+                })
+                .collect::<Result<Vec<_>, EngineError>>()?;
+            compiled_track_locks
+                .entry(track)
+                .or_default()
+                .push(CompiledIndexedParameterLockLane {
+                    target: index,
+                    lane: CompiledParameterLockLane { points },
+                });
+        }
+        let track_parameter_locks = compiled_track_locks
+            .into_iter()
+            .map(|(track, mut lanes)| {
+                lanes.sort_by_key(|lane| lane.target);
+                (track, Arc::new(lanes))
+            })
+            .collect();
         Ok(Self {
             targets: Arc::new(targets),
             indexes: Arc::new(indexes),
+            instrument_routes: Arc::new(instrument_routes),
+            instrument_local_routes: Arc::new(instrument_local_routes),
+            track_parameter_locks: Arc::new(track_parameter_locks),
         })
     }
 
@@ -134,26 +244,111 @@ impl CompiledControlProgram {
         self.indexes.get(target).copied()
     }
 
-    pub(crate) fn per_voice_routes(&self, instrument: &str) -> Vec<CompiledPerVoiceRoute> {
-        let mut routes = Vec::new();
+    pub(crate) fn graph_routes(
+        &self,
+        instrument: &Instrument,
+        project: &Project,
+        domain: GraphDomain,
+    ) -> Result<Vec<CompiledPerVoiceRoute>, EngineError> {
+        let scopes: &[InstrumentModulationScope] = match domain {
+            GraphDomain::Voice => &[
+                InstrumentModulationScope::Global,
+                InstrumentModulationScope::Instrument,
+                InstrumentModulationScope::PerVoice,
+            ],
+            GraphDomain::Shared => &[
+                InstrumentModulationScope::Global,
+                InstrumentModulationScope::Instrument,
+            ],
+        };
+        let mut routes = compile_instrument_routes(instrument, project, &self.indexes, scopes)?
+            .into_iter()
+            .map(CompiledPerVoiceRoute::Instrument)
+            .collect::<Vec<_>>();
         for (target_index, target) in self.targets.iter().enumerate() {
-            for route in &target.routes {
-                if matches!(&route.scope, ModulationScope::PerVoice(owner) if owner == instrument) {
-                    routes.push(CompiledPerVoiceRoute {
-                        target: ControlIndex(target_index),
-                        minimum: target.minimum,
-                        maximum: target.maximum,
-                        route: route.clone(),
-                    });
-                }
+            let has_song_tier = target.routes.iter().any(|route| {
+                !matches!(&route.scope, ModulationScope::PerVoice(owner) if owner == &instrument.id)
+            }) || project
+                .song
+                .envelope_followers
+                .iter()
+                .any(|route| route.target == target.target);
+            if has_song_tier
+                && matches!(
+                    &target.target,
+                    ParameterTarget::Instrument { instrument: owner, .. } if owner == &instrument.id
+                )
+            {
+                routes.push(CompiledPerVoiceRoute::SongTier {
+                    target: ControlIndex(target_index),
+                    minimum: target.minimum,
+                    maximum: target.maximum,
+                });
             }
         }
-        routes.sort_by(|left, right| left.route.id.cmp(&right.route.id));
-        routes
+        if domain == GraphDomain::Voice {
+            let mut song_routes = Vec::new();
+            for (target_index, target) in self.targets.iter().enumerate() {
+                for route in &target.routes {
+                    if matches!(&route.scope, ModulationScope::PerVoice(owner) if owner == &instrument.id)
+                    {
+                        song_routes.push(CompiledPerVoiceRoute::Song {
+                            target: ControlIndex(target_index),
+                            minimum: target.minimum,
+                            maximum: target.maximum,
+                            route: route.clone(),
+                        });
+                    }
+                }
+            }
+            song_routes.sort_by(|left, right| left.id().cmp(right.id()));
+            routes.extend(song_routes);
+        }
+        Ok(routes)
     }
 
     pub(crate) fn target_count(&self) -> usize {
         self.targets.len()
+    }
+
+    pub(crate) fn track_parameter_lock_runtime(
+        &self,
+        track_id: &str,
+    ) -> Option<TrackParameterLockRuntime> {
+        self.track_parameter_locks
+            .get(track_id)
+            .map(|lanes| TrackParameterLockRuntime {
+                lanes: lanes.clone(),
+                effective: vec![0.0; self.targets.len()],
+                pre_instrument_unconstrained: vec![0.0; self.targets.len()],
+                transition_origin: vec![0.0; self.targets.len()],
+                transition_pre_instrument_origin: vec![0.0; self.targets.len()],
+                transition_changed: vec![false; self.targets.len()],
+                transition_lanes: None,
+                transition_active: false,
+                transition_position: 0,
+                transition_frames: 0,
+            })
+    }
+
+    pub(crate) fn track_parameter_lock_runtime_state_bytes(&self) -> u64 {
+        let arrays = (self.targets.len() as u64)
+            .saturating_mul(4)
+            .saturating_mul(std::mem::size_of::<f64>() as u64)
+            .saturating_add(packed_bool_allocation_bytes(self.targets.len()));
+        (self.track_parameter_locks.len() as u64).saturating_mul(arrays)
+    }
+
+    pub(crate) fn global_instrument_route_index(
+        &self,
+        route: &CompiledInstrumentRoute,
+    ) -> Option<usize> {
+        (route.source.scope == InstrumentModulationScope::Global).then(|| {
+            self.instrument_routes
+                .iter()
+                .position(|candidate| candidate == route)
+                .expect("graph global route must share the compiled Control program")
+        })
     }
 
     /// Owned immutable allocations retained by a runtime through this program.
@@ -185,17 +380,92 @@ impl CompiledControlProgram {
                     .map(parameter_target_heap_bytes)
                     .fold(0_u64, u64::saturating_add),
             );
-        targets.saturating_add(indexes)
+        let instrument_routes = (std::mem::size_of::<Vec<CompiledInstrumentRoute>>() as u64)
+            .saturating_add(word.saturating_mul(2))
+            .saturating_add(
+                (self.instrument_routes.capacity() as u64)
+                    .saturating_mul(std::mem::size_of::<CompiledInstrumentRoute>() as u64),
+            )
+            .saturating_add(
+                self.instrument_routes
+                    .iter()
+                    .map(CompiledInstrumentRoute::heap_bytes)
+                    .fold(0_u64, u64::saturating_add),
+            );
+        let instrument_local_routes = (std::mem::size_of::<Vec<CompiledInstrumentRoute>>() as u64)
+            .saturating_add(word.saturating_mul(2))
+            .saturating_add(
+                (self.instrument_local_routes.capacity() as u64)
+                    .saturating_mul(std::mem::size_of::<CompiledInstrumentRoute>() as u64),
+            )
+            .saturating_add(
+                self.instrument_local_routes
+                    .iter()
+                    .map(CompiledInstrumentRoute::heap_bytes)
+                    .fold(0_u64, u64::saturating_add),
+            );
+        let track_parameter_locks = (std::mem::size_of::<
+            BTreeMap<String, Arc<Vec<CompiledIndexedParameterLockLane>>>,
+        >() as u64)
+            .saturating_add(word.saturating_mul(2))
+            .saturating_add(
+                (self.track_parameter_locks.len() as u64).saturating_mul(
+                    (std::mem::size_of::<(String, Arc<Vec<CompiledIndexedParameterLockLane>>)>()
+                        as u64)
+                        .saturating_add(word.saturating_mul(4)),
+                ),
+            )
+            .saturating_add(self.track_parameter_locks.iter().fold(
+                0_u64,
+                |bytes, (track, lanes)| {
+                    lanes.iter().fold(
+                        bytes
+                            .saturating_add(track.capacity() as u64)
+                            .saturating_add(
+                                std::mem::size_of::<Vec<CompiledIndexedParameterLockLane>>() as u64,
+                            )
+                            .saturating_add(word.saturating_mul(2))
+                            .saturating_add((lanes.capacity() as u64).saturating_mul(
+                                std::mem::size_of::<CompiledIndexedParameterLockLane>() as u64,
+                            )),
+                        |bytes, lane| {
+                            bytes.saturating_add(
+                                (lane.lane.points.capacity() as u64).saturating_mul(
+                                    std::mem::size_of::<CompiledParameterLockPoint>() as u64,
+                                ),
+                            )
+                        },
+                    )
+                },
+            ));
+        targets
+            .saturating_add(indexes)
+            .saturating_add(instrument_routes)
+            .saturating_add(instrument_local_routes)
+            .saturating_add(track_parameter_locks)
     }
 
     /// Mutable vector backing allocated for one callback-time evaluator.
     pub(crate) fn runtime_state_bytes(&self) -> u64 {
         let targets = self.targets.len() as u64;
         targets
-            .saturating_mul(4)
+            .saturating_mul(7)
             .saturating_mul(std::mem::size_of::<f64>() as u64)
             .saturating_add(targets.saturating_mul(std::mem::size_of::<RuntimeProvenance>() as u64))
+            .saturating_add(
+                (self.instrument_routes.len() as u64)
+                    .saturating_mul(std::mem::size_of::<RuntimeInstrumentRouteValue>() as u64),
+            )
             .saturating_add(packed_bool_allocation_bytes(self.targets.len()))
+    }
+
+    /// Deterministic scalar work added by Instrument/global sources and routes each frame.
+    pub(crate) fn instrument_work_units_per_frame(&self) -> u64 {
+        self.instrument_routes.iter().fold(0_u64, |work, route| {
+            work.saturating_add(2)
+                .saturating_add(route.operators.len() as u64)
+                .saturating_add(u64::from(route.auxiliary.is_some()))
+        })
     }
 
     pub(crate) fn initial_value(&self, index: ControlIndex) -> Option<f64> {
@@ -215,13 +485,21 @@ impl CompiledControlProgram {
         ControlRuntime {
             program: self.clone(),
             transition_origin: effective.clone(),
+            pre_instrument_unconstrained: effective.clone(),
+            instrument_unconstrained: effective.clone(),
+            song_modulation: vec![0.0; self.targets.len()],
             unconstrained: effective.clone(),
             effective,
             modulation: vec![0.0; self.targets.len()],
             provenance: vec![RuntimeProvenance::default(); self.targets.len()],
+            instrument_route_values: vec![
+                RuntimeInstrumentRouteValue::default();
+                self.instrument_routes.len()
+            ],
             transition_changed: vec![false; self.targets.len()],
             transition_position: 0,
             transition_frames: 0,
+            apply_parameter_locks: false,
         }
     }
 
@@ -229,12 +507,33 @@ impl CompiledControlProgram {
     #[must_use]
     pub fn snapshot_at(&self, frame: u64) -> Vec<ControlValueSnapshot> {
         let mut runtime = self.runtime();
+        runtime.apply_parameter_locks = true;
         runtime.evaluate_frame(frame);
         self.targets
             .iter()
             .enumerate()
             .map(|(index, target)| {
                 let provenance = runtime.provenance[index];
+                let mut instrument_modulation_routes = self
+                    .instrument_routes
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, route)| route.target == ControlIndex(index))
+                    .map(|(route_index, route)| {
+                        route.snapshot(Some(runtime.instrument_route_values[route_index]))
+                    })
+                    .chain(
+                        self.instrument_local_routes
+                            .iter()
+                            .filter(|route| route.target == ControlIndex(index))
+                            .map(|route| route.snapshot(None)),
+                    )
+                    .collect::<Vec<_>>();
+                instrument_modulation_routes.sort_by(|left, right| {
+                    left.order
+                        .cmp(&right.order)
+                        .then_with(|| left.route.cmp(&right.route))
+                });
                 ControlValueSnapshot {
                     target: target.target.clone(),
                     unit: target.unit,
@@ -248,6 +547,7 @@ impl CompiledControlProgram {
                         .iter()
                         .map(|route| route.snapshot(frame))
                         .collect(),
+                    instrument_modulation_routes,
                     unconstrained: provenance.unconstrained,
                     effective: runtime.effective[index],
                     clamped: provenance.clamped,
@@ -295,7 +595,7 @@ struct CompiledTarget {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct CompiledRoute {
+pub(crate) struct CompiledRoute {
     id: String,
     scope: ModulationScope,
     polarity: ControlPolarity,
@@ -379,11 +679,15 @@ impl CompiledRoute {
     }
 
     fn normalized_at(&self, frame: u64) -> f64 {
-        let phase = (frame as f64 * self.phase_increment).fract();
-        let bipolar = match self.waveform {
-            LfoWaveform::Sine => (phase * std::f64::consts::TAU).sin(),
-            LfoWaveform::Triangle => 1.0 - 4.0 * (phase - 0.5).abs(),
-        };
+        let position = frame as f64 * self.phase_increment;
+        let phase = position.fract();
+        let cycle = position.floor().max(0.0) as u64;
+        let bipolar = super::lfo::bipolar_sample(
+            self.waveform,
+            phase,
+            cycle,
+            stable_modulation_identity(&self.id),
+        );
         let mut value = match self.polarity {
             ControlPolarity::Unipolar => (bipolar + 1.0) * 0.5,
             ControlPolarity::Bipolar => bipolar,
@@ -416,6 +720,540 @@ impl CompiledRoute {
             contribution: self.contribution_at(frame),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum CompiledInstrumentSourceKind {
+    GraphPort {
+        node: String,
+        port: String,
+    },
+    Lfo {
+        waveform: LfoWaveform,
+        phase_increment: f64,
+        phase: f64,
+        mode: LfoMode,
+        direction: LfoDirection,
+    },
+    NoteVelocity,
+    NoteKey {
+        reference: u8,
+        range_semitones: f64,
+    },
+    NoteGate,
+    NoteAge {
+        duration_frames: f64,
+    },
+    RandomHold {
+        period_frames: u64,
+        seed: u64,
+    },
+    Parameter {
+        parameter: ControlIndex,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CompiledInstrumentSource {
+    id: String,
+    scope: InstrumentModulationScope,
+    polarity: ControlPolarity,
+    kind: CompiledInstrumentSourceKind,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CompiledInstrumentRoute {
+    id: String,
+    order: i32,
+    target: ControlIndex,
+    minimum: f64,
+    maximum: f64,
+    source: CompiledInstrumentSource,
+    auxiliary: Option<CompiledInstrumentSource>,
+    depth: f64,
+    polarity: ControlPolarity,
+    curve: ModulationCurve,
+    bypass: bool,
+    operators: Vec<ModulationOperator>,
+}
+
+impl CompiledInstrumentRoute {
+    fn heap_bytes(&self) -> u64 {
+        (self.id.capacity() + self.source.heap_bytes()) as u64
+            + self
+                .auxiliary
+                .as_ref()
+                .map_or(0, |source| source.heap_bytes() as u64)
+            + self.operators.capacity() as u64 * std::mem::size_of::<ModulationOperator>() as u64
+    }
+
+    pub(crate) fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub(crate) const fn target(&self) -> ControlIndex {
+        self.target
+    }
+
+    pub(crate) const fn source(&self) -> &CompiledInstrumentSource {
+        &self.source
+    }
+
+    pub(crate) fn auxiliary(&self) -> Option<&CompiledInstrumentSource> {
+        self.auxiliary.as_ref()
+    }
+
+    pub(crate) fn topology_compatible(&self, replacement: &Self) -> bool {
+        self.id == replacement.id
+            && self.order == replacement.order
+            && self.target == replacement.target
+            && self.minimum.to_bits() == replacement.minimum.to_bits()
+            && self.maximum.to_bits() == replacement.maximum.to_bits()
+            && self.source == replacement.source
+            && self.auxiliary == replacement.auxiliary
+            && self.polarity == replacement.polarity
+            && self.curve == replacement.curve
+            && self.operators == replacement.operators
+    }
+
+    pub(crate) fn scalar_changed(&self, replacement: &Self) -> bool {
+        self.depth.to_bits() != replacement.depth.to_bits() || self.bypass != replacement.bypass
+    }
+
+    pub(crate) fn parameter_dependencies(&self) -> impl Iterator<Item = ControlIndex> + '_ {
+        std::iter::once(&self.source)
+            .chain(self.auxiliary.as_ref())
+            .filter_map(|source| match source.kind {
+                CompiledInstrumentSourceKind::Parameter { parameter } => Some(parameter),
+                _ => None,
+            })
+    }
+
+    pub(crate) fn contribution(&self, primary: f64, auxiliary: Option<f64>) -> f64 {
+        if self.bypass {
+            return 0.0;
+        }
+        let mut value = remap_polarity(primary, self.source.polarity, self.polarity);
+        value = match self.curve {
+            ModulationCurve::Linear => value,
+            ModulationCurve::Power(exponent) => match self.polarity {
+                ControlPolarity::Unipolar => value.clamp(0.0, 1.0).powf(exponent),
+                ControlPolarity::Bipolar => value.signum() * value.abs().min(1.0).powf(exponent),
+            },
+            ModulationCurve::Smoothstep => match self.polarity {
+                ControlPolarity::Unipolar => {
+                    let value = value.clamp(0.0, 1.0);
+                    value * value * (3.0 - 2.0 * value)
+                }
+                ControlPolarity::Bipolar => {
+                    let magnitude = value.abs().min(1.0);
+                    value.signum() * magnitude * magnitude * (3.0 - 2.0 * magnitude)
+                }
+            },
+        };
+        if let Some(auxiliary) = auxiliary {
+            value *= auxiliary;
+        }
+        for operator in &self.operators {
+            value = apply_operator(value, *operator);
+        }
+        value * self.depth
+    }
+
+    fn snapshot(
+        &self,
+        value: Option<RuntimeInstrumentRouteValue>,
+    ) -> InstrumentModulationValueSnapshot {
+        InstrumentModulationValueSnapshot {
+            route: self.id.clone(),
+            source: self.source.id.clone(),
+            scope: self.source.scope,
+            order: self.order,
+            bypass: self.bypass,
+            normalized: value.map(|value| value.normalized),
+            auxiliary: value.and_then(|value| value.auxiliary),
+            depth: self.depth,
+            contribution: value.map(|value| value.contribution),
+        }
+    }
+}
+
+pub(crate) struct InstrumentSourceContext<'a> {
+    pub(crate) frame: u64,
+    pub(crate) pitch: u8,
+    pub(crate) velocity: f64,
+    pub(crate) gate: bool,
+    pub(crate) controls: &'a [f64],
+    pub(crate) graph_control: Option<f64>,
+    pub(crate) random_identity: u64,
+}
+
+impl CompiledInstrumentSource {
+    fn heap_bytes(&self) -> usize {
+        self.id.capacity()
+            + match &self.kind {
+                CompiledInstrumentSourceKind::GraphPort { node, port } => {
+                    node.capacity() + port.capacity()
+                }
+                _ => 0,
+            }
+    }
+
+    pub(crate) const fn kind(&self) -> &CompiledInstrumentSourceKind {
+        &self.kind
+    }
+
+    pub(crate) const fn scope(&self) -> InstrumentModulationScope {
+        self.scope
+    }
+
+    pub(crate) fn value(&self, context: InstrumentSourceContext<'_>) -> Option<f64> {
+        let native = match self.kind {
+            CompiledInstrumentSourceKind::GraphPort { .. } => context.graph_control?,
+            CompiledInstrumentSourceKind::Lfo {
+                waveform,
+                phase_increment,
+                phase,
+                mode,
+                direction,
+            } => {
+                let (phase, cycle) = super::lfo::position(
+                    phase,
+                    context.frame as f64 * phase_increment,
+                    mode,
+                    direction,
+                );
+                super::lfo::bipolar_sample(
+                    waveform,
+                    phase,
+                    cycle,
+                    mix_modulation_identity(
+                        stable_modulation_identity(&self.id),
+                        context.random_identity,
+                    ),
+                )
+            }
+            CompiledInstrumentSourceKind::NoteVelocity => context.velocity.clamp(0.0, 1.0),
+            CompiledInstrumentSourceKind::NoteKey {
+                reference,
+                range_semitones,
+            } => (f64::from(context.pitch) - f64::from(reference)) / range_semitones,
+            CompiledInstrumentSourceKind::NoteGate => f64::from(context.gate),
+            CompiledInstrumentSourceKind::NoteAge { duration_frames } => {
+                (context.frame as f64 / duration_frames).clamp(0.0, 1.0)
+            }
+            CompiledInstrumentSourceKind::RandomHold {
+                period_frames,
+                seed,
+            } => {
+                deterministic_random(
+                    seed ^ context.random_identity,
+                    context.frame / period_frames,
+                ) * 2.0
+                    - 1.0
+            }
+            CompiledInstrumentSourceKind::Parameter { parameter } => context.controls[parameter.0],
+        };
+        Some(match self.polarity {
+            ControlPolarity::Unipolar => match self.kind {
+                CompiledInstrumentSourceKind::Lfo { .. }
+                | CompiledInstrumentSourceKind::RandomHold { .. } => (native + 1.0) * 0.5,
+                _ => native.clamp(0.0, 1.0),
+            },
+            ControlPolarity::Bipolar => match self.kind {
+                CompiledInstrumentSourceKind::NoteVelocity
+                | CompiledInstrumentSourceKind::NoteGate
+                | CompiledInstrumentSourceKind::NoteAge { .. }
+                | CompiledInstrumentSourceKind::Parameter { .. } => native * 2.0 - 1.0,
+                _ => native.clamp(-1.0, 1.0),
+            },
+        })
+    }
+}
+
+fn remap_polarity(value: f64, from: ControlPolarity, to: ControlPolarity) -> f64 {
+    match (from, to) {
+        (ControlPolarity::Unipolar, ControlPolarity::Bipolar) => value * 2.0 - 1.0,
+        (ControlPolarity::Bipolar, ControlPolarity::Unipolar) => (value + 1.0) * 0.5,
+        _ => value,
+    }
+}
+
+fn apply_operator(value: f64, operator: ModulationOperator) -> f64 {
+    match operator {
+        ModulationOperator::Add { value: operand }
+        | ModulationOperator::Bias { value: operand } => value + operand,
+        ModulationOperator::Multiply { value: operand }
+        | ModulationOperator::Scale { value: operand } => value * operand,
+        ModulationOperator::Clamp { minimum, maximum } => value.clamp(minimum, maximum),
+    }
+}
+
+fn deterministic_random(seed: u64, index: u64) -> f64 {
+    let mut value = seed ^ index.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+    value = (value ^ (value >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    let bits = value ^ (value >> 31);
+    (bits >> 11) as f64 * (1.0 / ((1_u64 << 53) as f64))
+}
+
+fn compile_instrument_routes(
+    instrument: &Instrument,
+    project: &Project,
+    indexes: &BTreeMap<ParameterTarget, ControlIndex>,
+    scopes: &[InstrumentModulationScope],
+) -> Result<Vec<CompiledInstrumentRoute>, EngineError> {
+    let authored_sources = instrument
+        .modulation_sources
+        .iter()
+        .map(|source| (source.id.as_str(), source))
+        .collect::<BTreeMap<_, _>>();
+    let mut routes = Vec::new();
+    for route in &instrument.modulation_routes {
+        let source = authored_sources.get(route.source.as_str()).ok_or_else(|| {
+            EngineError::Compile(format!("Instrument route `{}` has no source", route.id))
+        })?;
+        if !scopes.contains(&source.scope) {
+            continue;
+        }
+        let parameter = instrument
+            .parameters
+            .iter()
+            .find(|parameter| parameter.key == route.target)
+            .ok_or_else(|| {
+                EngineError::Compile(format!("Instrument route `{}` has no target", route.id))
+            })?;
+        let target = indexes
+            .get(&ParameterTarget::Instrument {
+                instrument: instrument.id.clone(),
+                parameter: route.target.clone(),
+            })
+            .copied()
+            .ok_or_else(|| {
+                EngineError::Compile(format!(
+                    "Instrument route `{}` target is not compiled",
+                    route.id
+                ))
+            })?;
+        let source = compile_instrument_source(source, instrument, project, indexes)?;
+        let auxiliary = route
+            .auxiliary
+            .as_ref()
+            .map(|id| {
+                authored_sources
+                    .get(id.as_str())
+                    .ok_or_else(|| {
+                        EngineError::Compile(format!(
+                            "Instrument route `{}` has no auxiliary source",
+                            route.id
+                        ))
+                    })
+                    .and_then(|source| {
+                        compile_instrument_source(source, instrument, project, indexes)
+                    })
+            })
+            .transpose()?;
+        routes.push(CompiledInstrumentRoute {
+            id: route.id.clone(),
+            order: route.order,
+            target,
+            minimum: parameter.minimum,
+            maximum: parameter.maximum,
+            source,
+            auxiliary,
+            depth: parameter.unit.parse_value(&route.depth).map_err(|error| {
+                EngineError::Compile(format!("Instrument route `{}` depth: {error}", route.id))
+            })?,
+            polarity: route.polarity,
+            curve: route.curve,
+            bypass: route.bypass,
+            operators: route.operators.clone(),
+        });
+    }
+    routes.sort_by(|left, right| {
+        left.order
+            .cmp(&right.order)
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    stable_route_dag_order(routes)
+}
+
+fn stable_route_dag_order(
+    routes: Vec<CompiledInstrumentRoute>,
+) -> Result<Vec<CompiledInstrumentRoute>, EngineError> {
+    let mut outgoing = vec![Vec::<usize>::new(); routes.len()];
+    let mut incoming = vec![0_usize; routes.len()];
+    let mut add_edge = |from: usize, to: usize| {
+        if from != to && !outgoing[from].contains(&to) {
+            outgoing[from].push(to);
+            incoming[to] += 1;
+        }
+    };
+    for (producer_index, producer) in routes.iter().enumerate() {
+        for (consumer_index, consumer) in routes.iter().enumerate() {
+            let consumes_target = matches!(consumer.source.kind, CompiledInstrumentSourceKind::Parameter { parameter } if parameter == producer.target)
+                || consumer.auxiliary.as_ref().is_some_and(|source| {
+                    matches!(source.kind, CompiledInstrumentSourceKind::Parameter { parameter } if parameter == producer.target)
+                });
+            if consumes_target {
+                add_edge(producer_index, consumer_index);
+            }
+        }
+    }
+    for left in 0..routes.len() {
+        for right in left + 1..routes.len() {
+            if routes[left].target == routes[right].target {
+                add_edge(left, right);
+            }
+        }
+    }
+    let mut ready = incoming
+        .iter()
+        .enumerate()
+        .filter_map(|(index, count)| (*count == 0).then_some(index))
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut order = Vec::with_capacity(routes.len());
+    while let Some(index) = ready.pop_first() {
+        order.push(index);
+        for destination in &outgoing[index] {
+            incoming[*destination] -= 1;
+            if incoming[*destination] == 0 {
+                ready.insert(*destination);
+            }
+        }
+    }
+    if order.len() != routes.len() {
+        return Err(EngineError::Compile(
+            "Instrument macro/route dependency graph contains a cycle".to_owned(),
+        ));
+    }
+    let mut routes = routes.into_iter().map(Some).collect::<Vec<_>>();
+    Ok(order
+        .into_iter()
+        .map(|index| routes[index].take().expect("route index is unique"))
+        .collect())
+}
+
+fn compile_instrument_source(
+    source: &crate::model::InstrumentModulationSource,
+    instrument: &Instrument,
+    project: &Project,
+    indexes: &BTreeMap<ParameterTarget, ControlIndex>,
+) -> Result<CompiledInstrumentSource, EngineError> {
+    let kind = match &source.kind {
+        InstrumentModulationSourceKind::GraphPort { node, port } => {
+            CompiledInstrumentSourceKind::GraphPort {
+                node: node.clone(),
+                port: port.clone(),
+            }
+        }
+        InstrumentModulationSourceKind::Lfo {
+            waveform,
+            rate,
+            phase,
+            mode,
+            direction,
+            retrigger,
+        } => {
+            let expected = if source.scope == InstrumentModulationScope::PerVoice {
+                LfoRetrigger::Note
+            } else {
+                LfoRetrigger::Transport
+            };
+            if *retrigger != expected {
+                return Err(EngineError::Compile(format!(
+                    "Instrument LFO `{}` retrigger is incompatible with its scope",
+                    source.id
+                )));
+            }
+            CompiledInstrumentSourceKind::Lfo {
+                waveform: *waveform,
+                phase_increment: modulation_phase_increment(rate, project)?,
+                phase: *phase,
+                mode: *mode,
+                direction: *direction,
+            }
+        }
+        InstrumentModulationSourceKind::NoteVelocity => CompiledInstrumentSourceKind::NoteVelocity,
+        InstrumentModulationSourceKind::NoteKey {
+            reference,
+            range_semitones,
+        } => CompiledInstrumentSourceKind::NoteKey {
+            reference: *reference,
+            range_semitones: *range_semitones,
+        },
+        InstrumentModulationSourceKind::NoteGate => CompiledInstrumentSourceKind::NoteGate,
+        InstrumentModulationSourceKind::NoteAge { duration_seconds } => {
+            CompiledInstrumentSourceKind::NoteAge {
+                duration_frames: duration_seconds * f64::from(project.sample_rate),
+            }
+        }
+        InstrumentModulationSourceKind::RandomHold { rate, seed } => {
+            let increment = modulation_phase_increment(rate, project)?;
+            CompiledInstrumentSourceKind::RandomHold {
+                period_frames: (1.0 / increment).round().max(1.0) as u64,
+                seed: *seed
+                    ^ project.seed
+                    ^ stable_modulation_identity(&instrument.id)
+                    ^ stable_modulation_identity(&source.id),
+            }
+        }
+        InstrumentModulationSourceKind::Parameter { parameter } => {
+            CompiledInstrumentSourceKind::Parameter {
+                parameter: indexes
+                    .get(&ParameterTarget::Instrument {
+                        instrument: instrument.id.clone(),
+                        parameter: parameter.clone(),
+                    })
+                    .copied()
+                    .ok_or_else(|| {
+                        EngineError::Compile(format!("missing macro Parameter `{parameter}`"))
+                    })?,
+            }
+        }
+    };
+    Ok(CompiledInstrumentSource {
+        id: source.id.clone(),
+        scope: source.scope,
+        polarity: source.polarity,
+        kind,
+    })
+}
+
+fn modulation_phase_increment(
+    rate: &InstrumentModulationRate,
+    project: &Project,
+) -> Result<f64, EngineError> {
+    match rate {
+        InstrumentModulationRate::FreeHertz(rate) => Ok(*rate / f64::from(project.sample_rate)),
+        InstrumentModulationRate::Synchronized(literal) => {
+            let period =
+                crate::time::parse_musical_time(literal, project.song.meter).map_err(|error| {
+                    EngineError::Compile(format!("invalid synchronized Modulation rate: {error}"))
+                })?;
+            let frames = period.to_frames(project.song.tempo_bpm, project.sample_rate)?;
+            if frames == 0 {
+                Err(EngineError::Compile(
+                    "synchronized Modulation period resolves to zero frames".to_owned(),
+                ))
+            } else {
+                Ok(1.0 / frames as f64)
+            }
+        }
+    }
+}
+
+pub(crate) fn stable_modulation_identity(value: &str) -> u64 {
+    value.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x100_0000_01b3)
+    })
+}
+
+pub(crate) fn mix_modulation_identity(seed: u64, identity: u64) -> u64 {
+    let mut value = seed ^ identity.rotate_left(29) ^ 0x9e37_79b9_7f4a_7c15;
+    value = (value ^ (value >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    value ^ (value >> 31)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -455,6 +1293,144 @@ impl CompiledLane {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CompiledIndexedParameterLockLane {
+    target: ControlIndex,
+    lane: CompiledParameterLockLane,
+}
+
+/// Preallocated per-Track projection for authored Instrument Parameter locks.
+#[derive(Debug, Clone)]
+pub(crate) struct TrackParameterLockRuntime {
+    lanes: Arc<Vec<CompiledIndexedParameterLockLane>>,
+    effective: Vec<f64>,
+    pre_instrument_unconstrained: Vec<f64>,
+    transition_origin: Vec<f64>,
+    transition_pre_instrument_origin: Vec<f64>,
+    transition_changed: Vec<bool>,
+    transition_lanes: Option<Arc<Vec<CompiledIndexedParameterLockLane>>>,
+    transition_active: bool,
+    transition_position: u64,
+    transition_frames: u64,
+}
+
+impl TrackParameterLockRuntime {
+    /// Overlays only this Track's active locks onto the Song-wide unlocked controls.
+    pub(crate) fn project<'a>(
+        &'a mut self,
+        frame: u64,
+        effective: &'a [f64],
+        pre_instrument_unconstrained: &'a [f64],
+    ) -> (&'a [f64], &'a [f64]) {
+        self.effective.copy_from_slice(effective);
+        self.pre_instrument_unconstrained
+            .copy_from_slice(pre_instrument_unconstrained);
+        let lanes = if self.transition_active {
+            self.transition_lanes.as_deref()
+        } else {
+            Some(self.lanes.as_ref())
+        };
+        if let Some(lanes) = lanes {
+            for lane in lanes {
+                if let Some(value) = lane.lane.value_at(frame) {
+                    self.effective[lane.target.0] = value;
+                    self.pre_instrument_unconstrained[lane.target.0] = value;
+                }
+            }
+        }
+        if self.transition_active && self.transition_position < self.transition_frames {
+            self.transition_position = self.transition_position.saturating_add(1);
+            let progress = self.transition_position as f64 / self.transition_frames as f64;
+            for (index, changed) in self.transition_changed.iter().copied().enumerate() {
+                if changed {
+                    self.effective[index] = self.transition_origin[index]
+                        + (self.effective[index] - self.transition_origin[index]) * progress;
+                    self.pre_instrument_unconstrained[index] = self
+                        .transition_pre_instrument_origin[index]
+                        + (self.pre_instrument_unconstrained[index]
+                            - self.transition_pre_instrument_origin[index])
+                            * progress;
+                }
+            }
+        }
+        (&self.effective, &self.pre_instrument_unconstrained)
+    }
+
+    pub(crate) fn lanes_handle(&self) -> Arc<Vec<CompiledIndexedParameterLockLane>> {
+        self.lanes.clone()
+    }
+
+    pub(crate) fn begin_handoff(
+        &mut self,
+        replacement_lanes: Option<Arc<Vec<CompiledIndexedParameterLockLane>>>,
+        fallback_effective: &[f64],
+        fallback_pre_instrument: &[f64],
+        initialize_from_fallback: bool,
+        frames: u64,
+    ) -> bool {
+        let current_lanes = self.lanes.as_ref();
+        if !initialize_from_fallback && replacement_lanes.as_deref() == Some(current_lanes) {
+            return false;
+        }
+        if initialize_from_fallback {
+            self.effective.copy_from_slice(fallback_effective);
+            self.pre_instrument_unconstrained
+                .copy_from_slice(fallback_pre_instrument);
+        }
+        self.transition_origin.copy_from_slice(&self.effective);
+        self.transition_pre_instrument_origin
+            .copy_from_slice(&self.pre_instrument_unconstrained);
+        self.transition_changed.fill(false);
+        for lane in current_lanes
+            .iter()
+            .chain(replacement_lanes.iter().flat_map(|lanes| lanes.iter()))
+        {
+            self.transition_changed[lane.target.0] = true;
+        }
+        self.transition_lanes = replacement_lanes;
+        self.transition_active = true;
+        self.transition_position = 0;
+        self.transition_frames = frames.max(1);
+        true
+    }
+
+    pub(crate) fn finish_handoff(&mut self) -> bool {
+        if !self.transition_active {
+            return true;
+        }
+        let Some(lanes) = self.transition_lanes.take() else {
+            self.transition_active = false;
+            return false;
+        };
+        self.lanes = lanes;
+        self.transition_active = false;
+        true
+    }
+
+    pub(crate) fn adopt_values_from(&mut self, current: &mut Self) {
+        std::mem::swap(&mut self.effective, &mut current.effective);
+        std::mem::swap(
+            &mut self.pre_instrument_unconstrained,
+            &mut current.pre_instrument_unconstrained,
+        );
+    }
+
+    #[cfg(test)]
+    pub(crate) fn effective_value(&self, index: ControlIndex) -> f64 {
+        self.effective[index.0]
+    }
+
+    #[cfg(test)]
+    pub(crate) fn allocation_bytes(&self) -> u64 {
+        (self.effective.capacity()
+            + self.pre_instrument_unconstrained.capacity()
+            + self.transition_origin.capacity()
+            + self.transition_pre_instrument_origin.capacity()) as u64
+            * std::mem::size_of::<f64>() as u64
+            + packed_bool_allocation_bytes(self.transition_changed.capacity())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 struct CompiledParameterLockLane {
     points: Vec<CompiledParameterLockPoint>,
 }
@@ -487,17 +1463,22 @@ struct CompiledPoint {
 pub(crate) struct ControlRuntime {
     program: CompiledControlProgram,
     effective: Vec<f64>,
+    pre_instrument_unconstrained: Vec<f64>,
+    instrument_unconstrained: Vec<f64>,
+    song_modulation: Vec<f64>,
     unconstrained: Vec<f64>,
     modulation: Vec<f64>,
     provenance: Vec<RuntimeProvenance>,
+    instrument_route_values: Vec<RuntimeInstrumentRouteValue>,
     transition_origin: Vec<f64>,
     transition_changed: Vec<bool>,
     transition_position: u64,
     transition_frames: u64,
+    apply_parameter_locks: bool,
 }
 
 impl ControlRuntime {
-    /// Evaluates base → optional Automation → optional Parameter lock → additive Modulation → constraint.
+    /// Evaluates base → Automation → lock → Instrument routes → Song routes → constraint.
     pub(crate) fn evaluate_frame(&mut self, frame: u64) {
         let transition_progress = if self.transition_position < self.transition_frames {
             self.transition_position = self.transition_position.saturating_add(1);
@@ -505,20 +1486,77 @@ impl ControlRuntime {
         } else {
             None
         };
+
+        // Establish every absolute value before evaluating the same-frame macro DAG.
         for (index, target) in self.program.targets.iter().enumerate() {
             let automation = target.lane.as_ref().and_then(|lane| lane.value_at(frame));
-            let parameter_lock = target
-                .parameter_locks
-                .as_ref()
-                .and_then(|lane| lane.value_at(frame));
+            let parameter_lock = self
+                .apply_parameter_locks
+                .then(|| {
+                    target
+                        .parameter_locks
+                        .as_ref()
+                        .and_then(|lane| lane.value_at(frame))
+                })
+                .flatten();
             let absolute = parameter_lock.or(automation).unwrap_or(target.base);
-            let mut modulation = self.modulation[index];
+            self.unconstrained[index] = absolute;
+            self.provenance[index] = RuntimeProvenance {
+                automation,
+                parameter_lock,
+                ..RuntimeProvenance::default()
+            };
+        }
+        self.pre_instrument_unconstrained
+            .copy_from_slice(&self.unconstrained);
+
+        // Instrument routes are compiled in stable order. Parameter sources read this frame's
+        // already-folded Instrument value, so validated acyclic macro chains have no hidden delay.
+        for (route_index, route) in self.program.instrument_routes.iter().enumerate() {
+            let primary = route.source.value(InstrumentSourceContext {
+                frame,
+                pitch: 0,
+                velocity: 0.0,
+                gate: false,
+                controls: &self.unconstrained,
+                graph_control: None,
+                random_identity: 0,
+            });
+            let auxiliary = route.auxiliary.as_ref().and_then(|source| {
+                source.value(InstrumentSourceContext {
+                    frame,
+                    pitch: 0,
+                    velocity: 0.0,
+                    gate: false,
+                    controls: &self.unconstrained,
+                    graph_control: None,
+                    random_identity: 0,
+                })
+            });
+            if let Some(primary) = primary {
+                let contribution = route.contribution(primary, auxiliary);
+                self.unconstrained[route.target.0] += contribution;
+                self.provenance[route.target.0].modulation += contribution;
+                self.instrument_route_values[route_index] = RuntimeInstrumentRouteValue {
+                    normalized: remap_polarity(primary, route.source.polarity, route.polarity),
+                    auxiliary,
+                    contribution,
+                };
+            }
+        }
+
+        self.instrument_unconstrained
+            .copy_from_slice(&self.unconstrained);
+        for (index, target) in self.program.targets.iter().enumerate() {
+            let mut song_modulation = self.modulation[index];
             for route in &target.routes {
                 if let Some(contribution) = route.contribution_at(frame) {
-                    modulation += contribution;
+                    song_modulation += contribution;
                 }
             }
-            let unconstrained = absolute + modulation;
+            self.song_modulation[index] = song_modulation;
+            self.unconstrained[index] += song_modulation;
+            let unconstrained = self.unconstrained[index];
             let previous = self.effective[index];
             let (constrained, held_non_finite) = if unconstrained.is_finite() {
                 (unconstrained.clamp(target.minimum, target.maximum), false)
@@ -541,15 +1579,12 @@ impl ControlRuntime {
                 previous
             };
             self.effective[index] = effective;
-            self.provenance[index] = RuntimeProvenance {
-                automation,
-                parameter_lock,
-                modulation,
-                unconstrained,
-                clamped: unconstrained.is_finite() && constrained != unconstrained,
-                held_non_finite,
-            };
-            // Routes are expected to publish a fresh contribution for every sample.
+            self.provenance[index].modulation += song_modulation;
+            self.provenance[index].unconstrained = unconstrained;
+            self.provenance[index].clamped =
+                unconstrained.is_finite() && constrained != unconstrained;
+            self.provenance[index].held_non_finite = held_non_finite;
+            // Audio-derived routes publish a fresh future contribution for every sample.
             self.modulation[index] = 0.0;
         }
     }
@@ -568,6 +1603,7 @@ impl ControlRuntime {
         frames: u64,
     ) -> bool {
         let compatible = self.program.targets.len() == replacement.program.targets.len()
+            && self.program.instrument_routes.len() == replacement.program.instrument_routes.len()
             && self
                 .program
                 .targets
@@ -578,25 +1614,79 @@ impl ControlRuntime {
             return false;
         }
         let mut changed = false;
-        for (index, (current, replacement)) in self
+        for (index, (current, replacement_target)) in self
             .program
             .targets
             .iter()
             .zip(replacement.program.targets.iter())
             .enumerate()
         {
-            let lane_changed = current.lane != replacement.lane;
+            let lane_changed = current.lane != replacement_target.lane;
             let unautomated_base_changed = current.lane.is_none()
-                && replacement.lane.is_none()
-                && current.base.to_bits() != replacement.base.to_bits();
-            let target_changed = current.unit != replacement.unit
-                || current.minimum.to_bits() != replacement.minimum.to_bits()
-                || current.maximum.to_bits() != replacement.maximum.to_bits()
+                && replacement_target.lane.is_none()
+                && current.base.to_bits() != replacement_target.base.to_bits();
+            let instrument_routes_changed = self
+                .program
+                .instrument_routes
+                .iter()
+                .filter(|route| route.target == ControlIndex(index))
+                .ne(replacement
+                    .program
+                    .instrument_routes
+                    .iter()
+                    .filter(|route| route.target == ControlIndex(index)));
+            let track_parameter_locks_changed = self
+                .program
+                .track_parameter_locks
+                .iter()
+                .filter_map(|(track, lanes)| {
+                    lanes
+                        .iter()
+                        .find(|lane| lane.target == ControlIndex(index))
+                        .map(|lane| (track, lane))
+                })
+                .ne(replacement.program.track_parameter_locks.iter().filter_map(
+                    |(track, lanes)| {
+                        lanes
+                            .iter()
+                            .find(|lane| lane.target == ControlIndex(index))
+                            .map(|lane| (track, lane))
+                    },
+                ));
+            let target_changed = current.unit != replacement_target.unit
+                || current.minimum.to_bits() != replacement_target.minimum.to_bits()
+                || current.maximum.to_bits() != replacement_target.maximum.to_bits()
                 || lane_changed
-                || current.routes != replacement.routes
+                || current.parameter_locks != replacement_target.parameter_locks
+                || track_parameter_locks_changed
+                || current.routes != replacement_target.routes
+                || instrument_routes_changed
                 || unautomated_base_changed;
-            self.transition_changed[index] = target_changed && !replacement.step_only;
+            self.transition_changed[index] = target_changed && !replacement_target.step_only;
             changed |= target_changed;
+        }
+        loop {
+            let mut propagated = false;
+            for route in replacement.program.instrument_routes.iter() {
+                let dependency_changed = std::iter::once(&route.source)
+                    .chain(route.auxiliary.as_ref())
+                    .filter_map(|source| match source.kind {
+                        CompiledInstrumentSourceKind::Parameter { parameter } => Some(parameter),
+                        _ => None,
+                    })
+                    .any(|parameter| self.transition_changed[parameter.0]);
+                if dependency_changed
+                    && !replacement.program.targets[route.target.0].step_only
+                    && !self.transition_changed[route.target.0]
+                {
+                    self.transition_changed[route.target.0] = true;
+                    changed = true;
+                    propagated = true;
+                }
+            }
+            if !propagated {
+                break;
+            }
         }
         if !changed {
             return false;
@@ -621,10 +1711,38 @@ impl ControlRuntime {
         &self.effective
     }
 
-    /// Dense finite pre-constraint values used as the base for per-voice routes.
+    /// Dense values after base, Automation, and locks but before any Instrument route.
     #[must_use]
-    pub(crate) fn unconstrained_values(&self) -> &[f64] {
-        &self.unconstrained
+    pub(crate) fn pre_instrument_unconstrained_values(&self) -> &[f64] {
+        &self.pre_instrument_unconstrained
+    }
+
+    /// Precomputed values for global Instrument routes in compiled order.
+    #[must_use]
+    pub(crate) fn instrument_route_values(&self) -> &[RuntimeInstrumentRouteValue] {
+        &self.instrument_route_values
+    }
+
+    /// Dense aggregate Song-owned contributions applied after Instrument routes.
+    #[must_use]
+    pub(crate) fn song_modulation_values(&self) -> &[f64] {
+        &self.song_modulation
+    }
+
+    #[cfg(any(feature = "pipewire", test))]
+    pub(crate) fn transition_changed(&self) -> &[bool] {
+        &self.transition_changed
+    }
+
+    #[cfg(any(feature = "pipewire", test))]
+    pub(crate) fn track_parameter_locks_differ(&self, replacement: &Self, track_id: &str) -> bool {
+        self.program.track_parameter_locks.get(track_id)
+            != replacement.program.track_parameter_locks.get(track_id)
+    }
+
+    #[cfg(any(feature = "pipewire", test))]
+    pub(crate) fn reset_transition_changes(&mut self) {
+        self.transition_changed.fill(false);
     }
 
     /// Adds one future modulation contribution before the next evaluation.
@@ -639,32 +1757,144 @@ impl ControlRuntime {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct CompiledPerVoiceRoute {
-    target: ControlIndex,
-    minimum: f64,
-    maximum: f64,
-    route: CompiledRoute,
+pub(crate) enum CompiledPerVoiceRoute {
+    Instrument(CompiledInstrumentRoute),
+    SongTier {
+        target: ControlIndex,
+        minimum: f64,
+        maximum: f64,
+    },
+    Song {
+        target: ControlIndex,
+        minimum: f64,
+        maximum: f64,
+        route: CompiledRoute,
+    },
 }
 
 impl CompiledPerVoiceRoute {
     pub(crate) fn allocation_bytes(&self) -> u64 {
-        self.route.heap_bytes()
+        match self {
+            Self::Instrument(route) => route.heap_bytes(),
+            Self::SongTier { .. } => 0,
+            Self::Song { route, .. } => route.heap_bytes(),
+        }
+    }
+
+    pub(crate) fn id(&self) -> &str {
+        match self {
+            Self::Instrument(route) => route.id(),
+            Self::SongTier { .. } => "@song-tier",
+            Self::Song { route, .. } => &route.id,
+        }
     }
 
     pub(crate) fn target(&self) -> ControlIndex {
-        self.target
+        match self {
+            Self::Instrument(route) => route.target(),
+            Self::SongTier { target, .. } | Self::Song { target, .. } => *target,
+        }
     }
 
-    pub(crate) fn contribution_at(&self, voice_frame: u64) -> f64 {
-        self.route.normalized_at(voice_frame) * self.route.depth
+    pub(crate) fn instrument(&self) -> Option<&CompiledInstrumentRoute> {
+        match self {
+            Self::Instrument(route) => Some(route),
+            Self::SongTier { .. } | Self::Song { .. } => None,
+        }
+    }
+
+    pub(crate) fn transition_target(&self, replacement: &Self) -> Result<Option<ControlIndex>, ()> {
+        match (self, replacement) {
+            (Self::Instrument(current), Self::Instrument(replacement))
+                if current.topology_compatible(replacement) =>
+            {
+                Ok(current
+                    .scalar_changed(replacement)
+                    .then_some(current.target))
+            }
+            (
+                Self::SongTier {
+                    target: current_target,
+                    minimum: current_minimum,
+                    maximum: current_maximum,
+                },
+                Self::SongTier {
+                    target: replacement_target,
+                    minimum: replacement_minimum,
+                    maximum: replacement_maximum,
+                },
+            ) if current_target == replacement_target
+                && current_minimum.to_bits() == replacement_minimum.to_bits()
+                && current_maximum.to_bits() == replacement_maximum.to_bits() =>
+            {
+                Ok(None)
+            }
+            (
+                Self::Song {
+                    target: current_target,
+                    minimum: current_minimum,
+                    maximum: current_maximum,
+                    route: current_route,
+                },
+                Self::Song {
+                    target: replacement_target,
+                    minimum: replacement_minimum,
+                    maximum: replacement_maximum,
+                    route: replacement_route,
+                },
+            ) if current_target == replacement_target
+                && current_minimum.to_bits() == replacement_minimum.to_bits()
+                && current_maximum.to_bits() == replacement_maximum.to_bits()
+                && current_route == replacement_route =>
+            {
+                Ok(None)
+            }
+            _ => Err(()),
+        }
+    }
+
+    pub(crate) fn parameter_dependencies(&self) -> impl Iterator<Item = ControlIndex> + '_ {
+        self.instrument()
+            .into_iter()
+            .flat_map(CompiledInstrumentRoute::parameter_dependencies)
+    }
+
+    pub(crate) fn contribution_at(&self, voice_frame: u64, song_modulation: &[f64]) -> f64 {
+        match self {
+            Self::Instrument(_) => 0.0,
+            Self::SongTier { target, .. } => song_modulation[target.0],
+            Self::Song { route, .. } => route.normalized_at(voice_frame) * route.depth,
+        }
     }
 
     pub(crate) fn constrain(&self, value: f64, previous: f64) -> f64 {
+        let (minimum, maximum) = match self {
+            Self::Instrument(route) => (route.minimum, route.maximum),
+            Self::SongTier {
+                minimum, maximum, ..
+            }
+            | Self::Song {
+                minimum, maximum, ..
+            } => (*minimum, *maximum),
+        };
         if value.is_finite() {
-            value.clamp(self.minimum, self.maximum)
+            value.clamp(minimum, maximum)
         } else {
             previous
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct RuntimeInstrumentRouteValue {
+    normalized: f64,
+    auxiliary: Option<f64>,
+    contribution: f64,
+}
+
+impl RuntimeInstrumentRouteValue {
+    pub(crate) const fn contribution(self) -> f64 {
+        self.contribution
     }
 }
 
@@ -695,8 +1925,10 @@ pub struct ControlValueSnapshot {
     pub parameter_lock: Option<f64>,
     /// Aggregate additive physical-unit Modulation contribution.
     pub modulation: f64,
-    /// Stable authored route provenance in deterministic route-ID order.
+    /// Stable Song-owned route provenance in deterministic route-ID order.
     pub modulation_routes: Vec<ModulationValueSnapshot>,
+    /// Stable Instrument-owned route provenance in effective route order.
+    pub instrument_modulation_routes: Vec<InstrumentModulationValueSnapshot>,
     /// Value before domain constraint.
     pub unconstrained: f64,
     /// Final finite physical value.
@@ -707,7 +1939,30 @@ pub struct ControlValueSnapshot {
     pub held_non_finite: bool,
 }
 
-/// Inspectable contribution from one authored Modulation route.
+/// Inspectable contribution from one Instrument-owned Modulation route.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct InstrumentModulationValueSnapshot {
+    /// Durable Instrument-local route identity.
+    pub route: String,
+    /// Stable Instrument-local source identity.
+    pub source: String,
+    /// Authored source execution scope.
+    pub scope: InstrumentModulationScope,
+    /// Authored primary route order.
+    pub order: i32,
+    /// Durable route bypass value.
+    pub bypass: bool,
+    /// Route-mapped normalized primary value, or `None` for per-voice state.
+    pub normalized: Option<f64>,
+    /// Evaluated auxiliary value, when singular and present.
+    pub auxiliary: Option<f64>,
+    /// Physical-unit route depth.
+    pub depth: f64,
+    /// Physical contribution, or `None` when no singular Song-time value exists.
+    pub contribution: Option<f64>,
+}
+
+/// Inspectable contribution from one Song-owned Modulation route.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModulationValueSnapshot {
     /// Durable route identity.
@@ -945,6 +2200,15 @@ project "Control" {
         let reset = value_at(96_000);
         assert_eq!(reset.parameter_lock, None);
         assert_eq!(reset.effective, 5_000.0);
+
+        let track_runtime = program
+            .track_parameter_lock_runtime("lead")
+            .expect("lead Track lock runtime");
+        assert_eq!(
+            track_runtime.allocation_bytes(),
+            program.track_parameter_lock_runtime_state_bytes(),
+            "admission must account for every preallocated Track lock-projection buffer"
+        );
     }
 
     #[test]

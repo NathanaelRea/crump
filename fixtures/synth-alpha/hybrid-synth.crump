@@ -286,8 +286,8 @@ instrument alpha-hybrid "Native Synthesis Alpha Hybrid" graph {
     node shared-sum stereo_sum
     node shared-output output
 
-    bus voice-sum-in voices.audio -> shared-dry.audio
-    bus voice-sum-delay voices.audio -> shared-delay.audio
+    bus voice-sum-in voice_sum.audio -> shared-dry.audio
+    bus voice-sum-delay shared-dry.audio -> shared-delay.audio
     bus delay-to-reverb shared-delay.audio -> shared-reverb.audio
     bus dry-to-shared-sum shared-dry.audio -> shared-sum.inputs
     bus wet-to-shared-sum shared-reverb.audio -> shared-sum.inputs

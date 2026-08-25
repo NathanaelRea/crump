@@ -49,6 +49,12 @@ An invalid Candidate cannot replace the Active Revision, and rendering continues
 
 These records measure offline engine timing for the named executable, host, range, and quantum. They do not contain PipeWire xrun counts, realtime scheduling evidence, device behavior, callback allocation/blocking audits, or listening judgments.
 
+## Integrated native-synthesis preparation
+
+[`fixtures/synth-alpha/maximum-topology.crump`](../fixtures/synth-alpha/maximum-topology.crump) is a runnable source-v2 combined qualification profile with eight source Nodes spanning all seven runnable families (including two granular Nodes), an eight-note simultaneous excitation, 64 Instrument routes, eight envelopes/filters, sixteen LFOs, and shared effects. `tests/native_synthesis_qualification.rs` checks validation/compilation, actual admission values, finite audible output, exact supported and short-final-block grouping equality, independent cache rebuilds, stable presentation order, the rejected next-voice boundary, and repeated exact render bundles. Separate callback-side allocation tests cover warmed maximum-topology processing/control consumption, transition completion/deferred reclamation, and the independent two-by-64-grain plus two-by-128-peak ceiling fixture. The clean-account script copies complete source, exact media, Active state, and History to a distinct user before validate/reopen/inspect/module-audition/edit/render/restore comparisons; the dated repository/offline receipt is retained under `docs/evidence/native-synthesis-m8/`.
+
+The exact commands, producer protocol, and named Linux/PipeWire/device 30-minute protocol are in [`docs/qualification/native-synthesis.md`](qualification/native-synthesis.md). Repository/offline receipts and blank external-evidence schemas live under [`docs/evidence/native-synthesis-m8/`](evidence/native-synthesis-m8/README.md); no producer or named-hardware result is present.
+
 ## Analysis vectors
 
 Finalized-file analysis tests cover silence, DC and clipping, non-finite data, truncated or corrupt files, inter-sample overload, the official EBU steady-tone loudness tolerance, and EBU true-peak steady-tone cases 15–19. The complete official EBU signal set and transient true-peak cases 20–23 have not been executed, so the documentation names the exact Crump method rather than claiming full EBU Mode or BS.1770-5 conformance. See [Finalized Audio Analysis](research/finalized-audio-analysis.md).

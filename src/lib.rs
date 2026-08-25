@@ -6,6 +6,7 @@ pub mod dsl;
 mod edit;
 pub mod engine;
 pub mod history;
+pub(crate) mod instrument_module;
 pub mod media;
 pub mod model;
 mod processor_semantics;

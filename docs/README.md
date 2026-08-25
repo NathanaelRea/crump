@@ -16,6 +16,7 @@
 
 - [Architecture Overview](architecture/overview.md)
 - [Native Synthesis Compatibility](native-synthesis-contract.md)
+- [Native Synthesis Qualification Runbook](qualification/native-synthesis.md)
 - [Architecture Decision Records](adr/README.md)
 - [Research](research/)
 

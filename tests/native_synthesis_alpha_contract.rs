@@ -11,14 +11,23 @@ use std::{
 };
 
 use crump::{
-    dsl::parse_module,
-    engine::mix_graph::{
-        MAX_PUBLICATION_RUNTIME_BYTES, MAX_RESIDENT_PUBLICATION_RUNTIMES, MAX_WORK_UNITS_PER_FRAME,
+    dsl::{parse_module, parse_project},
+    engine::{
+        mix_graph::{
+            MAX_PUBLICATION_RUNTIME_BYTES, MAX_RESIDENT_PUBLICATION_RUNTIMES,
+            MAX_WORK_UNITS_PER_FRAME,
+        },
+        CompiledProject,
     },
-    media::{MAX_MEDIA_ASSET_BYTES, MAX_MEDIA_ASSETS, MAX_PROJECT_MEDIA_BYTES},
+    media::{
+        load_asset_inventory, MAX_MEDIA_ASSETS, MAX_MEDIA_ASSET_BYTES, MAX_PROJECT_MEDIA_BYTES,
+    },
+    model::{NodeKind, SettingValue},
+    project::load_project,
     validate::{
-        MAX_GRAPH_NODES, MAX_GRAPH_VOICES, MAX_MODULATION_OPERATORS_PER_ROUTE,
-        MAX_MODULATION_ROUTES,
+        validate_project, validate_project_assets, MAX_GRAPH_NODES, MAX_GRAPH_VOICES,
+        MAX_MODULATION_OPERATORS_PER_ROUTE, MAX_MODULATION_ROUTES, MAX_MULTISAMPLE_ZONES,
+        MAX_SAMPLE_SLICES,
     },
 };
 use serde::Deserialize;
@@ -37,6 +46,7 @@ struct Manifest {
     assets: Vec<Asset>,
     limits: Limits,
     qualification_max: QualificationMax,
+    source_mode_maxima: SourceModeMaxima,
     decisions: Vec<Decision>,
 }
 
@@ -44,6 +54,7 @@ struct Manifest {
 struct Fixture {
     path: String,
     sha256: String,
+    runnable: bool,
     role: String,
     source_mode: String,
     required_tokens: Vec<String>,
@@ -79,6 +90,7 @@ struct Limits {
     route_operators: usize,
     filters_per_instrument: usize,
     wavetable_frames_per_asset: usize,
+    sample_slices_per_source: usize,
     multisample_zones_per_instrument: usize,
     grains_per_source_voice: usize,
     grains_per_voice: usize,
@@ -107,6 +119,36 @@ struct QualificationMax {
     estimated_work_units_per_frame: u64,
     estimated_publication_peak_bytes: u64,
     prototype_measurement: String,
+    actual_admitted_resources: ActualAdmittedResources,
+}
+
+#[derive(Debug, Deserialize)]
+struct SourceModeMaxima {
+    profile: String,
+    path: String,
+    polyphony: usize,
+    first_rejected_polyphony: usize,
+    granular_sources_per_voice: usize,
+    grains_per_source_voice: usize,
+    grains_per_voice: usize,
+    spectral_sources_per_voice: usize,
+    spectral_peaks_per_source: usize,
+    actual_admitted_resources: ActualAdmittedResources,
+}
+
+#[derive(Debug, Deserialize)]
+struct ActualAdmittedResources {
+    graph_voices: u64,
+    graph_node_instances: u64,
+    shared_graphs: u64,
+    shared_graph_work_units_per_frame: u64,
+    control_targets: usize,
+    work_units_per_frame: u64,
+    publication_transition_work_units_per_frame: u64,
+    runtime_bytes: u64,
+    publication_peak_bytes: u64,
+    admitted: bool,
+    feature_domain: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -207,37 +249,44 @@ fn declarations(source: &str) -> BTreeMap<&str, BTreeSet<&str>> {
 fn alpha_contract_inventory_and_decision_dispositions_are_recorded() {
     let root = root();
     let manifest = manifest();
-    assert_eq!(manifest.schema_version, 1);
-    assert_eq!(manifest.authority, "non-normative-design-snapshot");
+    assert_eq!(manifest.schema_version, 2);
     assert_eq!(
-        manifest.production_compatibility,
-        "unsupported-by-crump-module-1"
+        manifest.authority,
+        "mixed-production-and-design-fixture-contract"
     );
-    assert_eq!(
-        manifest.proposal_contract_status,
-        "active-gap-closure-implementation"
-    );
-    assert_eq!(manifest.fixture_language, "crump-module 2-alpha");
-    assert!(
-        root.join(&manifest.current_compatibility_contract)
-            .is_file()
-    );
+    assert_eq!(manifest.production_compatibility, "declared-per-fixture");
+    assert_eq!(manifest.proposal_contract_status, "milestone-5-runnable");
+    assert_eq!(manifest.fixture_language, "declared-per-fixture");
+    assert!(root
+        .join(&manifest.current_compatibility_contract)
+        .is_file());
     assert!(root.join(&manifest.current_architecture_decision).is_file());
     let current_contract = fs::read_to_string(root.join(&manifest.current_compatibility_contract))
         .expect("read current native synthesis compatibility contract");
     for fact in [
         "`crump-module 1`",
-        "shared post-voice graph declaration",
-        "Instrument-owned modulation-source or modulation-route matrix",
-        "graph wavetable, granular, multisample, or spectral source Node",
+        "`crump-module 2`",
+        "`connect FROM -> TO`",
+        "`voice_sum.audio` crossing",
+        "stable Instrument-owned Modulation sources and routes",
+        "`sample_source` and `multisample` Nodes",
+        "deterministic stereo `spectral` Node",
+        "`2-alpha`",
     ] {
         assert!(
             current_contract.contains(fact),
             "current compatibility contract is missing {fact:?}"
         );
     }
-    assert!(!current_contract.contains("crump-module 2-alpha"));
-    assert_eq!(manifest.fixtures.len(), 7);
+    assert_eq!(manifest.fixtures.len(), 9);
+    assert_eq!(
+        manifest
+            .fixtures
+            .iter()
+            .filter(|fixture| fixture.runnable)
+            .count(),
+        8
+    );
     assert_eq!(manifest.assets.len(), 4);
 
     let source_modes = manifest
@@ -250,6 +299,7 @@ fn alpha_contract_inventory_and_decision_dispositions_are_recorded() {
         BTreeSet::from([
             "integrated",
             "granular",
+            "granular-spectral",
             "multisample",
             "sample",
             "spectral",
@@ -315,7 +365,11 @@ fn alpha_contract_inventory_and_decision_dispositions_are_recorded() {
     assert_eq!(limits.route_operators, MAX_MODULATION_OPERATORS_PER_ROUTE);
     assert_eq!(limits.filters_per_instrument, 8);
     assert_eq!(limits.wavetable_frames_per_asset, 256);
-    assert_eq!(limits.multisample_zones_per_instrument, 256);
+    assert_eq!(limits.sample_slices_per_source, MAX_SAMPLE_SLICES);
+    assert_eq!(
+        limits.multisample_zones_per_instrument,
+        MAX_MULTISAMPLE_ZONES
+    );
     assert_eq!(limits.grains_per_source_voice, 64);
     assert_eq!(limits.grains_per_voice, 128);
     assert_eq!(limits.spectral_peaks_per_frame, 128);
@@ -335,15 +389,27 @@ fn alpha_contract_inventory_and_decision_dispositions_are_recorded() {
 }
 
 #[test]
-fn fixtures_are_readable_unique_and_deliberately_not_production_source_v1() {
+fn fixtures_are_readable_unique_and_only_completed_slices_are_runnable() {
     let root = root();
     let manifest = manifest();
     for fixture in &manifest.fixtures {
         let path = root.join(&fixture.path);
         let bytes = fs::read(&path).expect("read alpha source fixture");
         assert_eq!(sha256(&bytes), fixture.sha256);
-        let source = String::from_utf8(bytes).expect("alpha source fixture is UTF-8");
-        assert!(source.starts_with("crump-module 2-alpha\n"));
+        let source = String::from_utf8(bytes).expect("synthesis source fixture is UTF-8");
+        if fixture.runnable {
+            assert!(
+                source.starts_with("crump 2\n") || source.starts_with("crump-module 2\n"),
+                "{} must use a stable source-v2 header",
+                fixture.path
+            );
+        } else {
+            assert!(
+                source.starts_with("crump-module 2-alpha\n"),
+                "{} must remain a fail-closed design snapshot",
+                fixture.path
+            );
+        }
         assert_balanced_blocks(&fixture.path, &source);
         for token in &fixture.required_tokens {
             assert!(
@@ -353,19 +419,48 @@ fn fixtures_are_readable_unique_and_deliberately_not_production_source_v1() {
             );
         }
         let declarations = declarations(&source);
-        assert!(
-            declarations
-                .get("instrument")
-                .is_some_and(|ids| ids.len() == 1)
-        );
+        assert!(declarations
+            .get("instrument")
+            .is_some_and(|ids| ids.len() == 1));
         assert!(declarations.get("node").is_some_and(|ids| !ids.is_empty()));
         assert!(declarations.get("bus").is_some_and(|ids| !ids.is_empty()));
 
-        let parsed = parse_module(&path, &source);
-        assert!(
-            parsed.diagnostics.has_errors(),
-            "reserved alpha fixture unexpectedly entered production source-v1 parsing"
+        let diagnostics = if source.starts_with("crump-module") {
+            parse_module(&path, &source).diagnostics
+        } else {
+            parse_project(&path, &source).diagnostics
+        };
+        assert_eq!(
+            diagnostics.has_errors(),
+            !fixture.runnable,
+            "{} has the wrong parser status: {diagnostics:?}",
+            fixture.path
         );
+        if fixture.runnable {
+            let parsed = parse_project(&path, &source);
+            let project = parsed.project.expect("runnable fixture Project");
+            let diagnostics = validate_project(&project);
+            assert!(
+                !diagnostics.has_errors(),
+                "{} failed model validation: {diagnostics:?}",
+                fixture.path
+            );
+            let (assets, diagnostics) =
+                load_asset_inventory(path.parent().expect("fixture directory"), &project.assets);
+            assert!(
+                !diagnostics.has_errors(),
+                "{} failed asset inventory loading: {diagnostics:?}",
+                fixture.path
+            );
+            let diagnostics = validate_project_assets(&project, &assets);
+            assert!(
+                !diagnostics.has_errors(),
+                "{} failed exact-asset validation: {diagnostics:?}",
+                fixture.path
+            );
+            CompiledProject::compile_with_assets(&project, &assets)
+                .expect("runnable fixture must compile");
+        }
     }
 }
 
@@ -424,45 +519,76 @@ fn qualification_max_profile_matches_fixture_and_probe_evidence() {
     assert_eq!(
         source
             .lines()
-            .filter(|line| line.starts_with("    route route-"))
+            .filter(|line| line.starts_with("        route route-"))
             .count(),
         64
     );
     assert_eq!(
         source
             .lines()
-            .filter(|line| line.starts_with("    source lfo-"))
+            .filter(|line| line.starts_with("        source lfo-"))
             .count(),
         16
     );
     assert_eq!(
         source
             .lines()
-            .filter(|line| line.starts_with("  parameter macro-"))
+            .filter(|line| line.starts_with("      parameter macro-"))
             .count(),
         8
     );
     assert_eq!(
         source
             .lines()
-            .filter(|line| line.starts_with("    node envelope-"))
+            .filter(|line| line.starts_with("        node envelope-"))
             .count(),
         8
     );
     assert_eq!(
         source
             .lines()
-            .filter(|line| line.starts_with("    node filter-"))
+            .filter(|line| line.starts_with("        node filter-"))
             .count(),
         8
     );
     assert_eq!(
         source
             .lines()
-            .filter(|line| line.starts_with("    node source-") && !line.contains("source-sum"))
+            .filter(|line| {
+                line.starts_with("        node source-") && !line.contains("source-sum")
+            })
             .count(),
         8
     );
+
+    let bundle = load_project(root.join(&maximum.path)).expect("load qualification maximum");
+    let project = bundle.publishable().expect("valid qualification maximum");
+    let compiled = CompiledProject::compile_with_assets(project, &bundle.assets)
+        .expect("compile qualification maximum");
+    let actual = &maximum.actual_admitted_resources;
+    let resources = &compiled.mix_graph_inspection().resources;
+    assert_eq!(actual.graph_voices, resources.graph_voices);
+    assert_eq!(actual.graph_node_instances, resources.graph_node_instances);
+    assert_eq!(actual.shared_graphs, resources.shared_graphs);
+    assert_eq!(
+        actual.shared_graph_work_units_per_frame,
+        resources.shared_graph_work_units_per_frame
+    );
+    assert_eq!(actual.control_targets, resources.control_targets);
+    assert_eq!(actual.work_units_per_frame, resources.work_units_per_frame);
+    assert_eq!(
+        actual.publication_transition_work_units_per_frame,
+        resources.publication_transition_work_units_per_frame
+    );
+    assert_eq!(actual.admitted, resources.admitted);
+    assert_eq!(actual.feature_domain, "pipewire-enabled production build");
+    if cfg!(feature = "pipewire") {
+        assert_eq!(actual.runtime_bytes, resources.runtime_bytes);
+        assert_eq!(
+            actual.publication_peak_bytes,
+            resources.publication_peak_bytes
+        );
+    }
 
     let probe_bytes = fs::read(root.join(&maximum.prototype_measurement)).expect("read probe");
     let probe: Probe = serde_json::from_slice(&probe_bytes).expect("parse probe");
@@ -496,17 +622,13 @@ fn qualification_max_profile_matches_fixture_and_probe_evidence() {
     let mut combined_observations = probe.combined_ns_per_frame_observations.clone();
     combined_observations.sort_by(f64::total_cmp);
     assert_eq!(probe.combined_ns_per_frame, combined_observations[2]);
-    assert!(
-        probe
-            .prototype_utilization_observations
-            .contains(&probe.prototype_utilization)
-    );
-    assert!(
-        probe
-            .prototype_utilization_observations
-            .iter()
-            .all(|value| value.is_finite() && *value > 0.0 && *value < 1.0)
-    );
+    assert!(probe
+        .prototype_utilization_observations
+        .contains(&probe.prototype_utilization));
+    assert!(probe
+        .prototype_utilization_observations
+        .iter()
+        .all(|value| value.is_finite() && *value > 0.0 && *value < 1.0));
     assert!(probe.combined_ns_per_frame.is_finite() && probe.combined_ns_per_frame > 0.0);
     assert!(probe.frame_deadline_ns > probe.combined_ns_per_frame);
     assert!(probe.prototype_utilization > 0.0 && probe.prototype_utilization < 1.0);
@@ -523,4 +645,114 @@ fn qualification_max_profile_matches_fixture_and_probe_evidence() {
         maximum.estimated_work_units_per_frame
     );
     assert!(probe.checksum.is_finite());
+}
+
+#[test]
+fn independent_granular_and_spectral_maxima_hit_caps_and_admission_boundary() {
+    let root = root();
+    let manifest = manifest();
+    let maximum = &manifest.source_mode_maxima;
+    assert_eq!(maximum.profile, "granular-spectral-independent-maxima-v1");
+    assert_eq!(
+        maximum.path,
+        "fixtures/synth-alpha/maximum-granular-spectral.crump"
+    );
+    assert_eq!(maximum.polyphony, 5);
+    assert_eq!(maximum.first_rejected_polyphony, 6);
+    assert_eq!(maximum.granular_sources_per_voice, 2);
+    assert_eq!(
+        maximum.grains_per_source_voice,
+        manifest.limits.grains_per_source_voice
+    );
+    assert_eq!(maximum.grains_per_voice, manifest.limits.grains_per_voice);
+    assert_eq!(
+        maximum.spectral_sources_per_voice,
+        manifest.limits.spectral_sources_per_voice
+    );
+    assert_eq!(
+        maximum.spectral_peaks_per_source,
+        manifest.limits.spectral_peaks_per_frame
+    );
+
+    let bundle = load_project(root.join(&maximum.path)).expect("load source-mode maxima");
+    let project = bundle.publishable().expect("valid source-mode maxima");
+    let instrument = &project.song.instruments[0];
+    assert_eq!(usize::from(instrument.polyphony), maximum.polyphony);
+    let graph = instrument.graph.as_ref().expect("voice graph");
+    let granular = graph
+        .nodes
+        .iter()
+        .filter(|node| node.kind == NodeKind::Granular)
+        .collect::<Vec<_>>();
+    let spectral = graph
+        .nodes
+        .iter()
+        .filter(|node| node.kind == NodeKind::Spectral)
+        .collect::<Vec<_>>();
+    assert_eq!(granular.len(), maximum.granular_sources_per_voice);
+    assert_eq!(spectral.len(), maximum.spectral_sources_per_voice);
+    for node in granular {
+        assert_eq!(
+            node.setting("max_grains"),
+            Some(&SettingValue::Number(
+                maximum.grains_per_source_voice as f64
+            ))
+        );
+    }
+    for node in spectral {
+        assert_eq!(
+            node.setting("max_peaks"),
+            Some(&SettingValue::Number(
+                maximum.spectral_peaks_per_source as f64
+            ))
+        );
+    }
+
+    let compiled = CompiledProject::compile_with_assets(project, &bundle.assets)
+        .expect("compile admitted source-mode maxima");
+    let actual = &maximum.actual_admitted_resources;
+    let resources = &compiled.mix_graph_inspection().resources;
+    assert!(resources.admitted);
+    assert!(resources.work_units_per_frame <= resources.work_budget_per_frame);
+    assert!(
+        resources.publication_transition_work_units_per_frame <= resources.work_budget_per_frame
+    );
+    assert!(resources.publication_peak_bytes <= resources.publication_budget_bytes);
+    assert_eq!(actual.graph_voices, resources.graph_voices);
+    assert_eq!(actual.graph_node_instances, resources.graph_node_instances);
+    assert_eq!(actual.shared_graphs, resources.shared_graphs);
+    assert_eq!(
+        actual.shared_graph_work_units_per_frame,
+        resources.shared_graph_work_units_per_frame
+    );
+    assert_eq!(actual.control_targets, resources.control_targets);
+    assert_eq!(actual.work_units_per_frame, resources.work_units_per_frame);
+    assert_eq!(
+        actual.publication_transition_work_units_per_frame,
+        resources.publication_transition_work_units_per_frame
+    );
+    assert_eq!(actual.admitted, resources.admitted);
+    assert_eq!(actual.feature_domain, "pipewire-enabled production build");
+    if cfg!(feature = "pipewire") {
+        assert_eq!(actual.runtime_bytes, resources.runtime_bytes);
+        assert_eq!(
+            actual.publication_peak_bytes,
+            resources.publication_peak_bytes
+        );
+    }
+
+    let mut rejected = project.clone();
+    rejected.song.instruments[0].polyphony =
+        u16::try_from(maximum.first_rejected_polyphony).expect("bounded polyphony");
+    let rejection = validate_project(&rejected);
+    assert!(
+        rejection.as_slice().iter().any(|diagnostic| {
+            diagnostic.code == "CRV092" && diagnostic.message.contains("work units/frame")
+        }),
+        "unexpected rejection: {rejection:?}"
+    );
+    assert!(
+        CompiledProject::compile_with_assets(&rejected, &bundle.assets).is_err(),
+        "first rejected polyphony unexpectedly admitted"
+    );
 }

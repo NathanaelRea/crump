@@ -1,0 +1,60 @@
+crump-module 2
+instrument dh-pad "Deep House Analog Pad" graph {
+  polyphony 8
+  parameter cutoff "Cutoff" hz 180hz 14000hz 1800hz 2400hz automatable modulatable
+  parameter width "Width" ratio 0 1 0.65 0.78 automatable modulatable
+  faceplate {
+    control cutoff "Glow" "Opens the shared pad filter" maps cutoff
+    control width "Width" "Controls mono-compatible analog spread" maps width
+  }
+  presentation {
+    tags pad analog polyphonic
+    preview C3 C5 velocity 35% 85% duration 2beat
+    section source-panel sources "Analog Ensemble" {
+      node source
+    }
+    section effect-panel effects "Shared Chorus-like Echo" {
+      node filter
+      node chorus
+    }
+  }
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source breath lfo instrument bipolar triangle sync 4bar phase 0
+    route velocity-cutoff source velocity target cutoff depth 900hz map unipolar curve smoothstep order 0 bypass false
+    route breath-cutoff source breath target cutoff depth 420hz map bipolar curve smoothstep order 10 bypass false
+  }
+  graph voice 6 {
+    node source analog_oscillator {
+      waveform saw
+      unison 4
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 0.25
+      detune 0.14st
+      blend 0.8
+      width $width
+      drift 0.025st
+      glide 20ms
+      velocity_amount 0.22
+      level 0.17
+      pan 0
+    }
+    node envelope envelope mode ahdsr attack 180ms hold 0ms decay 900ms sustain 0.76 release 1800ms attack_curve 0.15 decay_curve 0 release_curve 0.1 retrigger legato
+    node voice-out output
+    bus source-pitch note.pitch -> source.pitch
+    bus source-gain envelope.control -> source.gain
+    bus source-velocity note.velocity -> source.velocity
+    bus envelope-gate note.gate -> envelope.gate
+    bus output-audio source.audio -> voice-out.audio
+  }
+  graph shared 4 {
+    node filter stereo_filter model svf_clean mode lowpass cutoff $cutoff resonance 0.18 drive 0.08 mix 1 pan 0 mod_depth 0hz velocity_depth 0hz key_track 0 key_reference 261.625565hz
+    node chorus delay time 18ms feedback 0.12 mix 0.16
+    node shared-out output
+    bus voice-sum voice_sum.audio -> filter.audio
+    bus filtered filter.audio -> chorus.audio
+    bus shared-output chorus.audio -> shared-out.audio
+  }
+}

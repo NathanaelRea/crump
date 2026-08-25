@@ -1,0 +1,142 @@
+crump 2
+project "Virtual Analog Foundation" {
+  id virtual-analog-foundation
+  seed 41041
+  sample_rate 48000
+  render_tail 100ms
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument hybrid "Virtual Analog Hybrid" graph {
+      polyphony 4
+      voicing poly retrigger always glide 40ms glide_mode always note_priority last steal_priority release_oldest seed 41041
+      parameter oscillator-level "Oscillator Level" ratio 0 1 0.4 0.4 modulatable
+      parameter warp-amount "Warp Amount" ratio 0 1 0.2 0.2 modulatable
+      parameter filter-cutoff "Filter Cutoff" hz 40hz 18000hz 4200hz 4200hz modulatable
+      parameter filter-drive "Filter Drive" ratio 0 1 0.25 0.25 modulatable
+      faceplate {
+        control oscillator-level "Oscillator" "Power-normalized analog oscillator level" maps oscillator-level
+        control warp-amount "Warp" "Ordered phase-remap depth" maps warp-amount
+        control filter-cutoff "Cutoff" "Stereo filter cutoff" maps filter-cutoff
+        control filter-drive "Drive" "Driven ladder input amount" maps filter-drive
+      }
+      presentation {
+        section source-panel sources "Sources" {
+          node modulator
+          node carrier
+        }
+        section mixer-panel source_mixer "Source Mixer and Routing" {
+          node filters
+          bus filters-a
+          bus filters-b
+        }
+        section filter-panel filters "Filters" {
+          node tone
+          node edge
+          parameter filter-cutoff
+          parameter filter-drive
+        }
+        section modulator-panel envelopes_lfos "Envelopes and LFOs" {
+          node motion
+          node amplitude
+          source graph-motion
+          source one-shot
+        }
+        section matrix-panel modulation "Modulation" {
+          route velocity-warp
+          route motion-drive
+          route one-shot-cutoff
+        }
+        section voice-panel voicing "Voicing" {
+          node carrier
+        }
+        section route-panel routing "Voice Routing" {
+          bus voice-output
+        }
+        section effect-panel effects "Shared Effects" {
+        }
+      }
+      modulation {
+        source velocity note_velocity per_voice unipolar
+        source graph-motion port motion.control per_voice bipolar
+        source one-shot lfo instrument bipolar square free 2hz phase 0 one_shot ping_pong
+        route velocity-warp source velocity target warp-amount depth 0.3 map unipolar curve linear order 0 bypass false
+        route motion-drive source graph-motion target filter-drive depth 0.2 map bipolar curve linear order 10 bypass false
+        route one-shot-cutoff source one-shot target filter-cutoff depth 1khz map bipolar curve smoothstep order 20 bypass false
+      }
+      graph voice 8 {
+        node motion lfo {
+          waveform custom
+          rate 1/8beat
+          depth 1
+          phase 0
+          random_phase 0
+          swing 0.15
+          mode one_shot
+          direction ping_pong
+          polarity bipolar
+          retrigger note
+          point start phase 0 value -1
+          point peak phase 0.5 value 1
+          point end phase 1 value -1
+        }
+        node modulator oscillator waveform sine detune 0st glide 0s level 0.5
+        node carrier analog_oscillator {
+          waveform saw
+          unison 4
+          coarse 0st
+          fine 0st
+          phase 0
+          random_phase 0.25
+          detune 0.12st
+          blend 0.85
+          width 0.8
+          drift 0.02st
+          glide 15ms
+          fm_depth 1.5st
+          pm_depth 0.08
+          am_mode ring
+          am_depth 0.2
+          velocity_amount 0.35
+          level $oscillator-level
+          pan 0.1
+          warp pulse-shape pulse_width amount $warp-amount
+          warp phase-shape phase_remap amount 0.1
+          distortion output-drive tanh amount 0.15
+        }
+        node amplitude envelope mode ahdsr attack 2ms hold 3ms decay 50ms sustain 0.75 release 120ms attack_curve 0.2 decay_curve -0.15 release_curve 0.1 retrigger always
+        node tone stereo_filter model ladder_drive mode lowpass cutoff $filter-cutoff resonance 0.35 drive $filter-drive mix 1 pan 0 mod_depth 2khz velocity_depth 1khz key_track 0.5 key_reference 261.625565hz
+        node edge stereo_filter model svf_clean mode highpass cutoff 180hz resonance 0.2 drive 0 mix 1 pan 0 mod_depth 200hz velocity_depth 0hz key_track 0 key_reference 261.625565hz
+        node filters stereo_mixer a_level 0.85 b_level 0.25
+        node voice-out output
+        bus mod-pitch note.pitch -> modulator.pitch
+        bus carrier-pitch note.pitch -> carrier.pitch
+        bus carrier-fm modulator.audio -> carrier.fm
+        bus carrier-pm modulator.audio -> carrier.pm
+        bus carrier-sync modulator.audio -> carrier.sync
+        bus carrier-am modulator.audio -> carrier.am
+        bus amplitude-gate note.gate -> amplitude.gate
+        bus carrier-gain amplitude.control -> carrier.gain
+        bus carrier-velocity note.velocity -> carrier.velocity
+        bus filter-audio carrier.audio -> tone.audio
+        bus filter-key note.pitch -> tone.key
+        bus filter-velocity note.velocity -> tone.velocity
+        bus edge-audio carrier.audio -> edge.audio
+        bus edge-key note.pitch -> edge.key
+        bus edge-velocity note.velocity -> edge.velocity
+        bus filters-a tone.audio -> filters.a
+        bus filters-b edge.audio -> filters.b
+        bus voice-output filters.audio -> voice-out.audio
+      }
+    }
+    pattern phrase 1bar {
+      note 0beat C3 1beat 0.85
+      note 1beat G3 1beat 0.75
+      note 2beat E3 2beat 0.8
+    }
+    track hybrid-track "Virtual Analog" instrument hybrid level -12db pan 0 {
+      clip phrase pattern phrase start 0bar duration 1bar mode once
+    }
+  }
+}

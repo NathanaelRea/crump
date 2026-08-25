@@ -1186,6 +1186,56 @@ mod native {
     mod tests {
         use super::*;
 
+        fn compiled_fixture(relative: &str) -> crate::engine::CompiledProject {
+            let bundle = crate::project::load_project(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative),
+            )
+            .expect("load callback qualification Project");
+            let project = bundle
+                .publishable()
+                .expect("valid callback qualification Project");
+            crate::engine::CompiledProject::compile_with_assets(project, &bundle.assets)
+                .expect("compile callback qualification Project")
+        }
+
+        fn maximum_compiled_project() -> crate::engine::CompiledProject {
+            compiled_fixture("fixtures/synth-alpha/maximum-topology.crump")
+        }
+
+        fn callback_state(
+            current: SongRuntime,
+            commands: Consumer<AudioCommand>,
+            midi: Consumer<AuditionCommand>,
+            reclaimed: Producer<Box<SongRuntime>>,
+            telemetry: Producer<PlayerTelemetry>,
+            publication_in_flight: Arc<AtomicBool>,
+        ) -> CallbackState {
+            CallbackState {
+                current: Box::new(current),
+                transition: None,
+                pending_reclaim: None,
+                publication_in_flight,
+                commands,
+                midi,
+                reclaimed,
+                telemetry,
+                callbacks: 0,
+                late_callbacks: 0,
+                callback_utilization: 0.0,
+                peak_callback_utilization: 0.0,
+                utilization_histogram: [0; 256],
+                processing_errors: 0,
+                midi_events: 0,
+                midi_was_connected: false,
+                paused: false,
+                stopping: false,
+                stream_status: Arc::new(AtomicU8::new(encode_status(StreamStatus::Streaming))),
+                midi_connected: Arc::new(AtomicBool::new(false)),
+                midi_dropped: Arc::new(AtomicU64::new(0)),
+                midi_panic: Arc::new(AtomicBool::new(false)),
+            }
+        }
+
         #[test]
         fn publication_protocol_admits_only_active_plus_one_replacement() {
             let slot = Arc::new(AtomicBool::new(false));
@@ -1210,6 +1260,165 @@ mod native {
                 crate::engine::mix_graph::MAX_RESIDENT_PUBLICATION_RUNTIMES,
                 2
             );
+        }
+
+        #[test]
+        fn maximum_topology_steady_state_and_controls_are_allocation_free() {
+            let compiled = maximum_compiled_project();
+            let (mut commands, command_consumer) = RingBuffer::new(4);
+            let (mut midi, midi_consumer) = RingBuffer::new(4);
+            let (reclaimed, _reclaim_consumer) = RingBuffer::new(1);
+            let (telemetry, _telemetry_consumer) = RingBuffer::new(16);
+            let mut callback = callback_state(
+                compiled.runtime(),
+                command_consumer,
+                midi_consumer,
+                reclaimed,
+                telemetry,
+                Arc::new(AtomicBool::new(false)),
+            );
+            let mut output = [0_u8; 256 * FRAME_BYTES];
+
+            // Initialize thread-local accounting and lazy DSP paths before the
+            // measured maximum-topology steady-state callback sequence.
+            callback.process_buffer(&mut output);
+            let _ = allocation_counter::measure(|| {});
+            commands
+                .push(AudioCommand::SetPaused(false))
+                .expect("queue pause-state command");
+            commands
+                .push(AudioCommand::Audition(AuditionCommand::AllNotesOff))
+                .expect("queue audition command");
+            midi.push(AuditionCommand::NoteOn {
+                track_index: 0,
+                note_id: 99,
+                pitch: 60,
+                velocity: 0.75,
+            })
+            .expect("queue MIDI-equivalent command");
+
+            let allocations = allocation_counter::measure(|| {
+                callback.process_buffer(&mut output);
+                callback.process_buffer(&mut output);
+            });
+
+            assert_eq!(allocations.count_total, 0, "{allocations:?}");
+            assert_eq!(allocations.count_current, 0, "{allocations:?}");
+            assert_eq!(allocations.bytes_total, 0, "{allocations:?}");
+            assert_eq!(allocations.bytes_current, 0, "{allocations:?}");
+            assert!(callback.transition.is_none());
+            assert!(callback.pending_reclaim.is_none());
+            assert_eq!(callback.midi_events, 1);
+        }
+
+        #[test]
+        fn granular_spectral_independent_maxima_callback_is_allocation_free() {
+            let compiled = compiled_fixture("fixtures/synth-alpha/maximum-granular-spectral.crump");
+            let (_commands, command_consumer) = RingBuffer::new(2);
+            let (_midi, midi_consumer) = RingBuffer::new(2);
+            let (reclaimed, _reclaim_consumer) = RingBuffer::new(1);
+            let (telemetry, _telemetry_consumer) = RingBuffer::new(8);
+            let mut callback = callback_state(
+                compiled.runtime(),
+                command_consumer,
+                midi_consumer,
+                reclaimed,
+                telemetry,
+                Arc::new(AtomicBool::new(false)),
+            );
+            let mut output = [0_u8; 256 * FRAME_BYTES];
+
+            callback.process_buffer(&mut output);
+            let _ = allocation_counter::measure(|| {});
+            let allocations = allocation_counter::measure(|| {
+                callback.process_buffer(&mut output);
+                callback.process_buffer(&mut output);
+            });
+
+            assert_eq!(allocations.count_total, 0, "{allocations:?}");
+            assert_eq!(allocations.count_current, 0, "{allocations:?}");
+            assert_eq!(allocations.bytes_total, 0, "{allocations:?}");
+            assert_eq!(allocations.bytes_current, 0, "{allocations:?}");
+            assert!(callback.transition.is_none());
+            assert!(callback.pending_reclaim.is_none());
+        }
+
+        #[test]
+        fn maximum_topology_publication_transition_and_reclamation_are_allocation_free() {
+            let compiled = maximum_compiled_project();
+            let (mut commands, command_consumer) = RingBuffer::new(4);
+            let (_midi, midi_consumer) = RingBuffer::new(4);
+            let (mut reclaimed, mut reclaim_consumer) = RingBuffer::new(1);
+            let (telemetry, _telemetry_consumer) = RingBuffer::new(16);
+            reclaimed
+                .push(Box::new(compiled.runtime()))
+                .expect("occupy reclaim ring");
+            let publication_in_flight = Arc::new(AtomicBool::new(true));
+            let mut callback = callback_state(
+                compiled.runtime(),
+                command_consumer,
+                midi_consumer,
+                reclaimed,
+                telemetry,
+                Arc::clone(&publication_in_flight),
+            );
+            let mut output = [0_u8; 256 * FRAME_BYTES];
+
+            callback.process_buffer(&mut output);
+            let _ = allocation_counter::measure(|| {});
+            commands
+                .push(AudioCommand::Publish(Box::new(compiled.runtime())))
+                .expect("queue replacement runtime");
+
+            let transition_allocations = allocation_counter::measure(|| {
+                callback.process_buffer(&mut output);
+                callback.process_buffer(&mut output);
+            });
+            assert_eq!(
+                transition_allocations.count_total, 0,
+                "{transition_allocations:?}"
+            );
+            assert_eq!(
+                transition_allocations.count_current, 0,
+                "{transition_allocations:?}"
+            );
+            assert_eq!(
+                transition_allocations.bytes_total, 0,
+                "{transition_allocations:?}"
+            );
+            assert_eq!(
+                transition_allocations.bytes_current, 0,
+                "{transition_allocations:?}"
+            );
+            assert!(callback.transition.is_none());
+            assert!(callback.pending_reclaim.is_some());
+            assert!(publication_in_flight.load(Ordering::Acquire));
+
+            let occupied_reclaim_slot = reclaim_consumer
+                .pop()
+                .expect("release occupied reclaim slot");
+            let reclamation_allocations = allocation_counter::measure(|| {
+                callback.process_buffer(&mut output);
+            });
+            assert_eq!(
+                reclamation_allocations.count_total, 0,
+                "{reclamation_allocations:?}"
+            );
+            assert_eq!(
+                reclamation_allocations.count_current, 0,
+                "{reclamation_allocations:?}"
+            );
+            assert_eq!(
+                reclamation_allocations.bytes_total, 0,
+                "{reclamation_allocations:?}"
+            );
+            assert_eq!(
+                reclamation_allocations.bytes_current, 0,
+                "{reclamation_allocations:?}"
+            );
+            assert!(callback.pending_reclaim.is_none());
+            assert!(!publication_in_flight.load(Ordering::Acquire));
+            drop(occupied_reclaim_slot);
         }
 
         #[test]

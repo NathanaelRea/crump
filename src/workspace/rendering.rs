@@ -19,6 +19,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &Workspace) {
         View::Processing => render_processing(frame, app, regions[2]),
         View::EventGrid => render_event_grid(frame, app, regions[2]),
         View::Faceplate => render_faceplate(frame, app, regions[2]),
+        View::Instrument => render_instrument_sections(frame, app, regions[2]),
         View::Parameters => render_parameters(frame, app, regions[2]),
         View::Automation => render_automation(frame, app, regions[2]),
         View::Graph => render_graph(frame, app, regions[2]),
@@ -778,6 +779,134 @@ fn render_faceplate(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     );
 }
 
+fn render_instrument_sections(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
+    let Some(project) = app.bundle.project.as_ref() else {
+        render_unavailable(frame, area, "Instrument sections unavailable");
+        return;
+    };
+    let Some(instrument) = project.song.instruments.get(app.selected_instrument) else {
+        render_unavailable(frame, area, "No Instrument");
+        return;
+    };
+    let sections = app.instrument_sections();
+    let Some(section) = sections.get(app.selected_instrument_section) else {
+        render_unavailable(frame, area, "No generated Instrument sections");
+        return;
+    };
+    let regions = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Min(4),
+        ])
+        .split(area);
+    frame.render_widget(
+        Paragraph::new(format!(
+            "{} · {} · {} sections · ←/→ section · ↑/↓ item · Enter exact edit/source",
+            instrument.name,
+            instrument.kind,
+            sections.len()
+        ))
+        .block(
+            Block::default()
+                .title(" Generated Instrument Sections ")
+                .borders(Borders::ALL),
+        ),
+        regions[0],
+    );
+    frame.render_widget(
+        Tabs::new(
+            sections
+                .iter()
+                .map(|section| Line::from(section.name.clone()))
+                .collect::<Vec<_>>(),
+        )
+        .select(app.selected_instrument_section)
+        .style(Style::default().fg(Color::Gray))
+        .highlight_style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )
+        .divider(" │ ")
+        .block(Block::default().borders(Borders::BOTTOM)),
+        regions[1],
+    );
+    let frame_position = app.telemetry.engine.frame;
+    let route_activity = crate::engine::control::CompiledControlProgram::compile(project)
+        .ok()
+        .map(|program| {
+            program
+                .snapshot_at(frame_position)
+                .into_iter()
+                .filter(|snapshot| {
+                    matches!(
+                        &snapshot.target,
+                        ParameterTarget::Instrument { instrument: owner, .. }
+                            if owner == &instrument.id
+                    )
+                })
+                .flat_map(|snapshot| {
+                    snapshot
+                        .instrument_modulation_routes
+                        .into_iter()
+                        .map(move |route| {
+                            (
+                                route.route.clone(),
+                                instrument_modulation_route_label(&route, snapshot.unit),
+                            )
+                        })
+                })
+                .collect::<BTreeMap<_, _>>()
+        })
+        .unwrap_or_default();
+    let rows = section.rows.iter().map(|row| {
+        let detail = if row.kind == Some(PresentationItemKind::Route) {
+            route_activity.get(&row.id).map_or_else(
+                || row.detail.clone(),
+                |activity| format!("{} · live {activity}", row.detail),
+            )
+        } else {
+            row.detail.clone()
+        };
+        Row::new(vec![
+            row.kind
+                .map_or_else(|| "policy".to_owned(), |kind| format!("{kind:?}")),
+            row.id.clone(),
+            detail,
+            row.source.clone(),
+        ])
+    });
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(12),
+            Constraint::Length(22),
+            Constraint::Min(32),
+            Constraint::Length(28),
+        ],
+    )
+    .header(
+        Row::new([
+            "Type",
+            "Identity",
+            "Authoritative contract / live modulation activity",
+            "Exact source",
+        ])
+        .style(Style::default().fg(Color::Cyan)),
+    )
+    .block(
+        Block::default()
+            .title(format!(" {} · {} ", section.name, section.id))
+            .borders(Borders::ALL),
+    )
+    .row_highlight_style(selected_style())
+    .highlight_symbol("▶ ");
+    let mut state = TableState::default().with_selected(Some(app.selected_instrument_row));
+    frame.render_stateful_widget(table, regions[2], &mut state);
+}
+
 fn render_parameters(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     let Some(project) = app.bundle.project.as_ref() else {
         render_unavailable(frame, area, "Parameters unavailable");
@@ -840,6 +969,30 @@ fn render_parameters(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     frame.render_stateful_widget(table, area, &mut state);
 }
 
+fn instrument_modulation_route_label(
+    route: &crate::engine::control::InstrumentModulationValueSnapshot,
+    unit: crate::model::Unit,
+) -> String {
+    let (scope, contribution) = match route.scope {
+        crate::model::InstrumentModulationScope::Global => (
+            "global",
+            route.contribution.map_or_else(
+                || "unavailable".to_owned(),
+                |contribution| unit.format_value(contribution),
+            ),
+        ),
+        crate::model::InstrumentModulationScope::Instrument => {
+            ("instrument/per-track", "per-track".to_owned())
+        }
+        crate::model::InstrumentModulationScope::PerVoice => ("per_voice", "per-voice".to_owned()),
+    };
+    format!(
+        "instrument:{}[{scope}]{}={contribution}",
+        route.route,
+        if route.bypass { "(bypass)" } else { "" },
+    )
+}
+
 fn render_automation(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     let Some(project) = app.bundle.project.as_ref() else {
         render_unavailable(
@@ -883,9 +1036,15 @@ fn render_automation(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
                 |automation| value.unit.format_value(automation),
             );
             let routes = value
-                .modulation_routes
+                .instrument_modulation_routes
                 .iter()
-                .map(|route| route.route.as_str())
+                .map(|route| instrument_modulation_route_label(route, value.unit))
+                .chain(
+                    value
+                        .modulation_routes
+                        .iter()
+                        .map(|route| format!("song:{}", route.route)),
+                )
                 .collect::<Vec<_>>()
                 .join(",");
             format!(
@@ -972,20 +1131,23 @@ fn render_graph(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
             && app.candidate_is_active()
             && app.telemetry.engine.active_voices > 0;
         let selected = app.selected_graph_node;
+        let node_order = graph_processing_node_indexes(instrument, graph);
+        let bus_order = graph_processing_bus_indexes(graph, &node_order);
         let mut lines = vec![Line::from(Span::styled(
             format!(
-                "NODES  {} / {} declared ceiling  ·  {}",
+                "VOICE NODES  {} / {} declared ceiling  ·  {}",
                 graph.nodes.len(),
                 graph.max_nodes,
                 if processing { "processing" } else { "idle" }
             ),
             Style::default().add_modifier(Modifier::BOLD),
         ))];
-        lines.extend(graph.nodes.iter().enumerate().map(|(index, node)| {
+        lines.extend(node_order.iter().enumerate().map(|(index, node_index)| {
+            let node = &graph.nodes[*node_index];
             let settings = node
                 .settings
                 .iter()
-                .map(|(key, value)| format!("{key}={value:?}"))
+                .map(|setting| format!("{}={:?}", setting.key, setting.value))
                 .collect::<Vec<_>>()
                 .join("  ");
             let line = Line::from(vec![
@@ -1025,13 +1187,14 @@ fn render_graph(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
             Style::default().add_modifier(Modifier::BOLD),
         )));
         lines.extend(
-            graph
-                .connections
+            bus_order
                 .iter()
                 .enumerate()
-                .map(|(index, connection)| {
+                .map(|(index, connection_index)| {
+                    let connection = &graph.connections[*connection_index];
                     let line = Line::from(format!(
-                        "  {}.{}  ──▶  {}.{}  · {}:{}",
+                        "  {:<16} {}.{}  ──▶  {}.{}  · {}:{}",
+                        connection.id,
                         connection.from.node,
                         connection.from.port,
                         connection.to.node,
@@ -1047,7 +1210,98 @@ fn render_graph(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
                 }),
         );
 
-        let parameter_offset = connection_offset + graph.connections.len();
+        let voice_item_count = connection_offset + graph.connections.len();
+        let shared_item_count = if let Some(shared) = &instrument.shared_graph {
+            let shared_processing = app.player.is_some() && app.candidate_is_active();
+            let shared_node_order = graph_processing_node_indexes(instrument, shared);
+            let shared_bus_order = graph_processing_bus_indexes(shared, &shared_node_order);
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                format!(
+                    "SHARED POST-VOICE NODES  {} / {} declared ceiling  ·  one voice_sum.audio crossing  ·  {}",
+                    shared.nodes.len(),
+                    shared.max_nodes,
+                    if shared_processing { "processing" } else { "idle" }
+                ),
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+            lines.extend(
+                shared_node_order
+                    .iter()
+                    .enumerate()
+                    .map(|(index, node_index)| {
+                        let node = &shared.nodes[*node_index];
+                        let settings = node
+                            .settings
+                            .iter()
+                            .map(|setting| format!("{}={:?}", setting.key, setting.value))
+                            .collect::<Vec<_>>()
+                            .join("  ");
+                        let line = Line::from(vec![
+                            Span::styled(
+                                if shared_processing { " ● " } else { " ○ " },
+                                Style::default().fg(if shared_processing {
+                                    Color::Green
+                                } else {
+                                    Color::DarkGray
+                                }),
+                            ),
+                            Span::styled(
+                                format!("{:<16}", node.id),
+                                Style::default().fg(Color::Yellow),
+                            ),
+                            Span::styled(
+                                format!("{:<12}", format!("{:?}", node.kind).to_lowercase()),
+                                Style::default().fg(Color::Cyan),
+                            ),
+                            Span::raw(format!(
+                                " {settings}  · {}:{}",
+                                node.location.file.display(),
+                                node.location.line
+                            )),
+                        ]);
+                        if voice_item_count + index == selected {
+                            line.style(selected_style())
+                        } else {
+                            line
+                        }
+                    }),
+            );
+            let shared_bus_offset = voice_item_count + shared.nodes.len();
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "SHARED BUSES",
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+            lines.extend(
+                shared_bus_order
+                    .iter()
+                    .enumerate()
+                    .map(|(index, connection_index)| {
+                        let connection = &shared.connections[*connection_index];
+                        let line = Line::from(format!(
+                            "  {:<16} {}.{}  ──▶  {}.{}  · {}:{}",
+                            connection.id,
+                            connection.from.node,
+                            connection.from.port,
+                            connection.to.node,
+                            connection.to.port,
+                            connection.location.file.display(),
+                            connection.location.line
+                        ));
+                        if shared_bus_offset + index == selected {
+                            line.style(selected_style())
+                        } else {
+                            line
+                        }
+                    }),
+            );
+            shared.nodes.len() + shared.connections.len()
+        } else {
+            0
+        };
+
+        let parameter_offset = voice_item_count + shared_item_count;
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             "PARAMETERS",
@@ -1114,14 +1368,32 @@ fn render_graph(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     };
     let selected_row = instrument.graph.as_ref().map_or(0, |graph| {
         let selected = app.selected_graph_node;
+        let voice_items = graph.nodes.len() + graph.connections.len();
+        let shared_nodes = instrument
+            .shared_graph
+            .as_ref()
+            .map_or(0, |graph| graph.nodes.len());
+        let shared_buses = instrument
+            .shared_graph
+            .as_ref()
+            .map_or(0, |graph| graph.connections.len());
         if selected < graph.nodes.len() {
             1 + selected
-        } else if selected < graph.nodes.len() + graph.connections.len() {
+        } else if selected < voice_items {
             3 + selected
-        } else if selected
-            < graph.nodes.len() + graph.connections.len() + instrument.parameters.len()
-        {
+        } else if selected < voice_items + shared_nodes {
             5 + selected
+        } else if selected < voice_items + shared_nodes + shared_buses {
+            7 + selected
+        } else if selected < voice_items + shared_nodes + shared_buses + instrument.parameters.len()
+        {
+            if instrument.shared_graph.is_some() {
+                9 + selected
+            } else {
+                5 + selected
+            }
+        } else if instrument.shared_graph.is_some() {
+            11 + selected
         } else {
             7 + selected
         }
@@ -1334,6 +1606,9 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
         ),
         Line::from("Sample occurrence: x region · f fade · g gain · p pan"),
         Line::from("Faceplate / Parameters: ←/→ bounded step · Enter exact physical value"),
+        Line::from(
+            "Instrument: ←/→ section · ↑/↓ item · Enter Parameter/route edit or exact source · b route bypass",
+        ),
         Line::from("Automation: [/] lane · ↑/↓ point · ←/→ value · Enter exact · t time · c curve"),
         Line::from(
             "Graph: ↑/↓ Node/Bus/Parameter/Mapping · ←/→ Instrument · Enter Source location",
@@ -1513,4 +1788,52 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(vertical[1])[1]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::instrument_modulation_route_label;
+    use crate::{
+        engine::control::InstrumentModulationValueSnapshot,
+        model::{InstrumentModulationScope, Unit},
+    };
+
+    fn route(scope: InstrumentModulationScope) -> InstrumentModulationValueSnapshot {
+        InstrumentModulationValueSnapshot {
+            route: "motion".to_owned(),
+            source: "source".to_owned(),
+            scope,
+            order: 0,
+            bypass: false,
+            normalized: None,
+            auxiliary: None,
+            depth: 0.5,
+            contribution: (scope == InstrumentModulationScope::Global).then_some(0.25),
+        }
+    }
+
+    #[test]
+    fn instrument_modulation_labels_preserve_global_track_and_voice_scope() {
+        assert!(
+            instrument_modulation_route_label(
+                &route(InstrumentModulationScope::Global),
+                Unit::Ratio
+            )
+            .contains("[global]")
+        );
+        assert!(
+            instrument_modulation_route_label(
+                &route(InstrumentModulationScope::Instrument),
+                Unit::Ratio,
+            )
+            .contains("[instrument/per-track]")
+        );
+        assert!(
+            instrument_modulation_route_label(
+                &route(InstrumentModulationScope::PerVoice),
+                Unit::Ratio,
+            )
+            .contains("[per_voice]")
+        );
+    }
 }

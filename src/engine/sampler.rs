@@ -168,7 +168,11 @@ impl CompiledSamplerProgram {
             .saturating_add(
                 self.mappings
                     .iter()
-                    .map(|mapping| mapping.id.capacity() as u64)
+                    .map(|mapping| {
+                        (mapping.id.capacity() as u64)
+                            .saturating_add(mapping.source.asset_id().len() as u64)
+                            .saturating_add(mapping.source.source_sha256().len() as u64)
+                    })
                     .fold(0_u64, u64::saturating_add),
             );
         (std::mem::size_of::<Self>() as u64).saturating_add(mapping_bytes)

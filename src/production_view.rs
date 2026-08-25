@@ -11,10 +11,11 @@ use crate::{
         CheckedReplacement, EditError, ProcessorMove, apply_structured_edit,
         clear_sample_occurrence_loop, fade_sample_occurrence, move_processor,
         set_automation_point_at, set_automation_point_interpolation, set_automation_point_value,
-        set_event_at, set_event_velocity, set_hit_voice, set_note_duration, set_note_pitch,
-        set_parameter, set_parameter_target, set_processor_setting,
-        set_sample_occurrence_direction, set_sample_occurrence_gain, set_sample_occurrence_loop,
-        set_sample_occurrence_pan, set_track_level, set_track_pan, trim_sample_occurrence,
+        set_event_at, set_event_velocity, set_hit_voice, set_instrument_route_bypass,
+        set_instrument_route_depth, set_note_duration, set_note_pitch, set_parameter,
+        set_parameter_target, set_processor_setting, set_sample_occurrence_direction,
+        set_sample_occurrence_gain, set_sample_occurrence_loop, set_sample_occurrence_pan,
+        set_track_level, set_track_pan, trim_sample_occurrence,
     },
     history::{ChangeOrigin, HistoryEntry, HistoryError, HistoryStore, Publication},
     model::{
@@ -85,6 +86,18 @@ pub enum Operation {
         processor: String,
         setting: String,
         value: String,
+    },
+    /// Set one exact Instrument Modulation route depth literal.
+    SetInstrumentRouteDepth {
+        instrument: String,
+        route: String,
+        depth: String,
+    },
+    /// Set one durable Instrument Modulation route bypass.
+    SetInstrumentRouteBypass {
+        instrument: String,
+        route: String,
+        bypass: bool,
     },
     /// Set one durable processor bypass.
     SetProcessorBypass { processor: String, bypass: bool },
@@ -468,6 +481,20 @@ fn plan(
         } => {
             vec![set_processor_setting(bundle, processor, setting, value)?]
         }
+        Operation::SetInstrumentRouteDepth {
+            instrument,
+            route,
+            depth,
+        } => vec![set_instrument_route_depth(
+            bundle, instrument, route, depth,
+        )?],
+        Operation::SetInstrumentRouteBypass {
+            instrument,
+            route,
+            bypass,
+        } => vec![set_instrument_route_bypass(
+            bundle, instrument, route, *bypass,
+        )?],
         Operation::SetProcessorBypass { processor, bypass } => {
             let target = ParameterTarget::Processor {
                 processor: processor.clone(),

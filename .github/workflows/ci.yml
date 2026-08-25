@@ -10,7 +10,7 @@ permissions:
 jobs:
   rust:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -21,15 +21,25 @@ jobs:
           rustup default stable
           rustup component add clippy rustfmt
       - name: Install native build dependencies
-        run: sudo apt-get update && sudo apt-get install --yes dpkg-dev libpipewire-0.3-dev libclang-dev pkg-config
+        run: sudo apt-get update && sudo apt-get install --yes diffutils dpkg-dev libpipewire-0.3-dev libclang-dev passwd pkg-config util-linux
       - name: Formatting
         run: cargo fmt --all --check
       - name: Clippy
         run: cargo clippy --all-targets --all-features --locked -- -D warnings
+      - name: Native synthesis fixture freshness
+        run: python3 fixtures/synth-alpha/generate_max_fixture.py --check
+      - name: Integrated native synthesis qualification
+        run: cargo test --locked --test native_synthesis_qualification --all-features
+      - name: Callback allocation and reclamation tests
+        run: |
+          cargo test --locked 'realtime::native::tests::maximum_topology_' --all-features -- --test-threads=1
+          cargo test --locked realtime::native::tests::granular_spectral_independent_maxima_callback_is_allocation_free --all-features -- --exact --test-threads=1
       - name: Full test suite
         run: cargo test --all-targets --all-features --locked
-      - name: Headless feature build
-        run: cargo check --all-targets --no-default-features --locked
+      - name: Clean-account exact-asset portability and recovery
+        run: sudo tests/qualification/clean-account-portability.sh target/debug/crump
+      - name: Headless feature tests
+        run: cargo test --all-targets --no-default-features --locked
       - name: Minimum supported Rust
         run: |
           rustup toolchain install 1.88.0 --profile minimal
@@ -51,8 +61,29 @@ jobs:
           cmp "$project/first/master.wav" "$project/second/master.wav"
           cmp "$project/first/manifest.json" "$project/second/manifest.json"
           sha256sum "$project/first/master.wav" "$project/first/manifest.json"
-      - name: Package contents
-        run: cargo package --locked
+      - name: Cargo package contents
+        run: |
+          cargo package --locked
+          crate=$(find target/package -maxdepth 1 -name 'crump-*.crate' -print -quit)
+          test -n "$crate"
+          tar -tf "$crate" > cargo-package-files.txt
+          grep -Fx 'crump-0.1.0/fixtures/starter/auditions.crump' cargo-package-files.txt
+          grep -Fx 'crump-0.1.0/fixtures/starter/instruments/dh-bass.crump' cargo-package-files.txt
+          grep -Fx 'crump-0.1.0/fixtures/starter/media/basic-table.wav' cargo-package-files.txt
+          grep -Fx 'crump-0.1.0/fixtures/deep-house-reference/project.crump' cargo-package-files.txt
+          grep -Fx 'crump-0.1.0/fixtures/deep-house-reference/instruments/dh-spectral-transform.crump' cargo-package-files.txt
+          grep -Fx 'crump-0.1.0/fixtures/deep-house-reference/media/sample-source.wav' cargo-package-files.txt
+          grep -Fx 'crump-0.1.0/fixtures/synth-alpha/maximum-topology.crump' cargo-package-files.txt
+          grep -Fx 'crump-0.1.0/fixtures/synth-alpha/maximum-granular-spectral.crump' cargo-package-files.txt
+          grep -Fx 'crump-0.1.0/fixtures/synth-alpha/media/sample-source.wav' cargo-package-files.txt
+          if grep -E '/fixtures/deep-house-reference/(render/|\.crump/)' cargo-package-files.txt; then
+            echo 'generated reference renders and working History must not enter the Cargo package' >&2
+            exit 1
+          fi
+          if tar -tvf "$crate" | grep -E '^l.*crump-0\.1\.0/fixtures/(starter|deep-house-reference|synth-alpha)/'; then
+            echo 'release fixtures must not contain symlinks' >&2
+            exit 1
+          fi
       - name: Build and inspect Debian package
         run: |
           packaging/build-deb.sh dist
@@ -67,8 +98,21 @@ jobs:
           test -f package-root/usr/share/doc/crump/fixtures/reference/project.crump
           test -f package-root/usr/share/doc/crump/fixtures/expressive/project.crump
           test -f package-root/usr/share/doc/crump/fixtures/production/project.crump
-          test -f package-root/usr/share/doc/crump/skills/crump-authoring/SKILL.md
-          test -f package-root/usr/share/crump/skills/crump-authoring/SKILL.md
+          test -f package-root/usr/share/doc/crump/fixtures/starter/auditions.crump
+          test -f package-root/usr/share/doc/crump/fixtures/starter/instruments/dh-bass.crump
+          test -f package-root/usr/share/doc/crump/fixtures/starter/media/basic-table.wav
+          test -f package-root/usr/share/doc/crump/fixtures/deep-house-reference/project.crump
+          test -f package-root/usr/share/doc/crump/fixtures/deep-house-reference/instruments/dh-spectral-transform.crump
+          test -f package-root/usr/share/doc/crump/fixtures/deep-house-reference/media/sample-source.wav
+          test ! -e package-root/usr/share/doc/crump/fixtures/deep-house-reference/render
+          test ! -e package-root/usr/share/doc/crump/fixtures/deep-house-reference/.crump
+          test -f package-root/usr/share/doc/crump/fixtures/synth-alpha/maximum-topology.crump
+          test -f package-root/usr/share/doc/crump/fixtures/synth-alpha/maximum-granular-spectral.crump
+          test -f package-root/usr/share/doc/crump/fixtures/synth-alpha/media/sample-source.wav
+          package-root/usr/bin/crump --project package-root/usr/share/doc/crump/fixtures/starter/auditions.crump --json validate
+          package-root/usr/bin/crump --project package-root/usr/share/doc/crump/fixtures/deep-house-reference --json validate
+          package-root/usr/bin/crump --project package-root/usr/share/doc/crump/fixtures/synth-alpha/maximum-topology.crump --json validate
+          package-root/usr/bin/crump --project package-root/usr/share/doc/crump/fixtures/synth-alpha/maximum-granular-spectral.crump --json validate
           package-root/usr/bin/crump --version
       - name: Upload Debian package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

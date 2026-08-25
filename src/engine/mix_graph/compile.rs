@@ -456,19 +456,42 @@ impl CompiledMixGraph {
                     EngineError::Compile(format!("missing instrument `{}`", schedule.instrument_id))
                 })?;
             if instrument.kind == InstrumentKind::Graph {
-                instrument_program_bytes = instrument_program_bytes.saturating_add(
-                    CompiledGraph::compile(instrument, project.sample_rate, &controls)?
-                        .allocation_bytes(),
-                );
+                let voice_graph =
+                    CompiledGraph::compile(instrument, project, project.sample_rate, &controls)?;
+                let shared_graph = CompiledGraph::compile_shared(
+                    instrument,
+                    project,
+                    project.sample_rate,
+                    &controls,
+                )?;
+                instrument_program_bytes = instrument_program_bytes
+                    .saturating_add(voice_graph.allocation_bytes())
+                    .saturating_add(
+                        shared_graph
+                            .as_ref()
+                            .map_or(0, CompiledGraph::allocation_bytes),
+                    );
             }
         }
+        let graph_track_count = schedules
+            .iter()
+            .filter(|schedule| {
+                instruments
+                    .get(schedule.instrument_id.as_str())
+                    .is_some_and(|instrument| instrument.kind == InstrumentKind::Graph)
+            })
+            .count() as u64;
+        let voicing_runtime_state_bytes = graph_track_count
+            .saturating_mul(std::mem::size_of::<super::super::GraphVoicingRuntime>() as u64);
         let song_runtime_structure_bytes = (std::mem::size_of::<SongRuntime>() as u64)
             .saturating_add(project.id.len() as u64)
+            .saturating_add(voicing_runtime_state_bytes)
             .saturating_add(
                 (schedules.capacity() as u64)
                     .saturating_mul(std::mem::size_of::<TrackRuntime>() as u64),
             )
             .saturating_add(controls.runtime_state_bytes())
+            .saturating_add(controls.track_parameter_lock_runtime_state_bytes())
             .saturating_add(envelope_followers.runtime_state_bytes());
         graph.inspection.resources.include_song_runtime_state(
             controls
@@ -478,10 +501,21 @@ impl CompiledMixGraph {
             instrument_program_bytes,
             song_runtime_structure_bytes,
         );
-        graph
-            .inspection
-            .resources
-            .include_additional_callback_work(envelope_followers.work_units_per_frame());
+        let voicing_work_units_per_frame = schedules
+            .iter()
+            .filter_map(|schedule| instruments.get(schedule.instrument_id.as_str()))
+            .filter(|instrument| {
+                instrument.kind == InstrumentKind::Graph
+                    && instrument.voicing.glide_mode != crate::model::GlideMode::Off
+            })
+            .map(|instrument| u64::from(instrument.polyphony))
+            .fold(0_u64, u64::saturating_add);
+        graph.inspection.resources.include_additional_callback_work(
+            controls
+                .instrument_work_units_per_frame()
+                .saturating_add(envelope_followers.work_units_per_frame())
+                .saturating_add(voicing_work_units_per_frame),
+        );
         Ok(graph.inspection.resources)
     }
 
