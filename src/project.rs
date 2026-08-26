@@ -167,24 +167,7 @@ fn finish_candidate_reconstruction(
 
 /// Loads a complete Project candidate from a directory or root source path.
 pub fn load_project(path: impl AsRef<Path>) -> Result<ProjectBundle, ProjectIoError> {
-    let supplied = path.as_ref();
-    let (root, root_file) = if supplied.is_dir() {
-        (supplied.to_path_buf(), supplied.join(PROJECT_FILE))
-    } else {
-        let parent = supplied.parent().unwrap_or_else(|| Path::new("."));
-        (parent.to_path_buf(), supplied.to_path_buf())
-    };
-    if !root_file.exists() {
-        return Err(ProjectIoError::NotFound(root_file));
-    }
-    let root = fs::canonicalize(&root).map_err(|source| ProjectIoError::Read {
-        path: root.clone(),
-        source,
-    })?;
-    let root_file = fs::canonicalize(&root_file).map_err(|source| ProjectIoError::Read {
-        path: root_file.clone(),
-        source,
-    })?;
+    let (root, root_file) = project_location(path.as_ref())?;
     let root_source = read_source(&root_file)?;
     let root_key = PathBuf::from(PROJECT_FILE);
     let (mut assembly, imports) = CandidateAssembly::parse_root(&root_key, &root_source);
@@ -244,6 +227,32 @@ pub fn load_project(path: impl AsRef<Path>) -> Result<ProjectBundle, ProjectIoEr
         assembly,
         CandidateAssetSource::Filesystem,
     ))
+}
+
+/// Resolves and validates the Project root without reading authoritative bytes.
+pub(crate) fn project_root(path: impl AsRef<Path>) -> Result<PathBuf, ProjectIoError> {
+    project_location(path.as_ref()).map(|(root, _)| root)
+}
+
+fn project_location(supplied: &Path) -> Result<(PathBuf, PathBuf), ProjectIoError> {
+    let (root, root_file) = if supplied.is_dir() {
+        (supplied.to_path_buf(), supplied.join(PROJECT_FILE))
+    } else {
+        let parent = supplied.parent().unwrap_or_else(|| Path::new("."));
+        (parent.to_path_buf(), supplied.to_path_buf())
+    };
+    if !root_file.exists() {
+        return Err(ProjectIoError::NotFound(root_file));
+    }
+    let root = fs::canonicalize(&root).map_err(|source| ProjectIoError::Read {
+        path: root.clone(),
+        source,
+    })?;
+    let root_file = fs::canonicalize(&root_file).map_err(|source| ProjectIoError::Read {
+        path: root_file.clone(),
+        source,
+    })?;
+    Ok((root, root_file))
 }
 
 /// Parses and validates an in-memory authoritative source set.
@@ -464,7 +473,7 @@ fn resolve_import(
     })
 }
 
-fn import_display_path(import: &str) -> Result<PathBuf, String> {
+pub(crate) fn import_display_path(import: &str) -> Result<PathBuf, String> {
     if let Some(name) = import.strip_prefix("library:") {
         if !valid_library_name(name) {
             return Err(format!("invalid library module name `{name}`"));

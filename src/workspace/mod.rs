@@ -1,10 +1,12 @@
-//! Ratatui production workspace over the terminal-independent Project model.
+//! Terminal production workspace over the terminal-independent Project model.
 
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     io::{self, Stdout},
     path::{Path, PathBuf},
     process::Command,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -31,10 +33,9 @@ use ratatui::{
 use crate::{
     diagnostic::Severity,
     engine::audition::{
-        ActiveRefresh, AuditionCue, AuditionPath, AuditionPlan, AuditionPrepareOptions,
-        AuditionRange, AuditionRuntimePolicy, AuditionStatus, AuditionTarget,
+        AuditionCue, AuditionPath, AuditionPlan, AuditionRange, AuditionStatus, AuditionTarget,
     },
-    engine::{CompiledProject, mix_graph::MixGraphInspection},
+    engine::{CompiledProject, control::ControlInspector, mix_graph::MixGraphInspection},
     history::{HistoryEntry, HistoryStore, write_atomic},
     model::{
         AutomationLane, AutomationPoint, DrumVoice, Graph, InstrumentKind, ParameterSpec,
@@ -45,11 +46,12 @@ use crate::{
         Provenance as ProductionViewProvenance, Request as ProductionViewRequest,
         execute as execute_production_view,
     },
-    project::{ProjectBundle, RevisionId, load_project},
-    realtime::{PipeWirePlayer, PlayerTelemetry, StreamStatus},
+    project::{ProjectBundle, RevisionId},
+    realtime::{PipeWirePlayer, PlayerTelemetry, RealtimeError, StreamStatus},
 };
 
 const TICK_RATE: Duration = Duration::from_millis(40);
+const BACKGROUND_POLL_RATE: Duration = Duration::from_millis(5);
 const REFRESH_RATE: Duration = Duration::from_millis(400);
 const AUDITION_TIMEOUT: Duration = Duration::from_millis(700);
 const VIEWS: [View; 13] = [
@@ -68,17 +70,49 @@ const VIEWS: [View; 13] = [
     View::Help,
 ];
 
+mod active;
+mod background;
 mod input;
 mod instrument;
+mod performance;
+mod reload;
 mod rendering;
 mod terminal;
+mod timeline;
+mod watch;
 
+#[cfg(test)]
+use crate::project::load_project;
+
+use active::{
+    ActiveMode, ActiveRequest, ActiveRequestKey, ActiveResult, PreparedActiveInspection,
+    PreparedActiveMode,
+};
+use background::{BackgroundPoll, BackgroundWorker, RetireQueue};
 use input::{parse_fade_pair, parse_frame_pair};
 #[cfg(test)]
 use instrument::instrument_section_views;
 use instrument::{InstrumentSectionRow, instrument_section_views_with_assets};
+use performance::WorkspacePerformance;
+use reload::{CandidateReload, CandidateUpdate, HistoryReload, HistoryUpdate, ReloadBatch};
 use rendering::render;
 pub use terminal::run;
+use timeline::{TimelineCache, TimelineViewport};
+use watch::WorkspaceWatch;
+
+fn timeline_ascii_fallback() -> bool {
+    if let Ok(value) = std::env::var("CRUMP_TIMELINE_ASCII") {
+        return matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        );
+    }
+    let locale_is_ascii = ["LC_ALL", "LC_CTYPE", "LANG"]
+        .into_iter()
+        .find_map(|name| std::env::var(name).ok().filter(|value| !value.is_empty()))
+        .is_some_and(|locale| matches!(locale.as_str(), "C" | "POSIX"));
+    locale_is_ascii || std::env::var("TERM").is_ok_and(|term| term.eq_ignore_ascii_case("dumb"))
+}
 
 fn graph_processing_node_indexes(
     instrument: &crate::model::Instrument,
@@ -236,15 +270,88 @@ impl View {
     }
 }
 
+#[derive(Debug, Clone)]
+struct MixerParameterView {
+    target: ParameterTarget,
+    spec: ParameterSpec,
+    channel_identity: Option<String>,
+    muted: bool,
+}
+
+enum WorkspaceWorkResult {
+    Probe(WatchProbe),
+    Reload(ReloadBatch),
+    Active(ActiveResult, Duration),
+    Mutation(MutationResult, Duration),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum WorkspaceWorkKind {
+    Probe,
+    CandidateVerification,
+    HistoryVerification,
+    Reload { candidate: bool, history: bool },
+    Active(ActiveRequestKey),
+    Mutation,
+}
+
+struct WatchProbe {
+    candidate_dirty: bool,
+    history_dirty: bool,
+    elapsed: Duration,
+}
+
+struct PendingMutation {
+    request: ProductionViewRequest,
+    success: String,
+    failure: &'static str,
+}
+
+struct MutationResult {
+    result: Result<String, String>,
+    success: String,
+    failure: &'static str,
+}
+
+struct PendingActiveInspection {
+    key: ActiveRequestKey,
+    inspection: PreparedActiveInspection,
+}
+
 struct Workspace {
     root: PathBuf,
     bundle: ProjectBundle,
+    watch: WorkspaceWatch,
+    worker: BackgroundWorker<WorkspaceWorkResult>,
+    retire_queue: RetireQueue,
+    watch_probe_requested: bool,
+    candidate_reload_requested: bool,
+    history_reload_requested: bool,
+    candidate_verification: Option<Box<CandidateUpdate>>,
+    history_verification: Option<Box<HistoryUpdate>>,
+    work_in_flight: Option<WorkspaceWorkKind>,
+    pending_mutation: Option<PendingMutation>,
+    mutation_in_flight: bool,
+    active_prepare_requested: bool,
+    active_prepare_explicit_seek: bool,
+    active_build_in_flight: bool,
+    audition_epoch: u64,
+    playback_epoch: u64,
+    next_publication_generation: u64,
+    playback_requested: bool,
+    performance: WorkspacePerformance,
     active_revision: Option<RevisionId>,
     active_entry: Option<String>,
-    active_project: Option<Project>,
+    active_bundle: Option<Arc<ProjectBundle>>,
+    audible_bundle: Option<Arc<ProjectBundle>>,
+    pending_active_inspection: Option<PendingActiveInspection>,
     history: Vec<HistoryEntry>,
     view: View,
     selected_track: usize,
+    timeline_viewport: TimelineViewport,
+    timeline_cache: TimelineCache,
+    timeline_ascii: bool,
+    mixer_parameters: Vec<MixerParameterView>,
     selected_mixer_parameter: usize,
     selected_processor: usize,
     selected_pattern: usize,
@@ -264,10 +371,12 @@ struct Workspace {
     quit: bool,
     player: Option<PipeWirePlayer>,
     playback_paused: bool,
-    audition_runtime: AuditionRuntimePolicy,
     telemetry: PlayerTelemetry,
-    mix_channel_identities: Vec<String>,
-    processing_graph: Option<MixGraphInspection>,
+    mix_channel_indexes: BTreeMap<String, usize>,
+    candidate_processing_graph: Option<MixGraphInspection>,
+    audition_processing_graph: Option<MixGraphInspection>,
+    candidate_control_inspector: Option<RefCell<ControlInspector>>,
+    audition_control_inspector: Option<RefCell<ControlInspector>>,
     instrument_section_cache: Vec<Vec<instrument::InstrumentSectionView>>,
     audition_plan: AuditionPlan,
     audition_status: Option<AuditionStatus>,
@@ -376,21 +485,107 @@ enum InputAction {
 }
 
 impl Workspace {
+    #[cfg(test)]
     fn load(path: &Path) -> Result<Self, WorkspaceError> {
+        let mut performance = WorkspacePerformance::from_environment();
+        let started = Instant::now();
         let bundle = load_project(path)?;
+        performance.observe_candidate_load(started.elapsed());
+        let started = Instant::now();
+        let history = history_state(&bundle.root)?;
+        performance.observe_history_load(started.elapsed());
+        Self::from_state(
+            bundle,
+            history,
+            performance,
+            true,
+            "Ready · ? opens keyboard help",
+        )
+    }
+
+    fn begin_load(path: &Path) -> Result<Self, WorkspaceError> {
+        let root = crate::project::project_root(path)?;
+        let placeholder = ProjectBundle {
+            root,
+            project: None,
+            sources: BTreeMap::new(),
+            assets: crate::media::AssetInventory::default(),
+            revision: RevisionId(String::new()),
+            diagnostics: crate::diagnostic::Diagnostics::new(),
+        };
+        let mut workspace = Self::from_state(
+            placeholder,
+            (None, None, Vec::new(), None),
+            WorkspacePerformance::from_environment(),
+            false,
+            "Loading exact Candidate and History in the background",
+        )?;
+        workspace.queue_reload(true, true);
+        workspace.status = "Loading exact Candidate and History in the background".to_owned();
+        Ok(workspace)
+    }
+
+    fn from_state(
+        bundle: ProjectBundle,
+        history_state: HistorySnapshot,
+        mut performance: WorkspacePerformance,
+        measure_derived: bool,
+        status: &str,
+    ) -> Result<Self, WorkspaceError> {
+        let (active_entry, active_revision, history, active_bundle) = history_state;
         let root = bundle.root.clone();
-        let (active_entry, active_revision, history, active_project) = history_state(&root)?;
-        let processing_graph = candidate_processing_graph(&bundle);
+        let started = Instant::now();
+        let (candidate_processing_graph, candidate_control_inspector) =
+            candidate_runtime_inspection(&bundle);
+        let candidate_control_inspector = candidate_control_inspector.map(RefCell::new);
         let instrument_section_cache = candidate_instrument_sections(&bundle);
+        let mixer_parameters = candidate_mixer_parameters(&bundle);
+        let mut timeline_cache = TimelineCache::default();
+        timeline_cache.rebuild(bundle.publishable(), &bundle.assets);
+        if measure_derived {
+            performance.observe_derived_rebuild(started.elapsed());
+        }
+        let watch = if measure_derived {
+            WorkspaceWatch::capture(&root, &bundle)
+        } else {
+            WorkspaceWatch::seed(&root, &bundle)
+        };
+        let worker = BackgroundWorker::spawn("crump-workspace-builder")?;
+        let retire_queue = RetireQueue::spawn("crump-workspace-reclaimer")?;
         let mut workspace = Self {
             root,
             bundle,
+            watch,
+            worker,
+            retire_queue,
+            watch_probe_requested: false,
+            candidate_reload_requested: false,
+            history_reload_requested: false,
+            candidate_verification: None,
+            history_verification: None,
+            work_in_flight: None,
+            pending_mutation: None,
+            mutation_in_flight: false,
+            active_prepare_requested: false,
+            active_prepare_explicit_seek: false,
+            active_build_in_flight: false,
+            audition_epoch: 0,
+            playback_epoch: 0,
+            next_publication_generation: 0,
+            playback_requested: false,
+            performance,
             active_revision,
             active_entry,
-            active_project,
+            active_bundle,
+            audible_bundle: None,
+            pending_active_inspection: None,
             history,
             view: View::Timeline,
             selected_track: 0,
+            timeline_viewport: TimelineViewport::default(),
+            timeline_cache,
+            timeline_ascii: timeline_ascii_fallback(),
+            mixer_parameters,
             selected_mixer_parameter: 0,
             selected_processor: 0,
             selected_pattern: 0,
@@ -406,14 +601,16 @@ impl Workspace {
             selected_source: 0,
             source_scroll: 0,
             modal: None,
-            status: "Ready · ? opens keyboard help".to_owned(),
+            status: status.to_owned(),
             quit: false,
             player: None,
             playback_paused: false,
-            audition_runtime: AuditionRuntimePolicy::default(),
             telemetry: PlayerTelemetry::default(),
-            mix_channel_identities: Vec::new(),
-            processing_graph,
+            mix_channel_indexes: BTreeMap::new(),
+            candidate_processing_graph,
+            audition_processing_graph: None,
+            candidate_control_inspector,
+            audition_control_inspector: None,
             instrument_section_cache,
             audition_plan: AuditionPlan::default(),
             audition_status: None,
@@ -426,139 +623,727 @@ impl Workspace {
         Ok(workspace)
     }
 
-    fn refresh(&mut self) {
-        let candidate = match load_project(&self.root) {
-            Ok(candidate) => candidate,
+    fn refresh(&mut self) -> bool {
+        let queued = self.queue_reload(true, true);
+        if queued {
+            self.status = "Exact Project and History reload queued".to_owned();
+        }
+        queued
+    }
+
+    fn refresh_if_changed(&mut self) -> bool {
+        if self.watch_probe_requested {
+            self.performance.coalesced_requests =
+                self.performance.coalesced_requests.saturating_add(1);
+        }
+        self.watch_probe_requested = true;
+        self.dispatch_work();
+        self.performance.visible()
+    }
+
+    fn queue_reload(&mut self, candidate: bool, history: bool) -> bool {
+        if candidate {
+            if self.candidate_reload_requested {
+                self.performance.coalesced_requests =
+                    self.performance.coalesced_requests.saturating_add(1);
+            }
+            self.candidate_reload_requested = true;
+        }
+        if history {
+            if self.history_reload_requested {
+                self.performance.coalesced_requests =
+                    self.performance.coalesced_requests.saturating_add(1);
+            }
+            self.history_reload_requested = true;
+        }
+        let queued = candidate || history;
+        self.dispatch_work();
+        queued || self.performance.visible()
+    }
+
+    fn queue_active_preparation(&mut self, explicit_seek: bool) {
+        if self.active_prepare_requested {
+            self.performance.coalesced_requests =
+                self.performance.coalesced_requests.saturating_add(1);
+        }
+        self.active_prepare_requested = true;
+        self.active_prepare_explicit_seek |= explicit_seek;
+        self.dispatch_work();
+    }
+
+    fn dispatch_work(&mut self) {
+        self.retire_queue.flush();
+        if self.worker.busy() || self.retire_queue.at_capacity() {
+            return;
+        }
+        if let Some(update) = self.candidate_verification.take() {
+            match self.worker.submit(move || {
+                WorkspaceWorkResult::Reload(ReloadBatch {
+                    candidate: Some(reload::verify_candidate(update)),
+                    history: None,
+                })
+            }) {
+                Ok(()) => self.work_in_flight = Some(WorkspaceWorkKind::CandidateVerification),
+                Err(error) => {
+                    self.candidate_reload_requested = true;
+                    self.status = format!("Could not verify Candidate reload: {error}");
+                }
+            }
+            return;
+        }
+        if let Some(update) = self.history_verification.take() {
+            match self.worker.submit(move || {
+                WorkspaceWorkResult::Reload(ReloadBatch {
+                    candidate: None,
+                    history: Some(reload::verify_history(update)),
+                })
+            }) {
+                Ok(()) => self.work_in_flight = Some(WorkspaceWorkKind::HistoryVerification),
+                Err(error) => {
+                    self.history_reload_requested = true;
+                    self.status = format!("Could not verify History reload: {error}");
+                }
+            }
+            return;
+        }
+        if self.try_dispatch_active() {
+            return;
+        }
+        if let Some(mutation) = self.pending_mutation.take() {
+            let root = self.root.clone();
+            match self.worker.submit(move || {
+                let started = Instant::now();
+                let result = execute_production_view(root, mutation.request)
+                    .map(|outcome| outcome.history_entry.id)
+                    .map_err(|error| error.to_string());
+                WorkspaceWorkResult::Mutation(
+                    MutationResult {
+                        result,
+                        success: mutation.success,
+                        failure: mutation.failure,
+                    },
+                    started.elapsed(),
+                )
+            }) {
+                Ok(()) => {
+                    self.mutation_in_flight = true;
+                    self.work_in_flight = Some(WorkspaceWorkKind::Mutation);
+                }
+                Err(error) => {
+                    self.status = format!("Could not start Project mutation: {error}");
+                }
+            }
+            return;
+        }
+        if self.candidate_reload_requested || self.history_reload_requested {
+            let candidate_requested = self.candidate_reload_requested;
+            let history_requested = self.history_reload_requested;
+            let candidate =
+                candidate_requested.then(|| (self.bundle.revision.clone(), self.watch.clone()));
+            let history = history_requested.then(|| {
+                (
+                    self.active_revision.clone(),
+                    self.active_bundle.is_some(),
+                    self.watch.clone(),
+                )
+            });
+            let root = self.root.clone();
+            match self.worker.submit(move || {
+                WorkspaceWorkResult::Reload(ReloadBatch {
+                    candidate: candidate.map(|(revision, watch)| {
+                        let before = watch.recapture_candidate();
+                        reload::load_candidate(root.clone(), revision, before)
+                    }),
+                    history: history.map(|(revision, has_bundle, watch)| {
+                        let before = watch.recapture_history();
+                        reload::load_history(root, revision, has_bundle, before)
+                    }),
+                })
+            }) {
+                Ok(()) => {
+                    self.candidate_reload_requested = false;
+                    self.history_reload_requested = false;
+                    self.work_in_flight = Some(WorkspaceWorkKind::Reload {
+                        candidate: candidate_requested,
+                        history: history_requested,
+                    });
+                }
+                Err(error) => {
+                    self.status = format!("Could not start background reload: {error}");
+                }
+            }
+            return;
+        }
+        if !self.watch_probe_requested {
+            return;
+        }
+        let watch = self.watch.clone();
+        match self.worker.submit(move || {
+            let started = Instant::now();
+            let candidate = watch.recapture_candidate();
+            let history = watch.recapture_history();
+            WorkspaceWorkResult::Probe(WatchProbe {
+                candidate_dirty: !watch.same_candidate(&candidate),
+                history_dirty: !watch.same_history(&history),
+                elapsed: started.elapsed(),
+            })
+        }) {
+            Ok(()) => {
+                self.watch_probe_requested = false;
+                self.work_in_flight = Some(WorkspaceWorkKind::Probe);
+            }
+            Err(error) => self.status = format!("Could not start workspace probe: {error}"),
+        }
+    }
+
+    fn try_dispatch_active(&mut self) -> bool {
+        if !self.active_prepare_requested {
+            return false;
+        }
+        let Some(active) = self.active_bundle.clone() else {
+            if self.history_reload_requested {
+                return false;
+            }
+            self.active_prepare_requested = false;
+            self.status = "Publish a valid Candidate before preparing an audition".to_owned();
+            return false;
+        };
+        if self.active_revision.as_ref() != Some(&active.revision) {
+            if self.history_reload_requested {
+                return false;
+            }
+            self.active_prepare_requested = false;
+            self.status = "Cached Active Revision is stale; reload History and retry".to_owned();
+            return false;
+        }
+
+        let mode = if let Some(player) = self.player.as_mut() {
+            match player.reserve_publication() {
+                Ok(reservation) => ActiveMode::Replace { reservation },
+                Err(RealtimeError::QueueFull) => return false,
+                Err(error) => {
+                    self.active_prepare_requested = false;
+                    self.status = format!("Runtime publication unavailable: {error}");
+                    return false;
+                }
+            }
+        } else if self.playback_requested {
+            ActiveMode::Start
+        } else {
+            ActiveMode::Arm
+        };
+        self.next_publication_generation = self.next_publication_generation.saturating_add(1);
+        let key = ActiveRequestKey {
+            active_revision: active.revision.clone(),
+            audition_epoch: self.audition_epoch,
+            playback_epoch: self.playback_epoch,
+            generation: self.next_publication_generation,
+        };
+        let request = ActiveRequest {
+            key: key.clone(),
+            active,
+            plan: self.audition_plan.clone(),
+            telemetry: self.telemetry.engine,
+            previous_status: self.audition_status.clone(),
+            explicit_seek: self.active_prepare_explicit_seek,
+            mode,
+        };
+        match self.worker.submit(move || {
+            let started = Instant::now();
+            let result = active::prepare_active(request);
+            WorkspaceWorkResult::Active(result, started.elapsed())
+        }) {
+            Ok(()) => {
+                self.active_prepare_requested = false;
+                self.active_prepare_explicit_seek = false;
+                self.active_build_in_flight = true;
+                self.work_in_flight = Some(WorkspaceWorkKind::Active(key));
+                true
+            }
             Err(error) => {
+                self.status = format!("Could not start Active preparation: {error}");
+                false
+            }
+        }
+    }
+
+    fn poll_background_work(&mut self) -> bool {
+        self.dispatch_work();
+        match self.worker.poll() {
+            BackgroundPoll::Pending => false,
+            BackgroundPoll::Complete { result, ready_for } => {
+                self.work_in_flight = None;
+                self.performance.observe_background_commit_wait(ready_for);
+                let started = Instant::now();
+                let changed = match result {
+                    WorkspaceWorkResult::Probe(probe) => {
+                        self.performance.observe_refresh_probe(probe.elapsed);
+                        self.candidate_reload_requested |= probe.candidate_dirty;
+                        self.history_reload_requested |= probe.history_dirty;
+                        self.performance.visible()
+                    }
+                    WorkspaceWorkResult::Reload(batch) => {
+                        let mut changed = false;
+                        if let Some(candidate) = batch.candidate {
+                            changed |= self.finish_candidate_reload(candidate);
+                        }
+                        if let Some(history) = batch.history {
+                            changed |= self.finish_history_reload(history);
+                        }
+                        changed
+                    }
+                    WorkspaceWorkResult::Active(result, elapsed) => {
+                        self.performance.observe_active_preparation(elapsed);
+                        self.active_build_in_flight = false;
+                        self.finish_active_preparation(result)
+                    }
+                    WorkspaceWorkResult::Mutation(result, elapsed) => {
+                        self.performance.observe_mutation(elapsed);
+                        self.finish_mutation(result)
+                    }
+                };
+                self.performance.observe_background_apply(started.elapsed());
+                self.dispatch_work();
+                changed
+            }
+            BackgroundPoll::Failed(error) => {
+                self.recover_failed_work();
+                self.status = format!("Workspace builder failed: {error}");
+                true
+            }
+        }
+    }
+
+    fn recover_failed_work(&mut self) {
+        match self.work_in_flight.take() {
+            Some(WorkspaceWorkKind::Probe) => self.watch_probe_requested = true,
+            Some(WorkspaceWorkKind::CandidateVerification) => {
+                self.candidate_reload_requested = true;
+            }
+            Some(WorkspaceWorkKind::HistoryVerification) => {
+                self.history_reload_requested = true;
+            }
+            Some(WorkspaceWorkKind::Reload { candidate, history }) => {
+                self.candidate_reload_requested |= candidate;
+                self.history_reload_requested |= history;
+            }
+            Some(WorkspaceWorkKind::Active(key)) => {
+                self.active_build_in_flight = false;
+                if self.active_request_is_current(&key) {
+                    self.active_prepare_requested = true;
+                }
+            }
+            Some(WorkspaceWorkKind::Mutation) => {
+                self.mutation_in_flight = false;
+                self.candidate_reload_requested = true;
+                self.history_reload_requested = true;
+            }
+            None => {}
+        }
+    }
+
+    fn finish_durable_mutation_before_shutdown(&mut self) {
+        while self.pending_mutation.is_some() || self.mutation_in_flight {
+            self.watch_probe_requested = false;
+            self.candidate_reload_requested = false;
+            self.history_reload_requested = false;
+            self.active_prepare_requested = false;
+            if let Some(update) = self.candidate_verification.take() {
+                self.retire_queue.retire(update);
+            }
+            if let Some(update) = self.history_verification.take() {
+                self.retire_queue.retire(update);
+            }
+            self.poll_background_work();
+            std::thread::yield_now();
+        }
+    }
+
+    fn queue_mutation(
+        &mut self,
+        request: ProductionViewRequest,
+        success: impl Into<String>,
+        failure: &'static str,
+    ) {
+        if self.pending_mutation.is_some() || self.mutation_in_flight {
+            self.status =
+                "A Project mutation is already in flight; wait for its exact reload".to_owned();
+            return;
+        }
+        self.pending_mutation = Some(PendingMutation {
+            request,
+            success: success.into(),
+            failure,
+        });
+        self.dispatch_work();
+        self.status = "Project mutation queued".to_owned();
+    }
+
+    fn finish_mutation(&mut self, result: MutationResult) -> bool {
+        self.mutation_in_flight = false;
+        match result.result {
+            Ok(entry) => {
+                self.status = format!("{} {entry}", result.success);
+                self.queue_reload(true, true);
+            }
+            Err(error) => self.status = format!("{}: {error}", result.failure),
+        }
+        true
+    }
+
+    fn finish_active_preparation(&mut self, result: ActiveResult) -> bool {
+        match result {
+            ActiveResult::Failed { key, error } => {
+                if self.active_request_is_current(&key) {
+                    if self.player.is_none() && self.playback_requested {
+                        self.playback_requested = false;
+                    }
+                    self.status = format!(
+                        "Active audition preparation failed; prior audible state retained: {error}"
+                    );
+                }
+                true
+            }
+            ActiveResult::Prepared {
+                key,
+                inspection,
+                mode,
+            } => {
+                if !self.active_request_is_current(&key) {
+                    self.retire_queue.retire((mode, inspection));
+                    return true;
+                }
+                let inspection = *inspection;
+                match *mode {
+                    PreparedActiveMode::Armed => {
+                        if self.player.is_none() && !self.playback_requested {
+                            self.adopt_active_inspection(inspection);
+                            self.status = "Audition target prepared".to_owned();
+                        }
+                    }
+                    PreparedActiveMode::Started(mut player) => {
+                        if !self.playback_requested || self.player.is_some() {
+                            self.retire_queue.retire((player, inspection));
+                            return true;
+                        }
+                        player.set_audition_track(self.audition_track());
+                        self.playback_paused = false;
+                        self.player = Some(*player);
+                        if let Some(previous) = self
+                            .pending_active_inspection
+                            .replace(PendingActiveInspection { key, inspection })
+                        {
+                            self.retire_queue.retire(previous);
+                        }
+                        self.status =
+                            "Audition starting · waiting for callback confirmation".to_owned();
+                    }
+                    PreparedActiveMode::Replacement {
+                        runtime,
+                        reservation,
+                    } => {
+                        let Some(player) = self.player.as_mut() else {
+                            self.retire_queue.retire((runtime, reservation, inspection));
+                            return true;
+                        };
+                        match player.publish_prepared(runtime, reservation, key.generation) {
+                            Ok(()) => {
+                                let range_moved = inspection.range_moved;
+                                if let Some(previous) = self
+                                    .pending_active_inspection
+                                    .replace(PendingActiveInspection { key, inspection })
+                                {
+                                    self.retire_queue.retire(previous);
+                                }
+                                self.status = if range_moved {
+                                    "Active audition queued · callback will map the moved range"
+                                        .to_owned()
+                                } else {
+                                    "Active audition queued · callback-relative transport retained"
+                                        .to_owned()
+                                };
+                            }
+                            Err((RealtimeError::QueueFull, runtime, reservation)) => {
+                                self.retire_queue.retire((runtime, reservation, inspection));
+                                self.active_prepare_requested = true;
+                                self.status =
+                                    "Runtime publication queue busy · newest intent retained"
+                                        .to_owned();
+                            }
+                            Err((error, runtime, reservation)) => {
+                                self.retire_queue.retire((runtime, reservation, inspection));
+                                self.status = format!("Runtime publication failed: {error}");
+                            }
+                        }
+                    }
+                }
+                true
+            }
+        }
+    }
+
+    fn active_request_is_current(&self, key: &ActiveRequestKey) -> bool {
+        self.active_revision.as_ref() == Some(&key.active_revision)
+            && self.audition_epoch == key.audition_epoch
+            && self.playback_epoch == key.playback_epoch
+    }
+
+    fn adopt_active_inspection(&mut self, inspection: PreparedActiveInspection) {
+        let retired = (
+            std::mem::replace(
+                &mut self.mix_channel_indexes,
+                inspection.mix_channel_indexes,
+            ),
+            self.audible_bundle.replace(inspection.active),
+            self.audition_processing_graph
+                .replace(inspection.processing_graph),
+            self.audition_control_inspector
+                .replace(RefCell::new(inspection.control_inspector)),
+            self.audition_status.replace(inspection.status),
+        );
+        self.retire_queue.retire(retired);
+        self.clamp_selections();
+    }
+
+    fn finish_candidate_reload(&mut self, result: CandidateReload) -> bool {
+        let update = match result {
+            CandidateReload::Failed {
+                error,
+                load_elapsed,
+            } => {
+                self.performance.observe_candidate_load(load_elapsed);
                 self.status = format!("Reload failed: {error}");
-                return;
+                return true;
             }
-        };
-        let state = match history_state(&self.root) {
-            Ok(state) => state,
-            Err(error) => {
-                self.status = format!("History refresh failed: {error}");
-                return;
+            CandidateReload::Loaded(update) => {
+                self.performance.observe_candidate_load(update.load_elapsed);
+                if let Some(elapsed) = update.derive_elapsed {
+                    self.performance.observe_derived_rebuild(elapsed);
+                }
+                if !update.stable || self.candidate_reload_requested {
+                    return self.retry_candidate_reload(update);
+                }
+                self.candidate_verification = Some(update);
+                self.status =
+                    "Candidate reconstructed · verifying latest filesystem generation".to_owned();
+                return true;
             }
+            CandidateReload::Verified(update) => update,
         };
-        let active_changed = state.1 != self.active_revision;
-        let runtime_publication_attempted = active_changed && self.player.is_some();
-        if active_changed {
-            self.publish_runtime_for_active(state.1.as_ref(), false);
+        if !update.stable || self.candidate_reload_requested {
+            return self.retry_candidate_reload(update);
         }
-        let candidate_changed = candidate.revision != self.bundle.revision;
-        self.instrument_section_cache = candidate_instrument_sections(&candidate);
-        self.bundle = candidate;
-        self.active_entry = state.0;
-        self.active_revision = state.1;
-        self.history = state.2;
-        self.active_project = state.3;
-        if self.player.is_none() {
-            self.processing_graph = candidate_processing_graph(&self.bundle);
-        }
+
+        let update = *update;
+        let candidate_changed = update.bundle.revision != self.bundle.revision;
+        let retired_derived = update.derived.map(|derived| {
+            (
+                std::mem::replace(
+                    &mut self.instrument_section_cache,
+                    derived.instrument_sections,
+                ),
+                std::mem::replace(
+                    &mut self.candidate_control_inspector,
+                    derived.control_inspector.map(RefCell::new),
+                ),
+                std::mem::replace(&mut self.mixer_parameters, derived.mixer_parameters),
+                std::mem::replace(&mut self.timeline_cache, derived.timeline),
+                std::mem::replace(
+                    &mut self.candidate_processing_graph,
+                    derived.processing_graph,
+                ),
+            )
+        });
+        let retired_bundle = std::mem::replace(&mut self.bundle, update.bundle);
+        self.retire_queue.retire((retired_bundle, retired_derived));
+        self.watch.adopt_candidate(update.watch);
         self.clamp_selections();
         if candidate_changed {
+            self.performance.candidate_changes =
+                self.performance.candidate_changes.saturating_add(1);
             if self.bundle.diagnostics.has_errors() {
                 self.status =
                     "External Candidate is invalid; prior Active Revision remains audible"
                         .to_owned();
                 self.view = View::Diagnostics;
             } else if self.candidate_is_active() {
-                if !runtime_publication_attempted {
-                    self.status = "Published revision loaded".to_owned();
-                }
+                self.status = "Published revision loaded".to_owned();
             } else {
                 self.status = "Valid external Candidate loaded · press P to publish".to_owned();
             }
+        } else {
+            self.status = "Candidate reload complete · no byte changes".to_owned();
+        }
+        true
+    }
+
+    fn retry_candidate_reload(&mut self, update: Box<CandidateUpdate>) -> bool {
+        self.performance.unstable_retries = self.performance.unstable_retries.saturating_add(1);
+        self.watch.adopt_candidate(update.watch.clone());
+        self.candidate_reload_requested = true;
+        self.retire_queue.retire(update);
+        self.status = "Candidate changes still arriving · retaining prior stable state".to_owned();
+        true
+    }
+
+    fn finish_history_reload(&mut self, result: HistoryReload) -> bool {
+        let update = match result {
+            HistoryReload::Failed {
+                error,
+                load_elapsed,
+            } => {
+                self.performance.observe_history_load(load_elapsed);
+                self.status = format!("History refresh failed: {error}");
+                return true;
+            }
+            HistoryReload::Loaded(update) => {
+                self.performance.observe_history_load(update.load_elapsed);
+                if !update.stable || self.history_reload_requested {
+                    return self.retry_history_reload(update);
+                }
+                self.history_verification = Some(update);
+                self.status =
+                    "History reconstructed · verifying latest filesystem generation".to_owned();
+                return true;
+            }
+            HistoryReload::Verified(update) => update,
+        };
+        if !update.stable || self.history_reload_requested {
+            return self.retry_history_reload(update);
+        }
+
+        let update = *update;
+        let active_changed = update.state.active_revision != self.active_revision;
+        let retired_active = update
+            .state
+            .active_bundle_update
+            .map(|active_bundle| std::mem::replace(&mut self.active_bundle, active_bundle));
+        let retired_state = (
+            std::mem::replace(&mut self.active_entry, update.state.active_entry),
+            std::mem::replace(&mut self.active_revision, update.state.active_revision),
+            std::mem::replace(&mut self.history, update.state.entries),
+            retired_active,
+        );
+        self.retire_queue.retire(retired_state);
+        self.watch.adopt_history(update.watch);
+        self.clamp_selections();
+        if active_changed {
+            self.performance.active_changes = self.performance.active_changes.saturating_add(1);
+            if self.player.is_some() || self.playback_requested || self.audition_status.is_some() {
+                let revision = self.active_revision.clone();
+                self.publish_runtime_for_active(revision.as_ref(), false);
+            }
+        }
+        self.status = if active_changed {
+            "Published revision loaded".to_owned()
+        } else {
+            "History reload complete · Active Revision unchanged".to_owned()
+        };
+        true
+    }
+
+    fn retry_history_reload(&mut self, update: Box<HistoryUpdate>) -> bool {
+        self.performance.unstable_retries = self.performance.unstable_retries.saturating_add(1);
+        self.watch.adopt_history(update.watch.clone());
+        self.history_reload_requested = true;
+        self.retire_queue.retire(update);
+        self.status = "History changes still arriving · retaining prior stable state".to_owned();
+        true
+    }
+
+    fn background_work_pending(&self) -> bool {
+        self.worker.busy()
+            || self.watch_probe_requested
+            || self.candidate_reload_requested
+            || self.history_reload_requested
+            || self.candidate_verification.is_some()
+            || self.history_verification.is_some()
+            || self.active_prepare_requested
+            || self.pending_mutation.is_some()
+            || self.mutation_in_flight
+            || self.retire_queue.pending()
+    }
+
+    fn audition_intent_changed(&mut self) {
+        self.audition_epoch = self.audition_epoch.saturating_add(1);
+        if let Some(status) = self.audition_status.as_mut() {
+            status.soloed_channels = self.audition_plan.soloed_channels.clone();
+            status.cue = self.audition_plan.cue.clone();
+        }
+        if let Some(pending) = self.pending_active_inspection.as_mut() {
+            pending.inspection.status.soloed_channels = self.audition_plan.soloed_channels.clone();
+            pending.inspection.status.cue = self.audition_plan.cue.clone();
+        }
+        if self.active_build_in_flight {
+            self.queue_active_preparation(false);
         }
     }
 
     fn publish_runtime_for_active(&mut self, revision: Option<&RevisionId>, explicit_seek: bool) {
-        let (Some(revision), Some(player)) = (revision, self.player.as_mut()) else {
+        let Some(revision) = revision else {
             return;
         };
-        let refresh = self.audition_runtime.refresh_active(
-            &self.root,
-            revision,
-            &self.audition_plan,
-            self.telemetry.engine,
-            explicit_seek,
-            player,
-        );
-        match refresh {
-            ActiveRefresh::NoActiveRevision => {}
-            ActiveRefresh::Delayed => {
-                self.status =
-                    "Runtime publication delayed; the newest Active Revision will retry".to_owned();
-            }
-            ActiveRefresh::ActiveChanged(_) => {
-                self.status = "Active Revision changed during reload; retrying".to_owned();
-            }
-            ActiveRefresh::ReloadFailed(error) => {
-                self.status = format!("Active Revision reload failed: {error}");
-            }
-            ActiveRefresh::InvalidActiveRevision => {
-                self.status = "Active Revision snapshot is invalid".to_owned();
-            }
-            ActiveRefresh::PreparationFailed(error) => {
-                self.status = format!(
-                    "Active audition target no longer compiles; prior revision remains audible: {error}"
-                );
-            }
-            ActiveRefresh::PublicationFailed(error) => {
-                self.status = format!("Runtime publication failed: {error}");
-            }
-            ActiveRefresh::Published { range_moved } => {
-                let processing_graph = self
-                    .audition_runtime
-                    .processing_graph()
-                    .expect("published audition graph")
-                    .clone();
-                self.mix_channel_identities = processing_graph
-                    .channels
-                    .iter()
-                    .map(|channel| channel.identity.clone())
-                    .collect();
-                self.processing_graph = Some(processing_graph);
-                self.audition_status = self.audition_runtime.status().cloned();
-                self.status = if range_moved {
-                    "Active audition queued · moved range will map the callback's exact relative offset"
-                        .to_owned()
-                } else {
-                    "Active audition queued · range-relative transport retained; compatible controls ramp"
-                        .to_owned()
-                };
-            }
+        if self.active_revision.as_ref() != Some(revision) {
+            self.status =
+                "Active Revision changed before preparation; newest state retained".to_owned();
+            return;
         }
+        self.queue_active_preparation(explicit_seek);
+        self.status = "Active audition preparation queued".to_owned();
     }
 
     fn poll_audio(&mut self) {
         let audition_track = self.audition_track();
-        let publication_ready = if let Some(player) = self.player.as_mut() {
-            self.telemetry = player.poll();
+        let (player_slot, retire_queue) = (&mut self.player, &mut self.retire_queue);
+        if let Some(player) = player_slot.as_mut() {
+            self.telemetry = player.poll_with_reclaimer(|runtime| retire_queue.retire(runtime));
             player.set_audition_track(audition_track);
-            if self.telemetry.stream_state == StreamStatus::Error {
-                self.status = "PipeWire stream failed; press Space to restart".to_owned();
-            } else if self.telemetry.stream_state == StreamStatus::Stopped
-                && self.telemetry.callbacks > 0
-            {
-                self.status =
-                    "PipeWire stream stopped or disconnected; press Space to restart".to_owned();
-            }
-            !self.telemetry.transition_active
-        } else {
-            false
-        };
-        if publication_ready
-            && let Some(revision) = self.audition_runtime.pending_revision().cloned()
+        }
+        let failure = stream_failure_message(self.telemetry.stream_state);
+        if let Some(status) = failure
+            && self.player.is_some()
         {
-            self.publish_runtime_for_active(Some(&revision), false);
+            self.handle_stream_failure(status);
+            return;
+        }
+
+        let promoted = self
+            .pending_active_inspection
+            .as_ref()
+            .is_some_and(|pending| pending.key.generation == self.telemetry.publication_generation);
+        if promoted && let Some(pending) = self.pending_active_inspection.take() {
+            self.adopt_active_inspection(pending.inspection);
+            self.status = "Active audition is now audible".to_owned();
         }
     }
 
+    fn handle_stream_failure(&mut self, status: &str) {
+        self.playback_epoch = self.playback_epoch.saturating_add(1);
+        self.playback_requested = false;
+        self.playback_paused = false;
+        self.active_prepare_requested = false;
+        self.active_prepare_explicit_seek = false;
+        self.held_notes.clear();
+        let retired = (
+            self.player.take(),
+            self.pending_active_inspection.take(),
+            self.audible_bundle.take(),
+            self.audition_processing_graph.take(),
+            self.audition_control_inspector.take(),
+            std::mem::take(&mut self.mix_channel_indexes),
+        );
+        self.retire_queue.retire(retired);
+        self.status = status.to_owned();
+    }
+
     fn toggle_mixer_solo(&mut self) {
-        if !self.candidate_is_active() {
-            self.status = "Publish the Candidate before changing transient Solo".to_owned();
+        if !self.runtime_matches_candidate() {
+            self.status = if self.player.is_some() {
+                "Wait for the Candidate to become audible before changing transient Solo"
+            } else {
+                "Publish the Candidate before changing transient Solo"
+            }
+            .to_owned();
             return;
         }
         let Some(identity) = self.selected_mixer_channel_identity() else {
@@ -581,6 +1366,7 @@ impl Workspace {
         } else {
             self.audition_plan.soloed_channels.remove(&identity);
         }
+        self.audition_intent_changed();
         self.status = format!(
             "Solo {} for `{identity}` (transient monitoring only)",
             if enabled { "enabled" } else { "disabled" }
@@ -588,8 +1374,13 @@ impl Workspace {
     }
 
     fn toggle_mixer_cue(&mut self, tap: TapPoint) {
-        if !self.candidate_is_active() {
-            self.status = "Publish the Candidate before changing transient cue".to_owned();
+        if !self.runtime_matches_candidate() {
+            self.status = if self.player.is_some() {
+                "Wait for the Candidate to become audible before changing transient cue"
+            } else {
+                "Publish the Candidate before changing transient cue"
+            }
+            .to_owned();
             return;
         }
         let Some(identity) = self.selected_mixer_channel_identity() else {
@@ -617,6 +1408,7 @@ impl Workspace {
             return;
         }
         self.audition_plan.cue = next;
+        self.audition_intent_changed();
         self.status = self.audition_plan.cue.as_ref().map_or_else(
             || "Cue cleared (transient monitoring only)".to_owned(),
             |cue| {
@@ -655,8 +1447,7 @@ impl Workspace {
     fn selected_processor_inspection(
         &self,
     ) -> Option<&crate::engine::mix_graph::CompiledProcessorInspection> {
-        self.processing_graph
-            .as_ref()?
+        self.processing_graph()?
             .processors
             .get(self.selected_processor)
     }
@@ -699,9 +1490,13 @@ impl Workspace {
     }
 
     fn toggle_transient_processor_bypass(&mut self) {
-        if self.player.is_none() && !self.candidate_is_active() {
-            self.status =
-                "Publish the Candidate before changing transient Active audition state".to_owned();
+        if !self.runtime_matches_candidate() {
+            self.status = if self.player.is_some() {
+                "Wait for the Candidate to become audible before changing transient Active audition state"
+            } else {
+                "Publish the Candidate before changing transient Active audition state"
+            }
+            .to_owned();
             return;
         }
         let Some(inspection) = self.selected_processor_inspection() else {
@@ -731,6 +1526,7 @@ impl Workspace {
                 "Processor `{processor}` follows durable bypass = {authored} · source unchanged"
             );
         }
+        self.audition_intent_changed();
     }
 
     fn toggle_durable_processor_bypass(&mut self) {
@@ -767,65 +1563,18 @@ impl Workspace {
     }
 
     fn activate_audition_plan(&mut self, plan: AuditionPlan) {
-        let active = match HistoryStore::open(&self.root).and_then(|store| store.active_bundle()) {
-            Ok(Some(active)) => active,
-            Ok(None) => {
-                self.status = "Publish a valid Candidate before selecting an audition".to_owned();
-                return;
-            }
-            Err(error) => {
-                self.status = format!("Cannot load Active Revision: {error}");
-                return;
-            }
-        };
-        let Some(project) = active.publishable() else {
-            self.status = "Active Revision snapshot is invalid".to_owned();
+        if self.active_bundle.is_none() {
+            self.status = "Publish a valid Candidate before selecting an audition".to_owned();
             return;
-        };
-        let prepared = match plan.prepare_with_options(
-            &active.revision,
-            project,
-            &active.assets,
-            AuditionPrepareOptions {
-                initial_frame: None,
-                initial_range_offset: None,
-                explicit_seek: true,
-            },
-        ) {
-            Ok(prepared) => prepared,
-            Err(error) => {
-                self.status = format!("Audition selection rejected: {error}");
-                return;
-            }
-        };
-        let status = prepared.status().clone();
-        let graph = prepared.mix_graph_inspection().clone();
-        self.mix_channel_identities = graph
-            .channels
-            .iter()
-            .map(|channel| channel.identity.clone())
-            .collect();
-        self.processing_graph = Some(graph);
-        self.audition_status = Some(status.clone());
-        self.audition_plan = plan;
-        self.audition_loop = match (&status.target, status.looping) {
+        }
+        self.audition_loop = match (&plan.target, plan.range.looping) {
             (AuditionTarget::Pattern { pattern, .. }, true) => Some(pattern.clone()),
             _ => None,
         };
-        self.clamp_selections();
-        if self.player.is_some() {
-            let revision = self.active_revision.clone();
-            self.publish_runtime_for_active(revision.as_ref(), true);
-        } else {
-            self.status = format!(
-                "Audition armed: {:?} via {:?} · frames {}..{}{}",
-                status.target,
-                status.path,
-                status.start_frame,
-                status.end_frame,
-                if status.looping { " · looped" } else { "" }
-            );
-        }
+        self.audition_plan = plan;
+        self.audition_epoch = self.audition_epoch.saturating_add(1);
+        self.queue_active_preparation(true);
+        self.status = "Audition target queued for exact Active preparation".to_owned();
     }
 
     fn cycle_audition_path(&mut self) {
@@ -960,69 +1709,39 @@ impl Workspace {
             }
             return;
         }
-        let active = match HistoryStore::open(&self.root).and_then(|store| store.active_bundle()) {
-            Ok(Some(active)) => active,
-            Ok(None) => {
-                self.status = "Publish a valid Candidate before playback".to_owned();
-                return;
-            }
-            Err(error) => {
-                self.status = format!("Cannot load Active Revision: {error}");
-                return;
-            }
-        };
-        let Some(project) = active.publishable() else {
-            self.status = "Active Revision snapshot is invalid".to_owned();
+        if self.playback_requested {
+            self.playback_requested = false;
+            self.playback_epoch = self.playback_epoch.saturating_add(1);
+            self.active_prepare_requested = false;
+            self.status = "Pending playback start cancelled".to_owned();
             return;
-        };
-        let prepared = match self
-            .audition_plan
-            .prepare(&active.revision, project, &active.assets)
-        {
-            Ok(prepared) => prepared,
-            Err(error) => {
-                self.status = format!("Cannot prepare audition: {error}");
-                return;
-            }
-        };
-        let status = prepared.status().clone();
-        let processing_graph = prepared.mix_graph_inspection().clone();
-        let mix_channel_identities = processing_graph
-            .channels
-            .iter()
-            .map(|channel| channel.identity.clone())
-            .collect::<Vec<_>>();
-        let runtime = prepared.into_runtime();
-        match PipeWirePlayer::start(runtime) {
-            Ok(mut player) => {
-                player.set_audition_track(self.audition_track());
-                self.audition_runtime
-                    .accept_snapshot(status.clone(), processing_graph.clone());
-                self.audition_runtime.clear_pending();
-                self.playback_paused = false;
-                self.mix_channel_identities = mix_channel_identities;
-                self.processing_graph = Some(processing_graph);
-                self.audition_status = Some(status.clone());
-                self.player = Some(player);
-                self.status = format!(
-                    "Auditioning {:?} via {:?}{} · Space pauses; S stops",
-                    status.target,
-                    status.path,
-                    if status.looping { " · looped" } else { "" }
-                );
-            }
-            Err(error) => self.status = format!("Playback unavailable: {error}"),
         }
+        if self.active_bundle.is_none() {
+            self.status = "Publish a valid Candidate before playback".to_owned();
+            return;
+        }
+        self.playback_requested = true;
+        self.playback_epoch = self.playback_epoch.saturating_add(1);
+        self.queue_active_preparation(true);
+        self.status = "Preparing Active audition in the background · Space cancels".to_owned();
     }
 
     fn stop_playback(&mut self) {
-        let Some(player) = self.player.take() else {
+        let player = self.player.take();
+        if player.is_none() && !self.playback_requested {
             self.status = "Audition is already stopped".to_owned();
             return;
-        };
-        let _ = player.shutdown();
+        }
+        self.playback_requested = false;
+        self.playback_epoch = self.playback_epoch.saturating_add(1);
+        self.active_prepare_requested = false;
+        if let Some(pending) = self.pending_active_inspection.take() {
+            self.retire_queue.retire(pending);
+        }
+        if let Some(player) = player {
+            self.retire_queue.retire(player);
+        }
         self.playback_paused = false;
-        self.audition_runtime.clear_pending();
         self.telemetry = PlayerTelemetry::default();
         self.held_notes.clear();
         self.status = "Audition stopped · target, range, and bypass state remain armed".to_owned();
@@ -1060,15 +1779,13 @@ impl Workspace {
             };
         }
 
-        if self.player.is_some() {
-            let revision = self.active_revision.clone();
-            self.publish_runtime_for_active(revision.as_ref(), true);
-        } else if let Some(pattern) = self.audition_loop.as_deref() {
-            self.status =
-                format!("Pattern audition `{pattern}` armed · exact loop starts with Space");
+        self.audition_epoch = self.audition_epoch.saturating_add(1);
+        self.queue_active_preparation(true);
+        self.status = if let Some(pattern) = self.audition_loop.as_deref() {
+            format!("Pattern audition `{pattern}` queued with an exact loop")
         } else {
-            self.status = "Audition loop disabled; target remains armed".to_owned();
-        }
+            "Audition loop disable queued".to_owned()
+        };
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
@@ -1084,17 +1801,38 @@ impl Workspace {
         }
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
-                self.quit = true
+                if self.pending_mutation.is_some() || self.mutation_in_flight {
+                    self.status =
+                        "Finishing the durable Project mutation before shutdown".to_owned();
+                } else {
+                    self.quit = true;
+                }
             }
             (KeyCode::Char('?'), _) => self.view = View::Help,
             (KeyCode::Char('H'), _) => self.view = View::History,
+            (KeyCode::F(12), _) => {
+                let visible = self.performance.toggle();
+                self.status = format!(
+                    "Workspace diagnostics {} · summary prints after exit",
+                    if visible { "enabled" } else { "hidden" }
+                );
+            }
             (KeyCode::Tab, KeyModifiers::SHIFT) | (KeyCode::BackTab, _) => self.change_view(-1),
             (KeyCode::Tab, _) => self.change_view(1),
             (KeyCode::Char(character @ '1'..='9'), _) => {
                 self.view = VIEWS[usize::from(character as u8 - b'1')]
             }
             (KeyCode::Char('0'), _) => self.view = VIEWS[9],
-            (KeyCode::Char('r'), _) => self.refresh(),
+            (KeyCode::Char('+') | KeyCode::Char('='), _) if self.view == View::Timeline => {
+                self.zoom_timeline(1)
+            }
+            (KeyCode::Char('-'), _) if self.view == View::Timeline => self.zoom_timeline(-1),
+            (KeyCode::Char(','), _) if self.view == View::Timeline => self.pan_timeline(-1),
+            (KeyCode::Char('.'), _) if self.view == View::Timeline => self.pan_timeline(1),
+            (KeyCode::Home, _) if self.view == View::Timeline => self.fit_timeline(),
+            (KeyCode::Char('r'), _) => {
+                self.refresh();
+            }
             (KeyCode::Char('P'), _) => self.open_publish(),
             (KeyCode::Char(' '), _) => self.toggle_playback(),
             (KeyCode::Char('S'), _) => self.stop_playback(),
@@ -1234,6 +1972,42 @@ impl Workspace {
         }
     }
 
+    fn zoom_timeline(&mut self, direction: isize) {
+        let changed = if direction > 0 {
+            self.timeline_viewport.zoom_in()
+        } else {
+            self.timeline_viewport.zoom_out()
+        };
+        self.status = if changed {
+            format!(
+                "Timeline zoom {}× · ,/. pan · Home fit",
+                self.timeline_viewport.zoom_factor()
+            )
+        } else if direction > 0 {
+            "Timeline is at maximum zoom".to_owned()
+        } else {
+            "Timeline already fits the complete Song".to_owned()
+        };
+    }
+
+    fn pan_timeline(&mut self, direction: isize) {
+        self.status = if self.timeline_viewport.pan(direction) {
+            format!(
+                "Timeline panned · {}× zoom · Home fits the complete Song",
+                self.timeline_viewport.zoom_factor()
+            )
+        } else if self.timeline_viewport.is_fit() {
+            "Zoom the Timeline with + before panning".to_owned()
+        } else {
+            "Timeline viewport reached the Song boundary".to_owned()
+        };
+    }
+
+    fn fit_timeline(&mut self) {
+        self.timeline_viewport.fit();
+        self.status = "Timeline fitted to the complete Song".to_owned();
+    }
+
     fn change_view(&mut self, delta: isize) {
         let current = VIEWS
             .iter()
@@ -1283,8 +2057,7 @@ impl Workspace {
             }
             View::Processing => {
                 let count = self
-                    .processing_graph
-                    .as_ref()
+                    .processing_graph()
                     .map_or(0, |graph| graph.processors.len());
                 self.selected_processor = wrap_selection(self.selected_processor, count, delta);
             }
@@ -2263,8 +3036,7 @@ impl Workspace {
                     self.status = "Publication summary cannot be empty".to_owned();
                     return;
                 }
-                match execute_production_view(
-                    &self.root,
+                self.queue_mutation(
                     ProductionViewRequest {
                         expected_revision: Some(self.bundle.revision.clone()),
                         operation: ProductionViewOperation::PublishCandidate,
@@ -2274,14 +3046,9 @@ impl Workspace {
                             "Candidate inspected and published from the Production Workspace",
                         ),
                     },
-                ) {
-                    Ok(outcome) => {
-                        self.status =
-                            format!("Published as history entry {}", outcome.history_entry.id);
-                        self.refresh();
-                    }
-                    Err(error) => self.status = format!("Publication failed: {error}"),
-                }
+                    "Published as history entry",
+                    "Publication failed",
+                );
             }
         }
     }
@@ -2421,8 +3188,7 @@ impl Workspace {
     }
 
     fn apply_operation(&mut self, operation: ProductionViewOperation, summary: String) {
-        match execute_production_view(
-            &self.root,
+        self.queue_mutation(
             ProductionViewRequest {
                 expected_revision: Some(self.bundle.revision.clone()),
                 operation,
@@ -2432,21 +3198,13 @@ impl Workspace {
                     "Checked source-backed Production View edit",
                 ),
             },
-        ) {
-            Ok(outcome) => {
-                self.status = format!(
-                    "Saved and published history entry {}",
-                    outcome.history_entry.id
-                );
-                self.refresh();
-            }
-            Err(error) => self.status = format!("Edit transaction failed: {error}"),
-        }
+            "Saved and published history entry",
+            "Edit transaction failed",
+        );
     }
 
     fn restore_history(&mut self, entry_id: &str) {
-        match execute_production_view(
-            &self.root,
+        self.queue_mutation(
             ProductionViewRequest {
                 expected_revision: Some(self.bundle.revision.clone()),
                 operation: ProductionViewOperation::RestoreHistory {
@@ -2458,16 +3216,9 @@ impl Workspace {
                     "Restore selected state from Project History",
                 ),
             },
-        ) {
-            Ok(outcome) => {
-                self.status = format!(
-                    "Restored {entry_id} as new entry {}",
-                    outcome.history_entry.id
-                );
-                self.refresh();
-            }
-            Err(error) => self.status = format!("Restore failed: {error}"),
-        }
+            format!("Restored {entry_id} as new entry"),
+            "Restore failed",
+        );
     }
 
     fn handle_audition_key(&mut self, key: KeyEvent) -> bool {
@@ -2518,17 +3269,17 @@ impl Workspace {
         }
     }
 
-    fn release_stale_auditions(&mut self) {
-        let stale: Vec<_> = self
+    fn release_stale_auditions(&mut self) -> bool {
+        let mut released = false;
+        while let Some(key) = self
             .held_notes
             .iter()
-            .filter_map(|(key, note)| {
-                (note.pressed_at.elapsed() >= AUDITION_TIMEOUT).then_some(*key)
-            })
-            .collect();
-        for key in stale {
+            .find_map(|(key, note)| (note.pressed_at.elapsed() >= AUDITION_TIMEOUT).then_some(*key))
+        {
             self.release_audition(key);
+            released = true;
         }
+        released
     }
 
     fn keyboard_audition_pitch(&self, character: char) -> Option<u8> {
@@ -2555,7 +3306,12 @@ impl Workspace {
         let Some(candidate) = self.bundle.project.as_ref() else {
             return 0;
         };
-        let runtime = self.active_project.as_ref().unwrap_or(candidate);
+        let runtime = self
+            .audible_bundle
+            .as_ref()
+            .or(self.active_bundle.as_ref())
+            .and_then(|bundle| bundle.project.as_ref())
+            .unwrap_or(candidate);
         let candidate_track = candidate.song.tracks.get(self.selected_track);
         if self.view == View::Timeline
             && let Some(track_id) = candidate_track.map(|track| track.id.as_str())
@@ -2603,18 +3359,16 @@ impl Workspace {
     }
 
     fn selected_mixer_parameter(&self) -> Option<(ParameterTarget, ParameterSpec)> {
-        self.bundle
-            .project
-            .as_ref()?
-            .mix_parameter_specs()
+        self.mixer_parameters
             .get(self.selected_mixer_parameter)
-            .cloned()
+            .map(|parameter| (parameter.target.clone(), parameter.spec))
     }
 
     fn selected_mixer_channel_identity(&self) -> Option<String> {
-        let project = self.bundle.project.as_ref()?;
-        let (target, _) = self.selected_mixer_parameter()?;
-        mixer_channel_identity(project, &target)
+        self.mixer_parameters
+            .get(self.selected_mixer_parameter)?
+            .channel_identity
+            .clone()
     }
 
     fn selected_mixer_mute_target(&self) -> Option<ParameterTarget> {
@@ -2664,14 +3418,62 @@ impl Workspace {
         self.active_revision.as_ref() == Some(&self.bundle.revision)
     }
 
+    fn candidate_is_audible(&self) -> bool {
+        self.player.is_some()
+            && self
+                .audible_bundle
+                .as_ref()
+                .is_some_and(|bundle| bundle.revision == self.bundle.revision)
+    }
+
+    fn runtime_matches_candidate(&self) -> bool {
+        if self.player.is_some() {
+            self.candidate_is_audible()
+        } else {
+            self.candidate_is_active()
+        }
+    }
+
+    fn processing_graph(&self) -> Option<&MixGraphInspection> {
+        if self.candidate_is_audible()
+            || (self.player.is_none()
+                && self.candidate_is_active()
+                && self.audition_status.is_some())
+        {
+            self.audition_processing_graph
+                .as_ref()
+                .or(self.candidate_processing_graph.as_ref())
+        } else {
+            self.candidate_processing_graph.as_ref()
+        }
+    }
+
+    fn control_inspection(&self) -> (Option<&RefCell<ControlInspector>>, u64, bool) {
+        let live = self.player.is_some()
+            && self
+                .audible_bundle
+                .as_ref()
+                .is_some_and(|bundle| bundle.revision == self.bundle.revision);
+        if live {
+            (
+                self.audition_control_inspector
+                    .as_ref()
+                    .or(self.candidate_control_inspector.as_ref()),
+                self.telemetry.engine.frame,
+                true,
+            )
+        } else {
+            (self.candidate_control_inspector.as_ref(), 0, false)
+        }
+    }
+
     fn clamp_selections(&mut self) {
         self.selected_track = clamp_index(self.selected_track, self.track_count());
         self.selected_mixer_parameter =
             clamp_index(self.selected_mixer_parameter, self.mixer_parameter_count());
         self.selected_processor = clamp_index(
             self.selected_processor,
-            self.processing_graph
-                .as_ref()
+            self.processing_graph()
                 .map_or(0, |graph| graph.processors.len()),
         );
         self.selected_pattern = clamp_index(self.selected_pattern, self.pattern_count());
@@ -2709,10 +3511,7 @@ impl Workspace {
     }
 
     fn mixer_parameter_count(&self) -> usize {
-        self.bundle
-            .project
-            .as_ref()
-            .map_or(0, |project| project.mix_parameter_specs().len())
+        self.mixer_parameters.len()
     }
 
     fn pattern_count(&self) -> usize {
@@ -2737,11 +3536,10 @@ impl Workspace {
             .map_or(0, |project| project.song.instruments.len())
     }
 
-    fn instrument_sections(&self) -> Vec<instrument::InstrumentSectionView> {
+    fn instrument_sections(&self) -> &[instrument::InstrumentSectionView] {
         self.instrument_section_cache
             .get(self.selected_instrument)
-            .cloned()
-            .unwrap_or_default()
+            .map_or(&[], Vec::as_slice)
     }
 
     fn instrument_section_count(&self) -> usize {
@@ -2818,20 +3616,21 @@ type HistorySnapshot = (
     Option<String>,
     Option<RevisionId>,
     Vec<HistoryEntry>,
-    Option<Project>,
+    Option<Arc<ProjectBundle>>,
 );
 
+#[cfg(test)]
 fn history_state(root: &Path) -> Result<HistorySnapshot, crate::history::HistoryError> {
     let store = HistoryStore::open(root)?;
     let state = store.active_state()?;
     let history = store.list()?;
-    let active_project = store.active_bundle()?.and_then(|bundle| bundle.project);
+    let active_bundle = store.active_bundle()?.map(Arc::new);
     Ok(if let Some(state) = state {
         (
             Some(state.active_entry),
             Some(state.active_revision),
             history,
-            active_project,
+            active_bundle,
         )
     } else {
         (None, None, history, None)
@@ -3046,11 +3845,43 @@ fn candidate_instrument_sections(
         .collect()
 }
 
-fn candidate_processing_graph(bundle: &ProjectBundle) -> Option<MixGraphInspection> {
-    let project = bundle.publishable()?;
-    CompiledProject::compile_with_assets(project, &bundle.assets)
-        .ok()
-        .map(|compiled| compiled.mix_graph_inspection().clone())
+fn candidate_runtime_inspection(
+    bundle: &ProjectBundle,
+) -> (Option<MixGraphInspection>, Option<ControlInspector>) {
+    let compiled = bundle
+        .publishable()
+        .and_then(|project| CompiledProject::compile_with_assets(project, &bundle.assets).ok());
+    let processing_graph = compiled
+        .as_ref()
+        .map(|compiled| compiled.mix_graph_inspection().clone());
+    let control_inspector = compiled
+        .as_ref()
+        .map(|compiled| compiled.control_program().clone().into_inspector());
+    (processing_graph, control_inspector)
+}
+
+fn candidate_mixer_parameters(bundle: &ProjectBundle) -> Vec<MixerParameterView> {
+    let Some(project) = bundle.project.as_ref() else {
+        return Vec::new();
+    };
+    project
+        .mix_parameter_specs()
+        .into_iter()
+        .map(|(target, spec)| {
+            let channel_identity = mixer_channel_identity(project, &target);
+            let muted = channel_identity
+                .as_deref()
+                .and_then(mixer_mute_target)
+                .and_then(|target| project.parameter_spec(&target))
+                .is_some_and(|mute| mute.base >= 0.5);
+            MixerParameterView {
+                target,
+                spec,
+                channel_identity,
+                muted,
+            }
+        })
+        .collect()
 }
 
 fn mixer_channel_identity(project: &Project, target: &ParameterTarget) -> Option<String> {
@@ -3180,7 +4011,11 @@ fn mixer_mute_target(identity: &str) -> Option<ParameterTarget> {
 }
 
 fn transport_quarter_notes(app: &Workspace) -> f64 {
-    let Some(project) = app.active_project.as_ref() else {
+    let Some(project) = app
+        .audible_bundle
+        .as_ref()
+        .and_then(|bundle| bundle.project.as_ref())
+    else {
         return 0.0;
     };
     app.telemetry.engine.frame as f64 * project.song.tempo_bpm
@@ -3188,7 +4023,11 @@ fn transport_quarter_notes(app: &Workspace) -> f64 {
 }
 
 fn transport_label(app: &Workspace) -> String {
-    let Some(project) = app.active_project.as_ref() else {
+    let Some(project) = app
+        .audible_bundle
+        .as_ref()
+        .and_then(|bundle| bundle.project.as_ref())
+    else {
         return "--:--".to_owned();
     };
     let quarter_notes = transport_quarter_notes(app);
@@ -3202,8 +4041,21 @@ fn transport_label(app: &Workspace) -> String {
     format!("{bar:02}:{beat:04.1}")
 }
 
+fn stream_failure_message(status: StreamStatus) -> Option<&'static str> {
+    match status {
+        StreamStatus::Error => Some("PipeWire stream failed; press Space to restart"),
+        StreamStatus::Stopped => {
+            Some("PipeWire stream stopped or disconnected; press Space to restart")
+        }
+        StreamStatus::Starting
+        | StreamStatus::Connecting
+        | StreamStatus::Paused
+        | StreamStatus::Streaming => None,
+    }
+}
+
 fn event_is_active(app: &Workspace, pattern_id: &str, event: &PatternEvent) -> bool {
-    if app.player.is_none() || !app.candidate_is_active() {
+    if !app.candidate_is_audible() {
         return false;
     }
     let Some(project) = app.bundle.project.as_ref() else {

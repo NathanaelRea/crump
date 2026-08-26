@@ -6,7 +6,8 @@ Crump is a Linux-first, terminal Guided Production Instrument for electronic and
 
 - Human-readable, lossless `.crump` Project and Instrument Module source
 - Source-located parse, semantic, graph, route, media, and resource diagnostics
-- Timeline Tracks, reusable Patterns, Pattern Variations, Clips, Locators, and Groove Templates
+- DAW-style fit/zoom Timeline Tracks with Clip ranges, canonical Event activity, Locator/playhead overlays, and verified sample-occurrence source waveforms
+- Reusable Patterns, Pattern Variations, Clips, Locators, and Groove Templates
 - Polyphonic Composable DSP Graphs, stock drums, expressive virtual-analog, wavetable, sample, multisample, granular, and deterministic spectral devices, and portable WAV-backed sampler Instruments
 - Source-backed point Automation, Pattern Parameter Locks, routed LFO Modulation, and an Envelope Follower
 - Sample-accurate control evaluation shared by playback and rendering, with value provenance

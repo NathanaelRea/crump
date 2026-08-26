@@ -2,7 +2,7 @@
 
 Run `crump` with no command in an interactive terminal, or use `crump workspace`. Ratatui is the first-party client; the Project model, validator, history, engine, renderer, and real-time adapter do not depend on it.
 
-The workspace watches Project source and history approximately twice per second. External file or Agent changes therefore appear without restarting the application.
+The workspace probes Project source, declared media, and Active History metadata several times per second. A metadata change invalidates the relevant cache and triggers exact-byte reconstruction; metadata never defines Candidate or Media Asset identity. External file or Agent changes therefore appear without restarting the application, while an unchanged Project is not reparsed on the UI thread.
 
 ## Revision header
 
@@ -20,6 +20,7 @@ Short Candidate and Active hashes are shown side by side. During playback the sa
 | --- | --- |
 | `1`–`9`, `0` | Select Timeline, Mixer, Processing, Event Grid, Faceplate, Instrument, Parameters, Automation, Graph, or Source; Tab reaches Diagnostics/History/Help |
 | `H` / `?` | Open History / keyboard Help |
+| `F12` | Toggle live workspace latency diagnostics; print the bounded summary after exit |
 | `Tab` / `Shift-Tab` | Next / previous view |
 | `↑` / `↓` | Move the current selection |
 | `Page Up` / `Page Down` | Move by eight rows |
@@ -29,6 +30,9 @@ Short Candidate and Active hashes are shown side by side. During playback the sa
 | `Space` | Start, pause, or resume the armed Audition Plan against the exact Active Revision |
 | `S` | Stop playback while retaining the armed target, range, path, transient bypasses, Solo, and cue |
 | `A` in Timeline/Event Grid | Arm the selected Track, Pattern, or sample occurrence for audition |
+| `+` / `-` in Timeline | Zoom in around the viewport center / zoom out |
+| `,` / `.` in Timeline | Pan the zoomed viewport left / right by one-quarter window |
+| `Home` in Timeline | Fit the complete finite Song in the arrangement grid |
 | `L` in Event Grid | Arm or disable the selected Pattern's exact half-open loop |
 | `P` | Publish an inspected valid Candidate with a History summary |
 | `r` | Reload Project and History immediately |
@@ -40,9 +44,14 @@ Mouse wheel selection is available as a convenience. No required workflow needs 
 
 ## Timeline
 
-Timeline lists presentation-ordered Tracks, assigned Instruments, source-backed level/pan, and Clip ranges. Arrangement context lists named Locators and reusable Groove Template IDs. Every Clip row keeps its durable ID, start/duration, traversal mode, source offset, transpose, gain, fades, and optional Groove assignment visible, making shared placement and local treatment distinguishable without opening source. The title displays the current playhead.
+Timeline is a DAW-style arrangement overview over presentation-ordered Tracks and the complete finite Song. It fits the whole Song by default and uses an exact meter-aware bar/beat ruler, Locator markers, Clip backgrounds and boundaries, and an overlaid playhead. Blue spans are authored Clip ranges, cyan glyphs summarize canonically materialized note/hit onsets and sustained notes, and yellow glyphs are verified source-waveform envelopes for scheduled sample occurrences. Overlapping Clips are visibly distinct. Track rows remain device-defined rather than fixed MIDI/audio kinds: a note that excites a graph sample, multisample, granular, or spectral Node is still shown as musical Event activity, not mislabeled as a Media Track waveform.
+
+The selected-Track inspector retains assigned Instrument, source-backed level/pan, arrangement context, and every Clip's durable ID, start/duration, traversal mode, source offset, transpose, gain, fades, and optional Groove assignment. Sample waveforms resolve through the Track's sampler mapping and occurrence region after canonical Pattern Variation, Clip traversal/cropping, and Groove scheduling. Reverse, bounded-loop, and loop-crossfade traversal affect source projection. Exact-asset min/max pyramids use the versioned `crump-timeline-waveform-v1` display algorithm and are cached by asset hash outside the draw tick. They are source previews, not post-processor Track renders; Media Tracks remain unsupported.
 
 - `↑` / `↓` selects a Track and follows its Instrument in instrument views.
+- `+` / `-` zooms around the viewport center up to 64×; `,` / `.` pans by one-quarter viewport.
+- `Home` restores whole-Song fit. Viewport changes are transient and never edit source or History.
+- Set `CRUMP_TIMELINE_ASCII=1` to use ASCII arrangement glyphs; `C` and `POSIX` locales and `TERM=dumb` select this fallback automatically.
 - `←` / `→` changes level by 1 dB through a checked source edit.
 - `Enter` or `l` opens exact level entry.
 - `p` opens exact pan entry.
@@ -170,13 +179,29 @@ Space compiles and prerolls the armed Audition Plan from the Active snapshot bef
 3. reapplies transient path, bypass, Solo, and cue state and publishes through a bounded lock-free queue; and
 4. at the audio block boundary, uses the callback's exact current offset or loop phase to realign into the newly resolved bounds (clamped only when the range became shorter), then begins a bounded 10 ms protective transition.
 
-Tracks with unchanged schedule/topology semantics retain running voice and Track-owned shared post-voice state when publication stays at the same absolute timeline point. A range-relative jump does not import processor state from a different old timeline point. A compatible compiled mix graph otherwise retains shared processor and compensation state and executes once during publication. In a wholly compatible scalar publication, only changed continuous targets receive a monitoring-only 10 ms handoff ramp; unrelated linear/step Automation stays exact and boolean Mute stays discrete. Configuration/topology changes use the aligned equal-power old/new transition. If publication cannot be queued immediately, the old runtime continues. Invalid source never enters this path. If PipeWire stops or disconnects after playback began, the workspace reports the failure and offers `Space` to restart.
+Tracks with unchanged schedule/topology semantics retain running voice and Track-owned shared post-voice state when publication stays at the same absolute timeline point. A range-relative jump does not import processor state from a different old timeline point. A compatible compiled mix graph otherwise retains shared processor and compensation state and executes once during publication. In a wholly compatible scalar publication, only changed continuous targets receive a monitoring-only 10 ms handoff ramp; unrelated linear/step Automation stays exact and boolean Mute stays discrete. Configuration/topology changes use the aligned equal-power old/new transition. If publication cannot be queued immediately, the old runtime continues. Candidate, committed Active, queued publication, and audible inspection are distinct: generated live views change provenance only after callback telemetry confirms the matching publication generation. Invalid source never enters this path. If PipeWire stops or disconnects after playback began, the failed player is retired and `Space` starts a newly prepared runtime.
 
 ## Note Audition
 
 In Faceplate, Instrument, Parameters, and Graph views, `A W S E D F T G Y H U J K` plays C4–C5 on a graph Instrument. On stock drums, `A/S/D/F` (or `Z/X/C/V`) trigger kick/snare/hat/clap. Terminal key-release events send Note Off; a bounded timeout recovers terminals that report key presses only.
 
 Audition is transient: it does not change source, Active Revision, or History. PipeWire MIDI follows the selected Instrument and uses normal Note On/Off velocity. See [Audio and MIDI](audio-and-midi.md).
+
+## Workspace performance diagnostics
+
+Press `F12` to show the most recent and maximum draw and event-read-to-draw times plus refresh/reload counts. The workspace prints a bounded summary after terminal restoration when diagnostics were enabled at least once. Start with diagnostics visible by setting `CRUMP_WORKSPACE_DIAGNOSTICS=1`.
+
+The exit summary reports count, last, mean, p50, p95, p99, and maximum duration for background filesystem probes, exact Candidate loads, History loads, derived-view rebuilds, Active preparation, durable mutation, result adoption, terminal draws, and event-read-to-draw latency. Percentiles cover the most recent 128 samples. Event timing starts when Crossterm reports readiness, immediately before decoding the event, so it excludes time already queued behind other UI-thread work; it also ends at application draw submission and does not prove that a terminal emulator or display presented pixels. Use a PTY or terminal-emulator probe for queue-inclusive input latency.
+
+Run the ignored fixed-size hot-path profile against a representative Project with:
+
+```bash
+CRUMP_WORKSPACE_PROFILE_PROJECT=/path/to/project \
+  cargo test --release workspace::tests::profile_workspace_hot_paths \
+  -- --ignored --nocapture
+```
+
+It reports terminal-thread queue cost and background completion for unchanged probes and forced refreshes, plus per-view draw time, allocation count, and allocated bytes. The persistent capacity-one builder coalesces reload and preparation intent; a bounded reclaimer destroys replaced snapshots and runtimes away from both terminal and audio threads. Use the same Project, terminal dimensions, Cargo profile, and host when comparing results. See the [2026-08-25 latency investigation](evidence/workspace-latency-2026-08-25.md) for a production-scale example and hardware lower-bound comparison.
 
 ## Qualification boundary
 

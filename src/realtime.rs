@@ -77,6 +77,8 @@ enum AuditionCommand {
 pub struct PlayerTelemetry {
     /// Shared musical runtime status.
     pub engine: RuntimeTelemetry,
+    /// Generation of the runtime that currently owns callback telemetry.
+    pub publication_generation: u64,
     /// Number of PipeWire process callbacks completed.
     pub callbacks: u64,
     /// Callbacks whose wall time exceeded their buffer duration.
@@ -245,7 +247,10 @@ mod native {
     // command; the bounded ring's larger slots are an intentional memory tradeoff.
     #[allow(clippy::large_enum_variant)]
     enum AudioCommand {
-        Publish(Box<SongRuntime>),
+        Publish {
+            runtime: Box<SongRuntime>,
+            generation: u64,
+        },
         Audition(AuditionCommand),
         SetPaused(bool),
         Stop,
@@ -253,12 +258,14 @@ mod native {
 
     struct Transition {
         next: Box<SongRuntime>,
+        generation: u64,
         position: u64,
         frames: u64,
     }
 
     struct CallbackState {
         current: Box<SongRuntime>,
+        current_generation: u64,
         transition: Option<Transition>,
         pending_reclaim: Option<Box<SongRuntime>>,
         publication_in_flight: Arc<AtomicBool>,
@@ -317,6 +324,7 @@ mod native {
                 self.utilization_histogram[bucket].saturating_add(1);
             let report = PlayerTelemetry {
                 engine: self.current.telemetry(),
+                publication_generation: self.current_generation,
                 callbacks: self.callbacks,
                 late_callbacks: self.late_callbacks,
                 callback_utilization: self.callback_utilization,
@@ -370,6 +378,7 @@ mod native {
                 && let Some(mut transition) = self.transition.take()
             {
                 self.current.complete_transition(&mut transition.next);
+                self.current_generation = transition.generation;
                 let retired = mem::replace(&mut self.current, transition.next);
                 self.retire(retired);
                 if self.pending_reclaim.is_none() {
@@ -404,8 +413,11 @@ mod native {
             // behind a transition that is itself paused.
             while let Ok(command) = self.commands.pop() {
                 match command {
-                    AudioCommand::Publish(runtime) => {
-                        self.begin_transition(runtime);
+                    AudioCommand::Publish {
+                        runtime,
+                        generation,
+                    } => {
+                        self.begin_transition(runtime, generation);
                         break;
                     }
                     AudioCommand::Audition(command) => self.audition(command),
@@ -429,12 +441,13 @@ mod native {
             }
         }
 
-        fn begin_transition(&mut self, mut runtime: Box<SongRuntime>) {
+        fn begin_transition(&mut self, mut runtime: Box<SongRuntime>, generation: u64) {
             let frames =
                 u64::from(runtime.sample_rate()) * PUBLICATION_TRANSITION_MILLISECONDS / 1_000;
             self.current.prepare_transition(&mut runtime);
             self.transition = Some(Transition {
                 next: runtime,
+                generation,
                 position: 0,
                 frames: frames.max(1),
             });
@@ -630,6 +643,14 @@ mod native {
     impl PipeWirePlayer {
         /// Starts a native stereo float output stream with a preallocated runtime.
         pub fn start(runtime: SongRuntime) -> Result<Self, RealtimeError> {
+            Self::start_with_generation(runtime, 0)
+        }
+
+        /// Starts playback with a controller-assigned inspection generation.
+        pub(crate) fn start_with_generation(
+            runtime: SongRuntime,
+            generation: u64,
+        ) -> Result<Self, RealtimeError> {
             let (command_producer, command_consumer) = RingBuffer::new(COMMAND_CAPACITY);
             let (reclaim_producer, reclaim_consumer) = RingBuffer::new(RECLAIM_CAPACITY);
             let (telemetry_producer, telemetry_consumer) = RingBuffer::new(TELEMETRY_CAPACITY);
@@ -654,6 +675,7 @@ mod native {
                 .spawn(move || {
                     let state = PipeWireThreadState {
                         runtime,
+                        generation,
                         commands: command_consumer,
                         midi: midi_consumer,
                         midi_producer,
@@ -708,9 +730,6 @@ mod native {
             if !reserve_publication(&self.publication_in_flight) {
                 return Err(RealtimeError::QueueFull);
             }
-            // The callback releases the slot only after retiring its predecessor.
-            // Drain that predecessor before the controller allocates a candidate.
-            self.collect_garbage();
             Ok(PublicationReservation {
                 slot: Arc::clone(&self.publication_in_flight),
                 committed: false,
@@ -723,19 +742,38 @@ mod native {
             mut runtime: SongRuntime,
             reservation: PublicationReservation,
         ) -> Result<(), RealtimeError> {
-            debug_assert!(Arc::ptr_eq(&reservation.slot, &self.publication_in_flight));
-            // Reset all potentially large DSP storage on the controller thread.
-            // The callback only realigns schedule cursors to its exact frame.
+            // Legacy callers prepare here. Latency-sensitive workspace callers use
+            // `publish_prepared` after priming and boxing on the builder thread.
             runtime.prime_for_publication();
+            self.publish_prepared(Box::new(runtime), reservation, 0)
+                .map_err(|(error, _, _)| error)
+        }
+
+        /// Queues an already primed and boxed runtime without controller-side allocation.
+        pub(crate) fn publish_prepared(
+            &mut self,
+            runtime: Box<SongRuntime>,
+            reservation: PublicationReservation,
+            generation: u64,
+        ) -> Result<(), (RealtimeError, Box<SongRuntime>, PublicationReservation)> {
+            debug_assert!(Arc::ptr_eq(&reservation.slot, &self.publication_in_flight));
             let Some(commands) = self.commands.as_mut() else {
-                return Err(RealtimeError::ThreadStopped);
+                return Err((RealtimeError::ThreadStopped, runtime, reservation));
             };
-            match commands.push(AudioCommand::Publish(Box::new(runtime))) {
+            match commands.push(AudioCommand::Publish {
+                runtime,
+                generation,
+            }) {
                 Ok(()) => {
                     reservation.commit();
                     Ok(())
                 }
-                Err(PushError::Full(_)) => Err(RealtimeError::QueueFull),
+                Err(PushError::Full(command)) => {
+                    let AudioCommand::Publish { runtime, .. } = command else {
+                        unreachable!("only a Publish command was pushed")
+                    };
+                    Err((RealtimeError::QueueFull, runtime, reservation))
+                }
             }
         }
 
@@ -818,9 +856,24 @@ mod native {
             self.selected_track.store(track_index, Ordering::Release);
         }
 
-        /// Drains callback telemetry and destroys retired runtimes off-thread.
+        /// Drains callback telemetry and destroys retired runtimes on this caller.
         pub fn poll(&mut self) -> PlayerTelemetry {
             self.collect_garbage();
+            self.poll_telemetry()
+        }
+
+        /// Drains callback telemetry while transferring retired runtimes elsewhere.
+        pub(crate) fn poll_with_reclaimer(
+            &mut self,
+            mut retire: impl FnMut(Box<SongRuntime>),
+        ) -> PlayerTelemetry {
+            while let Ok(runtime) = self.reclaimed.pop() {
+                retire(runtime);
+            }
+            self.poll_telemetry()
+        }
+
+        fn poll_telemetry(&mut self) -> PlayerTelemetry {
             while let Ok(report) = self.telemetry.pop() {
                 self.latest = report;
             }
@@ -909,6 +962,7 @@ mod native {
 
     struct PipeWireThreadState {
         runtime: SongRuntime,
+        generation: u64,
         commands: Consumer<AudioCommand>,
         midi: Consumer<AuditionCommand>,
         midi_producer: Producer<AuditionCommand>,
@@ -929,6 +983,7 @@ mod native {
     ) -> Result<(), pw::Error> {
         let PipeWireThreadState {
             runtime,
+            generation,
             commands,
             midi,
             midi_producer,
@@ -982,6 +1037,7 @@ mod native {
             .register()?;
         let callback_state = CallbackState {
             current: Box::new(runtime),
+            current_generation: generation,
             transition: None,
             pending_reclaim: None,
             publication_in_flight,
@@ -1212,6 +1268,7 @@ mod native {
         ) -> CallbackState {
             CallbackState {
                 current: Box::new(current),
+                current_generation: 0,
                 transition: None,
                 pending_reclaim: None,
                 publication_in_flight,
@@ -1349,7 +1406,7 @@ mod native {
             let (mut commands, command_consumer) = RingBuffer::new(4);
             let (_midi, midi_consumer) = RingBuffer::new(4);
             let (mut reclaimed, mut reclaim_consumer) = RingBuffer::new(1);
-            let (telemetry, _telemetry_consumer) = RingBuffer::new(16);
+            let (telemetry, mut telemetry_consumer) = RingBuffer::new(16);
             reclaimed
                 .push(Box::new(compiled.runtime()))
                 .expect("occupy reclaim ring");
@@ -1367,7 +1424,10 @@ mod native {
             callback.process_buffer(&mut output);
             let _ = allocation_counter::measure(|| {});
             commands
-                .push(AudioCommand::Publish(Box::new(compiled.runtime())))
+                .push(AudioCommand::Publish {
+                    runtime: Box::new(compiled.runtime()),
+                    generation: 1,
+                })
                 .expect("queue replacement runtime");
 
             let transition_allocations = allocation_counter::measure(|| {
@@ -1391,6 +1451,12 @@ mod native {
                 "{transition_allocations:?}"
             );
             assert!(callback.transition.is_none());
+            assert_eq!(callback.current_generation, 1);
+            let generations = std::iter::from_fn(|| telemetry_consumer.pop().ok())
+                .map(|report| report.publication_generation)
+                .collect::<Vec<_>>();
+            assert_eq!(generations.first(), Some(&0));
+            assert_eq!(generations.last(), Some(&1));
             assert!(callback.pending_reclaim.is_some());
             assert!(publication_in_flight.load(Ordering::Acquire));
 
@@ -1435,6 +1501,7 @@ mod native {
             let (telemetry, _telemetry_consumer) = RingBuffer::new(2);
             let mut callback = CallbackState {
                 current: Box::new(compiled.runtime()),
+                current_generation: 0,
                 transition: None,
                 pending_reclaim: None,
                 publication_in_flight: Arc::new(AtomicBool::new(true)),
@@ -1457,8 +1524,9 @@ mod native {
                 midi_dropped: Arc::new(AtomicU64::new(0)),
                 midi_panic: Arc::new(AtomicBool::new(false)),
             };
-            callback.begin_transition(Box::new(compiled.runtime()));
+            callback.begin_transition(Box::new(compiled.runtime()), 1);
             assert!(callback.transition.is_some());
+            assert_eq!(callback.current_generation, 0);
 
             commands.push(AudioCommand::SetPaused(false)).unwrap();
             callback.consume_commands();
@@ -1574,6 +1642,11 @@ mod native {
 
 #[cfg(feature = "pipewire")]
 pub use native::Player as PipeWirePlayer;
+#[cfg(feature = "pipewire")]
+pub(crate) use native::PublicationReservation;
+
+#[cfg(not(feature = "pipewire"))]
+pub(crate) struct PublicationReservation;
 
 #[cfg(not(feature = "pipewire"))]
 /// Stub native player for builds that intentionally omit PipeWire.
@@ -1606,6 +1679,26 @@ impl PipeWirePlayer {
     /// Reports that this build lacks native playback.
     pub fn start(_runtime: SongRuntime) -> Result<Self, RealtimeError> {
         Err(RealtimeError::Unavailable)
+    }
+
+    pub(crate) fn start_with_generation(
+        _runtime: SongRuntime,
+        _generation: u64,
+    ) -> Result<Self, RealtimeError> {
+        Err(RealtimeError::Unavailable)
+    }
+
+    pub(crate) fn reserve_publication(&mut self) -> Result<PublicationReservation, RealtimeError> {
+        Err(RealtimeError::Unavailable)
+    }
+
+    pub(crate) fn publish_prepared(
+        &mut self,
+        runtime: Box<SongRuntime>,
+        reservation: PublicationReservation,
+        _generation: u64,
+    ) -> Result<(), (RealtimeError, Box<SongRuntime>, PublicationReservation)> {
+        Err((RealtimeError::Unavailable, runtime, reservation))
     }
 
     /// Reports that this build lacks native playback.
@@ -1670,6 +1763,13 @@ impl PipeWirePlayer {
             stream_state: StreamStatus::Error,
             ..PlayerTelemetry::default()
         }
+    }
+
+    pub(crate) fn poll_with_reclaimer(
+        &mut self,
+        _retire: impl FnMut(Box<SongRuntime>),
+    ) -> PlayerTelemetry {
+        self.poll()
     }
 
     /// No-op shutdown for the unavailable backend.

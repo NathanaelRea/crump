@@ -2,6 +2,18 @@ use std::fs;
 
 use super::*;
 
+fn settle_background(workspace: &mut Workspace) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while workspace.background_work_pending() {
+        workspace.poll_background_work();
+        assert!(
+            Instant::now() < deadline,
+            "background workspace work timed out"
+        );
+        std::thread::yield_now();
+    }
+}
+
 #[test]
 fn generated_sample_rows_show_exact_wave_regions_and_multisample_mapping() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/synth-alpha");
@@ -179,6 +191,7 @@ fn exact_automation_entry_preserves_value_and_curve_precision() {
             point: "lift".to_owned(),
         },
     );
+    settle_background(&mut workspace);
     workspace.commit_input(
         "power(0.0000004)".to_owned(),
         InputAction::AutomationCurve {
@@ -186,6 +199,7 @@ fn exact_automation_entry_preserves_value_and_curve_precision() {
             point: "lift".to_owned(),
         },
     );
+    settle_background(&mut workspace);
 
     let source = fs::read_to_string(root.path().join("project.crump"))
         .expect("read exact Automation source");
@@ -332,6 +346,7 @@ fn processing_view_exposes_source_settings_and_transient_bypass_without_editing(
     assert!(workspace.audition_plan.transient_bypass.is_empty());
     assert!(workspace.status.contains("Publish the Candidate"));
     workspace.commit_input("Initial publication".to_owned(), InputAction::Publish);
+    settle_background(&mut workspace);
     assert!(workspace.candidate_is_active());
 
     workspace.open_exact_edit();
@@ -524,6 +539,7 @@ fn source_topology_edit_publishes_and_returns_to_generated_views_without_flatten
     fs::write(&project_path, original).expect("write fixture");
     let mut workspace = Workspace::load(root.path()).expect("load workspace");
     workspace.commit_input("Initial topology".to_owned(), InputAction::Publish);
+    settle_background(&mut workspace);
     assert!(workspace.candidate_is_active(), "{}", workspace.status);
     assert_eq!(workspace.history.len(), 1);
 
@@ -539,6 +555,7 @@ fn source_topology_edit_publishes_and_returns_to_generated_views_without_flatten
     assert_ne!(changed, original);
     fs::write(&project_path, &changed).expect("write direct topology edit");
     workspace.refresh();
+    settle_background(&mut workspace);
     assert!(
         !workspace.bundle.diagnostics.has_errors(),
         "{:?}",
@@ -557,6 +574,7 @@ fn source_topology_edit_publishes_and_returns_to_generated_views_without_flatten
         "Insert explicit post amplifier".to_owned(),
         InputAction::Publish,
     );
+    settle_background(&mut workspace);
     assert!(workspace.candidate_is_active(), "{}", workspace.status);
     assert_eq!(workspace.history.len(), 2);
     assert_eq!(fs::read_to_string(&project_path).unwrap(), changed);
@@ -612,5 +630,512 @@ fn shared_graph_nodes_and_buses_are_selectable_and_source_navigable() {
         assert_eq!(workspace.view, View::Source);
         assert!(workspace.status.contains(expected), "{}", workspace.status);
         assert_eq!(workspace.selected_source, 0);
+    }
+}
+
+#[test]
+fn timeline_zoom_pan_and_fit_are_transient_keyboard_state() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    let revision = workspace.bundle.revision.clone();
+    let source = fs::read_to_string(root.path().join("project.crump")).expect("source");
+    let song_end = workspace.bundle.project.as_ref().expect("Project").song.end;
+
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('+'), KeyModifiers::NONE));
+    assert_eq!(workspace.timeline_viewport.zoom_factor(), 2);
+    let centered = workspace.timeline_viewport.window(song_end);
+    workspace.handle_key(KeyEvent::new(KeyCode::Char(','), KeyModifiers::NONE));
+    let panned = workspace.timeline_viewport.window(song_end);
+    assert!(panned.start < centered.start);
+    workspace.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
+    assert!(workspace.timeline_viewport.is_fit());
+    assert_eq!(workspace.bundle.revision, revision);
+    assert_eq!(
+        fs::read_to_string(root.path().join("project.crump")).expect("unchanged source"),
+        source
+    );
+}
+
+#[test]
+fn timeline_renders_arrangement_activity_at_full_and_narrow_sizes() {
+    fn render_text(workspace: &Workspace, width: u16, height: u16) -> String {
+        let backend = ratatui::backend::TestBackend::new(width, height);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        terminal
+            .draw(|frame| render(frame, workspace))
+            .expect("render Timeline");
+        let buffer = terminal.backend().buffer();
+        (0..height)
+            .flat_map(|y| {
+                (0..width)
+                    .map(move |x| buffer[(x, y)].symbol().to_owned())
+                    .chain(std::iter::once("\n".to_owned()))
+            })
+            .collect()
+    }
+
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    workspace.timeline_ascii = false;
+
+    let full = render_text(&workspace, 120, 28);
+    assert!(full.contains("Track · FIT"), "{full}");
+    assert!(full.contains("Selected Track"), "{full}");
+    assert!(full.contains("Lead"), "{full}");
+    assert!(full.contains('▌'), "{full}");
+    assert!(full.contains('▐'), "{full}");
+    assert!(
+        ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█']
+            .into_iter()
+            .any(|glyph| full.contains(glyph)),
+        "{full}"
+    );
+
+    let narrow = render_text(&workspace, 40, 12);
+    assert!(narrow.contains("Timeline"), "{narrow}");
+    assert!(narrow.contains("Lead"), "{narrow}");
+    assert!(
+        ['▌', '▐', '━', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█']
+            .into_iter()
+            .any(|glyph| narrow.contains(glyph)),
+        "{narrow}"
+    );
+
+    // Extremely constrained layouts must degrade without panicking.
+    let _ = render_text(&workspace, 20, 8);
+    let _ = render_text(&workspace, 8, 5);
+
+    workspace.timeline_ascii = true;
+    let ascii = render_text(&workspace, 40, 12);
+    assert!(ascii.contains('['), "{ascii}");
+    assert!(
+        ![
+            '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█', '▌', '▐', '━', '▓', '◆', '┊'
+        ]
+        .into_iter()
+        .any(|glyph| ascii.contains(glyph)),
+        "{ascii}"
+    );
+}
+
+#[test]
+fn timeline_labels_meter_denominator_beats() {
+    let meter = crate::time::Meter::new(6, 8).expect("6/8 meter");
+    assert_eq!(
+        rendering::timeline_time_label(
+            crate::time::MusicalTime::new(1, 2).expect("half quarter note"),
+            meter,
+        ),
+        "1:2.0"
+    );
+    assert_eq!(
+        rendering::timeline_time_label(crate::time::MusicalTime::whole(3), meter),
+        "2:1.0"
+    );
+}
+
+#[test]
+fn background_startup_draws_loading_state_before_exact_reconstruction() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+
+    let mut workspace = Workspace::begin_load(root.path()).expect("begin background load");
+    assert!(workspace.bundle.project.is_none());
+    assert!(workspace.background_work_pending());
+    let backend = ratatui::backend::TestBackend::new(100, 24);
+    let mut terminal = Terminal::new(backend).expect("loading terminal");
+    terminal
+        .draw(|frame| render(frame, &workspace))
+        .expect("draw loading state");
+
+    settle_background(&mut workspace);
+    assert_eq!(
+        workspace
+            .bundle
+            .project
+            .as_ref()
+            .expect("loaded Project")
+            .name,
+        "Minimal"
+    );
+}
+
+#[test]
+fn workspace_recovers_operation_latches_after_contained_worker_panics() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+
+    workspace.mutation_in_flight = true;
+    workspace.work_in_flight = Some(WorkspaceWorkKind::Mutation);
+    workspace
+        .worker
+        .submit(|| -> WorkspaceWorkResult { panic!("injected mutation panic") })
+        .expect("submit mutation panic");
+    settle_background(&mut workspace);
+    assert!(!workspace.mutation_in_flight);
+
+    workspace.queue_mutation(
+        ProductionViewRequest {
+            expected_revision: Some(workspace.bundle.revision.clone()),
+            operation: ProductionViewOperation::PublishCandidate,
+            provenance: ProductionViewProvenance::human(
+                "workspace-test",
+                "Publish fixture",
+                "verify mutation recovery",
+            ),
+        },
+        "Published",
+        "Publish failed",
+    );
+    assert!(workspace.mutation_in_flight || workspace.pending_mutation.is_some());
+    settle_background(&mut workspace);
+    assert!(!workspace.mutation_in_flight);
+    assert!(workspace.active_bundle.is_some());
+
+    let active_key = ActiveRequestKey {
+        active_revision: workspace.active_revision.clone().expect("Active Revision"),
+        audition_epoch: workspace.audition_epoch,
+        playback_epoch: workspace.playback_epoch,
+        generation: 1,
+    };
+    workspace.active_build_in_flight = true;
+    workspace.work_in_flight = Some(WorkspaceWorkKind::Active(active_key));
+    workspace
+        .worker
+        .submit(|| -> WorkspaceWorkResult { panic!("injected Active panic") })
+        .expect("submit Active panic");
+    settle_background(&mut workspace);
+    assert!(!workspace.active_build_in_flight);
+    assert!(!workspace.active_prepare_requested);
+
+    let generation_before_cancel = workspace.next_publication_generation;
+    let canceled_key = ActiveRequestKey {
+        active_revision: workspace.active_revision.clone().expect("Active Revision"),
+        audition_epoch: workspace.audition_epoch,
+        playback_epoch: workspace.playback_epoch,
+        generation: 2,
+    };
+    workspace.active_build_in_flight = true;
+    workspace.work_in_flight = Some(WorkspaceWorkKind::Active(canceled_key));
+    workspace
+        .worker
+        .submit(|| -> WorkspaceWorkResult { panic!("injected canceled Active panic") })
+        .expect("submit canceled Active panic");
+    workspace.playback_epoch = workspace.playback_epoch.saturating_add(1);
+    workspace.active_prepare_requested = false;
+    settle_background(&mut workspace);
+    assert!(!workspace.active_build_in_flight);
+    assert!(!workspace.active_prepare_requested);
+    assert_eq!(
+        workspace.next_publication_generation, generation_before_cancel,
+        "a canceled panicking Active request must not dispatch a replacement preparation"
+    );
+
+    let candidate_reloads = workspace.performance.candidate_reloads;
+    workspace.work_in_flight = Some(WorkspaceWorkKind::Reload {
+        candidate: true,
+        history: false,
+    });
+    workspace
+        .worker
+        .submit(|| -> WorkspaceWorkResult { panic!("injected reload panic") })
+        .expect("submit reload panic");
+    settle_background(&mut workspace);
+    assert_eq!(
+        workspace.performance.candidate_reloads,
+        candidate_reloads + 1
+    );
+}
+
+#[test]
+fn stopped_stream_is_terminal_even_before_the_first_callback() {
+    assert!(stream_failure_message(StreamStatus::Stopped).is_some());
+    assert!(stream_failure_message(StreamStatus::Error).is_some());
+    assert!(stream_failure_message(StreamStatus::Starting).is_none());
+    assert!(stream_failure_message(StreamStatus::Connecting).is_none());
+}
+
+#[test]
+fn reload_bursts_coalesce_while_navigation_and_draw_remain_available() {
+    use std::sync::{mpsc, Arc, Barrier};
+
+    let root = tempfile::tempdir().expect("temporary Project");
+    let path = root.path().join("project.crump");
+    let source = include_str!("../../tests/fixtures/minimal.crump");
+    fs::write(&path, source).expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    let candidate_reloads = workspace.performance.candidate_reloads;
+    let gate = Arc::new(Barrier::new(2));
+    let worker_gate = Arc::clone(&gate);
+    let (started_tx, started_rx) = mpsc::sync_channel(1);
+    workspace
+        .worker
+        .submit(move || {
+            started_tx.send(()).expect("signal blocked job");
+            worker_gate.wait();
+            WorkspaceWorkResult::Reload(ReloadBatch {
+                candidate: None,
+                history: None,
+            })
+        })
+        .expect("submit blocked job");
+    started_rx.recv().expect("blocked job started");
+
+    fs::write(
+        &path,
+        source.replace("project \"Minimal\"", "project \"Burst B\""),
+    )
+    .expect("write intermediate Candidate");
+    workspace.refresh_if_changed();
+    workspace.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+    assert_eq!(workspace.view, View::Mixer);
+    let backend = ratatui::backend::TestBackend::new(100, 24);
+    let mut terminal = Terminal::new(backend).expect("responsive terminal");
+    terminal
+        .draw(|frame| render(frame, &workspace))
+        .expect("draw while reload is blocked");
+
+    fs::write(
+        &path,
+        source.replace("project \"Minimal\"", "project \"Burst C\""),
+    )
+    .expect("write newest Candidate");
+    workspace.refresh_if_changed();
+    gate.wait();
+    settle_background(&mut workspace);
+
+    assert_eq!(
+        workspace.bundle.project.as_ref().expect("Project").name,
+        "Burst C"
+    );
+    assert_eq!(
+        workspace.performance.candidate_reloads,
+        candidate_reloads + 1,
+        "the superseded intermediate Candidate must never be reconstructed"
+    );
+}
+
+#[test]
+fn result_changed_before_ui_acceptance_never_replaces_stable_candidate() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    let path = root.path().join("project.crump");
+    let source = include_str!("../../tests/fixtures/minimal.crump");
+    fs::write(&path, source).expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    fs::write(
+        &path,
+        source.replace("project \"Minimal\"", "project \"First\""),
+    )
+    .expect("write first Candidate");
+    let before = WorkspaceWatch::capture_candidate(&workspace.root, &workspace.bundle);
+    let result = reload::load_candidate(
+        workspace.root.clone(),
+        workspace.bundle.revision.clone(),
+        before,
+    );
+    fs::write(
+        &path,
+        source.replace("project \"Minimal\"", "project \"Newest\""),
+    )
+    .expect("supersede completed Candidate");
+
+    workspace.finish_candidate_reload(result);
+    assert_eq!(
+        workspace
+            .bundle
+            .project
+            .as_ref()
+            .expect("stable Project")
+            .name,
+        "Minimal",
+        "a result invalidated before acceptance must not become visible"
+    );
+    settle_background(&mut workspace);
+    assert_eq!(
+        workspace
+            .bundle
+            .project
+            .as_ref()
+            .expect("newest Project")
+            .name,
+        "Newest"
+    );
+}
+
+#[test]
+fn unchanged_workspace_poll_skips_exact_reload_and_derived_rebuild() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    let candidate_reloads = workspace.performance.candidate_reloads;
+    let history_reloads = workspace.performance.history_reloads;
+    let derived_rebuilds = workspace.performance.derived_rebuilds;
+
+    workspace.refresh_if_changed();
+    settle_background(&mut workspace);
+
+    assert_eq!(workspace.performance.candidate_reloads, candidate_reloads);
+    assert_eq!(workspace.performance.history_reloads, history_reloads);
+    assert_eq!(workspace.performance.derived_rebuilds, derived_rebuilds);
+    assert_eq!(workspace.performance.refresh_checks, 1);
+}
+
+#[test]
+fn candidate_stamp_change_triggers_one_exact_reload_and_rebuild() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    let project_path = root.path().join("project.crump");
+    let source = include_str!("../../tests/fixtures/minimal.crump");
+    fs::write(&project_path, source).expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    let candidate_reloads = workspace.performance.candidate_reloads;
+    let history_reloads = workspace.performance.history_reloads;
+    let derived_rebuilds = workspace.performance.derived_rebuilds;
+    fs::write(
+        &project_path,
+        source.replace("project \"Minimal\"", "project \"Changed\""),
+    )
+    .expect("replace Candidate source");
+
+    workspace.refresh_if_changed();
+    settle_background(&mut workspace);
+
+    assert_eq!(
+        workspace.performance.candidate_reloads,
+        candidate_reloads + 1
+    );
+    assert_eq!(workspace.performance.history_reloads, history_reloads);
+    assert_eq!(workspace.performance.derived_rebuilds, derived_rebuilds + 1);
+    assert_eq!(
+        workspace.bundle.project.as_ref().expect("Project").name,
+        "Changed"
+    );
+}
+
+#[test]
+fn history_stamp_change_does_not_reload_unchanged_candidate() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    let candidate_reloads = workspace.performance.candidate_reloads;
+    let history_reloads = workspace.performance.history_reloads;
+    let derived_rebuilds = workspace.performance.derived_rebuilds;
+    let revision = workspace.bundle.revision.clone();
+    let store = HistoryStore::open(root.path()).expect("History");
+    store
+        .publish(
+            &workspace.bundle,
+            crate::history::Publication::new(
+                crate::history::ChangeOrigin::system("workspace-test"),
+                "Publish fixture",
+                "exercise history invalidation",
+            ),
+        )
+        .expect("publish fixture");
+    drop(store);
+
+    workspace.refresh_if_changed();
+    settle_background(&mut workspace);
+
+    assert_eq!(workspace.performance.candidate_reloads, candidate_reloads);
+    assert_eq!(workspace.performance.history_reloads, history_reloads + 1);
+    assert_eq!(workspace.performance.derived_rebuilds, derived_rebuilds);
+    assert_eq!(workspace.active_revision.as_ref(), Some(&revision));
+}
+
+#[test]
+#[ignore = "manual release-mode workspace performance profile"]
+fn profile_workspace_hot_paths() {
+    const DRAW_ITERATIONS: u32 = 50;
+    const TERMINAL_WIDTH: u16 = 140;
+    const TERMINAL_HEIGHT: u16 = 32;
+    let project = std::env::var_os("CRUMP_WORKSPACE_PROFILE_PROJECT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("tests/fixtures/minimal.crump"));
+
+    let started = Instant::now();
+    let mut workspace = Workspace::load(&project).expect("load profiled workspace");
+    eprintln!(
+        "workspace-profile load_ms={:.3} project={} terminal={}x{}",
+        started.elapsed().as_secs_f64() * 1_000.0,
+        project.display(),
+        TERMINAL_WIDTH,
+        TERMINAL_HEIGHT,
+    );
+
+    for sample in 0..5 {
+        let started = Instant::now();
+        let changed = workspace.refresh_if_changed();
+        let queued = started.elapsed();
+        settle_background(&mut workspace);
+        eprintln!(
+            "workspace-profile unchanged-poll sample={sample} changed={changed} queue_us={:.3} completion_us={:.3}",
+            queued.as_secs_f64() * 1_000_000.0,
+            started.elapsed().as_secs_f64() * 1_000_000.0
+        );
+    }
+    let started = Instant::now();
+    workspace.refresh();
+    let queued = started.elapsed();
+    settle_background(&mut workspace);
+    eprintln!(
+        "workspace-profile forced-refresh queue_us={:.3} completion_ms={:.3}",
+        queued.as_secs_f64() * 1_000_000.0,
+        started.elapsed().as_secs_f64() * 1_000.0
+    );
+
+    for view in VIEWS {
+        workspace.view = view;
+        workspace.clamp_selections();
+        let backend = ratatui::backend::TestBackend::new(TERMINAL_WIDTH, TERMINAL_HEIGHT);
+        let mut terminal = Terminal::new(backend).expect("profile terminal");
+        terminal
+            .draw(|frame| render(frame, &workspace))
+            .expect("warm profile draw");
+        let started = Instant::now();
+        let allocations = allocation_counter::measure(|| {
+            for _ in 0..DRAW_ITERATIONS {
+                terminal
+                    .draw(|frame| render(frame, std::hint::black_box(&workspace)))
+                    .expect("profile draw");
+            }
+        });
+        let elapsed = started.elapsed();
+        eprintln!(
+            "workspace-profile draw view={} iterations={DRAW_ITERATIONS} total_ms={:.3} mean_us={:.3} allocations={} allocated_bytes={} allocations_per_draw={:.1} bytes_per_draw={:.1}",
+            view.title(),
+            elapsed.as_secs_f64() * 1_000.0,
+            elapsed.as_secs_f64() * 1_000_000.0 / f64::from(DRAW_ITERATIONS),
+            allocations.count_total,
+            allocations.bytes_total,
+            allocations.count_total as f64 / f64::from(DRAW_ITERATIONS),
+            allocations.bytes_total as f64 / f64::from(DRAW_ITERATIONS),
+        );
     }
 }

@@ -390,6 +390,12 @@ impl CompiledProject {
         self.controls.snapshot_at(frame)
     }
 
+    /// Compiled control program aligned with this exact Project compilation.
+    #[must_use]
+    pub(crate) const fn control_program(&self) -> &CompiledControlProgram {
+        &self.controls
+    }
+
     /// Inspectable processing paths, latency, and resource admission facts.
     #[must_use]
     pub fn mix_graph_inspection(&self) -> &mix_graph::MixGraphInspection {

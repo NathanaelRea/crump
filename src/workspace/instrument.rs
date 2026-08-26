@@ -1,10 +1,10 @@
 //! Generated, sound-neutral Instrument section inspection.
 
-use std::{collections::BTreeSet, path::PathBuf};
+use std::{collections::BTreeSet, io::Cursor, path::PathBuf};
 
 use crate::{
     diagnostic::SourceLocation,
-    media::AssetInventory,
+    media::{AssetInventory, LoadedAsset, WavMetadata, WavSampleFormat},
     model::{
         GraphDomain, Instrument, MediaAsset, NodeKind, PresentationItem, PresentationItemKind,
         PresentationSectionKind, Project, SettingValue, ValueSite,
@@ -623,17 +623,19 @@ fn asset_detail(asset: &MediaAsset, assets: Option<&AssetInventory>) -> String {
     )
 }
 
-fn sample_waveform_preview(asset: &crate::media::LoadedAsset) -> Option<String> {
+fn sample_waveform_preview(asset: &LoadedAsset) -> Option<String> {
     const POINTS: usize = 24;
     const LEVELS: [char; 9] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█', '▉'];
-    let samples = crate::engine::sample::decode_wav(asset).ok()?;
-    if samples.is_empty() {
+    let metadata = asset.metadata();
+    if metadata.frames == 0 {
         return None;
     }
+    let mut reader = hound::WavReader::new(Cursor::new(asset.bytes())).ok()?;
     let mut preview = String::with_capacity(POINTS);
     for point in 0..POINTS {
-        let index = point * samples.len() / POINTS;
-        let frame = samples[index.min(samples.len() - 1)];
+        let frame_index = u64::try_from(point).ok()?.saturating_mul(metadata.frames)
+            / u64::try_from(POINTS).ok()?;
+        let frame = preview_frame(&mut reader, metadata, frame_index)?;
         let sample = ((f64::from(frame[0]) + f64::from(frame[1])) * 0.5).clamp(-1.0, 1.0);
         let level = (((sample + 1.0) * 4.0).round() as usize).min(LEVELS.len() - 1);
         preview.push(LEVELS[level]);
@@ -642,18 +644,19 @@ fn sample_waveform_preview(asset: &crate::media::LoadedAsset) -> Option<String> 
 }
 
 fn waveform_preview(
-    asset: &crate::media::LoadedAsset,
+    asset: &LoadedAsset,
     definition: &crate::model::WavetableAssetDefinition,
 ) -> Option<String> {
     const POINTS: usize = 12;
     const FRAMES: usize = 8;
     const LEVELS: [char; 9] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█', '▉'];
-    let samples = crate::engine::sample::decode_wav(asset).ok()?;
-    let frame_length = usize::try_from(definition.frame_length).ok()?;
+    let metadata = asset.metadata();
+    let frame_length = u64::from(definition.frame_length);
     let frame_count = usize::from(definition.frames);
-    if samples.len() != frame_length.checked_mul(frame_count)? {
+    if metadata.frames != frame_length.checked_mul(u64::try_from(frame_count).ok()?)? {
         return None;
     }
+    let mut reader = hound::WavReader::new(Cursor::new(asset.bytes())).ok()?;
     let shown = frame_count.min(FRAMES);
     let mut preview = String::new();
     for frame in 0..shown {
@@ -661,8 +664,14 @@ fn waveform_preview(
             preview.push('│');
         }
         for point in 0..POINTS {
-            let local = point * frame_length / POINTS;
-            let sample = f64::from(samples[frame * frame_length + local][0]).clamp(-1.0, 1.0);
+            let local = u64::try_from(point).ok()?.saturating_mul(frame_length)
+                / u64::try_from(POINTS).ok()?;
+            let frame_index = u64::try_from(frame)
+                .ok()?
+                .saturating_mul(frame_length)
+                .saturating_add(local);
+            let sample =
+                f64::from(preview_frame(&mut reader, metadata, frame_index)?[0]).clamp(-1.0, 1.0);
             let level = (((sample + 1.0) * 4.0).round() as usize).min(LEVELS.len() - 1);
             preview.push(LEVELS[level]);
         }
@@ -671,6 +680,32 @@ fn waveform_preview(
         preview.push_str(&format!("│…+{}", frame_count - shown));
     }
     Some(preview)
+}
+
+fn preview_frame(
+    reader: &mut hound::WavReader<Cursor<&[u8]>>,
+    metadata: WavMetadata,
+    frame: u64,
+) -> Option<[f32; 2]> {
+    reader.seek(u32::try_from(frame).ok()?).ok()?;
+    let mut next_sample = || match metadata.sample_format {
+        WavSampleFormat::Integer => {
+            let sample = reader.samples::<i32>().next()?.ok()?;
+            let scale = 2.0_f64.powi(i32::from(metadata.bits_per_sample) - 1);
+            Some((f64::from(sample) / scale).clamp(-1.0, 1.0) as f32)
+        }
+        WavSampleFormat::Float => {
+            let sample = reader.samples::<f32>().next()?.ok()?;
+            sample.is_finite().then_some(sample)
+        }
+    };
+    let left = next_sample()?;
+    let right = if metadata.channels == 1 {
+        left
+    } else {
+        next_sample()?
+    };
+    Some([left, right])
 }
 
 fn node_section(kind: NodeKind, domain: GraphDomain) -> PresentationSectionKind {

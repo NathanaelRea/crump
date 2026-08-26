@@ -1,4 +1,6 @@
+use super::timeline::{TimelineCell, TimelineGridMark, TimelineWindow};
 use super::*;
+use ratatui::widgets::HighlightSpacing;
 
 pub(super) fn render(frame: &mut Frame<'_>, app: &Workspace) {
     let area = frame.area();
@@ -39,7 +41,7 @@ fn render_header(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         .bundle
         .project
         .as_ref()
-        .map_or("Unparseable Project", |project| project.name.as_str());
+        .map_or("Unparsable Project", |project| project.name.as_str());
     let candidate_state = if app.bundle.diagnostics.has_errors() {
         Span::styled(
             "INVALID CANDIDATE",
@@ -155,108 +157,346 @@ fn render_timeline(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         );
         return;
     };
-    let context_height = if project.song.locators.is_empty() && project.song.grooves.is_empty() {
-        0
-    } else {
+    let detail_height = if area.height >= 14 {
+        5
+    } else if area.height >= 10 {
         3
+    } else {
+        0
     };
     let regions = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(context_height), Constraint::Min(5)])
+        .constraints([Constraint::Min(5), Constraint::Length(detail_height)])
         .split(area);
-    if context_height > 0 {
-        let locators = project
-            .song
-            .locators
-            .iter()
-            .map(|locator| format!("{}={} ({})", locator.id, locator.at, locator.name))
-            .collect::<Vec<_>>()
-            .join("  ");
-        let grooves = project
-            .song
-            .grooves
-            .iter()
-            .map(|groove| groove.id.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
-        frame.render_widget(
-            Paragraph::new(format!(
-                "Locators: {}\nGrooves: {}",
-                if locators.is_empty() {
-                    "—"
-                } else {
-                    &locators
-                },
-                if grooves.is_empty() { "—" } else { &grooves }
-            ))
-            .block(
-                Block::default()
-                    .title(" Arrangement context ")
-                    .borders(Borders::ALL),
-            ),
-            regions[0],
-        );
+    let table_area = regions[0];
+    // Border (2), permanent selection symbol (2), and Table column spacing (1).
+    let available = table_area.width.saturating_sub(5);
+    let label_width = match available {
+        90.. => 28,
+        62.. => 22,
+        38.. => 16,
+        _ => available.saturating_div(2).max(6),
     }
+    .min(available);
+    let grid_width = available.saturating_sub(label_width);
+    let window = app.timeline_viewport.window(project.song.end);
+    let projection = app
+        .timeline_cache
+        .project(project, window, usize::from(grid_width));
+    let playhead = timeline_playhead_column(app, projection.window, usize::from(grid_width));
+    let ruler = timeline_ruler_line(&projection, playhead, app.timeline_ascii);
     let rows = project.song.tracks.iter().map(|track| {
-        let clips = track
-            .clips
+        let lane = projection
+            .lanes
             .iter()
-            .map(|clip| {
-                format!(
-                    "{}:{}+{} {:?} off={} tr={:+}st gain={:+.1}db fade={}/{}{}",
-                    clip.id,
-                    clip.start,
-                    clip.duration,
-                    clip.mode,
-                    clip.source_offset,
-                    clip.transpose_semitones,
-                    clip.gain_db,
-                    clip.fade_in,
-                    clip.fade_out,
-                    clip.groove
-                        .as_deref()
-                        .map_or_else(String::new, |groove| format!(" groove={groove}"))
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("  ");
-        Row::new(vec![
-            Cell::from(track.name.clone()),
-            Cell::from(track.instrument.clone()),
-            Cell::from(format!("{:.1} dB", track.channel.level_db)),
-            Cell::from(format!("{:+.2}", track.channel.panner.primary_position())),
-            Cell::from(clips),
-        ])
+            .find(|lane| lane.track_id == track.id);
+        let arrangement = lane.map_or_else(Line::default, |lane| {
+            Line::from(
+                lane.cells
+                    .iter()
+                    .enumerate()
+                    .map(|(column, cell)| {
+                        timeline_cell_span(
+                            *cell,
+                            projection.grid[column],
+                            projection.locator_columns.contains(&column),
+                            playhead == Some(column),
+                            app.timeline_ascii,
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        });
+        let summary = format!(
+            "{} · {:+.1}dB · {:+.2}",
+            track.name,
+            track.channel.level_db,
+            track.channel.panner.primary_position()
+        );
+        Row::new(vec![Cell::from(summary), Cell::from(arrangement)])
     });
-    let table = Table::new(
-        rows,
-        [
-            Constraint::Length(18),
-            Constraint::Length(14),
-            Constraint::Length(10),
-            Constraint::Length(8),
-            Constraint::Min(20),
-        ],
-    )
-    .header(
-        Row::new(["Track", "Instrument", "Level", "Pan", "Procedural Clips"])
+    let mode = if app.timeline_viewport.is_fit() {
+        "FIT".to_owned()
+    } else {
+        format!("{}×", app.timeline_viewport.zoom_factor())
+    };
+    let warning = app
+        .timeline_cache
+        .warning()
+        .map_or_else(String::new, |warning| format!(" · {warning}"));
+    let table = Table::new(rows, [Constraint::Length(label_width), Constraint::Min(1)])
+        .header(
+            Row::new(vec![
+                Cell::from(format!("Track · {mode}")),
+                Cell::from(ruler),
+            ])
             .style(Style::default().fg(Color::Cyan)),
-    )
-    .block(
-        Block::default()
-            .title(format!(
-                " Timeline · playhead {} · {} BPM · {} · end {} ",
-                transport_label(app),
-                project.song.tempo_bpm,
-                project.song.meter,
-                project.song.end
-            ))
-            .borders(Borders::ALL),
-    )
-    .row_highlight_style(selected_style())
-    .highlight_symbol("▶ ");
+        )
+        .block(
+            Block::default()
+                .title(format!(
+                    " Timeline · {}–{} · playhead {} · {} BPM · {}{} ",
+                    timeline_time_label(projection.window.start, project.song.meter),
+                    timeline_time_label(projection.window.end, project.song.meter),
+                    transport_label(app),
+                    project.song.tempo_bpm,
+                    project.song.meter,
+                    warning
+                ))
+                .borders(Borders::ALL),
+        )
+        .row_highlight_style(Style::default().add_modifier(Modifier::BOLD))
+        .highlight_symbol(if app.timeline_ascii { "> " } else { "▶ " })
+        .highlight_spacing(HighlightSpacing::Always);
     let mut state = TableState::default().with_selected(Some(app.selected_track));
-    frame.render_stateful_widget(table, regions[1], &mut state);
+    frame.render_stateful_widget(table, table_area, &mut state);
+
+    if detail_height > 0 {
+        render_timeline_details(frame, app, regions[1]);
+    }
+}
+
+fn timeline_cell_span(
+    cell: TimelineCell,
+    grid: TimelineGridMark,
+    locator: bool,
+    playhead: bool,
+    ascii: bool,
+) -> Span<'static> {
+    const UNICODE_LEVELS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    const ASCII_LEVELS: [char; 8] = ['.', ':', '-', '=', '+', '*', '#', '@'];
+    let levels = if ascii {
+        &ASCII_LEVELS
+    } else {
+        &UNICODE_LEVELS
+    };
+    let clip_edge = cell.clip_start || cell.clip_end;
+    let clip_background = if clip_edge && cell.clip_depth > 1 {
+        Some(Color::Rgb(76, 30, 76))
+    } else if clip_edge {
+        Some(Color::Rgb(18, 48, 72))
+    } else if cell.clip_depth > 1 {
+        Some(Color::Rgb(54, 24, 54))
+    } else if cell.clip_depth == 1 {
+        Some(Color::Rgb(12, 30, 48))
+    } else {
+        None
+    };
+    let edge_color = if cell.clip_depth > 1 {
+        Color::Magenta
+    } else {
+        Color::Blue
+    };
+    // Clip edges win over activity so every authored half-open range remains
+    // legible even when an onset lands at exactly the same position.
+    let (mut glyph, foreground) = if cell.clip_start && cell.clip_end {
+        (if ascii { '#' } else { '■' }, edge_color)
+    } else if cell.clip_start {
+        (if ascii { '[' } else { '▌' }, edge_color)
+    } else if cell.clip_end {
+        (if ascii { ']' } else { '▐' }, edge_color)
+    } else if cell.sample_active {
+        let level = ((cell.sample_peak.clamp(0.0, 1.0) * 7.0).ceil() as usize).min(7);
+        (levels[level], Color::Yellow)
+    } else if cell.activity > 0.0 {
+        let normalized = (cell.activity / (1.0 + cell.activity)).sqrt();
+        let level = ((normalized * 7.0).ceil() as usize).min(7);
+        (levels[level], Color::Cyan)
+    } else if cell.sustained > 0.0 {
+        (if ascii { '=' } else { '━' }, Color::Cyan)
+    } else if cell.clip_depth > 1 {
+        (if ascii { '#' } else { '▓' }, Color::Magenta)
+    } else if cell.clip_depth == 1 {
+        (if ascii { '-' } else { '─' }, Color::Blue)
+    } else if locator {
+        (if ascii { '^' } else { '◆' }, Color::Yellow)
+    } else {
+        match grid {
+            TimelineGridMark::Bar => (if ascii { '|' } else { '│' }, Color::DarkGray),
+            TimelineGridMark::Beat => (if ascii { ':' } else { '┊' }, Color::DarkGray),
+            TimelineGridMark::None => (' ', Color::Reset),
+        }
+    };
+    let mut style = Style::default().fg(foreground);
+    if let Some(background) = clip_background {
+        style = style.bg(background);
+    }
+    if playhead {
+        glyph = if ascii { '|' } else { '│' };
+        style = style
+            .fg(Color::White)
+            .bg(Color::Red)
+            .add_modifier(Modifier::BOLD);
+    }
+    Span::styled(glyph.to_string(), style)
+}
+
+fn timeline_ruler_line(
+    projection: &timeline::TimelineProjection,
+    playhead: Option<usize>,
+    ascii: bool,
+) -> Line<'static> {
+    let mut characters = projection.ruler.chars().collect::<Vec<_>>();
+    for (column, character) in characters.iter_mut().enumerate() {
+        if *character == ' ' {
+            *character = match projection.grid[column] {
+                TimelineGridMark::Bar => {
+                    if ascii {
+                        '|'
+                    } else {
+                        '│'
+                    }
+                }
+                TimelineGridMark::Beat => {
+                    if ascii {
+                        ':'
+                    } else {
+                        '┊'
+                    }
+                }
+                TimelineGridMark::None => ' ',
+            };
+        }
+    }
+    for column in &projection.locator_columns {
+        if let Some(character) = characters.get_mut(*column) {
+            *character = if ascii { '^' } else { '◆' };
+        }
+    }
+    if let Some(column) = playhead
+        && let Some(character) = characters.get_mut(column)
+    {
+        *character = if ascii { 'v' } else { '▼' };
+    }
+    Line::from(
+        characters
+            .into_iter()
+            .enumerate()
+            .map(|(column, character)| {
+                let style = if playhead == Some(column) {
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+                } else if projection.locator_columns.contains(&column) {
+                    Style::default().fg(Color::Yellow)
+                } else {
+                    Style::default().fg(Color::Cyan)
+                };
+                Span::styled(character.to_string(), style)
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+fn timeline_playhead_column(
+    app: &Workspace,
+    window: TimelineWindow,
+    columns: usize,
+) -> Option<usize> {
+    if columns == 0 || !app.candidate_is_audible() {
+        return None;
+    }
+    let project = app.bundle.publishable()?;
+    let start = window
+        .start
+        .to_frames(project.song.tempo_bpm, project.sample_rate)
+        .ok()?;
+    let end = window
+        .end
+        .to_frames(project.song.tempo_bpm, project.sample_rate)
+        .ok()?;
+    timeline::frame_column(app.telemetry.engine.frame, start, end, columns)
+}
+
+pub(super) fn timeline_time_label(
+    time: crate::time::MusicalTime,
+    meter: crate::time::Meter,
+) -> String {
+    let bar_length = meter
+        .bar_length()
+        .map_or(4.0, crate::time::MusicalTime::as_f64);
+    let beat_length = 4.0 / f64::from(meter.denominator.max(1));
+    let quarter_notes = time.as_f64();
+    let bar = (quarter_notes / bar_length).floor() as u64 + 1;
+    let beat = quarter_notes.rem_euclid(bar_length) / beat_length + 1.0;
+    format!("{bar}:{beat:.1}")
+}
+
+fn render_timeline_details(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
+    let Some(project) = app.bundle.project.as_ref() else {
+        return;
+    };
+    let Some(track) = project.song.tracks.get(app.selected_track) else {
+        return;
+    };
+    let clip_details = track
+        .clips
+        .iter()
+        .map(|clip| {
+            format!(
+                "{} {}+{} {:?} off={} tr={:+}st gain={:+.1}db fade={}/{}{}",
+                clip.id,
+                clip.start,
+                clip.duration,
+                clip.mode,
+                clip.source_offset,
+                clip.transpose_semitones,
+                clip.gain_db,
+                clip.fade_in,
+                clip.fade_out,
+                clip.groove
+                    .as_deref()
+                    .map_or_else(String::new, |groove| format!(" groove={groove}"))
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("  ");
+    let locators = project
+        .song
+        .locators
+        .iter()
+        .map(|locator| format!("{}={} ({})", locator.id, locator.at, locator.name))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let grooves = project
+        .song
+        .grooves
+        .iter()
+        .map(|groove| groove.id.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let context = format!(
+        "Locators: {} · Grooves: {}",
+        if locators.is_empty() {
+            "—"
+        } else {
+            &locators
+        },
+        if grooves.is_empty() { "—" } else { &grooves }
+    );
+    frame.render_widget(
+        Paragraph::new(vec![
+            Line::from(format!(
+                "{} · Instrument {} · {:.1} dB · pan {:+.2} · {} Clip{}",
+                track.name,
+                track.instrument,
+                track.channel.level_db,
+                track.channel.panner.primary_position(),
+                track.clips.len(),
+                if track.clips.len() == 1 { "" } else { "s" }
+            )),
+            Line::from(if clip_details.is_empty() {
+                "No arranged Clips".to_owned()
+            } else {
+                clip_details
+            }),
+            Line::from(context),
+        ])
+        .block(
+            Block::default()
+                .title(" Selected Track · blue Clip · cyan Event · yellow sample waveform · red playhead ")
+                .borders(Borders::ALL),
+        ),
+        area,
+    );
 }
 
 fn render_mixer(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
@@ -268,73 +508,71 @@ fn render_mixer(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         );
         return;
     };
-    let parameters = project.mix_parameter_specs();
-    let rows = parameters.iter().map(|(target, spec)| {
-        let identity = mixer_channel_identity(project, target);
-        let meter = identity
-            .as_ref()
-            .and_then(|identity| {
-                app.mix_channel_identities
-                    .iter()
-                    .position(|candidate| candidate == identity)
-            })
-            .filter(|index| *index < app.telemetry.engine.channel_count)
-            .map(|index| app.telemetry.engine.channel_activity[index]);
-        let muted = identity
-            .as_deref()
-            .and_then(mixer_mute_target)
-            .and_then(|target| project.parameter_spec(&target))
-            .is_some_and(|mute| mute.base >= 0.5);
-        let audition = identity.as_ref().map_or_else(
-            || "—".to_owned(),
-            |identity| {
-                format!(
-                    "{}{}{}",
-                    if muted { 'M' } else { '·' },
-                    if app.audition_plan.soloed_channels.contains(identity) {
-                        'S'
-                    } else {
-                        '·'
-                    },
-                    if app
-                        .audition_plan
-                        .cue
-                        .as_ref()
-                        .is_some_and(|cue| cue.channel == *identity)
-                    {
-                        'C'
-                    } else {
-                        '·'
-                    }
-                )
-            },
-        );
-        Row::new(vec![
-            Cell::from(target.to_string()),
-            Cell::from(spec.unit.format_value(spec.base)),
-            Cell::from(format!(
-                "{} … {}",
-                spec.unit.format_value(spec.minimum),
-                spec.unit.format_value(spec.maximum)
-            )),
-            Cell::from(
-                meter
-                    .map(|meter| format!("{:.3}", meter.current_peak))
-                    .unwrap_or_else(|| "—".to_owned()),
-            ),
-            Cell::from(
-                meter
-                    .map(|meter| format!("{:.3}", meter.average))
-                    .unwrap_or_else(|| "—".to_owned()),
-            ),
-            Cell::from(audition),
-            Cell::from(format!(
-                "{}/{}",
-                if spec.automatable { "A" } else { "·" },
-                if spec.modulatable { "M" } else { "·" }
-            )),
-        ])
-    });
+    let selected = app
+        .selected_mixer_parameter
+        .min(app.mixer_parameters.len().saturating_sub(1));
+    let row_capacity = usize::from(area.height.saturating_sub(3)).max(1);
+    let window = selection_window(app.mixer_parameters.len(), selected, row_capacity);
+    let rows = app.mixer_parameters[window.clone()]
+        .iter()
+        .map(|parameter| {
+            let target = &parameter.target;
+            let spec = &parameter.spec;
+            let identity = parameter.channel_identity.as_ref();
+            let meter = identity
+                .and_then(|identity| app.mix_channel_indexes.get(identity).copied())
+                .filter(|index| *index < app.telemetry.engine.channel_count)
+                .map(|index| app.telemetry.engine.channel_activity[index]);
+            let audition = identity.map_or_else(
+                || "—".to_owned(),
+                |identity| {
+                    format!(
+                        "{}{}{}",
+                        if parameter.muted { 'M' } else { '·' },
+                        if app.audition_plan.soloed_channels.contains(identity) {
+                            'S'
+                        } else {
+                            '·'
+                        },
+                        if app
+                            .audition_plan
+                            .cue
+                            .as_ref()
+                            .is_some_and(|cue| cue.channel == *identity)
+                        {
+                            'C'
+                        } else {
+                            '·'
+                        }
+                    )
+                },
+            );
+            Row::new(vec![
+                Cell::from(target.to_string()),
+                Cell::from(spec.unit.format_value(spec.base)),
+                Cell::from(format!(
+                    "{} … {}",
+                    spec.unit.format_value(spec.minimum),
+                    spec.unit.format_value(spec.maximum)
+                )),
+                Cell::from(
+                    meter
+                        .map(|meter| format!("{:.3}", meter.current_peak))
+                        .unwrap_or_else(|| "—".to_owned()),
+                ),
+                Cell::from(
+                    meter
+                        .map(|meter| format!("{:.3}", meter.average))
+                        .unwrap_or_else(|| "—".to_owned()),
+                ),
+                Cell::from(audition),
+                Cell::from(format!(
+                    "{}/{}",
+                    if spec.automatable { "A" } else { "·" },
+                    if spec.modulatable { "M" } else { "·" }
+                )),
+            ])
+        });
     let table = Table::new(
         rows,
         [
@@ -372,12 +610,13 @@ fn render_mixer(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     )
     .row_highlight_style(selected_style())
     .highlight_symbol("▶ ");
-    let mut state = TableState::default().with_selected(Some(app.selected_mixer_parameter));
+    let mut state = TableState::default()
+        .with_selected((!window.is_empty()).then_some(selected.saturating_sub(window.start)));
     frame.render_stateful_widget(table, area, &mut state);
 }
 
 fn render_processing(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
-    let Some(graph) = app.processing_graph.as_ref() else {
+    let Some(graph) = app.processing_graph() else {
         render_unavailable(
             frame,
             area,
@@ -433,7 +672,12 @@ fn render_processing(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         regions[0],
     );
 
-    let rows = graph.processors.iter().map(|processor| {
+    let selected = app
+        .selected_processor
+        .min(graph.processors.len().saturating_sub(1));
+    let row_capacity = usize::from(regions[1].height.saturating_sub(3)).max(1);
+    let window = selection_window(graph.processors.len(), selected, row_capacity);
+    let rows = graph.processors[window.clone()].iter().map(|processor| {
         let meter = (processor.index < app.telemetry.engine.processor_count)
             .then(|| app.telemetry.engine.processor_activity[processor.index]);
         let transient = app
@@ -539,7 +783,7 @@ fn render_processing(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     .row_highlight_style(selected_style())
     .highlight_symbol("▶ ");
     let mut state = TableState::default()
-        .with_selected((!graph.processors.is_empty()).then_some(app.selected_processor));
+        .with_selected((!window.is_empty()).then_some(selected.saturating_sub(window.start)));
     frame.render_stateful_widget(table, regions[1], &mut state);
 }
 
@@ -587,61 +831,70 @@ fn render_event_grid(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(5), Constraint::Length(context_height)])
         .split(area);
-    let rows = pattern.events.iter().enumerate().map(|(index, event)| {
-        let row = match event {
-            PatternEvent::Note {
-                at,
-                pitch,
-                duration,
-                velocity,
-                ..
-            } => Row::new(vec![
-                index.to_string(),
-                at.to_string(),
-                "note".to_owned(),
-                crate::model::format_pitch(*pitch),
-                duration.to_string(),
-                format!("{velocity:.2}"),
-            ]),
-            PatternEvent::Hit {
-                at,
-                voice,
-                velocity,
-                ..
-            } => Row::new(vec![
-                index.to_string(),
-                at.to_string(),
-                "hit".to_owned(),
-                format!("{voice:?}").to_lowercase(),
-                "—".to_owned(),
-                format!("{velocity:.2}"),
-            ]),
-            PatternEvent::Sample {
-                id,
-                at,
-                mapping,
-                duration,
-                velocity,
-                ..
-            } => Row::new(vec![
-                index.to_string(),
-                at.to_string(),
-                "sample".to_owned(),
-                format!("{id}:{mapping}"),
-                duration.to_string(),
-                format!("{velocity:.2}"),
-            ]),
-        };
-        if event_is_active(app, &pattern.id, event) {
-            row.style(
-                Style::default()
-                    .fg(Color::Green)
-                    .add_modifier(Modifier::BOLD),
-            )
-        } else {
-            row
-        }
-    });
+    let selected = app
+        .selected_event
+        .min(pattern.events.len().saturating_sub(1));
+    let row_capacity = usize::from(regions[0].height.saturating_sub(3)).max(1);
+    let window = selection_window(pattern.events.len(), selected, row_capacity);
+    let rows = pattern.events[window.clone()]
+        .iter()
+        .enumerate()
+        .map(|(offset, event)| {
+            let index = window.start + offset;
+            let row = match event {
+                PatternEvent::Note {
+                    at,
+                    pitch,
+                    duration,
+                    velocity,
+                    ..
+                } => Row::new(vec![
+                    index.to_string(),
+                    at.to_string(),
+                    "note".to_owned(),
+                    crate::model::format_pitch(*pitch),
+                    duration.to_string(),
+                    format!("{velocity:.2}"),
+                ]),
+                PatternEvent::Hit {
+                    at,
+                    voice,
+                    velocity,
+                    ..
+                } => Row::new(vec![
+                    index.to_string(),
+                    at.to_string(),
+                    "hit".to_owned(),
+                    format!("{voice:?}").to_lowercase(),
+                    "—".to_owned(),
+                    format!("{velocity:.2}"),
+                ]),
+                PatternEvent::Sample {
+                    id,
+                    at,
+                    mapping,
+                    duration,
+                    velocity,
+                    ..
+                } => Row::new(vec![
+                    index.to_string(),
+                    at.to_string(),
+                    "sample".to_owned(),
+                    format!("{id}:{mapping}"),
+                    duration.to_string(),
+                    format!("{velocity:.2}"),
+                ]),
+            };
+            if event_is_active(app, &pattern.id, event) {
+                row.style(
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                row
+            }
+        });
     let table = Table::new(
         rows,
         [
@@ -669,7 +922,8 @@ fn render_event_grid(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     )
     .row_highlight_style(selected_style())
     .highlight_symbol("▶ ");
-    let mut state = TableState::default().with_selected(Some(app.selected_event));
+    let mut state = TableState::default()
+        .with_selected((!window.is_empty()).then_some(selected.saturating_sub(window.start)));
     frame.render_stateful_widget(table, regions[0], &mut state);
     if context_height > 0 {
         frame.render_widget(
@@ -833,30 +1087,18 @@ fn render_instrument_sections(frame: &mut Frame<'_>, app: &Workspace, area: Rect
         .block(Block::default().borders(Borders::BOTTOM)),
         regions[1],
     );
-    let frame_position = app.telemetry.engine.frame;
-    let route_activity = crate::engine::control::CompiledControlProgram::compile(project)
-        .ok()
-        .map(|program| {
-            program
-                .snapshot_at(frame_position)
+    let (control_program, frame_position, live_control) = app.control_inspection();
+    let route_activity = control_program
+        .map(|inspector| {
+            inspector
+                .borrow_mut()
+                .snapshot_instrument_routes_at(frame_position, &instrument.id)
                 .into_iter()
-                .filter(|snapshot| {
-                    matches!(
-                        &snapshot.target,
-                        ParameterTarget::Instrument { instrument: owner, .. }
-                            if owner == &instrument.id
+                .map(|(unit, route)| {
+                    (
+                        route.route.clone(),
+                        instrument_modulation_route_label(&route, unit),
                     )
-                })
-                .flat_map(|snapshot| {
-                    snapshot
-                        .instrument_modulation_routes
-                        .into_iter()
-                        .map(move |route| {
-                            (
-                                route.route.clone(),
-                                instrument_modulation_route_label(&route, snapshot.unit),
-                            )
-                        })
                 })
                 .collect::<BTreeMap<_, _>>()
         })
@@ -865,7 +1107,17 @@ fn render_instrument_sections(frame: &mut Frame<'_>, app: &Workspace, area: Rect
         let detail = if row.kind == Some(PresentationItemKind::Route) {
             route_activity.get(&row.id).map_or_else(
                 || row.detail.clone(),
-                |activity| format!("{} · live {activity}", row.detail),
+                |activity| {
+                    format!(
+                        "{} · {} {activity}",
+                        row.detail,
+                        if live_control {
+                            "live"
+                        } else {
+                            "Candidate preview"
+                        }
+                    )
+                },
             )
         } else {
             row.detail.clone()
@@ -891,7 +1143,7 @@ fn render_instrument_sections(frame: &mut Frame<'_>, app: &Workspace, area: Rect
         Row::new([
             "Type",
             "Identity",
-            "Authoritative contract / live modulation activity",
+            "Authoritative contract / control activity",
             "Exact source",
         ])
         .style(Style::default().fg(Color::Cyan)),
@@ -916,22 +1168,29 @@ fn render_parameters(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         render_unavailable(frame, area, "No Instrument");
         return;
     };
-    let rows = instrument.parameters.iter().map(|parameter| {
-        Row::new(vec![
-            parameter.name.clone(),
-            parameter.key.clone(),
-            parameter.unit.to_string(),
-            parameter.unit.format_value(parameter.value),
-            format!(
-                "{} … {}",
-                parameter.unit.format_value(parameter.minimum),
-                parameter.unit.format_value(parameter.maximum)
-            ),
-            parameter.unit.format_value(parameter.default),
-            if parameter.automatable { "yes" } else { "no" }.to_owned(),
-            if parameter.modulatable { "yes" } else { "no" }.to_owned(),
-        ])
-    });
+    let selected = app
+        .selected_parameter
+        .min(instrument.parameters.len().saturating_sub(1));
+    let row_capacity = usize::from(area.height.saturating_sub(3)).max(1);
+    let window = selection_window(instrument.parameters.len(), selected, row_capacity);
+    let rows = instrument.parameters[window.clone()]
+        .iter()
+        .map(|parameter| {
+            Row::new(vec![
+                parameter.name.clone(),
+                parameter.key.clone(),
+                parameter.unit.to_string(),
+                parameter.unit.format_value(parameter.value),
+                format!(
+                    "{} … {}",
+                    parameter.unit.format_value(parameter.minimum),
+                    parameter.unit.format_value(parameter.maximum)
+                ),
+                parameter.unit.format_value(parameter.default),
+                if parameter.automatable { "yes" } else { "no" }.to_owned(),
+                if parameter.modulatable { "yes" } else { "no" }.to_owned(),
+            ])
+        });
     let table = Table::new(
         rows,
         [
@@ -965,7 +1224,8 @@ fn render_parameters(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     )
     .row_highlight_style(selected_style())
     .highlight_symbol("▶ ");
-    let mut state = TableState::default().with_selected(Some(app.selected_parameter));
+    let mut state = TableState::default()
+        .with_selected((!window.is_empty()).then_some(selected.saturating_sub(window.start)));
     frame.render_stateful_widget(table, area, &mut state);
 }
 
@@ -1015,15 +1275,12 @@ fn render_automation(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         .constraints([Constraint::Length(4), Constraint::Min(4)])
         .split(area);
     let spec = project.parameter_spec(&lane.target);
-    let frame_position = app.telemetry.engine.frame;
-    let snapshot = crate::engine::control::CompiledControlProgram::compile(project)
-        .ok()
-        .and_then(|program| {
-            program
-                .snapshot_at(frame_position)
-                .into_iter()
-                .find(|value| value.target == lane.target)
-        });
+    let (control_program, frame_position, live_control) = app.control_inspection();
+    let snapshot = control_program.and_then(|inspector| {
+        inspector
+            .borrow_mut()
+            .snapshot_target_at(frame_position, &lane.target)
+    });
     let base = spec.map_or_else(
         || "unresolved".to_owned(),
         |spec| spec.unit.format_value(spec.base),
@@ -1066,7 +1323,14 @@ fn render_automation(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
                 lane.location.file.display(),
                 lane.location.line
             )),
-            Line::from(format!("frame {frame_position}  {provenance}")),
+            Line::from(format!(
+                "{} frame {frame_position}  {provenance}",
+                if live_control {
+                    "live"
+                } else {
+                    "Candidate preview"
+                }
+            )),
         ])
         .block(
             Block::default()
@@ -1075,7 +1339,12 @@ fn render_automation(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         ),
         sections[0],
     );
-    let rows = lane.points.iter().map(|point| {
+    let selected = app
+        .selected_automation_point
+        .min(lane.points.len().saturating_sub(1));
+    let row_capacity = usize::from(sections[1].height.saturating_sub(3)).max(1);
+    let window = selection_window(lane.points.len(), selected, row_capacity);
+    let rows = lane.points[window.clone()].iter().map(|point| {
         Row::new(vec![
             Cell::from(point.id.clone()),
             Cell::from(point.at.to_string()),
@@ -1110,10 +1379,8 @@ fn render_automation(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     )
     .row_highlight_style(selected_style())
     .highlight_symbol("▶ ");
-    let mut state = TableState::default();
-    if !lane.points.is_empty() {
-        state.select(Some(app.selected_automation_point));
-    }
+    let mut state = TableState::default()
+        .with_selected((!window.is_empty()).then_some(selected.saturating_sub(window.start)));
     frame.render_stateful_widget(table, sections[1], &mut state);
 }
 
@@ -1127,9 +1394,7 @@ fn render_graph(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         return;
     };
     let body = if let Some(graph) = &instrument.graph {
-        let processing = app.player.is_some()
-            && app.candidate_is_active()
-            && app.telemetry.engine.active_voices > 0;
+        let processing = app.candidate_is_audible() && app.telemetry.engine.active_voices > 0;
         let selected = app.selected_graph_node;
         let node_order = graph_processing_node_indexes(instrument, graph);
         let bus_order = graph_processing_bus_indexes(graph, &node_order);
@@ -1212,7 +1477,7 @@ fn render_graph(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
 
         let voice_item_count = connection_offset + graph.connections.len();
         let shared_item_count = if let Some(shared) = &instrument.shared_graph {
-            let shared_processing = app.player.is_some() && app.candidate_is_active();
+            let shared_processing = app.candidate_is_audible();
             let shared_node_order = graph_processing_node_indexes(instrument, shared);
             let shared_bus_order = graph_processing_bus_indexes(shared, &shared_node_order);
             lines.push(Line::from(""));
@@ -1522,7 +1787,12 @@ fn render_diagnostics(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
 }
 
 fn render_history(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
-    let rows = app.history.iter().map(|entry| {
+    let selected = app
+        .selected_history
+        .min(app.history.len().saturating_sub(1));
+    let row_capacity = usize::from(area.height.saturating_sub(3)).max(1);
+    let window = selection_window(app.history.len(), selected, row_capacity);
+    let rows = app.history[window.clone()].iter().map(|entry| {
         let active = if app.active_entry.as_ref() == Some(&entry.id) {
             "●"
         } else {
@@ -1569,7 +1839,8 @@ fn render_history(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     )
     .row_highlight_style(selected_style())
     .highlight_symbol("▶ ");
-    let mut state = TableState::default().with_selected(Some(app.selected_history));
+    let mut state = TableState::default()
+        .with_selected((!window.is_empty()).then_some(selected.saturating_sub(window.start)));
     frame.render_stateful_widget(table, area, &mut state);
 }
 
@@ -1581,7 +1852,9 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from("1–9/0 views · H History · ? Help · Tab / Shift-Tab next/previous · ↑/↓ select"),
+        Line::from(
+            "1–9/0 views · H History · ? Help · F12 diagnostics · Tab / Shift-Tab · ↑/↓ select",
+        ),
         Line::from(
             "Space start/pause/resume exact Active Revision · S stop · P inspect/publish Candidate",
         ),
@@ -1593,7 +1866,7 @@ fn render_help(frame: &mut Frame<'_>, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(
-            "Timeline: ←/→ level ±1 dB · Enter/l exact level · p exact pan · A Track audition",
+            "Timeline: +/- zoom · ,/. pan · Home fit · ←/→ level · Enter/l exact · p pan · A audition",
         ),
         Line::from(
             "Processing: A target · a path · F exact range · L loop · b transient/B durable bypass",
@@ -1662,15 +1935,21 @@ fn render_footer(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         .direction(Direction::Horizontal)
         .constraints([Constraint::Min(20), Constraint::Length(24)])
         .split(area);
+    let mut status = vec![Line::from(vec![
+        Span::styled(" ", Style::default().bg(Color::Cyan)),
+        Span::styled(
+            format!(" {} ", app.status),
+            Style::default().fg(Color::White),
+        ),
+    ])];
+    if let Some(performance) = app.performance.footer() {
+        status.push(Line::from(Span::styled(
+            format!(" {performance}"),
+            Style::default().fg(Color::DarkGray),
+        )));
+    }
     frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(" ", Style::default().bg(Color::Cyan)),
-            Span::styled(
-                format!(" {} ", app.status),
-                Style::default().fg(Color::White),
-            ),
-        ]))
-        .block(Block::default().borders(Borders::TOP)),
+        Paragraph::new(status).block(Block::default().borders(Borders::TOP)),
         horizontal[0],
     );
     frame.render_widget(
@@ -1764,6 +2043,16 @@ fn render_unavailable(frame: &mut Frame<'_>, area: Rect, message: &str) {
     );
 }
 
+fn selection_window(total: usize, selected: usize, capacity: usize) -> std::ops::Range<usize> {
+    if total == 0 {
+        return 0..0;
+    }
+    let capacity = capacity.max(1).min(total);
+    let selected = selected.min(total - 1);
+    let start = selected.saturating_sub(capacity / 2).min(total - capacity);
+    start..start + capacity
+}
+
 fn selected_style() -> Style {
     Style::default()
         .fg(Color::Black)
@@ -1792,7 +2081,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 
 #[cfg(test)]
 mod tests {
-    use super::instrument_modulation_route_label;
+    use super::{instrument_modulation_route_label, selection_window};
     use crate::{
         engine::control::InstrumentModulationValueSnapshot,
         model::{InstrumentModulationScope, Unit},
@@ -1810,6 +2099,16 @@ mod tests {
             depth: 0.5,
             contribution: (scope == InstrumentModulationScope::Global).then_some(0.25),
         }
+    }
+
+    #[test]
+    fn selection_windows_are_bounded_and_keep_the_selection_visible() {
+        assert_eq!(selection_window(0, 0, 10), 0..0);
+        assert_eq!(selection_window(4, 3, 10), 0..4);
+        assert_eq!(selection_window(100, 0, 10), 0..10);
+        assert_eq!(selection_window(100, 50, 10), 45..55);
+        assert_eq!(selection_window(100, 99, 10), 90..100);
+        assert_eq!(selection_window(100, usize::MAX, 10), 90..100);
     }
 
     #[test]

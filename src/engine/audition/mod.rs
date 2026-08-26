@@ -23,6 +23,7 @@ pub use publication::{
 
 use super::{
     CompiledProject, EngineError, ProcessorMeter, RuntimeTelemetry, SongRuntime,
+    control::CompiledControlProgram,
     mix_graph::{CompiledProcessorInspection, MixGraphInspection},
     sample::{CompiledSampleLibrary, CompiledSampleSource},
 };
@@ -223,6 +224,7 @@ pub struct PreparedAudition {
     runtime: SongRuntime,
     status: AuditionStatus,
     mix_graph: MixGraphInspection,
+    control_program: CompiledControlProgram,
     transient_bypass: BTreeMap<String, bool>,
 }
 
@@ -243,6 +245,12 @@ impl PreparedAudition {
     #[must_use]
     pub const fn mix_graph_inspection(&self) -> &MixGraphInspection {
         &self.mix_graph
+    }
+
+    /// Compiled control inspection aligned with this exact prepared revision.
+    #[must_use]
+    pub const fn control_program(&self) -> &CompiledControlProgram {
+        &self.control_program
     }
 
     /// Unified inspection at the prepared frame.
@@ -496,6 +504,7 @@ impl AuditionPlan {
             runtime,
             status,
             mix_graph: compiled.mix_graph_inspection().clone(),
+            control_program: compiled.control_program().clone(),
             transient_bypass: self.transient_bypass.clone(),
         })
     }

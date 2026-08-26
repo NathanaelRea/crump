@@ -477,29 +477,81 @@ impl CompiledControlProgram {
     /// Creates preallocated mutable effective-value state.
     #[must_use]
     pub(crate) fn runtime(&self) -> ControlRuntime {
+        self.clone().into_runtime()
+    }
+
+    fn into_runtime(self) -> ControlRuntime {
+        let target_count = self.targets.len();
+        let route_count = self.instrument_routes.len();
         let effective = self
             .targets
             .iter()
             .map(|target| target.base.clamp(target.minimum, target.maximum))
             .collect::<Vec<_>>();
         ControlRuntime {
-            program: self.clone(),
+            program: self,
             transition_origin: effective.clone(),
             pre_instrument_unconstrained: effective.clone(),
             instrument_unconstrained: effective.clone(),
-            song_modulation: vec![0.0; self.targets.len()],
+            song_modulation: vec![0.0; target_count],
             unconstrained: effective.clone(),
             effective,
-            modulation: vec![0.0; self.targets.len()],
-            provenance: vec![RuntimeProvenance::default(); self.targets.len()],
-            instrument_route_values: vec![
-                RuntimeInstrumentRouteValue::default();
-                self.instrument_routes.len()
-            ],
-            transition_changed: vec![false; self.targets.len()],
+            modulation: vec![0.0; target_count],
+            provenance: vec![RuntimeProvenance::default(); target_count],
+            instrument_route_values: vec![RuntimeInstrumentRouteValue::default(); route_count],
+            transition_changed: vec![false; target_count],
             transition_position: 0,
             transition_frames: 0,
             apply_parameter_locks: false,
+        }
+    }
+
+    /// Consumes this immutable program into a reusable off-callback inspector.
+    #[must_use]
+    pub fn into_inspector(self) -> ControlInspector {
+        let mut instrument_targets = BTreeMap::<String, Vec<InspectorInstrumentTarget>>::new();
+        for (target_index, target) in self.targets.iter().enumerate() {
+            let ParameterTarget::Instrument { instrument, .. } = &target.target else {
+                continue;
+            };
+            let index = ControlIndex(target_index);
+            instrument_targets
+                .entry(instrument.clone())
+                .or_default()
+                .push(InspectorInstrumentTarget {
+                    target_index,
+                    routes: {
+                        let mut routes = self
+                            .instrument_routes
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(route_index, route)| {
+                                (route.target == index)
+                                    .then_some(InspectorInstrumentRoute::Global(route_index))
+                            })
+                            .chain(self.instrument_local_routes.iter().enumerate().filter_map(
+                                |(route_index, route)| {
+                                    (route.target == index)
+                                        .then_some(InspectorInstrumentRoute::Local(route_index))
+                                },
+                            ))
+                            .collect::<Vec<_>>();
+                        routes.sort_by(|left, right| {
+                            let left = left.route(&self);
+                            let right = right.route(&self);
+                            left.order
+                                .cmp(&right.order)
+                                .then_with(|| left.id.cmp(&right.id))
+                        });
+                        routes
+                    },
+                });
+        }
+        let mut runtime = self.into_runtime();
+        runtime.apply_parameter_locks = true;
+        ControlInspector {
+            runtime,
+            instrument_targets,
         }
     }
 
@@ -555,6 +607,129 @@ impl CompiledControlProgram {
                 }
             })
             .collect()
+    }
+}
+
+/// Reusable off-callback evaluator for targeted control inspection.
+#[derive(Debug, Clone)]
+pub struct ControlInspector {
+    runtime: ControlRuntime,
+    instrument_targets: BTreeMap<String, Vec<InspectorInstrumentTarget>>,
+}
+
+#[derive(Debug, Clone)]
+struct InspectorInstrumentTarget {
+    target_index: usize,
+    routes: Vec<InspectorInstrumentRoute>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum InspectorInstrumentRoute {
+    Global(usize),
+    Local(usize),
+}
+
+impl InspectorInstrumentRoute {
+    fn route<'a>(&self, program: &'a CompiledControlProgram) -> &'a CompiledInstrumentRoute {
+        match *self {
+            Self::Global(index) => &program.instrument_routes[index],
+            Self::Local(index) => &program.instrument_local_routes[index],
+        }
+    }
+}
+
+impl ControlInspector {
+    /// Evaluates one exact target without materializing every Project target.
+    pub fn snapshot_target_at(
+        &mut self,
+        frame: u64,
+        target: &ParameterTarget,
+    ) -> Option<ControlValueSnapshot> {
+        self.evaluate(frame);
+        let index = self.runtime.program.indexes.get(target)?.0;
+        Some(self.snapshot_index(frame, index))
+    }
+
+    /// Evaluates only Instrument-owned routes for the requested Instrument.
+    pub fn snapshot_instrument_routes_at(
+        &mut self,
+        frame: u64,
+        instrument: &str,
+    ) -> Vec<(Unit, InstrumentModulationValueSnapshot)> {
+        self.evaluate(frame);
+        let program = &self.runtime.program;
+        let Some(targets) = self.instrument_targets.get(instrument) else {
+            return Vec::new();
+        };
+        let route_count = targets.iter().map(|target| target.routes.len()).sum();
+        let mut snapshots = Vec::with_capacity(route_count);
+        for target_routes in targets {
+            let target = &program.targets[target_routes.target_index];
+            snapshots.extend(target_routes.routes.iter().map(|route_index| {
+                let route = route_index.route(program);
+                let value = match *route_index {
+                    InspectorInstrumentRoute::Global(index) => {
+                        Some(self.runtime.instrument_route_values[index])
+                    }
+                    InspectorInstrumentRoute::Local(_) => None,
+                };
+                (target.unit, route.snapshot(value))
+            }));
+        }
+        snapshots
+    }
+
+    fn evaluate(&mut self, frame: u64) {
+        self.runtime
+            .effective
+            .copy_from_slice(&self.runtime.transition_origin);
+        self.runtime.evaluate_frame(frame);
+    }
+
+    fn snapshot_index(&self, frame: u64, index: usize) -> ControlValueSnapshot {
+        let program = &self.runtime.program;
+        let target = &program.targets[index];
+        let provenance = self.runtime.provenance[index];
+        let mut instrument_modulation_routes = program
+            .instrument_routes
+            .iter()
+            .enumerate()
+            .filter(|(_, route)| route.target == ControlIndex(index))
+            .map(|(route_index, route)| {
+                route.snapshot(Some(self.runtime.instrument_route_values[route_index]))
+            })
+            .chain(
+                program
+                    .instrument_local_routes
+                    .iter()
+                    .filter(|route| route.target == ControlIndex(index))
+                    .map(|route| route.snapshot(None)),
+            )
+            .collect::<Vec<_>>();
+        instrument_modulation_routes.sort_by(|left, right| {
+            left.order
+                .cmp(&right.order)
+                .then_with(|| left.route.cmp(&right.route))
+        });
+        ControlValueSnapshot {
+            target: target.target.clone(),
+            unit: target.unit,
+            frame,
+            base: target.base,
+            automation: provenance.automation,
+            parameter_lock: provenance.parameter_lock,
+            modulation: provenance.modulation,
+            modulation_routes: target
+                .routes
+                .iter()
+                .map(|route| route.snapshot(frame))
+                .collect(),
+            instrument_modulation_routes,
+            unconstrained: provenance.unconstrained,
+            effective: self.runtime.effective[index],
+            clamped: provenance.clamped,
+            held_non_finite: provenance.held_non_finite,
+        }
     }
 }
 
@@ -2156,6 +2331,57 @@ project "Control" {
         assert_eq!(snapshot.automation, Some(-15.0));
         assert_eq!(snapshot.effective, -15.0);
         assert!(!snapshot.clamped);
+    }
+
+    #[test]
+    fn targeted_inspector_matches_fresh_whole_program_snapshots_across_seeks() {
+        let project = project();
+        let program = CompiledControlProgram::compile(&project).expect("compile controls");
+        let target = ParameterTarget::Track {
+            track: "drums".to_owned(),
+            parameter: crate::model::TrackParameter::Level,
+        };
+        let mut inspector = program.clone().into_inspector();
+        for frame in [24_000, 0, 48_000, 12_000] {
+            let expected = program
+                .snapshot_at(frame)
+                .into_iter()
+                .find(|snapshot| snapshot.target == target)
+                .expect("whole-program target");
+            let actual = inspector
+                .snapshot_target_at(frame, &target)
+                .expect("targeted snapshot");
+            assert_eq!(actual, expected);
+        }
+    }
+
+    #[test]
+    fn indexed_instrument_route_inspection_matches_whole_program_snapshot() {
+        let source = include_str!("../../tests/fixtures/instrument_modulation.crump");
+        let document = parse_project(Path::new("project.crump"), source);
+        let project = document.project.expect("instrument modulation Project");
+        let diagnostics = validate_project(&project);
+        assert!(!diagnostics.has_errors(), "{:?}", diagnostics.as_slice());
+        let program = CompiledControlProgram::compile(&project).expect("compile controls");
+        let frame = 12_345;
+        let expected = program
+            .snapshot_at(frame)
+            .into_iter()
+            .filter_map(|snapshot| match snapshot.target {
+                ParameterTarget::Instrument { instrument, .. } if instrument == "lead" => Some(
+                    snapshot
+                        .instrument_modulation_routes
+                        .into_iter()
+                        .map(move |route| (snapshot.unit, route)),
+                ),
+                _ => None,
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+        let actual = program
+            .into_inspector()
+            .snapshot_instrument_routes_at(frame, "lead");
+        assert_eq!(actual, expected);
     }
 
     #[test]

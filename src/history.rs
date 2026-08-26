@@ -9,23 +9,23 @@ use std::{
 };
 
 use fs2::FileExt;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use similar::{ChangeTag, TextDiff};
-use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 #[cfg(test)]
 use crate::project::load_project_sources;
 use crate::{
     diagnostic::Diagnostic,
     media::{
-        AssetInventory, AssetReadError, MAX_MEDIA_ASSET_BYTES, MAX_MEDIA_ASSETS,
-        MAX_PROJECT_MEDIA_BYTES, read_project_asset_bytes, read_regular_asset_bytes,
-        valid_asset_path, valid_sha256,
+        read_project_asset_bytes, read_regular_asset_bytes, valid_asset_path, valid_sha256,
+        AssetInventory, AssetReadError, MAX_MEDIA_ASSETS, MAX_MEDIA_ASSET_BYTES,
+        MAX_PROJECT_MEDIA_BYTES,
     },
     project::{
-        MAX_PROJECT_SOURCE_BYTES, MAX_SOURCE_BYTES, PROJECT_FILE, ProjectBundle, RevisionId,
-        hash_project_identity, load_project, load_project_sources_with_assets,
+        hash_project_identity, load_project, load_project_sources_with_assets, ProjectBundle,
+        RevisionId, MAX_PROJECT_SOURCE_BYTES, MAX_SOURCE_BYTES, PROJECT_FILE,
     },
 };
 
@@ -284,20 +284,22 @@ impl HistoryStore {
     }
 
     /// Returns the current Active Revision pointer.
+    ///
+    /// This validates committed entry and snapshot metadata. Exact historical
+    /// asset bytes are verified only when an operation consumes the snapshot.
     pub fn active_state(&self) -> Result<Option<ActiveState>, HistoryError> {
         let state: Option<ActiveState> = read_json_optional(&self.metadata.join(STATE_FILE))?;
         let Some(state) = state else {
             return Ok(None);
         };
         validate_state_identity(&state)?;
-        let entry = self.entry(&state.active_entry)?;
+        let entry = self.entry_metadata(&state.active_entry)?;
         if entry.revision != state.active_revision {
             return Err(HistoryError::Corrupt(format!(
                 "Active state revision {} does not match entry {} revision {}",
                 state.active_revision, state.active_entry, entry.revision
             )));
         }
-        self.snapshot(&state.active_revision)?;
         Ok(Some(state))
     }
 
@@ -306,7 +308,7 @@ impl HistoryStore {
         let Some(state) = self.active_state()? else {
             return Ok(None);
         };
-        let snapshot = self.snapshot(&state.active_revision)?;
+        let snapshot = self.snapshot_metadata(&state.active_revision)?;
         let asset_bytes = self.snapshot_asset_bytes(&snapshot)?;
         let bundle =
             load_project_sources_with_assets(self.root.clone(), snapshot.sources, &asset_bytes);
@@ -336,14 +338,23 @@ impl HistoryStore {
     }
 
     /// Lists every committed entry in sequence order.
+    ///
+    /// Listing verifies entry and snapshot metadata without rereading immutable
+    /// content-addressed asset blobs for every historical entry.
     pub fn list(&self) -> Result<Vec<HistoryEntry>, HistoryError> {
         let mut ids = committed_ids(&self.metadata)?;
         ids.sort();
-        ids.into_iter().map(|id| self.entry(&id)).collect()
+        ids.into_iter().map(|id| self.entry_metadata(&id)).collect()
     }
 
-    /// Reads one committed entry.
+    /// Reads one committed entry and verifies its referenced asset blobs.
     pub fn entry(&self, id: &str) -> Result<HistoryEntry, HistoryError> {
+        let entry = self.entry_metadata(id)?;
+        self.snapshot(&entry.revision)?;
+        Ok(entry)
+    }
+
+    fn entry_metadata(&self, id: &str) -> Result<HistoryEntry, HistoryError> {
         if !valid_entry_id(id) {
             return Err(HistoryError::UnknownEntry(id.to_owned()));
         }
@@ -367,18 +378,18 @@ impl HistoryStore {
         }
         let entry: HistoryEntry = read_json(&self.entry_path(id))?;
         validate_entry_identity(&entry, id)?;
-        self.snapshot(&entry.revision)?;
+        self.snapshot_metadata(&entry.revision)?;
         Ok(entry)
     }
 
     /// Produces an exact unified source diff against an entry's parent.
     pub fn diff(&self, id: &str) -> Result<String, HistoryError> {
-        let entry = self.entry(id)?;
-        let after = self.snapshot(&entry.revision)?;
+        let entry = self.entry_metadata(id)?;
+        let after = self.snapshot_metadata(&entry.revision)?;
         let before = match &entry.parent {
             Some(parent) => {
-                let parent = self.entry(parent)?;
-                Some(self.snapshot(&parent.revision)?)
+                let parent = self.entry_metadata(parent)?;
+                Some(self.snapshot_metadata(&parent.revision)?)
             }
             None => None,
         };
@@ -392,8 +403,8 @@ impl HistoryStore {
         origin: ChangeOrigin,
         explanation: impl Into<String>,
     ) -> Result<HistoryEntry, HistoryError> {
-        let target = self.entry(target_id)?;
-        let snapshot = self.snapshot(&target.revision)?;
+        let target = self.entry_metadata(target_id)?;
+        let snapshot = self.snapshot_metadata(&target.revision)?;
         let asset_bytes = self.snapshot_asset_bytes(&snapshot)?;
         let previous = load_project(&self.root).map_err(HistoryError::Project)?;
         let target_bundle = load_project_sources_with_assets(
@@ -550,6 +561,12 @@ impl HistoryStore {
     }
 
     fn snapshot(&self, revision: &RevisionId) -> Result<SourceSnapshot, HistoryError> {
+        let snapshot = self.snapshot_metadata(revision)?;
+        self.snapshot_asset_bytes(&snapshot)?;
+        Ok(snapshot)
+    }
+
+    fn snapshot_metadata(&self, revision: &RevisionId) -> Result<SourceSnapshot, HistoryError> {
         validate_revision_id(revision)?;
         let snapshot: SourceSnapshot = read_json(&self.snapshot_path(revision))?;
         if snapshot.revision != *revision {
@@ -558,7 +575,6 @@ impl HistoryStore {
             )));
         }
         validate_snapshot_integrity(&snapshot)?;
-        self.snapshot_asset_bytes(&snapshot)?;
         Ok(snapshot)
     }
 
@@ -2008,14 +2024,12 @@ project "History" {
                 Publication::new(ChangeOrigin::human("test"), "Second media", "replace"),
             )
             .expect("publish second");
-        assert!(
-            second_entry
-                .changes
-                .iter()
-                .any(|change| change.path == Path::new("media/voice.wav")
-                    && change.kind == SourceChangeKind::Modified
-                    && change.changed_lines == 0)
-        );
+        assert!(second_entry
+            .changes
+            .iter()
+            .any(|change| change.path == Path::new("media/voice.wav")
+                && change.kind == SourceChangeKind::Modified
+                && change.changed_lines == 0));
         let diff = store.diff(&second_entry.id).expect("binary diff");
         assert!(diff.contains("binary media/voice.wav: sha256"));
         assert!(diff.contains("bytes) -> sha256"));
@@ -2098,6 +2112,12 @@ project "History" {
             b"tampered",
         )
         .expect("tamper blob");
+        assert!(store.active_state().expect("metadata state").is_some());
+        assert_eq!(store.list().expect("metadata list").len(), 1);
+        assert!(matches!(
+            store.entry("000000000001"),
+            Err(HistoryError::Corrupt(_))
+        ));
         assert!(matches!(
             store.active_bundle(),
             Err(HistoryError::Corrupt(_))
@@ -2471,13 +2491,11 @@ project "History" {
 
         let _recovered = HistoryStore::open(directory.path()).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), SOURCE);
-        assert!(
-            !directory
-                .path()
-                .join(METADATA_DIR)
-                .join(SOURCE_TRANSACTION_FILE)
-                .exists()
-        );
+        assert!(!directory
+            .path()
+            .join(METADATA_DIR)
+            .join(SOURCE_TRANSACTION_FILE)
+            .exists());
     }
 
     #[test]
@@ -2612,12 +2630,10 @@ instrument shared "Shared" stock_drums {
         let recovered = HistoryStore::open(directory.path()).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), changed);
         assert_eq!(recovered.list().unwrap().len(), 2);
-        assert!(
-            !directory
-                .path()
-                .join(METADATA_DIR)
-                .join(SOURCE_TRANSACTION_FILE)
-                .exists()
-        );
+        assert!(!directory
+            .path()
+            .join(METADATA_DIR)
+            .join(SOURCE_TRANSACTION_FILE)
+            .exists());
     }
 }

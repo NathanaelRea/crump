@@ -70,7 +70,7 @@ Routed LFOs and the channel-tap Envelope Follower are available Modulation sourc
 
 ## Workspace and CLI
 
-The terminal workspace provides keyboard operation for Timeline, Event Grid, Faceplate, Parameters, Automation, Processing, Graph, Source, Diagnostics, and History views. Exact value entry and source navigation are available without pointer input. Graph topology editing remains source-based; the Graph view inspects nodes, connections, Parameters, mappings, and source locations.
+The terminal workspace provides keyboard operation for Timeline, Event Grid, Faceplate, Parameters, Automation, Processing, Graph, Source, Diagnostics, and History views. Timeline provides a fit/zoom whole-Song arrangement grid with authored Clip ranges, canonically materialized note/hit activity, Locators, playhead, and exact-asset source-waveform envelopes for sampler occurrences; it does not imply Media Track or post-processor waveform state. Exact value entry and source navigation are available without pointer input. Graph topology editing remains source-based; the Graph view inspects nodes, connections, Parameters, mappings, and source locations.
 
 The CLI provides validation, inspection, status, publication, checked edits, playback, rendering, offline workload measurement, asset operations, module operations, and History operations. Non-interactive commands accept `--json` and emit one versioned response containing `schema_version`, `ok`, `command`, and either `data` or `error`. The interactive workspace rejects `--json`.
 
