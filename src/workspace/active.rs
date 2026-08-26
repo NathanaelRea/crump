@@ -33,6 +33,7 @@ pub(super) struct ActiveRequest {
     pub(super) plan: AuditionPlan,
     pub(super) telemetry: RuntimeTelemetry,
     pub(super) previous_status: Option<AuditionStatus>,
+    pub(super) initial_frame: Option<u64>,
     pub(super) explicit_seek: bool,
     pub(super) mode: ActiveMode,
 }
@@ -44,6 +45,8 @@ pub(super) struct PreparedActiveInspection {
     pub(super) control_inspector: ControlInspector,
     pub(super) mix_channel_indexes: BTreeMap<String, usize>,
     pub(super) range_moved: bool,
+    pub(super) requested_initial_frame: Option<u64>,
+    pub(super) requested_explicit_seek: bool,
 }
 
 pub(super) enum PreparedActiveMode {
@@ -74,6 +77,7 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
         plan,
         telemetry,
         previous_status,
+        initial_frame,
         explicit_seek,
         mode,
     } = request;
@@ -93,7 +97,7 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
     let previous_range = previous_status
         .as_ref()
         .map(|status| (status.start_frame, status.end_frame));
-    let initial_range_offset = if explicit_seek {
+    let initial_range_offset = if explicit_seek || initial_frame.is_some() {
         None
     } else {
         previous_status.as_ref().map(|status| {
@@ -113,7 +117,7 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
         project,
         &active.assets,
         AuditionPrepareOptions {
-            initial_frame: None,
+            initial_frame,
             initial_range_offset,
             explicit_seek,
         },
@@ -142,6 +146,8 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
         processing_graph,
         control_inspector: prepared.control_program().clone().into_inspector(),
         mix_channel_indexes,
+        requested_initial_frame: initial_frame,
+        requested_explicit_seek: explicit_seek,
     };
     let runtime = prepared.into_runtime();
     let mode = match mode {

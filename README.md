@@ -59,11 +59,13 @@ crump
 Inside the workspace:
 
 - `Space` starts, pauses, or resumes the exact Active Revision; `S` stops.
-- `1`–`9` and `0` select Timeline through Diagnostics.
-- `Tab` and `Shift-Tab` move between views.
-- Arrow keys select and make bounded source-backed adjustments.
+- `1`–`9` and `0` select Timeline through Source; Tab reaches Diagnostics, History, and Help.
+- `Tab` / `Shift-Tab` or `gt` / `gT` move between views.
+- `j` / `k` or arrow keys navigate; Timeline `h` / `l` seeks on an exact musical grid.
+- Timeline `V` selects a half-open range, `L` loops it, `/` searches, and `:` jumps to bars, beats, Locators, or relative musical durations.
+- Press `i` in an Instrument-related view for explicit Note Audition mode; `Esc` returns to Normal mode.
 - `Enter` accepts an exact value; `P` publishes a valid Candidate.
-- `?` shows keyboard help; `q` exits.
+- `?` shows keyboard help. `Ctrl-C` is the only workspace and interactive-playback exit shortcut; `q` and `Esc` never exit.
 
 The starter Project is silent. From the repository root, copy [`fixtures/reference/`](fixtures/reference/) to exercise a complete synthesized arrangement:
 

@@ -1,6 +1,6 @@
 use super::timeline::{TimelineCell, TimelineGridMark, TimelineWindow};
 use super::*;
-use ratatui::widgets::HighlightSpacing;
+use ratatui::widgets::{HighlightSpacing, ListState};
 
 pub(super) fn render(frame: &mut Frame<'_>, app: &Workspace) {
     let area = frame.area();
@@ -28,7 +28,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &Workspace) {
         View::Source => render_source(frame, app, regions[2]),
         View::Diagnostics => render_diagnostics(frame, app, regions[2]),
         View::History => render_history(frame, app, regions[2]),
-        View::Help => render_help(frame, regions[2]),
+        View::Help => render_help(frame, app, regions[2]),
     }
     render_footer(frame, app, regions[3]);
     if let Some(modal) = &app.modal {
@@ -102,6 +102,13 @@ fn render_header(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
             app.audition_plan.path
         )
     };
+    let input_mode = if app.note_mode {
+        "  NOTE MODE"
+    } else if app.timeline_state.visual() && app.view == View::Timeline {
+        "  RANGE MODE"
+    } else {
+        ""
+    };
     let line = Line::from(vec![
         Span::styled(
             format!(" CRUMP · {project_name}  "),
@@ -111,7 +118,7 @@ fn render_header(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         ),
         candidate_state,
         Span::raw(format!(
-            "  C:{}  A:{}  │{}",
+            "  C:{}  A:{}{input_mode}  │{}",
             short_revision(&app.bundle.revision),
             short_optional(app.active_revision.as_ref()),
             audio
@@ -183,8 +190,11 @@ fn render_timeline(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     let projection = app
         .timeline_cache
         .project(project, window, usize::from(grid_width));
-    let playhead = timeline_playhead_column(app, projection.window, usize::from(grid_width));
-    let ruler = timeline_ruler_line(&projection, playhead, app.timeline_ascii);
+    let columns = usize::from(grid_width);
+    let playhead = timeline_playhead_column(app, projection.window, columns);
+    let cursor = timeline_cursor_column(app, projection.window, columns);
+    let visual_range = timeline_visual_columns(app, projection.window, columns);
+    let ruler = timeline_ruler_line(&projection, playhead, cursor, app.timeline_ascii);
     let rows = project.song.tracks.iter().map(|track| {
         let lane = projection
             .lanes
@@ -200,6 +210,9 @@ fn render_timeline(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
                             *cell,
                             projection.grid[column],
                             projection.locator_columns.contains(&column),
+                            visual_range
+                                .is_some_and(|(start, end)| start <= column && column < end),
+                            cursor == Some(column),
                             playhead == Some(column),
                             app.timeline_ascii,
                         )
@@ -220,6 +233,17 @@ fn render_timeline(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     } else {
         format!("{}×", app.timeline_viewport.zoom_factor())
     };
+    let interaction = if app.timeline_state.visual() {
+        "RANGE"
+    } else {
+        "NORMAL"
+    };
+    let cursor_label = timeline_time_label(app.timeline_position().at, project.song.meter);
+    let follow = if app.timeline_state.follow_playhead() {
+        " · FOLLOW"
+    } else {
+        ""
+    };
     let warning = app
         .timeline_cache
         .warning()
@@ -235,7 +259,8 @@ fn render_timeline(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         .block(
             Block::default()
                 .title(format!(
-                    " Timeline · {}–{} · playhead {} · {} BPM · {}{} ",
+                    " Timeline · {interaction} · cursor {cursor_label} · grid {}{follow} · {}–{} · playhead {} · {} BPM · {}{} ",
+                    app.timeline_state.grid_label(),
                     timeline_time_label(projection.window.start, project.song.meter),
                     timeline_time_label(projection.window.end, project.song.meter),
                     transport_label(app),
@@ -260,6 +285,8 @@ fn timeline_cell_span(
     cell: TimelineCell,
     grid: TimelineGridMark,
     locator: bool,
+    in_visual_range: bool,
+    cursor: bool,
     playhead: bool,
     ascii: bool,
 ) -> Span<'static> {
@@ -321,6 +348,12 @@ fn timeline_cell_span(
     if let Some(background) = clip_background {
         style = style.bg(background);
     }
+    if in_visual_range {
+        style = style.bg(Color::Rgb(20, 48, 42));
+    }
+    if cursor {
+        style = style.bg(Color::Cyan).add_modifier(Modifier::BOLD);
+    }
     if playhead {
         glyph = if ascii { '|' } else { '│' };
         style = style
@@ -334,6 +367,7 @@ fn timeline_cell_span(
 fn timeline_ruler_line(
     projection: &timeline::TimelineProjection,
     playhead: Option<usize>,
+    cursor: Option<usize>,
     ascii: bool,
 ) -> Line<'static> {
     let mut characters = projection.ruler.chars().collect::<Vec<_>>();
@@ -363,6 +397,11 @@ fn timeline_ruler_line(
             *character = if ascii { '^' } else { '◆' };
         }
     }
+    if let Some(column) = cursor
+        && let Some(character) = characters.get_mut(column)
+    {
+        *character = if ascii { 'v' } else { '▽' };
+    }
     if let Some(column) = playhead
         && let Some(character) = characters.get_mut(column)
     {
@@ -375,6 +414,10 @@ fn timeline_ruler_line(
             .map(|(column, character)| {
                 let style = if playhead == Some(column) {
                     Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+                } else if cursor == Some(column) {
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD)
                 } else if projection.locator_columns.contains(&column) {
                     Style::default().fg(Color::Yellow)
                 } else {
@@ -384,6 +427,28 @@ fn timeline_ruler_line(
             })
             .collect::<Vec<_>>(),
     )
+}
+
+fn timeline_cursor_column(
+    app: &Workspace,
+    window: TimelineWindow,
+    columns: usize,
+) -> Option<usize> {
+    if columns == 0 {
+        return None;
+    }
+    let at = app.timeline_position().at;
+    timeline::time_column(at, window, columns)
+        .or_else(|| (at == window.end && at >= window.start).then_some(columns.saturating_sub(1)))
+}
+
+fn timeline_visual_columns(
+    app: &Workspace,
+    window: TimelineWindow,
+    columns: usize,
+) -> Option<(usize, usize)> {
+    let range = app.timeline_state.visual_range()?;
+    timeline::time_span_columns(range.start, range.end, window, columns)
 }
 
 fn timeline_playhead_column(
@@ -492,7 +557,7 @@ fn render_timeline_details(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
         ])
         .block(
             Block::default()
-                .title(" Selected Track · blue Clip · cyan Event · yellow sample waveform · red playhead ")
+                .title(" Selected Track · green cursor/range · blue Clip · cyan Event · yellow sample waveform · red playhead ")
                 .borders(Borders::ALL),
         ),
         area,
@@ -1773,17 +1838,24 @@ fn render_diagnostics(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
             })
             .collect()
     };
-    frame.render_widget(
-        List::new(items).block(
+    let list = List::new(items)
+        .block(
             Block::default()
                 .title(format!(
                     " Candidate Diagnostics · {} finding(s) ",
                     diagnostics.len()
                 ))
                 .borders(Borders::ALL),
+        )
+        .highlight_style(selected_style())
+        .highlight_symbol("▶ ");
+    let mut state = ListState::default().with_selected(
+        (!diagnostics.is_empty()).then_some(
+            app.selected_diagnostic
+                .min(diagnostics.len().saturating_sub(1)),
         ),
-        area,
     );
+    frame.render_stateful_widget(list, area, &mut state);
 }
 
 fn render_history(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
@@ -1844,87 +1916,82 @@ fn render_history(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     frame.render_stateful_widget(table, area, &mut state);
 }
 
-fn render_help(frame: &mut Frame<'_>, area: Rect) {
-    let help = vec![
+fn help_lines() -> Vec<Line<'static>> {
+    let heading = |text: &'static str| {
         Line::from(Span::styled(
-            "WORKSPACE",
+            text,
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
-        )),
-        Line::from(
-            "1–9/0 views · H History · ? Help · F12 diagnostics · Tab / Shift-Tab · ↑/↓ select",
-        ),
-        Line::from(
-            "Space start/pause/resume exact Active Revision · S stop · P inspect/publish Candidate",
-        ),
+        ))
+    };
+    vec![
+        heading("WORKSPACE"),
+        Line::from("1–9/0 views · gt/gT or Tab/Shift-Tab cycle · H History · ? Help"),
+        Line::from("j/k or ↑/↓ select · gg/G first/last · Ctrl-u/Ctrl-d move 4 rows"),
+        Line::from("Space start/pause/resume · S stop · P publish · Ctrl-C is the only exit"),
+        Line::from("Esc or Ctrl-[ cancels a modal/mode and returns to NORMAL; it never exits"),
         Line::from(""),
-        Line::from(Span::styled(
-            "PRODUCTION VIEWS",
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )),
+        heading("TIMELINE MOTION"),
         Line::from(
-            "Timeline: +/- zoom · ,/. pan · Home fit · ←/→ level · Enter/l exact · p pan · A audition",
+            "h/l or </> grid step · w/b next/previous boundary · e Clip end · % matching edge",
         ),
+        Line::from("^/$ first/last Track material · g0/g$ Song edges · */# matching Pattern Clip"),
         Line::from(
-            "Processing: A target · a path · F exact range · L loop · b transient/B durable bypass",
+            "{/} previous/next Locator · [/] grid size · : exact jump · / search · n/N repeat",
         ),
-        Line::from(
-            "Processing: Enter exact setting · K/J move processor earlier/later · meters show D/T/E",
-        ),
-        Line::from(
-            "Event Grid: A Pattern/sample audition · t onset · u duration · v velocity · L loop",
-        ),
-        Line::from("Sample occurrence: x region · f fade · g gain · p pan"),
-        Line::from("Faceplate / Parameters: ←/→ bounded step · Enter exact physical value"),
-        Line::from(
-            "Instrument: ←/→ section · ↑/↓ item · Enter Parameter/route edit or exact source · b route bypass",
-        ),
-        Line::from("Automation: [/] lane · ↑/↓ point · ←/→ value · Enter exact · t time · c curve"),
-        Line::from(
-            "Graph: ↑/↓ Node/Bus/Parameter/Mapping · ←/→ Instrument · Enter Source location",
-        ),
-        Line::from("Source: ←/→ file · ↑/↓ scroll · e open $VISUAL/$EDITOR"),
-        Line::from("History: Enter/d exact source diff · R exact restore as a new entry"),
+        Line::from("ma set transient mark · 'a jump · '' return · Ctrl-o/Ctrl-i jump history"),
         Line::from(""),
-        Line::from(Span::styled(
-            "NOTE AUDITION",
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )),
-        Line::from("In Instrument views: A W S E D F T G Y H U J K plays C4–C5 transiently."),
-        Line::from(
-            "PipeWire MIDI Note On/Off targets the selected Instrument. Disconnect releases all notes.",
-        ),
-        Line::from(
-            "Transient bypass and audition selection never edit source; B/settings/reorder are historical edits.",
-        ),
+        heading("TIMELINE RANGE / VIEWPORT"),
+        Line::from("V RANGE mode · h/l or </> move edge · o swap edge · L loop · Enter one-shot"),
+        Line::from("gv restore prior range · zf fit range · zz center · zs/ze align cursor"),
+        Line::from("zh/zl or ,/. pan · Ctrl-b/Ctrl-f full viewport · +/- zoom · Home fit Song"),
+        Line::from("f follow playhead · L toggles armed loop · M creates a durable Locator"),
         Line::from(""),
-        Line::from(Span::styled(
-            "SAFETY",
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )),
+        heading("TIMELINE CONTEXT"),
+        Line::from("gd Pattern/Event Grid · gf source · gi Instrument · gm Mixer · gp Processing"),
+        Line::from("A arms selected Track · Enter exact level · p exact pan"),
+        Line::from(""),
+        heading("OTHER PRODUCTION VIEWS"),
+        Line::from("Processing: A target · a path · F range · L loop · b/B bypass · K/J reorder"),
         Line::from(
-            "Invalid Candidate source is never made audible. The previous Active Revision continues.",
+            "Event Grid: A audition · t/u/v time/duration/velocity · x/f/Alt-g/p sample edits",
+        ),
+        Line::from("Faceplate/Parameters: ←/→ bounded step · Enter exact physical value"),
+        Line::from("Instrument: ←/→ section · Enter edit/source · b route bypass"),
+        Line::from("Automation: [/] lane · ←/→ value · Enter exact · t time · c curve"),
+        Line::from("Graph: ←/→ Instrument · Enter source · Source: ←/→ file · e external editor"),
+        Line::from("History: Enter/d diff · R restore as new entry"),
+        Line::from(""),
+        heading("NOTE MODE"),
+        Line::from("Press i in Instrument views; A W S E D F T G Y H U J K plays C4–C5"),
+        Line::from("Esc releases held notes and returns to NORMAL; j/k navigate outside NOTE mode"),
+        Line::from(""),
+        heading("SAFETY"),
+        Line::from(
+            "Cursor, range, marks, search, Solo/cue/bypass, and loops are transient Audition State",
         ),
         Line::from(
-            "Every Production View edit is a checked minimal source replacement and atomic publication.",
+            "M and other Production View edits are checked source edits recorded in History",
         ),
-        Line::from(
-            "External Agents use readable .crump files plus `crump --json` commands; no model is embedded.",
-        ),
-    ];
+        Line::from("Invalid Candidate source never replaces the prior audible Active Revision"),
+    ]
+}
+
+pub(super) fn help_line_count() -> usize {
+    help_lines().len()
+}
+
+fn render_help(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     frame.render_widget(
-        Paragraph::new(help).wrap(Wrap { trim: false }).block(
-            Block::default()
-                .title(" Keyboard-complete Help ")
-                .borders(Borders::ALL),
-        ),
+        Paragraph::new(help_lines())
+            .scroll((app.help_scroll, 0))
+            .wrap(Wrap { trim: false })
+            .block(
+                Block::default()
+                    .title(" Keyboard-complete Help ")
+                    .borders(Borders::ALL),
+            ),
         area,
     );
 }

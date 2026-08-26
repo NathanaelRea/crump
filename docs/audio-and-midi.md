@@ -26,7 +26,7 @@ crump --project ./song play --target mapping/kit/snare/drums --path mapping \
   --bypass drum_bus_comp --plan
 ```
 
-`play` compiles the exact Active Revision. In a terminal, `Ctrl-C`, `q`, or Escape stops early. Native setup and first-callback waits are each bounded to 10 seconds; a backend error, premature stop/disconnect, or callback timeout exits as an operational failure instead of waiting indefinitely. The JSON result reports Active/Candidate identity, elapsed time, peak, callback count, late-callback count, processing errors, transition state, voice count, MIDI state, and dropped MIDI count.
+`play` compiles the exact Active Revision. In an interactive terminal, `Ctrl-C` is the only key that stops playback early; `q` and Escape do nothing. Native setup and first-callback waits are each bounded to 10 seconds; a backend error, premature stop/disconnect, or callback timeout exits as an operational failure instead of waiting indefinitely. The JSON result reports Active/Candidate identity, elapsed time, peak, callback count, late-callback count, processing errors, transition state, voice count, MIDI state, and dropped MIDI count.
 
 The Production Workspace uses the same audition planner and adapter and can publish new Active runtimes while playing. `--plan` resolves, compiles, prerolls, and reports the complete audition inspection without opening audio.
 
@@ -134,7 +134,7 @@ Note Audition is transient. It never modifies Pattern Events, Parameter source, 
 
 ## Computer keyboard audition
 
-The workspace offers the same transient seam without hardware. Graph Instruments use `A W S E D F T G Y H U J K` for C4–C5. Stock drums use `A/S/D/F` or `Z/X/C/V` for kick/snare/hat/clap. Key-release events send Note Off, and a short timeout handles terminals that do not report release.
+The workspace offers the same transient seam without hardware. Press `i` in Faceplate, Instrument, Parameters, or Graph to enter explicit NOTE mode. Graph Instruments then use `A W S E D F T G Y H U J K` for C4–C5; stock drums use `A/S/D/F` or `Z/X/C/V` for kick/snare/hat/clap. `Esc` or `Ctrl-[` releases held notes and restores Normal-mode navigation. Key-release events send Note Off, and a short timeout handles terminals that do not report release.
 
 ## Troubleshooting
 

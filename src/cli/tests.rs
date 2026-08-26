@@ -1,12 +1,20 @@
 use super::*;
 
 #[test]
-fn ctrl_c_stops_interactive_playback() {
-    let key = crossterm::event::KeyEvent::new(
+fn ctrl_c_is_the_only_interactive_playback_stop_key() {
+    let ctrl_c = crossterm::event::KeyEvent::new(
         crossterm::event::KeyCode::Char('c'),
         crossterm::event::KeyModifiers::CONTROL,
     );
-    assert!(play_stop_key(key));
+    assert!(play_stop_key(ctrl_c));
+    assert!(!play_stop_key(crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Char('q'),
+        crossterm::event::KeyModifiers::NONE,
+    )));
+    assert!(!play_stop_key(crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Esc,
+        crossterm::event::KeyModifiers::NONE,
+    )));
 }
 
 #[test]

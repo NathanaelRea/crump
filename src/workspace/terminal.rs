@@ -1,4 +1,7 @@
 use super::*;
+use crossterm::event::{
+    KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+};
 
 /// Runs the first-party terminal workspace for one Project.
 pub fn run(path: impl AsRef<Path>) -> Result<(), WorkspaceError> {
@@ -111,6 +114,7 @@ fn launch_source_editor(
 
     execute!(
         terminal.backend_mut(),
+        PopKeyboardEnhancementFlags,
         DisableMouseCapture,
         LeaveAlternateScreen
     )?;
@@ -133,7 +137,8 @@ fn launch_source_editor(
     execute!(
         terminal.backend_mut(),
         EnterAlternateScreen,
-        EnableMouseCapture
+        EnableMouseCapture,
+        PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
     )?;
     let area = terminal.size()?.into();
     terminal.resize(area)?;
@@ -156,7 +161,18 @@ impl TerminalSession {
     fn enter() -> Result<Self, io::Error> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
-        if let Err(error) = execute!(stdout, EnterAlternateScreen, EnableMouseCapture) {
+        if let Err(error) = execute!(
+            stdout,
+            EnterAlternateScreen,
+            EnableMouseCapture,
+            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+        ) {
+            let _ = execute!(
+                stdout,
+                PopKeyboardEnhancementFlags,
+                DisableMouseCapture,
+                LeaveAlternateScreen
+            );
             let _ = disable_raw_mode();
             return Err(error);
         }
@@ -164,7 +180,12 @@ impl TerminalSession {
             Ok(terminal) => Ok(Self { terminal }),
             Err(error) => {
                 let mut stdout = io::stdout();
-                let _ = execute!(stdout, DisableMouseCapture, LeaveAlternateScreen);
+                let _ = execute!(
+                    stdout,
+                    PopKeyboardEnhancementFlags,
+                    DisableMouseCapture,
+                    LeaveAlternateScreen
+                );
                 let _ = disable_raw_mode();
                 Err(error)
             }
@@ -177,6 +198,7 @@ impl Drop for TerminalSession {
         let _ = disable_raw_mode();
         let _ = execute!(
             self.terminal.backend_mut(),
+            PopKeyboardEnhancementFlags,
             DisableMouseCapture,
             LeaveAlternateScreen
         );

@@ -12,15 +12,313 @@ use crate::{
         schedule::{ClipEnvelope, RuntimeEvent, compile_schedules},
     },
     media::{AssetInventory, LoadedAsset},
-    model::{Project, SampleDirection, SampleLoopRegion},
-    time::MusicalTime,
+    model::{Clip, Project, SampleDirection, SampleLoopRegion},
+    time::{MusicalTime, parse_musical_time},
 };
 
 const PAN_STEPS_PER_WINDOW: u32 = 4;
 const MAX_TIMELINE_ZOOM: u8 = 6;
+const TIMELINE_GRIDS: [&str; 8] = [
+    "1/16beat", "1/8beat", "1/4beat", "1/2beat", "1beat", "1bar", "2bar", "4bar",
+];
+const DEFAULT_TIMELINE_GRID: usize = 4;
+const MAX_TIMELINE_JUMPS: usize = 256;
 const WAVEFORM_BASE_BLOCK_FRAMES: u64 = 256;
 const WAVEFORM_BASE_BLOCK_SIZE: usize = 256;
 const WAVEFORM_ALGORITHM: &str = "crump-timeline-waveform-v1";
+
+/// One transient location in the two-dimensional Timeline workspace.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct TimelinePosition {
+    pub(super) at: MusicalTime,
+    pub(super) track: usize,
+}
+
+impl Default for TimelinePosition {
+    fn default() -> Self {
+        Self {
+            at: MusicalTime::ZERO,
+            track: 0,
+        }
+    }
+}
+
+/// One normalized, exact half-open Timeline range.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct TimelineRange {
+    pub(super) start: MusicalTime,
+    pub(super) end: MusicalTime,
+}
+
+/// Searchable authored object resolved to a Timeline position.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct TimelineSearchHit {
+    pub(super) label: String,
+    pub(super) position: TimelinePosition,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TimelineSearch {
+    query: String,
+    hits: Vec<TimelineSearchHit>,
+    selected: usize,
+}
+
+/// Transient Vim-like navigation and range-selection state.
+#[derive(Debug, Clone)]
+pub(super) struct TimelineState {
+    position: TimelinePosition,
+    grid: usize,
+    visual_anchor: Option<MusicalTime>,
+    last_visual: Option<TimelineRange>,
+    marks: BTreeMap<char, TimelinePosition>,
+    jumps: Vec<TimelinePosition>,
+    jump_index: Option<usize>,
+    search: Option<TimelineSearch>,
+    follow_playhead: bool,
+    cursor_armed: bool,
+}
+
+impl Default for TimelineState {
+    fn default() -> Self {
+        Self {
+            position: TimelinePosition::default(),
+            grid: DEFAULT_TIMELINE_GRID,
+            visual_anchor: None,
+            last_visual: None,
+            marks: BTreeMap::new(),
+            jumps: Vec::new(),
+            jump_index: None,
+            search: None,
+            follow_playhead: false,
+            cursor_armed: false,
+        }
+    }
+}
+
+impl TimelineState {
+    pub(super) const fn position(&self) -> TimelinePosition {
+        self.position
+    }
+
+    pub(super) fn set_track(&mut self, track: usize) {
+        self.position.track = track;
+    }
+
+    pub(super) fn set_position(&mut self, position: TimelinePosition) {
+        self.position = position;
+    }
+
+    pub(super) fn jump_to(&mut self, position: TimelinePosition) {
+        let current = self.position;
+        if self
+            .jump_index
+            .is_some_and(|index| index + 1 < self.jumps.len())
+        {
+            self.jumps.truncate(self.jump_index.unwrap_or(0) + 1);
+        }
+        if self.jumps.last().copied() != Some(current) {
+            self.jumps.push(current);
+        }
+        if self.jumps.last().copied() != Some(position) {
+            self.jumps.push(position);
+        }
+        if self.jumps.len() > MAX_TIMELINE_JUMPS {
+            self.jumps.drain(..self.jumps.len() - MAX_TIMELINE_JUMPS);
+        }
+        self.jump_index = self.jumps.len().checked_sub(1);
+        self.position = position;
+    }
+
+    pub(super) fn remember_for_return(&mut self) {
+        if self.jumps.last().copied() != Some(self.position) {
+            self.jumps.push(self.position);
+        }
+        if self.jumps.len() > MAX_TIMELINE_JUMPS {
+            self.jumps.drain(..self.jumps.len() - MAX_TIMELINE_JUMPS);
+        }
+        self.jump_index = Some(self.jumps.len());
+    }
+
+    pub(super) fn jump_back(&mut self) -> Option<TimelinePosition> {
+        let index = self.jump_index?;
+        let previous = index.checked_sub(1)?;
+        self.jump_index = Some(previous);
+        self.position = self.jumps[previous];
+        Some(self.position)
+    }
+
+    pub(super) fn jump_forward(&mut self) -> Option<TimelinePosition> {
+        let index = self.jump_index?;
+        let next = index.checked_add(1)?;
+        let position = *self.jumps.get(next)?;
+        self.jump_index = Some(next);
+        self.position = position;
+        Some(position)
+    }
+
+    pub(super) fn grid(&self, project: &Project) -> MusicalTime {
+        parse_musical_time(TIMELINE_GRIDS[self.grid], project.song.meter)
+            .unwrap_or_else(|_| MusicalTime::whole(1))
+    }
+
+    pub(super) fn grid_label(&self) -> &'static str {
+        TIMELINE_GRIDS[self.grid]
+    }
+
+    pub(super) fn change_grid(&mut self, direction: isize) -> bool {
+        let previous = self.grid;
+        self.grid = self
+            .grid
+            .saturating_add_signed(direction.signum())
+            .min(TIMELINE_GRIDS.len().saturating_sub(1));
+        self.grid != previous
+    }
+
+    pub(super) const fn visual(&self) -> bool {
+        self.visual_anchor.is_some()
+    }
+
+    pub(super) fn begin_visual(&mut self) {
+        self.visual_anchor = Some(self.position.at);
+    }
+
+    pub(super) fn cancel_visual(&mut self) {
+        self.visual_anchor = None;
+    }
+
+    pub(super) fn swap_visual_edge(&mut self) -> bool {
+        let Some(anchor) = self.visual_anchor.as_mut() else {
+            return false;
+        };
+        std::mem::swap(anchor, &mut self.position.at);
+        true
+    }
+
+    pub(super) fn visual_range(&self) -> Option<TimelineRange> {
+        let anchor = self.visual_anchor?;
+        (anchor != self.position.at).then_some(TimelineRange {
+            start: anchor.min(self.position.at),
+            end: anchor.max(self.position.at),
+        })
+    }
+
+    pub(super) fn commit_visual(&mut self) -> Option<TimelineRange> {
+        let range = self.visual_range()?;
+        self.last_visual = Some(range);
+        self.visual_anchor = None;
+        Some(range)
+    }
+
+    pub(super) fn restore_visual(&mut self) -> bool {
+        let Some(range) = self.last_visual else {
+            return false;
+        };
+        self.visual_anchor = Some(range.start);
+        self.position.at = range.end;
+        true
+    }
+
+    pub(super) fn set_mark(&mut self, mark: char) {
+        self.marks.insert(mark.to_ascii_lowercase(), self.position);
+    }
+
+    pub(super) fn mark(&self, mark: char) -> Option<TimelinePosition> {
+        self.marks.get(&mark.to_ascii_lowercase()).copied()
+    }
+
+    pub(super) fn set_search(
+        &mut self,
+        query: String,
+        hits: Vec<TimelineSearchHit>,
+    ) -> Option<TimelineSearchHit> {
+        let Some(first) = hits.first().cloned() else {
+            self.search = None;
+            return None;
+        };
+        self.search = Some(TimelineSearch {
+            query,
+            hits,
+            selected: 0,
+        });
+        Some(first)
+    }
+
+    pub(super) fn repeat_search(&mut self, direction: isize) -> Option<TimelineSearchHit> {
+        let search = self.search.as_mut()?;
+        if search.hits.is_empty() {
+            return None;
+        }
+        search.selected = if direction < 0 {
+            search
+                .selected
+                .checked_sub(1)
+                .unwrap_or(search.hits.len().saturating_sub(1))
+        } else {
+            (search.selected + 1) % search.hits.len()
+        };
+        search.hits.get(search.selected).cloned()
+    }
+
+    pub(super) fn search_summary(&self) -> Option<(&str, usize, usize)> {
+        self.search.as_ref().map(|search| {
+            (
+                search.query.as_str(),
+                search.selected.saturating_add(1),
+                search.hits.len(),
+            )
+        })
+    }
+
+    pub(super) const fn follow_playhead(&self) -> bool {
+        self.follow_playhead
+    }
+
+    pub(super) fn toggle_follow_playhead(&mut self) -> bool {
+        self.follow_playhead = !self.follow_playhead;
+        self.follow_playhead
+    }
+
+    pub(super) const fn cursor_armed(&self) -> bool {
+        self.cursor_armed
+    }
+
+    pub(super) fn arm_cursor(&mut self) {
+        self.cursor_armed = true;
+    }
+
+    pub(super) fn disarm_cursor(&mut self) {
+        self.cursor_armed = false;
+    }
+
+    pub(super) fn clamp(&mut self, project: &Project) {
+        self.position.at = self.position.at.clamp(MusicalTime::ZERO, project.song.end);
+        self.position.track = self
+            .position
+            .track
+            .min(project.song.tracks.len().saturating_sub(1));
+        if let Some(anchor) = self.visual_anchor.as_mut() {
+            *anchor = (*anchor).clamp(MusicalTime::ZERO, project.song.end);
+        }
+        self.last_visual = self.last_visual.and_then(|range| {
+            let range = TimelineRange {
+                start: range.start.clamp(MusicalTime::ZERO, project.song.end),
+                end: range.end.clamp(MusicalTime::ZERO, project.song.end),
+            };
+            (range.start < range.end).then_some(range)
+        });
+        self.search = None;
+        self.marks.retain(|_, position| {
+            position.at <= project.song.end && position.track < project.song.tracks.len()
+        });
+        self.jumps.retain(|position| {
+            position.at <= project.song.end && position.track < project.song.tracks.len()
+        });
+        self.jump_index = self
+            .jump_index
+            .and_then(|index| (!self.jumps.is_empty()).then_some(index.min(self.jumps.len() - 1)));
+    }
+}
 
 /// Transient, non-authoritative horizontal Timeline viewport.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -56,12 +354,88 @@ impl TimelineViewport {
     }
 
     pub(super) fn pan(&mut self, direction: isize) -> bool {
+        self.pan_steps(direction.signum())
+    }
+
+    pub(super) fn pan_window(&mut self, direction: isize) -> bool {
+        self.pan_steps(
+            direction
+                .signum()
+                .saturating_mul(PAN_STEPS_PER_WINDOW as isize),
+        )
+    }
+
+    fn pan_steps(&mut self, steps: isize) -> bool {
         let previous = self.offset_steps;
-        self.offset_steps = self
-            .offset_steps
-            .saturating_add_signed(direction.signum() as i32);
+        self.offset_steps =
+            self.offset_steps
+                .saturating_add_signed(i32::try_from(steps).unwrap_or(if steps < 0 {
+                    i32::MIN
+                } else {
+                    i32::MAX
+                }));
         self.clamp();
         self.offset_steps != previous
+    }
+
+    pub(super) fn center_on(&mut self, time: MusicalTime, song_end: MusicalTime) {
+        self.align_on(time, song_end, PAN_STEPS_PER_WINDOW / 2);
+    }
+
+    pub(super) fn align_start(&mut self, time: MusicalTime, song_end: MusicalTime) {
+        self.align_on(time, song_end, 0);
+    }
+
+    pub(super) fn align_end(&mut self, time: MusicalTime, song_end: MusicalTime) {
+        self.align_on(time, song_end, PAN_STEPS_PER_WINDOW);
+    }
+
+    pub(super) fn reveal(&mut self, time: MusicalTime, song_end: MusicalTime) {
+        let window = self.window(song_end);
+        if time < window.start {
+            self.align_start(time, song_end);
+        } else if time > window.end || time == song_end {
+            self.align_end(time, song_end);
+        }
+    }
+
+    pub(super) fn center_frame(&mut self, frame: u64, song_end_frame: u64) {
+        if song_end_frame == 0 {
+            return;
+        }
+        let total_steps = PAN_STEPS_PER_WINDOW.saturating_mul(self.zoom_factor());
+        let step = u32::try_from(
+            u128::from(frame.min(song_end_frame)).saturating_mul(u128::from(total_steps))
+                / u128::from(song_end_frame),
+        )
+        .unwrap_or(total_steps);
+        self.offset_steps = step.saturating_sub(PAN_STEPS_PER_WINDOW / 2);
+        self.clamp();
+    }
+
+    pub(super) fn fit_range(&mut self, range: TimelineRange, song_end: MusicalTime) {
+        if range.end <= range.start || song_end <= MusicalTime::ZERO {
+            return;
+        }
+        for zoom in (0..=MAX_TIMELINE_ZOOM).rev() {
+            self.zoom = zoom;
+            self.center_on(
+                midpoint(range.start, range.end).unwrap_or(range.start),
+                song_end,
+            );
+            let window = self.window(song_end);
+            if window.start <= range.start && window.end >= range.end {
+                return;
+            }
+        }
+        self.fit();
+    }
+
+    fn align_on(&mut self, time: MusicalTime, song_end: MusicalTime, anchor_steps: u32) {
+        let total_steps = PAN_STEPS_PER_WINDOW.saturating_mul(self.zoom_factor());
+        let step = time_fraction_steps(time, song_end, total_steps);
+        self.offset_steps = step.saturating_sub(anchor_steps);
+        self.clamp();
     }
 
     pub(super) fn zoom_factor(self) -> u32 {
@@ -93,6 +467,323 @@ impl TimelineViewport {
             .offset_steps
             .min(total_steps.saturating_sub(PAN_STEPS_PER_WINDOW));
     }
+}
+
+fn time_fraction_steps(time: MusicalTime, end: MusicalTime, total_steps: u32) -> u32 {
+    if time <= MusicalTime::ZERO || end <= MusicalTime::ZERO {
+        return 0;
+    }
+    let numerator = i128::from(time.numerator())
+        .saturating_mul(i128::from(end.denominator()))
+        .saturating_mul(i128::from(total_steps));
+    let denominator = i128::from(time.denominator()).saturating_mul(i128::from(end.numerator()));
+    if denominator <= 0 {
+        return 0;
+    }
+    u32::try_from((numerator / denominator).max(0)).unwrap_or(total_steps)
+}
+
+fn midpoint(start: MusicalTime, end: MusicalTime) -> Option<MusicalTime> {
+    let sum = start.checked_add(end).ok()?;
+    MusicalTime::new(sum.numerator(), sum.denominator().saturating_mul(2)).ok()
+}
+
+fn multiply_time(left: MusicalTime, right: MusicalTime) -> Option<MusicalTime> {
+    let numerator = i128::from(left.numerator()).checked_mul(i128::from(right.numerator()))?;
+    let denominator =
+        i128::from(left.denominator()).checked_mul(i128::from(right.denominator()))?;
+    MusicalTime::new(
+        i64::try_from(numerator).ok()?,
+        i64::try_from(denominator).ok()?,
+    )
+    .ok()
+}
+
+/// Resolves one Timeline command destination without changing authored state.
+pub(super) fn parse_destination(
+    value: &str,
+    current: MusicalTime,
+    project: &Project,
+) -> Result<MusicalTime, String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err("Enter a bar, bar:beat, Locator ID, or relative musical duration".to_owned());
+    }
+    if let Some(locator) = project
+        .song
+        .locators
+        .iter()
+        .find(|locator| locator.id == value)
+    {
+        return Ok(locator.at);
+    }
+    if let Some(relative) = value.strip_prefix('+') {
+        let amount = parse_musical_time(relative, project.song.meter)
+            .map_err(|error| format!("Invalid relative Timeline amount: {error}"))?;
+        return current
+            .checked_add(amount)
+            .map(|time| time.min(project.song.end))
+            .map_err(|error| format!("Timeline destination overflowed: {error}"));
+    }
+    if let Some(relative) = value.strip_prefix('-') {
+        let amount = parse_musical_time(relative, project.song.meter)
+            .map_err(|error| format!("Invalid relative Timeline amount: {error}"))?;
+        return Ok(current
+            .checked_sub(amount)
+            .unwrap_or(MusicalTime::ZERO)
+            .max(MusicalTime::ZERO));
+    }
+    if let Some((bar, beat)) = value.split_once(':') {
+        let bar = bar
+            .parse::<u64>()
+            .map_err(|_| "Timeline bar must be a positive integer".to_owned())?;
+        if bar == 0 {
+            return Err("Displayed Timeline bars begin at 1".to_owned());
+        }
+        let beat = parse_musical_time(beat, project.song.meter)
+            .map_err(|error| format!("Invalid Timeline beat: {error}"))?;
+        let one = MusicalTime::whole(1);
+        if beat < one || beat > MusicalTime::whole(i64::from(project.song.meter.numerator)) {
+            return Err(format!(
+                "Timeline beat must lie in 1..={}",
+                project.song.meter.numerator
+            ));
+        }
+        let bar_start = project
+            .song
+            .meter
+            .bar_length()
+            .map_err(|error| error.to_string())?
+            .checked_mul(bar - 1)
+            .map_err(|error| error.to_string())?;
+        let beat_index = beat.checked_sub(one).map_err(|error| error.to_string())?;
+        let beat_length = MusicalTime::new(4, i64::from(project.song.meter.denominator))
+            .map_err(|error| error.to_string())?;
+        let beat_offset = multiply_time(beat_index, beat_length)
+            .ok_or_else(|| "Timeline beat overflowed".to_owned())?;
+        return bar_start
+            .checked_add(beat_offset)
+            .map(|time| time.min(project.song.end))
+            .map_err(|error| error.to_string());
+    }
+    if value.bytes().all(|byte| byte.is_ascii_digit()) {
+        let bar = value
+            .parse::<u64>()
+            .map_err(|_| "Timeline bar must be a positive integer".to_owned())?;
+        if bar == 0 {
+            return Err("Displayed Timeline bars begin at 1".to_owned());
+        }
+        return project
+            .song
+            .meter
+            .bar_length()
+            .map_err(|error| error.to_string())?
+            .checked_mul(bar - 1)
+            .map(|time| time.min(project.song.end))
+            .map_err(|error| error.to_string());
+    }
+    parse_musical_time(value, project.song.meter)
+        .map(|time| time.clamp(MusicalTime::ZERO, project.song.end))
+        .map_err(|error| format!("Unknown Locator or invalid musical time `{value}`: {error}"))
+}
+
+pub(super) fn clip_at(project: &Project, position: TimelinePosition) -> Option<(usize, &Clip)> {
+    let track = project.song.tracks.get(position.track)?;
+    track
+        .clips
+        .iter()
+        .find(|clip| {
+            clip.start <= position.at
+                && clip
+                    .start
+                    .checked_add(clip.duration)
+                    .is_ok_and(|end| position.at < end)
+        })
+        .or_else(|| {
+            track.clips.iter().find(|clip| {
+                clip.start == position.at
+                    || clip
+                        .start
+                        .checked_add(clip.duration)
+                        .is_ok_and(|end| end == position.at)
+            })
+        })
+        .map(|clip| (position.track, clip))
+}
+
+pub(super) fn adjacent_boundary(
+    project: &Project,
+    position: TimelinePosition,
+    direction: isize,
+) -> Option<MusicalTime> {
+    let track = project.song.tracks.get(position.track)?;
+    let mut boundaries = track
+        .clips
+        .iter()
+        .flat_map(|clip| {
+            std::iter::once(clip.start).chain(clip.start.checked_add(clip.duration).ok())
+        })
+        .chain(project.song.locators.iter().map(|locator| locator.at))
+        .collect::<Vec<_>>();
+    boundaries.sort_unstable();
+    boundaries.dedup();
+    if direction < 0 {
+        boundaries
+            .into_iter()
+            .rev()
+            .find(|boundary| *boundary < position.at)
+    } else {
+        boundaries
+            .into_iter()
+            .find(|boundary| *boundary > position.at)
+    }
+}
+
+pub(super) fn adjacent_locator(
+    project: &Project,
+    position: TimelinePosition,
+    direction: isize,
+) -> Option<MusicalTime> {
+    let mut locators = project
+        .song
+        .locators
+        .iter()
+        .map(|locator| locator.at)
+        .collect::<Vec<_>>();
+    locators.sort_unstable();
+    locators.dedup();
+    if direction < 0 {
+        locators
+            .into_iter()
+            .rev()
+            .find(|locator| *locator < position.at)
+    } else {
+        locators.into_iter().find(|locator| *locator > position.at)
+    }
+}
+
+pub(super) fn track_material_edge(
+    project: &Project,
+    track_index: usize,
+    end: bool,
+) -> Option<MusicalTime> {
+    let track = project.song.tracks.get(track_index)?;
+    if end {
+        track
+            .clips
+            .iter()
+            .filter_map(|clip| clip.start.checked_add(clip.duration).ok())
+            .max()
+    } else {
+        track.clips.iter().map(|clip| clip.start).min()
+    }
+}
+
+pub(super) fn matching_pattern_clip(
+    project: &Project,
+    position: TimelinePosition,
+    direction: isize,
+) -> Option<TimelinePosition> {
+    let (_, selected) = clip_at(project, position)?;
+    let mut clips = project
+        .song
+        .tracks
+        .iter()
+        .enumerate()
+        .flat_map(|(track, lane)| {
+            lane.clips
+                .iter()
+                .filter(|clip| clip.pattern == selected.pattern)
+                .map(move |clip| TimelinePosition {
+                    at: clip.start,
+                    track,
+                })
+        })
+        .collect::<Vec<_>>();
+    clips.sort_by(|left, right| left.at.cmp(&right.at).then(left.track.cmp(&right.track)));
+    if direction < 0 {
+        clips.into_iter().rev().find(|candidate| {
+            candidate.at < position.at
+                || (candidate.at == position.at && candidate.track < position.track)
+        })
+    } else {
+        clips.into_iter().find(|candidate| {
+            candidate.at > position.at
+                || (candidate.at == position.at && candidate.track > position.track)
+        })
+    }
+}
+
+pub(super) fn search_project(project: &Project, query: &str) -> Vec<TimelineSearchHit> {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return Vec::new();
+    }
+    let matches = |value: &str| value.to_lowercase().contains(&query);
+    let mut hits = Vec::new();
+    for (track_index, track) in project.song.tracks.iter().enumerate() {
+        let track_position = TimelinePosition {
+            at: track
+                .clips
+                .iter()
+                .map(|clip| clip.start)
+                .min()
+                .unwrap_or(MusicalTime::ZERO),
+            track: track_index,
+        };
+        if matches(&track.id) || matches(&track.name) {
+            hits.push(TimelineSearchHit {
+                label: format!("Track {} ({})", track.id, track.name),
+                position: track_position,
+            });
+        }
+        if let Some(instrument) = project
+            .song
+            .instruments
+            .iter()
+            .find(|instrument| instrument.id == track.instrument)
+            && (matches(&instrument.id) || matches(&instrument.name))
+        {
+            hits.push(TimelineSearchHit {
+                label: format!("Instrument {} on {}", instrument.id, track.id),
+                position: track_position,
+            });
+        }
+        for clip in &track.clips {
+            if matches(&clip.id) || matches(&clip.pattern) {
+                hits.push(TimelineSearchHit {
+                    label: format!(
+                        "Clip {} · Pattern {} · Track {}",
+                        clip.id, clip.pattern, track.id
+                    ),
+                    position: TimelinePosition {
+                        at: clip.start,
+                        track: track_index,
+                    },
+                });
+            }
+        }
+    }
+    for locator in &project.song.locators {
+        if matches(&locator.id) || matches(&locator.name) {
+            hits.push(TimelineSearchHit {
+                label: format!("Locator {} ({})", locator.id, locator.name),
+                position: TimelinePosition {
+                    at: locator.at,
+                    track: 0,
+                },
+            });
+        }
+    }
+    hits.sort_by(|left, right| {
+        left.position
+            .at
+            .cmp(&right.position.at)
+            .then(left.position.track.cmp(&right.position.track))
+            .then(left.label.cmp(&right.label))
+    });
+    hits.dedup_by(|left, right| left.position == right.position && left.label == right.label);
+    hits
 }
 
 fn scale_time(value: MusicalTime, numerator: u32, denominator: u32) -> Option<MusicalTime> {
@@ -1101,7 +1792,11 @@ fn unit_boundary_at_or_after(value: MusicalTime, unit: MusicalTime) -> Option<(u
     Some((index, unit.checked_mul(index).ok()?))
 }
 
-fn time_column(time: MusicalTime, window: TimelineWindow, columns: usize) -> Option<usize> {
+pub(super) fn time_column(
+    time: MusicalTime,
+    window: TimelineWindow,
+    columns: usize,
+) -> Option<usize> {
     if columns == 0 || !window.is_valid() || time < window.start || time >= window.end {
         return None;
     }
@@ -1116,7 +1811,7 @@ fn time_column(time: MusicalTime, window: TimelineWindow, columns: usize) -> Opt
         .map(|column| column.min(columns - 1))
 }
 
-fn time_span_columns(
+pub(super) fn time_span_columns(
     start: MusicalTime,
     end: MusicalTime,
     window: TimelineWindow,
@@ -1246,6 +1941,74 @@ mod tests {
         assert!(viewport.is_fit());
         assert_eq!(viewport.window(end).start, MusicalTime::ZERO);
         assert_eq!(viewport.window(end).end, end);
+    }
+
+    #[test]
+    fn goto_parser_supports_bars_beats_locators_and_relative_durations() {
+        let source = include_str!("../../tests/fixtures/minimal.crump").replace(
+            "    track lead",
+            "    locator chorus \"Chorus\" at 2beat\n    track lead",
+        );
+        let parsed = crate::dsl::parse_project(std::path::Path::new("minimal.crump"), &source);
+        assert!(!parsed.diagnostics.has_errors(), "{:?}", parsed.diagnostics);
+        let mut project = parsed.project.expect("Project");
+        project.song.end = MusicalTime::whole(32);
+        let cursor = MusicalTime::whole(2);
+
+        assert_eq!(
+            parse_destination("8", cursor, &project).expect("bar"),
+            MusicalTime::whole(28)
+        );
+        assert_eq!(
+            parse_destination("8:3", cursor, &project).expect("bar and beat"),
+            MusicalTime::whole(30)
+        );
+        assert_eq!(
+            parse_destination("chorus", cursor, &project).expect("Locator"),
+            MusicalTime::whole(2)
+        );
+        assert_eq!(
+            parse_destination("+2bar", cursor, &project).expect("forward relative"),
+            MusicalTime::whole(10)
+        );
+        assert_eq!(
+            parse_destination("-1beat", cursor, &project).expect("back relative"),
+            MusicalTime::whole(1)
+        );
+    }
+
+    #[test]
+    fn navigation_state_normalizes_ranges_marks_and_jump_returns() {
+        let mut state = TimelineState::default();
+        state.begin_visual();
+        state.set_position(TimelinePosition {
+            at: MusicalTime::whole(2),
+            track: 0,
+        });
+        assert_eq!(
+            state.visual_range(),
+            Some(TimelineRange {
+                start: MusicalTime::ZERO,
+                end: MusicalTime::whole(2),
+            })
+        );
+        assert!(state.swap_visual_edge());
+        state.set_position(TimelinePosition {
+            at: MusicalTime::whole(1),
+            track: 0,
+        });
+        assert_eq!(
+            state.visual_range(),
+            Some(TimelineRange {
+                start: MusicalTime::whole(1),
+                end: MusicalTime::whole(2),
+            })
+        );
+
+        state.set_mark('A');
+        assert_eq!(state.mark('a'), Some(state.position()));
+        state.remember_for_return();
+        assert_eq!(state.jump_back(), Some(state.position()));
     }
 
     #[test]

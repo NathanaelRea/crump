@@ -9,7 +9,7 @@ use crate::{
     diagnostic::Diagnostic,
     edit::{
         CheckedReplacement, EditError, ProcessorMove, apply_structured_edit,
-        clear_sample_occurrence_loop, fade_sample_occurrence, move_processor,
+        clear_sample_occurrence_loop, create_locator, fade_sample_occurrence, move_processor,
         set_automation_point_at, set_automation_point_interpolation, set_automation_point_value,
         set_event_at, set_event_velocity, set_hit_voice, set_instrument_route_bypass,
         set_instrument_route_depth, set_note_duration, set_note_pitch, set_parameter,
@@ -70,6 +70,12 @@ pub enum Operation {
     SetParameterTarget {
         target: String,
         value: PhysicalValue,
+    },
+    /// Create one durable Song Locator.
+    CreateLocator {
+        id: String,
+        name: String,
+        at: String,
     },
     /// Set one exact Instrument Parameter.
     SetInstrumentParameter {
@@ -421,6 +427,9 @@ fn plan(
     operation: &Operation,
 ) -> Result<Vec<CheckedReplacement>, ExecuteError> {
     let replacements = match operation {
+        Operation::CreateLocator { id, name, at } => {
+            vec![create_locator(bundle, id, name, at)?]
+        }
         Operation::SetParameterTarget { target, value } => {
             let target = target
                 .parse::<ParameterTarget>()

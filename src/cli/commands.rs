@@ -368,10 +368,7 @@ fn command_check(cli: &Cli) -> Result<Success, Failure> {
 }
 
 pub(super) fn play_stop_key(key: crossterm::event::KeyEvent) -> bool {
-    matches!(
-        key.code,
-        crossterm::event::KeyCode::Char('q') | crossterm::event::KeyCode::Esc
-    ) || matches!(key.code, crossterm::event::KeyCode::Char('c'))
+    matches!(key.code, crossterm::event::KeyCode::Char('c'))
         && key
             .modifiers
             .contains(crossterm::event::KeyModifiers::CONTROL)

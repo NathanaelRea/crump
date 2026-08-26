@@ -662,6 +662,211 @@ fn timeline_zoom_pan_and_fit_are_transient_keyboard_state() {
 }
 
 #[test]
+fn timeline_keys_seek_select_ranges_and_only_ctrl_c_exits() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    workspace.commit_input("Initial publication".to_owned(), InputAction::Publish);
+    settle_background(&mut workspace);
+    workspace.view = View::Timeline;
+
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE));
+    assert_eq!(workspace.selected_track, 1);
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+    assert_eq!(workspace.selected_track, 0);
+
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+    assert_eq!(
+        workspace.timeline_position().at,
+        crate::time::MusicalTime::whole(1)
+    );
+    assert!(matches!(
+        workspace.work_in_flight,
+        Some(WorkspaceWorkKind::Active {
+            explicit_seek: true,
+            initial_frame: Some(24_000),
+            ..
+        })
+    ));
+    settle_background(&mut workspace);
+
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('V'), KeyModifiers::SHIFT));
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+    workspace.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    assert!(matches!(
+        workspace.audition_plan.range,
+        AuditionRange {
+            from: Some(ref start),
+            to: Some(ref end),
+            looping: false,
+        } if start == "1qn" && end == "2qn"
+    ));
+    assert!(!workspace.timeline_state.visual());
+    settle_background(&mut workspace);
+
+    let one_shot = workspace.audition_plan.clone();
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('L'), KeyModifiers::SHIFT));
+    let mut expected_loop = one_shot;
+    expected_loop.range.looping = true;
+    assert_eq!(workspace.audition_plan, expected_loop);
+    settle_background(&mut workspace);
+
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+    assert_eq!(
+        workspace.timeline_position().at,
+        crate::time::MusicalTime::whole(2)
+    );
+    assert!(workspace.status.contains("outside the armed range"));
+    assert_eq!(
+        workspace.timeline_frame_at(crate::time::MusicalTime::whole(2)),
+        Some(48_000)
+    );
+    assert!(workspace.timeline_cursor_frame_for_plan().is_err());
+    workspace.handle_key(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE));
+    assert!(!workspace.playback_requested);
+    assert!(workspace.status.contains("outside the armed range"));
+
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('V'), KeyModifiers::SHIFT));
+    assert!(workspace.timeline_state.visual());
+    workspace.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+    assert!(!workspace.timeline_state.visual());
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
+    assert!(!workspace.quit);
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+    assert!(workspace.quit);
+}
+
+#[test]
+fn global_navigation_note_mode_and_timeline_context_jumps_are_modal() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+
+    workspace.view = View::Mixer;
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE));
+    assert_eq!(workspace.selected_mixer_parameter, 1);
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+    assert_eq!(workspace.selected_mixer_parameter, 0);
+
+    workspace.view = View::Help;
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('G'), KeyModifiers::SHIFT));
+    assert_eq!(
+        usize::from(workspace.help_scroll),
+        rendering::help_line_count().saturating_sub(1)
+    );
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE));
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE));
+    assert_eq!(workspace.help_scroll, 0);
+
+    workspace.view = View::Instrument;
+    let selected = (
+        workspace.selected_instrument_section,
+        workspace.selected_instrument_row,
+    );
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
+    assert!(workspace.note_mode);
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE));
+    assert_eq!(
+        (
+            workspace.selected_instrument_section,
+            workspace.selected_instrument_row,
+        ),
+        selected
+    );
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('['), KeyModifiers::CONTROL));
+    assert!(!workspace.note_mode);
+    assert!(!workspace.quit);
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE));
+    assert_ne!(
+        (
+            workspace.selected_instrument_section,
+            workspace.selected_instrument_row,
+        ),
+        selected
+    );
+
+    workspace.view = View::Timeline;
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE));
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+    assert_eq!(workspace.view, View::EventGrid);
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('o'), KeyModifiers::CONTROL));
+    assert_eq!(workspace.view, View::Timeline);
+}
+
+#[test]
+fn timeline_goto_search_marks_and_durable_locators_share_exact_positions() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    workspace.view = View::Timeline;
+
+    workspace.commit_input("1:2".to_owned(), InputAction::TimelineGoto);
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('o'), KeyModifiers::CONTROL));
+    assert_eq!(
+        workspace.timeline_position().at,
+        crate::time::MusicalTime::ZERO
+    );
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::CONTROL));
+    assert_eq!(
+        workspace.timeline_position().at,
+        crate::time::MusicalTime::whole(1)
+    );
+
+    workspace.commit_input("1:3".to_owned(), InputAction::TimelineGoto);
+    assert_eq!(
+        workspace.timeline_position().at,
+        crate::time::MusicalTime::whole(2)
+    );
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('m'), KeyModifiers::NONE));
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+    workspace.commit_input("drums".to_owned(), InputAction::TimelineSearch);
+    assert_eq!(workspace.timeline_position().track, 1);
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('\''), KeyModifiers::NONE));
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+    assert_eq!(
+        workspace.timeline_position(),
+        TimelinePosition {
+            at: crate::time::MusicalTime::whole(2),
+            track: 0,
+        }
+    );
+
+    workspace.handle_key(KeyEvent::new(KeyCode::Char('M'), KeyModifiers::SHIFT));
+    assert!(matches!(
+        workspace.modal.as_ref(),
+        Some(Modal::Input {
+            action: InputAction::TimelineLocator { at },
+            ..
+        }) if at == "2qn"
+    ));
+    workspace.modal = None;
+    workspace.commit_input(
+        "middle Middle".to_owned(),
+        InputAction::TimelineLocator {
+            at: "2qn".to_owned(),
+        },
+    );
+    settle_background(&mut workspace);
+    let source = fs::read_to_string(root.path().join("project.crump")).expect("edited source");
+    assert!(
+        source.contains("locator middle \"Middle\" at 2qn"),
+        "{source}"
+    );
+}
+
+#[test]
 fn timeline_renders_arrangement_activity_at_full_and_narrow_sizes() {
     fn render_text(workspace: &Workspace, width: u16, height: u16) -> String {
         let backend = ratatui::backend::TestBackend::new(width, height);
@@ -818,7 +1023,11 @@ fn workspace_recovers_operation_latches_after_contained_worker_panics() {
         generation: 1,
     };
     workspace.active_build_in_flight = true;
-    workspace.work_in_flight = Some(WorkspaceWorkKind::Active(active_key));
+    workspace.work_in_flight = Some(WorkspaceWorkKind::Active {
+        key: active_key,
+        explicit_seek: false,
+        initial_frame: None,
+    });
     workspace
         .worker
         .submit(|| -> WorkspaceWorkResult { panic!("injected Active panic") })
@@ -835,7 +1044,11 @@ fn workspace_recovers_operation_latches_after_contained_worker_panics() {
         generation: 2,
     };
     workspace.active_build_in_flight = true;
-    workspace.work_in_flight = Some(WorkspaceWorkKind::Active(canceled_key));
+    workspace.work_in_flight = Some(WorkspaceWorkKind::Active {
+        key: canceled_key,
+        explicit_seek: false,
+        initial_frame: None,
+    });
     workspace
         .worker
         .submit(|| -> WorkspaceWorkResult { panic!("injected canceled Active panic") })

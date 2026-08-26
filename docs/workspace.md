@@ -21,24 +21,24 @@ Short Candidate and Active hashes are shown side by side. During playback the sa
 | `1`–`9`, `0` | Select Timeline, Mixer, Processing, Event Grid, Faceplate, Instrument, Parameters, Automation, Graph, or Source; Tab reaches Diagnostics/History/Help |
 | `H` / `?` | Open History / keyboard Help |
 | `F12` | Toggle live workspace latency diagnostics; print the bounded summary after exit |
-| `Tab` / `Shift-Tab` | Next / previous view |
-| `↑` / `↓` | Move the current selection |
-| `Page Up` / `Page Down` | Move by eight rows |
+| `Tab` / `Shift-Tab`, `gt` / `gT` | Next / previous view |
+| `j` / `k` or `↑` / `↓` | Move the current selection in every view |
+| `gg` / `G` | Move to the first / last selection in the current view |
+| `Ctrl-U` / `Ctrl-D`, `Page Up` / `Page Down` | Move by four / eight rows |
 | `←` / `→` | Make the view's bounded adjustment, change an Instrument section, or change Source/Graph context |
 | `[` / `]` | Previous / next Pattern, Instrument, or Automation lane where applicable |
 | `Enter` | Open an exact-value editor or selected History diff |
 | `Space` | Start, pause, or resume the armed Audition Plan against the exact Active Revision |
 | `S` | Stop playback while retaining the armed target, range, path, transient bypasses, Solo, and cue |
 | `A` in Timeline/Event Grid | Arm the selected Track, Pattern, or sample occurrence for audition |
-| `+` / `-` in Timeline | Zoom in around the viewport center / zoom out |
-| `,` / `.` in Timeline | Pan the zoomed viewport left / right by one-quarter window |
-| `Home` in Timeline | Fit the complete finite Song in the arrangement grid |
+| `i` in an Instrument-related view | Enter explicit Note Audition mode; `Esc` returns to Normal mode |
 | `L` in Event Grid | Arm or disable the selected Pattern's exact half-open loop |
 | `P` | Publish an inspected valid Candidate with a History summary |
 | `r` | Reload Project and History immediately |
 | `e` in Source | Suspend the workspace and open the selected file in `$VISUAL`, `$EDITOR`, or `vi` |
-| `?` | Open keyboard help |
-| `q` / `Ctrl-C` | Exit safely |
+| `Esc` / `Ctrl-[` | Cancel the current prefix, input, range, or Note mode; never exit |
+| `Ctrl-C` | The only workspace exit shortcut |
+| `q` | Remain in the workspace and report the Ctrl-C exit contract |
 
 Mouse wheel selection is available as a convenience. No required workflow needs a pointer.
 
@@ -48,15 +48,45 @@ Timeline is a DAW-style arrangement overview over presentation-ordered Tracks an
 
 The selected-Track inspector retains assigned Instrument, source-backed level/pan, arrangement context, and every Clip's durable ID, start/duration, traversal mode, source offset, transpose, gain, fades, and optional Groove assignment. Sample waveforms resolve through the Track's sampler mapping and occurrence region after canonical Pattern Variation, Clip traversal/cropping, and Groove scheduling. Reverse, bounded-loop, and loop-crossfade traversal affect source projection. Exact-asset min/max pyramids use the versioned `crump-timeline-waveform-v1` display algorithm and are cached by asset hash outside the draw tick. They are source previews, not post-processor Track renders; Media Tracks remain unsupported.
 
-- `↑` / `↓` selects a Track and follows its Instrument in instrument views.
-- `+` / `-` zooms around the viewport center up to 64×; `,` / `.` pans by one-quarter viewport.
-- `Home` restores whole-Song fit. Viewport changes are transient and never edit source or History.
-- Set `CRUMP_TIMELINE_ASCII=1` to use ASCII arrangement glyphs; `C` and `POSIX` locales and `TERM=dumb` select this fallback automatically.
-- `←` / `→` changes level by 1 dB through a checked source edit.
-- `Enter` or `l` opens exact level entry.
-- `p` opens exact pan entry.
+Timeline has a transient two-dimensional cursor: `j` / `k` (or `↑` / `↓`) changes Track, while the following Normal-mode commands move exact musical time. A time motion seeks the current Active audition while stopped, paused, or playing; while stopped it also arms that position as the next `Space` start. If the cursor falls outside the armed target's half-open range, Crump reports the exclusion instead of silently clamping to another frame; select a containing range before playback. The cursor, navigation grid, ranges, marks, search state, jump history, follow mode, and viewport never edit Project source or History.
 
-Every accepted change replaces only the selected literal, validates the complete Project, writes atomically, and appends a human-origin History Entry. If source changed since the view was loaded, Crump rejects the operation rather than editing a stale range.
+### Timeline motion and jumps
+
+| Key | Action |
+| --- | --- |
+| `h` / `l`, `<` / `>` | Move by the current exact navigation grid |
+| `[` / `]` | Choose a finer / coarser grid from 1/16 beat through 4 bars |
+| `w` / `b` | Next / previous Clip or Locator boundary on the selected Track |
+| `e` / `%` | End of the Clip under the cursor / toggle that Clip's edges |
+| `^` / `$` | First / last arranged material on the selected Track |
+| `g0` / `g$` | Exact Song start / end |
+| `*` / `#` | Next / previous Clip using the Pattern under the cursor |
+| `{` / `}` | Previous / next Locator |
+| `:8`, `:8:3` | Go to displayed bar, or displayed bar and beat |
+| `:chorus` | Go to a durable Locator ID |
+| `:+2bar`, `:-1beat` | Move by a relative musical duration |
+| `/` | Search Locator, Track, Clip, Pattern, and Instrument names or IDs |
+| `n` / `N` | Repeat the search forward / backward |
+| `ma`, `'a` | Set transient mark `a` / jump to it |
+| `''`, `Ctrl-O` / `Ctrl-I` | Return to the preceding position / move backward or forward in jump history |
+| `gd` / `gf` | Open the Pattern definition / exact Clip source under the cursor |
+| `gi` / `gm` / `gp` | Open the selected Track's Instrument / Mixer channel / Processing route |
+
+Crump requests progressive keyboard disambiguation, so compatible terminals report `Ctrl-I`, `Tab`, `Ctrl-[`, and `Esc` distinctly. Legacy terminals may encode `Ctrl-I` exactly like `Tab` and `Ctrl-[` exactly like `Esc`; Crump gives those indistinguishable encodings the documented Tab and Escape behavior.
+
+### Timeline ranges and viewport
+
+`V` enters RANGE mode at the cursor. Time motions adjust the active edge; `o` swaps edges. `L` commits the normalized half-open range as a loop, while `Enter` commits it for one-shot playback. `Esc` cancels the active selection, and `gv` restores the previous selection. `L` outside RANGE mode toggles the currently armed loop. These are transient Audition State operations and use the same exact musical-time/Locator resolver as Processing.
+
+- `zf` fits the selected or armed range; `zz`, `zs`, and `ze` center or align the cursor.
+- `zh` / `zl` and `,` / `.` pan by one-quarter viewport; `Ctrl-B` / `Ctrl-F` pan by a full viewport.
+- `+` / `-` zooms up to 64×; `Home` restores whole-Song fit.
+- `f` toggles follow-playhead mode.
+- `M` asks for `ID NAME` and creates a durable Locator at the cursor through a checked source edit and History publication.
+- `A` arms the selected Track, `←` / `→` changes its level by 1 dB, `Enter` opens exact level entry, and `p` opens exact pan entry.
+- Set `CRUMP_TIMELINE_ASCII=1` to use ASCII arrangement glyphs; `C` and `POSIX` locales and `TERM=dumb` select this fallback automatically.
+
+Every accepted durable change replaces only the selected literal or inserts the Locator, validates the complete Project, writes atomically, and appends a human-origin History Entry. If source changed since the view was loaded, Crump rejects the operation rather than editing a stale range.
 
 ## Mixer
 
@@ -96,7 +126,7 @@ Event Grid shows one Pattern's source Events with exact onset, type, pitch/voice
 - `u` enters an exact duration for a pitched or sample Event.
 - `v` enters an exact velocity for every Event kind.
 - `x` edits a sample occurrence's half-open original-source `START:END` region.
-- `f` edits sample source-edge fade frames as `IN:OUT`; `g` edits occurrence gain; `p` edits occurrence pan.
+- `f` edits sample source-edge fade frames as `IN:OUT`; `Alt-G` edits occurrence gain; `p` edits occurrence pan.
 - `A` arms the selected sample occurrence through its mapping path, or otherwise arms the selected Pattern through Master.
 - `L` arms or disables an exact Audition Plan spanning the selected Pattern's natural occurrence range. `Space` starts it; pressing `L` during playback publishes the newly prepared loop through the same bounded seam.
 
@@ -183,7 +213,7 @@ Tracks with unchanged schedule/topology semantics retain running voice and Track
 
 ## Note Audition
 
-In Faceplate, Instrument, Parameters, and Graph views, `A W S E D F T G Y H U J K` plays C4–C5 on a graph Instrument. On stock drums, `A/S/D/F` (or `Z/X/C/V`) trigger kick/snare/hat/clap. Terminal key-release events send Note Off; a bounded timeout recovers terminals that report key presses only.
+In Faceplate, Instrument, Parameters, and Graph views, press `i` to enter **NOTE** mode. In that explicit mode, `A W S E D F T G Y H U J K` plays C4–C5 on a graph Instrument. On stock drums, `A/S/D/F` (or `Z/X/C/V`) trigger kick/snare/hat/clap. `Esc` or `Ctrl-[` releases held notes and returns to Normal mode, where `j` / `k` always navigate. Terminal key-release events send Note Off; a bounded timeout recovers terminals that report key presses only.
 
 Audition is transient: it does not change source, Active Revision, or History. PipeWire MIDI follows the selected Instrument and uses normal Note On/Off velocity. See [Audio and MIDI](audio-and-midi.md).
 

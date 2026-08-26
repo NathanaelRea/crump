@@ -31,7 +31,7 @@ use ratatui::{
 };
 
 use crate::{
-    diagnostic::Severity,
+    diagnostic::{Severity, SourceLocation},
     engine::audition::{
         AuditionCue, AuditionPath, AuditionPlan, AuditionRange, AuditionStatus, AuditionTarget,
     },
@@ -97,7 +97,7 @@ use performance::WorkspacePerformance;
 use reload::{CandidateReload, CandidateUpdate, HistoryReload, HistoryUpdate, ReloadBatch};
 use rendering::render;
 pub use terminal::run;
-use timeline::{TimelineCache, TimelineViewport};
+use timeline::{TimelineCache, TimelinePosition, TimelineRange, TimelineState, TimelineViewport};
 use watch::WorkspaceWatch;
 
 fn timeline_ascii_fallback() -> bool {
@@ -291,7 +291,11 @@ enum WorkspaceWorkKind {
     CandidateVerification,
     HistoryVerification,
     Reload { candidate: bool, history: bool },
-    Active(ActiveRequestKey),
+    Active {
+        key: ActiveRequestKey,
+        explicit_seek: bool,
+        initial_frame: Option<u64>,
+    },
     Mutation,
 }
 
@@ -334,6 +338,7 @@ struct Workspace {
     mutation_in_flight: bool,
     active_prepare_requested: bool,
     active_prepare_explicit_seek: bool,
+    active_prepare_initial_frame: Option<u64>,
     active_build_in_flight: bool,
     audition_epoch: u64,
     playback_epoch: u64,
@@ -348,9 +353,11 @@ struct Workspace {
     history: Vec<HistoryEntry>,
     view: View,
     selected_track: usize,
+    timeline_state: TimelineState,
     timeline_viewport: TimelineViewport,
     timeline_cache: TimelineCache,
     timeline_ascii: bool,
+    pending_key: Option<PendingKey>,
     mixer_parameters: Vec<MixerParameterView>,
     selected_mixer_parameter: usize,
     selected_processor: usize,
@@ -364,6 +371,8 @@ struct Workspace {
     selected_automation_point: usize,
     selected_graph_node: usize,
     selected_history: usize,
+    selected_diagnostic: usize,
+    help_scroll: u16,
     selected_source: usize,
     source_scroll: usize,
     modal: Option<Modal>,
@@ -382,8 +391,17 @@ struct Workspace {
     audition_status: Option<AuditionStatus>,
     held_notes: BTreeMap<char, HeldNote>,
     next_note_id: u64,
+    note_mode: bool,
     audition_loop: Option<String>,
     editor_requested: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PendingKey {
+    G,
+    Z,
+    SetMark,
+    JumpMark,
 }
 
 struct HeldNote {
@@ -433,6 +451,11 @@ enum InputAction {
     },
     AuditionTarget,
     AuditionRange,
+    TimelineGoto,
+    TimelineSearch,
+    TimelineLocator {
+        at: String,
+    },
     AutomationValue {
         lane: String,
         point: String,
@@ -568,6 +591,7 @@ impl Workspace {
             mutation_in_flight: false,
             active_prepare_requested: false,
             active_prepare_explicit_seek: false,
+            active_prepare_initial_frame: None,
             active_build_in_flight: false,
             audition_epoch: 0,
             playback_epoch: 0,
@@ -582,9 +606,11 @@ impl Workspace {
             history,
             view: View::Timeline,
             selected_track: 0,
+            timeline_state: TimelineState::default(),
             timeline_viewport: TimelineViewport::default(),
             timeline_cache,
             timeline_ascii: timeline_ascii_fallback(),
+            pending_key: None,
             mixer_parameters,
             selected_mixer_parameter: 0,
             selected_processor: 0,
@@ -598,6 +624,8 @@ impl Workspace {
             selected_automation_point: 0,
             selected_graph_node: 0,
             selected_history: 0,
+            selected_diagnostic: 0,
+            help_scroll: 0,
             selected_source: 0,
             source_scroll: 0,
             modal: None,
@@ -616,6 +644,7 @@ impl Workspace {
             audition_status: None,
             held_notes: BTreeMap::new(),
             next_note_id: 1 << 32,
+            note_mode: false,
             audition_loop: None,
             editor_requested: false,
         };
@@ -662,12 +691,23 @@ impl Workspace {
     }
 
     fn queue_active_preparation(&mut self, explicit_seek: bool) {
+        self.queue_active_preparation_with_frame(explicit_seek, None);
+    }
+
+    fn queue_active_preparation_with_frame(
+        &mut self,
+        explicit_seek: bool,
+        initial_frame: Option<u64>,
+    ) {
         if self.active_prepare_requested {
             self.performance.coalesced_requests =
                 self.performance.coalesced_requests.saturating_add(1);
         }
         self.active_prepare_requested = true;
-        self.active_prepare_explicit_seek |= explicit_seek;
+        self.active_prepare_explicit_seek |= explicit_seek || initial_frame.is_some();
+        if initial_frame.is_some() {
+            self.active_prepare_initial_frame = initial_frame;
+        }
         self.dispatch_work();
     }
 
@@ -839,13 +879,16 @@ impl Workspace {
             playback_epoch: self.playback_epoch,
             generation: self.next_publication_generation,
         };
+        let explicit_seek = self.active_prepare_explicit_seek;
+        let initial_frame = self.active_prepare_initial_frame;
         let request = ActiveRequest {
             key: key.clone(),
             active,
             plan: self.audition_plan.clone(),
             telemetry: self.telemetry.engine,
             previous_status: self.audition_status.clone(),
-            explicit_seek: self.active_prepare_explicit_seek,
+            initial_frame,
+            explicit_seek,
             mode,
         };
         match self.worker.submit(move || {
@@ -856,8 +899,13 @@ impl Workspace {
             Ok(()) => {
                 self.active_prepare_requested = false;
                 self.active_prepare_explicit_seek = false;
+                self.active_prepare_initial_frame = None;
                 self.active_build_in_flight = true;
-                self.work_in_flight = Some(WorkspaceWorkKind::Active(key));
+                self.work_in_flight = Some(WorkspaceWorkKind::Active {
+                    key,
+                    explicit_seek,
+                    initial_frame,
+                });
                 true
             }
             Err(error) => {
@@ -927,10 +975,18 @@ impl Workspace {
                 self.candidate_reload_requested |= candidate;
                 self.history_reload_requested |= history;
             }
-            Some(WorkspaceWorkKind::Active(key)) => {
+            Some(WorkspaceWorkKind::Active {
+                key,
+                explicit_seek,
+                initial_frame,
+            }) => {
                 self.active_build_in_flight = false;
                 if self.active_request_is_current(&key) {
                     self.active_prepare_requested = true;
+                    self.active_prepare_explicit_seek |= explicit_seek;
+                    if initial_frame.is_some() {
+                        self.active_prepare_initial_frame = initial_frame;
+                    }
                 }
             }
             Some(WorkspaceWorkKind::Mutation) => {
@@ -1064,6 +1120,13 @@ impl Workspace {
                                 };
                             }
                             Err((RealtimeError::QueueFull, runtime, reservation)) => {
+                                if inspection.requested_initial_frame.is_some() {
+                                    self.active_prepare_initial_frame =
+                                        inspection.requested_initial_frame;
+                                }
+                                self.active_prepare_explicit_seek |= inspection
+                                    .requested_explicit_seek
+                                    || inspection.requested_initial_frame.is_some();
                                 self.retire_queue.retire((runtime, reservation, inspection));
                                 self.active_prepare_requested = true;
                                 self.status =
@@ -1299,6 +1362,20 @@ impl Workspace {
             self.telemetry = player.poll_with_reclaimer(|runtime| retire_queue.retire(runtime));
             player.set_audition_track(audition_track);
         }
+        if self.timeline_state.follow_playhead()
+            && self.player.is_some()
+            && let Some(project) = self
+                .audible_bundle
+                .as_ref()
+                .and_then(|bundle| bundle.publishable())
+            && let Ok(end_frame) = project
+                .song
+                .end
+                .to_frames(project.song.tempo_bpm, project.sample_rate)
+        {
+            self.timeline_viewport
+                .center_frame(self.telemetry.engine.frame, end_frame);
+        }
         let failure = stream_failure_message(self.telemetry.stream_state);
         if let Some(status) = failure
             && self.player.is_some()
@@ -1323,6 +1400,7 @@ impl Workspace {
         self.playback_paused = false;
         self.active_prepare_requested = false;
         self.active_prepare_explicit_seek = false;
+        self.active_prepare_initial_frame = None;
         self.held_notes.clear();
         let retired = (
             self.player.take(),
@@ -1563,6 +1641,10 @@ impl Workspace {
     }
 
     fn activate_audition_plan(&mut self, plan: AuditionPlan) {
+        self.activate_audition_plan_at(plan, None);
+    }
+
+    fn activate_audition_plan_at(&mut self, plan: AuditionPlan, initial_frame: Option<u64>) {
         if self.active_bundle.is_none() {
             self.status = "Publish a valid Candidate before selecting an audition".to_owned();
             return;
@@ -1572,8 +1654,14 @@ impl Workspace {
             _ => None,
         };
         self.audition_plan = plan;
+        if initial_frame.is_some() {
+            self.timeline_state.arm_cursor();
+        } else {
+            self.timeline_state.disarm_cursor();
+        }
         self.audition_epoch = self.audition_epoch.saturating_add(1);
-        self.queue_active_preparation(true);
+        self.active_prepare_initial_frame = None;
+        self.queue_active_preparation_with_frame(true, initial_frame);
         self.status = "Audition target queued for exact Active preparation".to_owned();
     }
 
@@ -1713,6 +1801,7 @@ impl Workspace {
             self.playback_requested = false;
             self.playback_epoch = self.playback_epoch.saturating_add(1);
             self.active_prepare_requested = false;
+            self.active_prepare_initial_frame = None;
             self.status = "Pending playback start cancelled".to_owned();
             return;
         }
@@ -1720,9 +1809,20 @@ impl Workspace {
             self.status = "Publish a valid Candidate before playback".to_owned();
             return;
         }
+        let initial_frame = if self.timeline_state.cursor_armed() {
+            match self.timeline_cursor_frame_for_plan() {
+                Ok(frame) => Some(frame),
+                Err(error) => {
+                    self.status = error;
+                    return;
+                }
+            }
+        } else {
+            None
+        };
         self.playback_requested = true;
         self.playback_epoch = self.playback_epoch.saturating_add(1);
-        self.queue_active_preparation(true);
+        self.queue_active_preparation_with_frame(true, initial_frame);
         self.status = "Preparing Active audition in the background · Space cancels".to_owned();
     }
 
@@ -1735,6 +1835,8 @@ impl Workspace {
         self.playback_requested = false;
         self.playback_epoch = self.playback_epoch.saturating_add(1);
         self.active_prepare_requested = false;
+        self.active_prepare_explicit_seek = false;
+        self.active_prepare_initial_frame = None;
         if let Some(pending) = self.pending_active_inspection.take() {
             self.retire_queue.retire(pending);
         }
@@ -1789,24 +1891,84 @@ impl Workspace {
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
+        if key.kind == KeyEventKind::Release {
+            if self.note_mode {
+                let _ = self.handle_audition_key(key);
+            }
+            return;
+        }
+        if matches!(key.code, KeyCode::Char('c')) && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.request_quit();
+            return;
+        }
+        if matches!(key.code, KeyCode::Char('[')) && key.modifiers.contains(KeyModifiers::CONTROL) {
+            if self.modal.take().is_some() {
+                self.status = "Input cancelled".to_owned();
+            } else {
+                self.cancel_workspace_mode();
+            }
+            return;
+        }
         if self.modal.is_some() {
             self.handle_modal_key(key);
             return;
         }
-        if self.handle_audition_key(key) {
+        if key.code == KeyCode::Esc {
+            self.cancel_workspace_mode();
             return;
         }
-        if key.kind == KeyEventKind::Release {
+        if self.note_mode {
+            if self.handle_audition_key(key) {
+                return;
+            }
+            self.status = "NOTE mode · use piano keys or Esc to return to Normal mode".to_owned();
             return;
+        }
+        if self.pending_key.is_some() && self.handle_pending_key(key) {
+            return;
+        }
+        if matches!(
+            self.view,
+            View::Faceplate | View::Instrument | View::Parameters | View::Graph
+        ) && matches!(key.code, KeyCode::Char('i'))
+        {
+            self.note_mode = true;
+            self.status =
+                "NOTE mode · A W S E D F T G Y H U J K · Esc returns to Normal".to_owned();
+            return;
+        }
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            match key.code {
+                KeyCode::Char('o') => {
+                    self.jump_timeline_history(-1);
+                    return;
+                }
+                KeyCode::Char('i') => {
+                    self.jump_timeline_history(1);
+                    return;
+                }
+                KeyCode::Char('d') => {
+                    self.move_selection(4);
+                    return;
+                }
+                KeyCode::Char('u') => {
+                    self.move_selection(-4);
+                    return;
+                }
+                KeyCode::Char('b') if self.view == View::Timeline => {
+                    self.pan_timeline_window(-1);
+                    return;
+                }
+                KeyCode::Char('f') if self.view == View::Timeline => {
+                    self.pan_timeline_window(1);
+                    return;
+                }
+                _ => {}
+            }
         }
         match (key.code, key.modifiers) {
-            (KeyCode::Char('q'), _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
-                if self.pending_mutation.is_some() || self.mutation_in_flight {
-                    self.status =
-                        "Finishing the durable Project mutation before shutdown".to_owned();
-                } else {
-                    self.quit = true;
-                }
+            (KeyCode::Char('q'), _) => {
+                self.status = "Ctrl-C is the only workspace exit shortcut".to_owned()
             }
             (KeyCode::Char('?'), _) => self.view = View::Help,
             (KeyCode::Char('H'), _) => self.view = View::History,
@@ -1820,9 +1982,96 @@ impl Workspace {
             (KeyCode::Tab, KeyModifiers::SHIFT) | (KeyCode::BackTab, _) => self.change_view(-1),
             (KeyCode::Tab, _) => self.change_view(1),
             (KeyCode::Char(character @ '1'..='9'), _) => {
-                self.view = VIEWS[usize::from(character as u8 - b'1')]
+                self.view = VIEWS[usize::from(character as u8 - b'1')];
+                self.pending_key = None;
             }
-            (KeyCode::Char('0'), _) => self.view = VIEWS[9],
+            (KeyCode::Char('0'), _) => {
+                self.view = VIEWS[9];
+                self.pending_key = None;
+            }
+            (KeyCode::Char('j'), _) | (KeyCode::Down, _) => self.move_selection(1),
+            (KeyCode::Char('k'), _) | (KeyCode::Up, _) => self.move_selection(-1),
+            (KeyCode::Char('G'), _) => self.move_selection_extreme(false),
+            (KeyCode::PageUp, _) => self.move_selection(-8),
+            (KeyCode::PageDown, _) => self.move_selection(8),
+            (KeyCode::Char('g'), KeyModifiers::NONE) => self.pending_key = Some(PendingKey::G),
+            (KeyCode::Char('z'), _) if self.view == View::Timeline => {
+                self.pending_key = Some(PendingKey::Z)
+            }
+            (KeyCode::Char('m'), _) if self.view == View::Timeline => {
+                self.pending_key = Some(PendingKey::SetMark)
+            }
+            (KeyCode::Char('\''), _) if self.view == View::Timeline => {
+                self.pending_key = Some(PendingKey::JumpMark)
+            }
+            (KeyCode::Char(':'), _) if self.view == View::Timeline => self.open_timeline_goto(),
+            (KeyCode::Char('/'), _) if self.view == View::Timeline => self.open_timeline_search(),
+            (KeyCode::Char('n'), _) if self.view == View::Timeline => {
+                self.repeat_timeline_search(1)
+            }
+            (KeyCode::Char('N'), _) if self.view == View::Timeline => {
+                self.repeat_timeline_search(-1)
+            }
+            (KeyCode::Char('h') | KeyCode::Char('<'), _) if self.view == View::Timeline => {
+                self.move_timeline_grid(-1)
+            }
+            (KeyCode::Char('l') | KeyCode::Char('>'), _) if self.view == View::Timeline => {
+                self.move_timeline_grid(1)
+            }
+            (KeyCode::Char('w'), _) if self.view == View::Timeline => {
+                self.move_timeline_boundary(1)
+            }
+            (KeyCode::Char('b'), _) if self.view == View::Timeline => {
+                self.move_timeline_boundary(-1)
+            }
+            (KeyCode::Char('e'), _) if self.view == View::Timeline => self.move_timeline_clip_end(),
+            (KeyCode::Char('%'), _) if self.view == View::Timeline => {
+                self.toggle_timeline_clip_edge()
+            }
+            (KeyCode::Char('^'), _) if self.view == View::Timeline => {
+                self.move_timeline_track_edge(false)
+            }
+            (KeyCode::Char('$'), _) if self.view == View::Timeline => {
+                self.move_timeline_track_edge(true)
+            }
+            (KeyCode::Char('*'), _) if self.view == View::Timeline => {
+                self.move_timeline_matching_pattern(1)
+            }
+            (KeyCode::Char('#'), _) if self.view == View::Timeline => {
+                self.move_timeline_matching_pattern(-1)
+            }
+            (KeyCode::Char('{'), _) if self.view == View::Timeline => {
+                self.move_timeline_locator(-1)
+            }
+            (KeyCode::Char('}'), _) if self.view == View::Timeline => self.move_timeline_locator(1),
+            (KeyCode::Char('['), _) if self.view == View::Timeline => self.change_timeline_grid(-1),
+            (KeyCode::Char(']'), _) if self.view == View::Timeline => self.change_timeline_grid(1),
+            (KeyCode::Char('V'), _) if self.view == View::Timeline => self.begin_timeline_visual(),
+            (KeyCode::Char('o'), _)
+                if self.view == View::Timeline && self.timeline_state.visual() =>
+            {
+                if self.timeline_state.swap_visual_edge() {
+                    if let Some(song_end) =
+                        self.bundle.project.as_ref().map(|project| project.song.end)
+                    {
+                        self.timeline_viewport
+                            .reveal(self.timeline_position().at, song_end);
+                    }
+                    self.status = "Timeline RANGE active edge swapped".to_owned();
+                }
+            }
+            (KeyCode::Char('L'), _) if self.view == View::Timeline => {
+                if self.timeline_state.visual() {
+                    self.apply_timeline_visual(true);
+                } else {
+                    self.toggle_current_audition_loop();
+                }
+            }
+            (KeyCode::Enter, _) if self.view == View::Timeline && self.timeline_state.visual() => {
+                self.apply_timeline_visual(false)
+            }
+            (KeyCode::Char('f'), _) if self.view == View::Timeline => self.toggle_timeline_follow(),
+            (KeyCode::Char('M'), _) if self.view == View::Timeline => self.open_timeline_locator(),
             (KeyCode::Char('+') | KeyCode::Char('='), _) if self.view == View::Timeline => {
                 self.zoom_timeline(1)
             }
@@ -1874,7 +2123,9 @@ impl Workspace {
             (KeyCode::Char('u'), _) if self.view == View::EventGrid => self.open_note_duration(),
             (KeyCode::Char('x'), _) if self.view == View::EventGrid => self.open_sample_region(),
             (KeyCode::Char('f'), _) if self.view == View::EventGrid => self.open_sample_fade(),
-            (KeyCode::Char('g'), _) if self.view == View::EventGrid => self.open_sample_gain(),
+            (KeyCode::Char('g'), KeyModifiers::ALT) if self.view == View::EventGrid => {
+                self.open_sample_gain()
+            }
             (KeyCode::Char('p'), _) if self.view == View::EventGrid => self.open_sample_pan(),
             (KeyCode::Char('t'), _) if self.view == View::Automation => self.open_automation_time(),
             (KeyCode::Char('c'), _) if self.view == View::Automation => {
@@ -1882,14 +2133,9 @@ impl Workspace {
             }
             (KeyCode::Char('['), _) => self.change_context(-1),
             (KeyCode::Char(']'), _) => self.change_context(1),
-            (KeyCode::Up, _) => self.move_selection(-1),
-            (KeyCode::Down, _) => self.move_selection(1),
-            (KeyCode::PageUp, _) => self.move_selection(-8),
-            (KeyCode::PageDown, _) => self.move_selection(8),
             (KeyCode::Left, _) => self.adjust_selected(-1),
             (KeyCode::Right, _) => self.adjust_selected(1),
             (KeyCode::Enter, _) => self.open_exact_edit(),
-            (KeyCode::Char('l'), _) if self.view == View::Timeline => self.open_track_level(),
             (KeyCode::Char('p'), _) if self.view == View::Timeline => self.open_track_pan(),
             (KeyCode::Char('R'), _) if self.view == View::History => self.open_restore(),
             (KeyCode::Char('d'), _) if self.view == View::History => self.open_history_diff(),
@@ -1897,6 +2143,137 @@ impl Workspace {
             (KeyCode::Home, _) if self.view == View::Source => self.source_scroll = 0,
             _ => {}
         }
+    }
+
+    fn request_quit(&mut self) {
+        if self.pending_mutation.is_some() || self.mutation_in_flight {
+            self.status = "Finishing the durable Project mutation before shutdown".to_owned();
+        }
+        self.quit = true;
+    }
+
+    fn cancel_workspace_mode(&mut self) {
+        self.pending_key = None;
+        if self.note_mode {
+            if let Some(player) = self.player.as_mut() {
+                let _ = player.all_notes_off();
+            }
+            self.held_notes.clear();
+            self.note_mode = false;
+            self.status = "NORMAL mode".to_owned();
+        } else if self.timeline_state.visual() {
+            self.cancel_timeline_visual();
+        } else {
+            self.status = "NORMAL mode · Ctrl-C exits".to_owned();
+        }
+    }
+
+    fn handle_pending_key(&mut self, key: KeyEvent) -> bool {
+        let Some(prefix) = self.pending_key.take() else {
+            return false;
+        };
+        match prefix {
+            PendingKey::G => match key.code {
+                KeyCode::Char('g') => self.move_selection_extreme(true),
+                KeyCode::Char('t') => self.change_view(1),
+                KeyCode::Char('T') => self.change_view(-1),
+                KeyCode::Char('0') if self.view == View::Timeline => {
+                    self.move_timeline_song_edge(false)
+                }
+                KeyCode::Char('$') if self.view == View::Timeline => {
+                    self.move_timeline_song_edge(true)
+                }
+                KeyCode::Char('d') if self.view == View::Timeline => self.timeline_go_definition(),
+                KeyCode::Char('f') if self.view == View::Timeline => self.timeline_go_source(),
+                KeyCode::Char('i') if self.view == View::Timeline => self.timeline_go_instrument(),
+                KeyCode::Char('m') if self.view == View::Timeline => self.timeline_go_mixer(),
+                KeyCode::Char('p') if self.view == View::Timeline => self.timeline_go_processing(),
+                KeyCode::Char('v') if self.view == View::Timeline => {
+                    if self.timeline_state.restore_visual() {
+                        if let Some(song_end) =
+                            self.bundle.project.as_ref().map(|project| project.song.end)
+                        {
+                            self.timeline_viewport
+                                .reveal(self.timeline_position().at, song_end);
+                        }
+                        self.status = "Restored the last Timeline range selection".to_owned();
+                    } else {
+                        self.status = "No prior Timeline range selection".to_owned();
+                    }
+                }
+                _ => self.status = "Unknown g command".to_owned(),
+            },
+            PendingKey::Z if self.view == View::Timeline => match key.code {
+                KeyCode::Char('z') => self.center_timeline_cursor(),
+                KeyCode::Char('s') => self.align_timeline_cursor(false),
+                KeyCode::Char('e') => self.align_timeline_cursor(true),
+                KeyCode::Char('h') => self.pan_timeline(-1),
+                KeyCode::Char('l') => self.pan_timeline(1),
+                KeyCode::Char('f') => self.fit_timeline_range(),
+                _ => self.status = "Unknown z command".to_owned(),
+            },
+            PendingKey::SetMark if self.view == View::Timeline => match key.code {
+                KeyCode::Char(mark) if mark.is_ascii_alphabetic() => self.set_timeline_mark(mark),
+                _ => self.status = "Timeline marks use letters a–z".to_owned(),
+            },
+            PendingKey::JumpMark if self.view == View::Timeline => match key.code {
+                KeyCode::Char(mark) if mark.is_ascii_alphabetic() || mark == '\'' => {
+                    self.jump_timeline_mark(mark)
+                }
+                _ => self.status = "Jump to a Timeline mark with 'a or return with ''".to_owned(),
+            },
+            _ => self.status = "Key prefix is unavailable in this view".to_owned(),
+        }
+        true
+    }
+
+    fn move_selection_extreme(&mut self, first: bool) {
+        let edge = |count: usize| if first { 0 } else { count.saturating_sub(1) };
+        match self.view {
+            View::Timeline => {
+                self.selected_track = edge(self.track_count());
+                self.timeline_state.set_track(self.selected_track);
+                self.sync_instrument_to_track();
+            }
+            View::Mixer => self.selected_mixer_parameter = edge(self.mixer_parameter_count()),
+            View::Processing => {
+                let count = self
+                    .processing_graph()
+                    .map_or(0, |graph| graph.processors.len());
+                self.selected_processor = edge(count);
+            }
+            View::EventGrid => self.selected_event = edge(self.event_count()),
+            View::Faceplate => self.selected_parameter = edge(self.faceplate_count()),
+            View::Instrument => self.move_instrument_selection_extreme(first),
+            View::Parameters => self.selected_parameter = edge(self.parameter_count()),
+            View::Automation => {
+                self.selected_automation_point = edge(self.automation_point_count())
+            }
+            View::Graph => self.selected_graph_node = edge(self.graph_node_count()),
+            View::Source => self.source_scroll = edge(self.source_line_count()),
+            View::Diagnostics => {
+                self.selected_diagnostic = edge(self.bundle.diagnostics.as_slice().len())
+            }
+            View::History => self.selected_history = edge(self.history.len()),
+            View::Help => {
+                self.help_scroll =
+                    u16::try_from(edge(rendering::help_line_count())).unwrap_or(u16::MAX)
+            }
+        }
+        self.status = if first {
+            "Moved to first row"
+        } else {
+            "Moved to last row"
+        }
+        .to_owned();
+    }
+
+    fn pan_timeline_window(&mut self, direction: isize) {
+        self.status = if self.timeline_viewport.pan_window(direction) {
+            "Timeline panned by one viewport".to_owned()
+        } else {
+            "Timeline viewport reached the Song boundary".to_owned()
+        };
     }
 
     fn handle_modal_key(&mut self, key: KeyEvent) {
@@ -2008,6 +2385,634 @@ impl Workspace {
         self.status = "Timeline fitted to the complete Song".to_owned();
     }
 
+    fn timeline_position(&self) -> TimelinePosition {
+        self.timeline_state.position()
+    }
+
+    fn set_timeline_position(
+        &mut self,
+        mut position: TimelinePosition,
+        record_jump: bool,
+        seek: bool,
+        description: &str,
+    ) {
+        let Some((song_end, meter, track_count)) = self.bundle.project.as_ref().map(|project| {
+            (
+                project.song.end,
+                project.song.meter,
+                project.song.tracks.len(),
+            )
+        }) else {
+            self.status =
+                "Timeline navigation is unavailable while the Candidate is invalid".to_owned();
+            return;
+        };
+        position.at = position.at.clamp(crate::time::MusicalTime::ZERO, song_end);
+        position.track = position.track.min(track_count.saturating_sub(1));
+        if record_jump {
+            self.timeline_state.jump_to(position);
+        } else {
+            self.timeline_state.set_position(position);
+        }
+        self.selected_track = position.track;
+        self.timeline_viewport.reveal(position.at, song_end);
+        self.sync_instrument_to_track();
+        if seek && !self.timeline_state.visual() {
+            self.timeline_state.arm_cursor();
+            let _ = self.queue_timeline_seek();
+            return;
+        }
+        self.status = format!(
+            "{description} · cursor {}",
+            rendering::timeline_time_label(position.at, meter)
+        );
+    }
+
+    fn timeline_frame_at(&self, at: crate::time::MusicalTime) -> Option<u64> {
+        let project = self.active_bundle.as_ref()?.publishable()?;
+        let frame = at
+            .to_frames(project.song.tempo_bpm, project.sample_rate)
+            .ok()?;
+        let song_end = project
+            .song
+            .end
+            .to_frames(project.song.tempo_bpm, project.sample_rate)
+            .ok()?;
+        Some(frame.min(song_end.saturating_sub(1)))
+    }
+
+    fn timeline_cursor_frame_for_plan(&self) -> Result<u64, String> {
+        let frame = self
+            .timeline_frame_at(self.timeline_state.position().at)
+            .ok_or_else(|| {
+                "The exact Active frame for the Timeline cursor is unavailable".to_owned()
+            })?;
+        if !self.active_build_in_flight
+            && !self.active_prepare_requested
+            && self.pending_active_inspection.is_none()
+            && let Some(status) = self.audition_status.as_ref()
+            && status.target == self.audition_plan.target
+            && status.path == self.audition_plan.path
+            && (frame < status.start_frame || frame >= status.end_frame)
+        {
+            return Err(format!(
+                "Timeline cursor frame {frame} lies outside the armed range [{}, {}); select a containing range before seeking",
+                status.start_frame, status.end_frame
+            ));
+        }
+        Ok(frame)
+    }
+
+    fn queue_timeline_seek(&mut self) -> bool {
+        if !self.candidate_is_active() {
+            self.status = "Cursor moved; publish the Candidate before seeking playback".to_owned();
+            return false;
+        }
+        let frame = match self.timeline_cursor_frame_for_plan() {
+            Ok(frame) => frame,
+            Err(error) => {
+                self.status = format!("Cursor moved without seeking: {error}");
+                return false;
+            }
+        };
+        self.audition_epoch = self.audition_epoch.saturating_add(1);
+        self.queue_active_preparation_with_frame(true, Some(frame));
+        self.status = if self.playback_paused {
+            "Exact seek queued; paused playback adopts it when the callback resumes".to_owned()
+        } else if self.player.is_some() {
+            "Exact Timeline seek queued".to_owned()
+        } else {
+            "Timeline cursor armed as the next playback start".to_owned()
+        };
+        true
+    }
+
+    fn move_timeline_grid(&mut self, direction: isize) {
+        let Some(project) = self.bundle.project.as_ref() else {
+            return;
+        };
+        let position = self.timeline_position();
+        let grid = self.timeline_state.grid(project);
+        let at = if direction < 0 {
+            position
+                .at
+                .checked_sub(grid)
+                .unwrap_or(crate::time::MusicalTime::ZERO)
+                .max(crate::time::MusicalTime::ZERO)
+        } else {
+            position
+                .at
+                .checked_add(grid)
+                .unwrap_or(project.song.end)
+                .min(project.song.end)
+        };
+        self.set_timeline_position(
+            TimelinePosition { at, ..position },
+            false,
+            true,
+            "Timeline cursor moved",
+        );
+    }
+
+    fn move_timeline_boundary(&mut self, direction: isize) {
+        let position = self.timeline_position();
+        let Some(at) = self
+            .bundle
+            .project
+            .as_ref()
+            .and_then(|project| timeline::adjacent_boundary(project, position, direction))
+        else {
+            self.status = "No further Clip or Locator boundary".to_owned();
+            return;
+        };
+        self.set_timeline_position(
+            TimelinePosition { at, ..position },
+            false,
+            true,
+            "Moved to arrangement boundary",
+        );
+    }
+
+    fn move_timeline_locator(&mut self, direction: isize) {
+        let position = self.timeline_position();
+        let Some(at) = self
+            .bundle
+            .project
+            .as_ref()
+            .and_then(|project| timeline::adjacent_locator(project, position, direction))
+        else {
+            self.status = "No further Locator".to_owned();
+            return;
+        };
+        self.set_timeline_position(
+            TimelinePosition { at, ..position },
+            true,
+            true,
+            "Moved to Locator",
+        );
+    }
+
+    fn move_timeline_clip_end(&mut self) {
+        let position = self.timeline_position();
+        let Some(at) = self.bundle.project.as_ref().and_then(|project| {
+            timeline::clip_at(project, position)
+                .and_then(|(_, clip)| clip.start.checked_add(clip.duration).ok())
+        }) else {
+            self.status = "No Clip lies under the Timeline cursor".to_owned();
+            return;
+        };
+        self.set_timeline_position(
+            TimelinePosition { at, ..position },
+            false,
+            true,
+            "Moved to Clip end",
+        );
+    }
+
+    fn toggle_timeline_clip_edge(&mut self) {
+        let position = self.timeline_position();
+        let Some((start, end)) = self.bundle.project.as_ref().and_then(|project| {
+            timeline::clip_at(project, position).and_then(|(_, clip)| {
+                clip.start
+                    .checked_add(clip.duration)
+                    .ok()
+                    .map(|end| (clip.start, end))
+            })
+        }) else {
+            self.status = "No Clip lies under the Timeline cursor".to_owned();
+            return;
+        };
+        let at = if position.at == start { end } else { start };
+        self.set_timeline_position(
+            TimelinePosition { at, ..position },
+            false,
+            true,
+            "Moved to matching Clip edge",
+        );
+    }
+
+    fn move_timeline_track_edge(&mut self, end: bool) {
+        let position = self.timeline_position();
+        let Some(at) = self
+            .bundle
+            .project
+            .as_ref()
+            .and_then(|project| timeline::track_material_edge(project, position.track, end))
+        else {
+            self.status = "Selected Track has no arranged material".to_owned();
+            return;
+        };
+        self.set_timeline_position(
+            TimelinePosition { at, ..position },
+            true,
+            true,
+            if end {
+                "Moved to last material on Track"
+            } else {
+                "Moved to first material on Track"
+            },
+        );
+    }
+
+    fn move_timeline_matching_pattern(&mut self, direction: isize) {
+        let position = self.timeline_position();
+        let Some(next) = self
+            .bundle
+            .project
+            .as_ref()
+            .and_then(|project| timeline::matching_pattern_clip(project, position, direction))
+        else {
+            self.status = "No further Clip uses the Pattern under the cursor".to_owned();
+            return;
+        };
+        self.set_timeline_position(next, true, true, "Moved to matching Pattern Clip");
+    }
+
+    fn move_timeline_song_edge(&mut self, end: bool) {
+        let Some(project) = self.bundle.project.as_ref() else {
+            return;
+        };
+        let position = TimelinePosition {
+            at: if end {
+                project.song.end
+            } else {
+                crate::time::MusicalTime::ZERO
+            },
+            ..self.timeline_position()
+        };
+        self.set_timeline_position(
+            position,
+            true,
+            true,
+            if end {
+                "Moved to Song end"
+            } else {
+                "Moved to Song start"
+            },
+        );
+    }
+
+    fn change_timeline_grid(&mut self, direction: isize) {
+        if self.timeline_state.change_grid(direction) {
+            self.status = format!(
+                "Timeline navigation grid {}",
+                self.timeline_state.grid_label()
+            );
+        } else {
+            self.status = format!(
+                "Timeline grid already at {}",
+                self.timeline_state.grid_label()
+            );
+        }
+    }
+
+    fn begin_timeline_visual(&mut self) {
+        self.timeline_state.begin_visual();
+        self.status =
+            "RANGE mode · move an edge, L loops, Enter plays once, Esc cancels".to_owned();
+    }
+
+    fn cancel_timeline_visual(&mut self) {
+        self.timeline_state.cancel_visual();
+        self.status = "Timeline RANGE selection cancelled".to_owned();
+    }
+
+    fn apply_timeline_visual(&mut self, looping: bool) {
+        if !self.candidate_is_active() {
+            self.status = "Publish the Candidate before arming a Timeline range".to_owned();
+            return;
+        }
+        let Some(range) = self.timeline_state.commit_visual() else {
+            self.status = "Timeline range must have a positive duration".to_owned();
+            return;
+        };
+        self.timeline_state.set_position(TimelinePosition {
+            at: range.start,
+            ..self.timeline_position()
+        });
+        self.timeline_state.arm_cursor();
+        let mut plan = self.audition_plan.clone();
+        plan.range = AuditionRange {
+            from: Some(range.start.to_string()),
+            to: Some(range.end.to_string()),
+            looping,
+        };
+        let initial_frame = self.timeline_frame_at(range.start);
+        self.activate_audition_plan_at(plan, initial_frame);
+        self.status = format!(
+            "Timeline range {}–{} armed{}",
+            range.start,
+            range.end,
+            if looping {
+                " as a loop"
+            } else {
+                " for one-shot playback"
+            }
+        );
+    }
+
+    fn fit_timeline_range(&mut self) {
+        let range = self.timeline_state.visual_range().or_else(|| {
+            let project = self.bundle.project.as_ref()?;
+            Some(TimelineRange {
+                start: timeline::parse_destination(
+                    self.audition_plan.range.from.as_deref()?,
+                    self.timeline_position().at,
+                    project,
+                )
+                .ok()?,
+                end: timeline::parse_destination(
+                    self.audition_plan.range.to.as_deref()?,
+                    self.timeline_position().at,
+                    project,
+                )
+                .ok()?,
+            })
+        });
+        let Some(range) = range else {
+            self.status = "Select or arm an exact Timeline range before fitting it".to_owned();
+            return;
+        };
+        let Some(song_end) = self.bundle.project.as_ref().map(|project| project.song.end) else {
+            return;
+        };
+        self.timeline_viewport.fit_range(range, song_end);
+        self.status = "Timeline viewport fitted to the selected range".to_owned();
+    }
+
+    fn center_timeline_cursor(&mut self) {
+        let Some(song_end) = self.bundle.project.as_ref().map(|project| project.song.end) else {
+            return;
+        };
+        self.timeline_viewport
+            .center_on(self.timeline_position().at, song_end);
+        self.status = "Timeline cursor centered".to_owned();
+    }
+
+    fn align_timeline_cursor(&mut self, end: bool) {
+        let Some(song_end) = self.bundle.project.as_ref().map(|project| project.song.end) else {
+            return;
+        };
+        if end {
+            self.timeline_viewport
+                .align_end(self.timeline_position().at, song_end);
+        } else {
+            self.timeline_viewport
+                .align_start(self.timeline_position().at, song_end);
+        }
+        self.status = if end {
+            "Timeline cursor aligned to the right edge"
+        } else {
+            "Timeline cursor aligned to the left edge"
+        }
+        .to_owned();
+    }
+
+    fn toggle_timeline_follow(&mut self) {
+        let enabled = self.timeline_state.toggle_follow_playhead();
+        self.status = format!(
+            "Timeline playhead follow {}",
+            if enabled { "enabled" } else { "disabled" }
+        );
+    }
+
+    fn open_timeline_goto(&mut self) {
+        self.modal = Some(Modal::Input {
+            title: "Go to Timeline Position".to_owned(),
+            prompt: "BAR | BAR:BEAT | LOCATOR | +DURATION | -DURATION | exact musical time"
+                .to_owned(),
+            value: String::new(),
+            replace_on_type: false,
+            action: InputAction::TimelineGoto,
+        });
+    }
+
+    fn open_timeline_search(&mut self) {
+        self.modal = Some(Modal::Input {
+            title: "Search Timeline".to_owned(),
+            prompt: "Search Track, Clip, Pattern, Instrument, or Locator names and IDs".to_owned(),
+            value: String::new(),
+            replace_on_type: false,
+            action: InputAction::TimelineSearch,
+        });
+    }
+
+    fn open_timeline_locator(&mut self) {
+        self.modal = Some(Modal::Input {
+            title: "Create Locator".to_owned(),
+            prompt: "Enter `ID NAME`; the Locator is created at the exact Timeline cursor"
+                .to_owned(),
+            value: String::new(),
+            replace_on_type: false,
+            action: InputAction::TimelineLocator {
+                at: self.timeline_position().at.to_string(),
+            },
+        });
+    }
+
+    fn search_timeline(&mut self, query: String) {
+        let Some(project) = self.bundle.project.as_ref() else {
+            return;
+        };
+        let hits = timeline::search_project(project, &query);
+        let count = hits.len();
+        let Some(hit) = self.timeline_state.set_search(query.clone(), hits) else {
+            self.status = format!("No Timeline object matches `{query}`");
+            return;
+        };
+        self.set_timeline_position(
+            hit.position,
+            true,
+            true,
+            &format!("{}/{} {label}", 1, count, label = hit.label),
+        );
+    }
+
+    fn repeat_timeline_search(&mut self, direction: isize) {
+        let Some(hit) = self.timeline_state.repeat_search(direction) else {
+            self.status = "Search the Timeline with / before using n or N".to_owned();
+            return;
+        };
+        let summary = self
+            .timeline_state
+            .search_summary()
+            .map(|(query, index, count)| format!("{index}/{count} `{query}` · {}", hit.label))
+            .unwrap_or_else(|| hit.label.clone());
+        self.set_timeline_position(hit.position, true, true, &summary);
+    }
+
+    fn set_timeline_mark(&mut self, mark: char) {
+        self.timeline_state.set_mark(mark);
+        self.status = format!(
+            "Set transient Timeline mark `{}`",
+            mark.to_ascii_lowercase()
+        );
+    }
+
+    fn jump_timeline_mark(&mut self, mark: char) {
+        if mark == '\'' {
+            self.jump_timeline_history(-1);
+            return;
+        }
+        let Some(position) = self.timeline_state.mark(mark) else {
+            self.status = format!("Timeline mark `{}` is unset", mark.to_ascii_lowercase());
+            return;
+        };
+        self.set_timeline_position(position, true, true, "Jumped to transient Timeline mark");
+    }
+
+    fn jump_timeline_history(&mut self, direction: isize) {
+        let position = if direction < 0 {
+            self.timeline_state.jump_back()
+        } else {
+            self.timeline_state.jump_forward()
+        };
+        let Some(position) = position else {
+            self.status = if direction < 0 {
+                "Timeline jump list is at its oldest position"
+            } else {
+                "Timeline jump list is at its newest position"
+            }
+            .to_owned();
+            return;
+        };
+        self.selected_track = position.track;
+        if self.view != View::Timeline {
+            self.view = View::Timeline;
+        }
+        if let Some(song_end) = self.bundle.project.as_ref().map(|project| project.song.end) {
+            self.timeline_viewport.reveal(position.at, song_end);
+        }
+        self.sync_instrument_to_track();
+        self.timeline_state.arm_cursor();
+        let _ = self.queue_timeline_seek();
+    }
+
+    fn open_source_location(&mut self, location: SourceLocation, description: String) {
+        let Some(source_index) = self
+            .bundle
+            .sources
+            .keys()
+            .position(|path| path == &location.file)
+        else {
+            self.status = format!("Source {} is unavailable", location.file.display());
+            return;
+        };
+        self.selected_source = source_index;
+        self.source_scroll = location.line.saturating_sub(1);
+        self.view = View::Source;
+        self.status = format!(
+            "{description} at {}:{}",
+            location.file.display(),
+            location.line
+        );
+    }
+
+    fn timeline_go_definition(&mut self) {
+        let position = self.timeline_position();
+        let Some(pattern_id) = self.bundle.project.as_ref().and_then(|project| {
+            timeline::clip_at(project, position).map(|(_, clip)| clip.pattern.clone())
+        }) else {
+            self.status = "No Clip lies under the Timeline cursor".to_owned();
+            return;
+        };
+        let Some(index) = self.bundle.project.as_ref().and_then(|project| {
+            project
+                .song
+                .patterns
+                .iter()
+                .position(|pattern| pattern.id == pattern_id)
+        }) else {
+            self.status = format!("Pattern `{pattern_id}` is unavailable");
+            return;
+        };
+        self.timeline_state.remember_for_return();
+        self.selected_pattern = index;
+        self.selected_event = 0;
+        self.view = View::EventGrid;
+        self.status = format!("Opened Pattern `{pattern_id}` from Timeline Clip");
+    }
+
+    fn timeline_go_source(&mut self) {
+        let position = self.timeline_position();
+        let Some((location, id)) = self.bundle.project.as_ref().and_then(|project| {
+            timeline::clip_at(project, position)
+                .map(|(_, clip)| (clip.location.clone(), clip.id.clone()))
+        }) else {
+            self.status = "No Clip lies under the Timeline cursor".to_owned();
+            return;
+        };
+        self.timeline_state.remember_for_return();
+        self.open_source_location(location, format!("Clip `{id}`"));
+    }
+
+    fn timeline_go_instrument(&mut self) {
+        let Some(instrument_id) = self
+            .selected_track_ref()
+            .map(|track| track.instrument.clone())
+        else {
+            return;
+        };
+        let Some(index) = self.bundle.project.as_ref().and_then(|project| {
+            project
+                .song
+                .instruments
+                .iter()
+                .position(|instrument| instrument.id == instrument_id)
+        }) else {
+            self.status = format!("Instrument `{instrument_id}` is unavailable");
+            return;
+        };
+        self.timeline_state.remember_for_return();
+        self.selected_instrument = index;
+        self.selected_instrument_section = 0;
+        self.selected_instrument_row = 0;
+        self.view = View::Instrument;
+        self.status = format!("Opened Instrument `{instrument_id}`");
+    }
+
+    fn timeline_go_mixer(&mut self) {
+        let Some(track_id) = self.selected_track_ref().map(|track| track.id.clone()) else {
+            return;
+        };
+        let identity = format!("track/{track_id}");
+        let Some(index) = self
+            .mixer_parameters
+            .iter()
+            .position(|parameter| parameter.channel_identity.as_deref() == Some(&identity))
+        else {
+            self.status = format!("Mixer channel `{identity}` is unavailable");
+            return;
+        };
+        self.timeline_state.remember_for_return();
+        self.selected_mixer_parameter = index;
+        self.view = View::Mixer;
+        self.status = format!("Opened Mixer channel `{identity}`");
+    }
+
+    fn timeline_go_processing(&mut self) {
+        if !self.candidate_is_active() {
+            self.status = "Publish the Candidate before opening its Processing route".to_owned();
+            return;
+        }
+        let Some(track_id) = self.selected_track_ref().map(|track| track.id.clone()) else {
+            return;
+        };
+        let mut plan = self.audition_plan.clone();
+        plan.target = AuditionTarget::Track {
+            track: track_id.clone(),
+        };
+        plan.path = AuditionPath::Channel {
+            tap: TapPoint::PostFader,
+        };
+        plan.range = AuditionRange::default();
+        self.timeline_state.remember_for_return();
+        self.timeline_state.disarm_cursor();
+        self.activate_audition_plan(plan);
+        self.view = View::Processing;
+        self.status = format!("Opened Processing route for Track `{track_id}`");
+    }
+
     fn change_view(&mut self, delta: isize) {
         let current = VIEWS
             .iter()
@@ -2046,6 +3051,7 @@ impl Workspace {
             View::Timeline => {
                 self.selected_track =
                     wrap_selection(self.selected_track, self.track_count(), delta);
+                self.timeline_state.set_track(self.selected_track);
                 self.sync_instrument_to_track();
             }
             View::Mixer => {
@@ -2068,13 +3074,7 @@ impl Workspace {
                 self.selected_parameter =
                     wrap_selection(self.selected_parameter, self.faceplate_count(), delta)
             }
-            View::Instrument => {
-                self.selected_instrument_row = wrap_selection(
-                    self.selected_instrument_row,
-                    self.instrument_row_count(),
-                    delta,
-                )
-            }
+            View::Instrument => self.move_instrument_selection(delta),
             View::Parameters => {
                 self.selected_parameter =
                     wrap_selection(self.selected_parameter, self.parameter_count(), delta)
@@ -2090,12 +3090,97 @@ impl Workspace {
                 self.selected_graph_node =
                     wrap_selection(self.selected_graph_node, self.graph_node_count(), delta)
             }
-            View::Source => self.source_scroll = self.source_scroll.saturating_add_signed(delta),
+            View::Source => {
+                self.source_scroll = self
+                    .source_scroll
+                    .saturating_add_signed(delta)
+                    .min(self.source_line_count().saturating_sub(1))
+            }
             View::History => {
                 self.selected_history =
                     wrap_selection(self.selected_history, self.history.len(), delta)
             }
-            View::Diagnostics | View::Help => {}
+            View::Diagnostics => {
+                self.selected_diagnostic = wrap_selection(
+                    self.selected_diagnostic,
+                    self.bundle.diagnostics.as_slice().len(),
+                    delta,
+                )
+            }
+            View::Help => {
+                self.help_scroll = self
+                    .help_scroll
+                    .saturating_add_signed(i16::try_from(delta).unwrap_or(if delta < 0 {
+                        i16::MIN
+                    } else {
+                        i16::MAX
+                    }))
+                    .min(
+                        u16::try_from(rendering::help_line_count().saturating_sub(1))
+                            .unwrap_or(u16::MAX),
+                    )
+            }
+        }
+    }
+
+    fn move_instrument_selection(&mut self, delta: isize) {
+        let Some(sections) = self.instrument_section_cache.get(self.selected_instrument) else {
+            return;
+        };
+        let total = sections
+            .iter()
+            .map(|section| section.rows.len())
+            .sum::<usize>();
+        if total == 0 {
+            self.selected_instrument_section = 0;
+            self.selected_instrument_row = 0;
+            return;
+        }
+        let section_index = self
+            .selected_instrument_section
+            .min(sections.len().saturating_sub(1));
+        let current = sections
+            .iter()
+            .take(section_index)
+            .map(|section| section.rows.len())
+            .sum::<usize>()
+            .saturating_add(
+                self.selected_instrument_row
+                    .min(sections[section_index].rows.len().saturating_sub(1)),
+            );
+        let selected = wrap_selection(current, total, delta);
+        let mut offset = 0;
+        for (index, section) in sections.iter().enumerate() {
+            if selected < offset + section.rows.len() {
+                self.selected_instrument_section = index;
+                self.selected_instrument_row = selected - offset;
+                return;
+            }
+            offset += section.rows.len();
+        }
+    }
+
+    fn move_instrument_selection_extreme(&mut self, first: bool) {
+        let Some(sections) = self.instrument_section_cache.get(self.selected_instrument) else {
+            return;
+        };
+        let selected = if first {
+            sections
+                .iter()
+                .position(|section| !section.rows.is_empty())
+                .map(|section| (section, 0))
+        } else {
+            sections
+                .iter()
+                .rposition(|section| !section.rows.is_empty())
+                .map(|section| (section, sections[section].rows.len().saturating_sub(1)))
+        };
+        if let Some((section, row)) = selected {
+            self.selected_instrument_section = section;
+            self.selected_instrument_row = row;
+        } else {
+            self.selected_instrument_section = 0;
+            self.selected_instrument_row = 0;
         }
     }
 
@@ -2921,7 +4006,50 @@ impl Workspace {
                     plan.range.from = Some(values[0].to_owned());
                     plan.range.to = Some(values[1].to_owned());
                 }
+                self.timeline_state.disarm_cursor();
                 self.activate_audition_plan(plan);
+            }
+            InputAction::TimelineGoto => {
+                let Some(project) = self.bundle.project.as_ref() else {
+                    self.status = "Timeline navigation is unavailable".to_owned();
+                    return;
+                };
+                match timeline::parse_destination(
+                    value.trim(),
+                    self.timeline_position().at,
+                    project,
+                ) {
+                    Ok(at) => self.set_timeline_position(
+                        TimelinePosition {
+                            at,
+                            ..self.timeline_position()
+                        },
+                        true,
+                        true,
+                        "Timeline jump",
+                    ),
+                    Err(error) => self.status = error,
+                }
+            }
+            InputAction::TimelineSearch => self.search_timeline(value),
+            InputAction::TimelineLocator { at } => {
+                let Some((id, name)) = value.trim().split_once(char::is_whitespace) else {
+                    self.status = "Create a Locator as `ID NAME`".to_owned();
+                    return;
+                };
+                let name = name.trim();
+                if id.is_empty() || name.is_empty() {
+                    self.status = "Create a Locator as `ID NAME`".to_owned();
+                    return;
+                }
+                self.apply_operation(
+                    ProductionViewOperation::CreateLocator {
+                        id: id.to_owned(),
+                        name: name.to_owned(),
+                        at,
+                    },
+                    format!("Create Locator {id}"),
+                );
             }
             InputAction::AutomationValue { lane, point } => self.apply_operation(
                 ProductionViewOperation::SetAutomationPointValue {
@@ -3222,10 +4350,12 @@ impl Workspace {
     }
 
     fn handle_audition_key(&mut self, key: KeyEvent) -> bool {
-        if !matches!(
-            self.view,
-            View::Faceplate | View::Instrument | View::Parameters | View::Graph
-        ) {
+        if !self.note_mode
+            || !matches!(
+                self.view,
+                View::Faceplate | View::Instrument | View::Parameters | View::Graph
+            )
+        {
             return false;
         }
         let KeyCode::Char(character) = key.code else {
@@ -3469,6 +4599,10 @@ impl Workspace {
 
     fn clamp_selections(&mut self) {
         self.selected_track = clamp_index(self.selected_track, self.track_count());
+        if let Some(project) = self.bundle.project.as_ref() {
+            self.timeline_state.clamp(project);
+            self.timeline_state.set_track(self.selected_track);
+        }
         self.selected_mixer_parameter =
             clamp_index(self.selected_mixer_parameter, self.mixer_parameter_count());
         self.selected_processor = clamp_index(
@@ -3500,6 +4634,10 @@ impl Workspace {
         );
         self.selected_graph_node = clamp_index(self.selected_graph_node, self.graph_node_count());
         self.selected_history = clamp_index(self.selected_history, self.history.len());
+        self.selected_diagnostic = clamp_index(
+            self.selected_diagnostic,
+            self.bundle.diagnostics.as_slice().len(),
+        );
         self.selected_source = clamp_index(self.selected_source, self.bundle.sources.len());
     }
 
@@ -3609,6 +4747,14 @@ impl Workspace {
             .as_ref()
             .and_then(|project| project.song.instruments.get(self.selected_instrument))
             .map_or(0, |instrument| instrument.faceplate.len())
+    }
+
+    fn source_line_count(&self) -> usize {
+        self.bundle
+            .sources
+            .values()
+            .nth(self.selected_source)
+            .map_or(0, |source| source.lines().count())
     }
 }
 
