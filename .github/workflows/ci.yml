@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   rust:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -117,7 +117,7 @@ jobs:
       - name: Upload Debian package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: crump-amd64-deb-ubuntu-24.04-best-effort
+          name: crump-amd64-deb-ubuntu-26.04
           path: |
             dist/crump_0.1.0_amd64.deb
             dist/crump_0.1.0_amd64.deb.sha256
