@@ -1,0 +1,35 @@
+crump-module 1
+instrument lead "Neon Lead" graph {
+  polyphony 8
+  parameter cutoff "Cutoff" hz 200hz 12000hz 3600hz 4200hz automatable
+  parameter drive "Drive" ratio 0 1 0.2 0.32
+  parameter delay_mix "Delay" ratio 0 1 0.18 0.24 automatable
+  parameter room "Room" ratio 0 1 0.2 0.28 automatable
+  faceplate {
+    control cutoff "Cutoff" "Lead brightness" maps cutoff
+    control drive "Drive" "Harmonic edge" maps drive
+    control delay_mix "Delay" "Echo blend" maps delay_mix
+    control room "Room" "Reverb space" maps room
+  }
+  graph 12 {
+    node oscillator oscillator waveform saw detune 0st level 0.42
+    node envelope envelope attack 8ms decay 120ms sustain 0.58 release 280ms
+    node filter lowpass cutoff $cutoff resonance 0.22 mod_depth 0hz
+    node amplifier amplifier level 0.72
+    node color saturation drive $drive
+    node position pan position -0.12
+    node echo delay time 187.5ms feedback 0.28 mix $delay_mix
+    node space reverb room $room damping 0.55 mix 0.2
+    node output output
+    connect note.pitch -> oscillator.pitch
+    connect note.gate -> envelope.gate
+    connect oscillator.audio -> filter.audio
+    connect filter.audio -> amplifier.audio
+    connect envelope.control -> amplifier.gain
+    connect amplifier.audio -> color.audio
+    connect color.audio -> position.audio
+    connect position.audio -> echo.audio
+    connect echo.audio -> space.audio
+    connect space.audio -> output.audio
+  }
+}

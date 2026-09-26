@@ -1,4 +1,7 @@
 crump 1
+import "instruments/lead.crump"
+import "instruments/bass.crump"
+import "instruments/drums.crump"
 project "Neon Steps" {
   id neon-steps
   seed 20260819
@@ -8,75 +11,6 @@ project "Neon Steps" {
     tempo 112bpm
     meter 4/4
     end 16bar
-    instrument lead "Neon Lead" graph {
-      polyphony 8
-      parameter cutoff "Cutoff" hz 200hz 12000hz 3600hz 4200hz automatable
-      parameter drive "Drive" ratio 0 1 0.2 0.32
-      parameter delay_mix "Delay" ratio 0 1 0.18 0.24 automatable
-      parameter room "Room" ratio 0 1 0.2 0.28 automatable
-      faceplate {
-        control cutoff "Cutoff" "Lead brightness" maps cutoff
-        control drive "Drive" "Harmonic edge" maps drive
-        control delay_mix "Delay" "Echo blend" maps delay_mix
-        control room "Room" "Reverb space" maps room
-      }
-      graph 12 {
-        node oscillator oscillator waveform saw detune 0st level 0.42
-        node envelope envelope attack 8ms decay 120ms sustain 0.58 release 280ms
-        node filter lowpass cutoff $cutoff resonance 0.22 mod_depth 0hz
-        node amplifier amplifier level 0.72
-        node color saturation drive $drive
-        node position pan position -0.12
-        node echo delay time 187.5ms feedback 0.28 mix $delay_mix
-        node space reverb room $room damping 0.55 mix 0.2
-        node output output
-        connect note.pitch -> oscillator.pitch
-        connect note.gate -> envelope.gate
-        connect oscillator.audio -> filter.audio
-        connect filter.audio -> amplifier.audio
-        connect envelope.control -> amplifier.gain
-        connect amplifier.audio -> color.audio
-        connect color.audio -> position.audio
-        connect position.audio -> echo.audio
-        connect echo.audio -> space.audio
-        connect space.audio -> output.audio
-      }
-    }
-    instrument bass "Pulse Bass" graph {
-      polyphony 4
-      parameter cutoff "Cutoff" hz 80hz 3000hz 620hz 720hz
-      parameter drive "Drive" ratio 0 1 0.15 0.27
-      faceplate {
-        control cutoff "Cutoff" "Bass brightness" maps cutoff
-        control drive "Drive" "Bass saturation" maps drive
-      }
-      graph 9 {
-        node oscillator oscillator waveform square detune 0st level 0.34
-        node envelope envelope attack 4ms decay 90ms sustain 0.7 release 110ms
-        node filter lowpass cutoff $cutoff resonance 0.12 mod_depth 0hz
-        node amplifier amplifier level 0.68
-        node color saturation drive $drive
-        node position pan position 0.08
-        node output output
-        connect note.pitch -> oscillator.pitch
-        connect note.gate -> envelope.gate
-        connect oscillator.audio -> filter.audio
-        connect filter.audio -> amplifier.audio
-        connect envelope.control -> amplifier.gain
-        connect amplifier.audio -> color.audio
-        connect color.audio -> position.audio
-        connect position.audio -> output.audio
-      }
-    }
-    instrument drums "Circuit Drums" stock_drums {
-      polyphony 12
-      parameter tone "Tone" ratio 0 1 0.5 0.62
-      parameter punch "Punch" ratio 0 1 0.5 0.74
-      faceplate {
-        control tone "Tone" "Percussion brightness" maps tone
-        control punch "Punch" "Kick transient" maps punch
-      }
-    }
     pattern lead_a 2bar {
       note 0beat E4 1/2beat 0.76
       note 1beat G4 1/2beat 0.7

@@ -90,6 +90,8 @@ The render bundle contains analyzed `master.wav` and `manifest.json`; each reque
 
 [`fixtures/production/`](fixtures/production/) is a self-contained 96-bar Project used by resource, routing, sampler, and deterministic grouping tests.
 
+Both Projects keep each Instrument in `instruments/<id>.crump`, imported by `project.crump`. Tweak its sound, Parameters, and Faceplate in that file; the main Project assigns it to Tracks and owns Patterns, Clip placement, Automation, and mixing. Copy the whole Project directory so the imports travel with it.
+
 [`fixtures/starter/`](fixtures/starter/) contains nine source-readable native-synthesis Instrument Modules, exact lawful assets, and authored Audition Phrases. [`fixtures/deep-house-reference/`](fixtures/deep-house-reference/) is an original portable 112-bar (3:40) integration fixture using every runnable source family with Patterns, Automation, Modulation, routing, effects, stems, and deterministic delivery evidence. These fixtures are engineering/content preparation; independent listening and named-hardware acceptance remain pending under the [native-synthesis qualification runbook](docs/qualification/native-synthesis.md).
 
 ## Safe source workflow
