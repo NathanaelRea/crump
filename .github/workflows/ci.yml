@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Install stable Rust toolchain
@@ -68,6 +68,7 @@ jobs:
           test -n "$crate"
           tar -tf "$crate" > cargo-package-files.txt
           grep -Fx 'crump-0.1.0/fixtures/starter/auditions.crump' cargo-package-files.txt
+          grep -Fx 'crump-0.1.0/fixtures/production/media/texture.wav' cargo-package-files.txt
           grep -Fx 'crump-0.1.0/fixtures/starter/instruments/dh-bass.crump' cargo-package-files.txt
           grep -Fx 'crump-0.1.0/fixtures/starter/media/basic-table.wav' cargo-package-files.txt
           grep -Fx 'crump-0.1.0/fixtures/deep-house-reference/project.crump' cargo-package-files.txt
@@ -98,6 +99,7 @@ jobs:
           test -f package-root/usr/share/doc/crump/fixtures/reference/project.crump
           test -f package-root/usr/share/doc/crump/fixtures/expressive/project.crump
           test -f package-root/usr/share/doc/crump/fixtures/production/project.crump
+          test -f package-root/usr/share/doc/crump/fixtures/production/media/texture.wav
           test -f package-root/usr/share/doc/crump/fixtures/starter/auditions.crump
           test -f package-root/usr/share/doc/crump/fixtures/starter/instruments/dh-bass.crump
           test -f package-root/usr/share/doc/crump/fixtures/starter/media/basic-table.wav
@@ -110,12 +112,13 @@ jobs:
           test -f package-root/usr/share/doc/crump/fixtures/synth-alpha/maximum-granular-spectral.crump
           test -f package-root/usr/share/doc/crump/fixtures/synth-alpha/media/sample-source.wav
           package-root/usr/bin/crump --project package-root/usr/share/doc/crump/fixtures/starter/auditions.crump --json validate
+          package-root/usr/bin/crump --project package-root/usr/share/doc/crump/fixtures/production --json validate
           package-root/usr/bin/crump --project package-root/usr/share/doc/crump/fixtures/deep-house-reference --json validate
           package-root/usr/bin/crump --project package-root/usr/share/doc/crump/fixtures/synth-alpha/maximum-topology.crump --json validate
           package-root/usr/bin/crump --project package-root/usr/share/doc/crump/fixtures/synth-alpha/maximum-granular-spectral.crump --json validate
           package-root/usr/bin/crump --version
       - name: Upload Debian package
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: crump-amd64-deb-ubuntu-26.04
           path: |
