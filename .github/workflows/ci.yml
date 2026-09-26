@@ -52,7 +52,7 @@ jobs:
         run: |
           project=$(mktemp -d)
           trap 'rm -rf "$project"' EXIT
-          cp fixtures/reference/project.crump "$project/project.crump"
+          cp -R fixtures/reference/project.crump fixtures/reference/instruments "$project/"
           cargo run --locked -- --project "$project" publish \
             --origin system --actor ci --summary "CI reference publication" \
             --explanation "Deterministic render contract"
@@ -109,6 +109,8 @@ jobs:
           test -f package-root/usr/share/doc/crump/fixtures/synth-alpha/maximum-topology.crump
           test -f package-root/usr/share/doc/crump/fixtures/synth-alpha/maximum-granular-spectral.crump
           test -f package-root/usr/share/doc/crump/fixtures/synth-alpha/media/sample-source.wav
+          package-root/usr/bin/crump --project package-root/usr/share/doc/crump/fixtures/reference --json validate
+          package-root/usr/bin/crump --project package-root/usr/share/doc/crump/examples/reference --json validate
           package-root/usr/bin/crump --project package-root/usr/share/doc/crump/fixtures/starter/auditions.crump --json validate
           package-root/usr/bin/crump --project package-root/usr/share/doc/crump/fixtures/deep-house-reference --json validate
           package-root/usr/bin/crump --project package-root/usr/share/doc/crump/fixtures/synth-alpha/maximum-topology.crump --json validate

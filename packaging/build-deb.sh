@@ -127,6 +127,10 @@ for relative in "${fixture_files[@]}"; do
 done
 install -Dm644 "$repo_root/fixtures/reference/project.crump" \
   "$package_root/usr/share/doc/crump/examples/reference/project.crump"
+for instrument in "$repo_root"/fixtures/reference/instruments/*.crump; do
+  install -Dm644 "$instrument" \
+    "$package_root/usr/share/doc/crump/examples/reference/instruments/$(basename "$instrument")"
+done
 install -d "$package_root/DEBIAN"
 
 installed_size=$(du -sk "$package_root/usr" | awk '{ print $1 }')

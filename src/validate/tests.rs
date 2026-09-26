@@ -231,11 +231,10 @@ fn musical_sketch_rejects_declared_media_assets() {
 
 #[test]
 fn unused_effects_graph_does_not_satisfy_creative_processing() {
-    let document = parse_project(
-        Path::new("project.crump"),
-        include_str!("../../fixtures/reference/project.crump"),
-    );
-    let mut project = document.project.expect("Reference Project");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/reference");
+    let bundle = crate::project::load_project(root).expect("load Reference Project");
+    assert!(!bundle.diagnostics.has_errors());
+    let mut project = bundle.project.expect("Reference Project");
     project
         .song
         .tracks

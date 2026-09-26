@@ -1,0 +1,27 @@
+crump-module 1
+instrument bass "Pulse Bass" graph {
+  polyphony 4
+  parameter cutoff "Cutoff" hz 80hz 3000hz 620hz 720hz
+  parameter drive "Drive" ratio 0 1 0.15 0.27
+  faceplate {
+    control cutoff "Cutoff" "Bass brightness" maps cutoff
+    control drive "Drive" "Bass saturation" maps drive
+  }
+  graph 9 {
+    node oscillator oscillator waveform square detune 0st level 0.34
+    node envelope envelope attack 4ms decay 90ms sustain 0.7 release 110ms
+    node filter lowpass cutoff $cutoff resonance 0.12 mod_depth 0hz
+    node amplifier amplifier level 0.68
+    node color saturation drive $drive
+    node position pan position 0.08
+    node output output
+    connect note.pitch -> oscillator.pitch
+    connect note.gate -> envelope.gate
+    connect oscillator.audio -> filter.audio
+    connect filter.audio -> amplifier.audio
+    connect envelope.control -> amplifier.gain
+    connect amplifier.audio -> color.audio
+    connect color.audio -> position.audio
+    connect position.audio -> output.audio
+  }
+}
