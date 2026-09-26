@@ -516,7 +516,7 @@ mod native {
                 if control_type == spa::sys::SPA_CONTROL_Midi {
                     self.consume_midi_one(payload);
                 } else if control_type == spa::sys::SPA_CONTROL_UMP {
-                    for word in payload.chunks_exact(4) {
+                    for word in payload.as_chunks::<4>().0 {
                         let word = u32::from_ne_bytes([word[0], word[1], word[2], word[3]]);
                         if word >> 28 == 0x2 {
                             self.consume_midi_one(&[

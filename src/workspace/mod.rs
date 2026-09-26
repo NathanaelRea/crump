@@ -290,7 +290,10 @@ enum WorkspaceWorkKind {
     Probe,
     CandidateVerification,
     HistoryVerification,
-    Reload { candidate: bool, history: bool },
+    Reload {
+        candidate: bool,
+        history: bool,
+    },
     Active {
         key: ActiveRequestKey,
         explicit_seek: bool,

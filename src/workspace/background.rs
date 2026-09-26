@@ -2,7 +2,7 @@
 
 use std::{
     collections::VecDeque,
-    panic::{catch_unwind, AssertUnwindSafe},
+    panic::{AssertUnwindSafe, catch_unwind},
     sync::mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError},
     thread::{self, JoinHandle},
     time::{Duration, Instant},
@@ -194,7 +194,7 @@ impl Drop for RetireQueue {
 #[cfg(test)]
 mod tests {
     use std::{
-        sync::{mpsc, Arc, Barrier},
+        sync::{Arc, Barrier, mpsc},
         time::Duration,
     };
 

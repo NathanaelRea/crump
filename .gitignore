@@ -2,6 +2,7 @@
 .crump/
 /renders/
 *.wav
+!fixtures/production/**/*.wav
 !fixtures/cookbook/**/*.wav
 !fixtures/starter/**/*.wav
 !fixtures/deep-house-reference/**/*.wav
