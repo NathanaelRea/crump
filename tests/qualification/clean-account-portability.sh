@@ -33,6 +33,11 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+# The build may live beneath a private checkout or home directory. Both accounts
+# must run the same executable bytes without needing access to that directory.
+install -m 755 "$crump" "$work/crump"
+crump="$work/crump"
+
 mkdir -p "$source_project/media" "$home"
 cp "$repo/fixtures/synth-alpha/maximum-topology.crump" "$source_project/project.crump"
 cp "$repo/fixtures/synth-alpha/media/"*.wav "$source_project/media/"

@@ -433,7 +433,9 @@ pub(crate) fn decode_wav(asset: &LoadedAsset) -> Result<Vec<[f32; 2]>, SampleCom
         samples.into_iter().map(|sample| [sample, sample]).collect()
     } else {
         samples
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|sample| [sample[0], sample[1]])
             .collect()
     };

@@ -59,6 +59,20 @@ The exact commands, producer protocol, and named Linux/PipeWire/device 30-minute
 
 Finalized-file analysis tests cover silence, DC and clipping, non-finite data, truncated or corrupt files, inter-sample overload, the official EBU steady-tone loudness tolerance, and EBU true-peak steady-tone cases 15–19. The complete official EBU signal set and transient true-peak cases 20–23 have not been executed, so the documentation names the exact Crump method rather than claiming full EBU Mode or BS.1770-5 conformance. See [Finalized Audio Analysis](research/finalized-audio-analysis.md).
 
+## Routine CI
+
+Pushes to `main` and pull requests run formatting, Clippy, library unit tests,
+the small `reference_project` integration suite, and a headless library compile
+check. Rust build output is cached, debug symbols are disabled for these checks,
+and superseded runs are cancelled. The job has a five-minute limit; cached runs
+should take a couple of minutes.
+
+Full integration suites, maximum-topology qualification, clean-account portability,
+repeated whole-Project renders, alternate-toolchain builds, and release packaging
+are manual checks for changes that need them. They do not run on every PR. The
+full test suites and packaging commands remain available below; native synthesis
+and clean-account qualification commands are in the linked qualification guide.
+
 ## Common commands
 
 ```bash

@@ -165,9 +165,11 @@ fn starter_library_has_exact_assets_readable_modules_and_authored_audition_phras
             fs::read(reference.join(relative)).expect("reference asset copy")
         );
         assert_eq!(entry["license"], "MPL-2.0");
-        assert!(entry["origin"]
-            .as_str()
-            .is_some_and(|origin| origin.contains("generate_assets.py")));
+        assert!(
+            entry["origin"]
+                .as_str()
+                .is_some_and(|origin| origin.contains("generate_assets.py"))
+        );
     }
 
     let audition = &manifest["audition_project"];

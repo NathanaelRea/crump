@@ -9,23 +9,23 @@ use std::{
 };
 
 use fs2::FileExt;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
 use similar::{ChangeTag, TextDiff};
-use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 #[cfg(test)]
 use crate::project::load_project_sources;
 use crate::{
     diagnostic::Diagnostic,
     media::{
-        read_project_asset_bytes, read_regular_asset_bytes, valid_asset_path, valid_sha256,
-        AssetInventory, AssetReadError, MAX_MEDIA_ASSETS, MAX_MEDIA_ASSET_BYTES,
-        MAX_PROJECT_MEDIA_BYTES,
+        AssetInventory, AssetReadError, MAX_MEDIA_ASSET_BYTES, MAX_MEDIA_ASSETS,
+        MAX_PROJECT_MEDIA_BYTES, read_project_asset_bytes, read_regular_asset_bytes,
+        valid_asset_path, valid_sha256,
     },
     project::{
-        hash_project_identity, load_project, load_project_sources_with_assets, ProjectBundle,
-        RevisionId, MAX_PROJECT_SOURCE_BYTES, MAX_SOURCE_BYTES, PROJECT_FILE,
+        MAX_PROJECT_SOURCE_BYTES, MAX_SOURCE_BYTES, PROJECT_FILE, ProjectBundle, RevisionId,
+        hash_project_identity, load_project, load_project_sources_with_assets,
     },
 };
 
@@ -2024,12 +2024,14 @@ project "History" {
                 Publication::new(ChangeOrigin::human("test"), "Second media", "replace"),
             )
             .expect("publish second");
-        assert!(second_entry
-            .changes
-            .iter()
-            .any(|change| change.path == Path::new("media/voice.wav")
-                && change.kind == SourceChangeKind::Modified
-                && change.changed_lines == 0));
+        assert!(
+            second_entry
+                .changes
+                .iter()
+                .any(|change| change.path == Path::new("media/voice.wav")
+                    && change.kind == SourceChangeKind::Modified
+                    && change.changed_lines == 0)
+        );
         let diff = store.diff(&second_entry.id).expect("binary diff");
         assert!(diff.contains("binary media/voice.wav: sha256"));
         assert!(diff.contains("bytes) -> sha256"));
@@ -2491,11 +2493,13 @@ project "History" {
 
         let _recovered = HistoryStore::open(directory.path()).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), SOURCE);
-        assert!(!directory
-            .path()
-            .join(METADATA_DIR)
-            .join(SOURCE_TRANSACTION_FILE)
-            .exists());
+        assert!(
+            !directory
+                .path()
+                .join(METADATA_DIR)
+                .join(SOURCE_TRANSACTION_FILE)
+                .exists()
+        );
     }
 
     #[test]
@@ -2630,10 +2634,12 @@ instrument shared "Shared" stock_drums {
         let recovered = HistoryStore::open(directory.path()).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), changed);
         assert_eq!(recovered.list().unwrap().len(), 2);
-        assert!(!directory
-            .path()
-            .join(METADATA_DIR)
-            .join(SOURCE_TRANSACTION_FILE)
-            .exists());
+        assert!(
+            !directory
+                .path()
+                .join(METADATA_DIR)
+                .join(SOURCE_TRANSACTION_FILE)
+                .exists()
+        );
     }
 }

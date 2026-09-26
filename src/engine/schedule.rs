@@ -1182,9 +1182,11 @@ project "Groove" {
         let project = project(&source);
         let error = compile_track_parameter_lock_lanes(&project)
             .expect_err("the bounded compiler must reject before traversing the full loop");
-        assert!(error
-            .to_string()
-            .contains("8192-point Parameter lock maximum"));
+        assert!(
+            error
+                .to_string()
+                .contains("8192-point Parameter lock maximum")
+        );
     }
 
     #[test]
