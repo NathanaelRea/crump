@@ -4,10 +4,10 @@ use std::{fs, path::Path};
 
 use crump::{
     engine::{
-        mix_graph::MAX_WORK_UNITS_PER_FRAME, render_project, CompiledProject, ProcessingMode,
-        RenderOptions,
+        CompiledProject, ProcessingMode, RenderOptions, mix_graph::MAX_WORK_UNITS_PER_FRAME,
+        render_project,
     },
-    project::{load_project, ProjectBundle},
+    project::{ProjectBundle, load_project},
 };
 use serde_json::Value;
 use tempfile::TempDir;

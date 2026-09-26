@@ -359,19 +359,23 @@ fn processing_view_exposes_source_settings_and_transient_bypass_without_editing(
     ));
     workspace.modal = None;
     workspace.toggle_transient_processor_bypass();
-    assert!(workspace
-        .audition_plan
-        .transient_bypass
-        .contains_key(&processor));
+    assert!(
+        workspace
+            .audition_plan
+            .transient_bypass
+            .contains_key(&processor)
+    );
     assert_eq!(
         fs::read_to_string(directory.path().join("project.crump")).unwrap(),
         source_before
     );
     workspace.toggle_transient_processor_bypass();
-    assert!(!workspace
-        .audition_plan
-        .transient_bypass
-        .contains_key(&processor));
+    assert!(
+        !workspace
+            .audition_plan
+            .transient_bypass
+            .contains_key(&processor)
+    );
 }
 
 #[test]
@@ -450,28 +454,36 @@ fn generated_instrument_sections_preserve_metadata_and_show_unassigned_topology(
         .expect("authored carrier row");
     assert_eq!(carrier_row.source_file, carrier.location.file);
     assert_eq!(carrier_row.source_offset, carrier.location.start);
-    assert!(sections[0]
-        .rows
-        .iter()
-        .any(|row| row.id == "oscillator-level"));
-    assert!(sections
-        .iter()
-        .find(|section| section.kind == crate::model::PresentationSectionKind::Routing)
-        .expect("routing section")
-        .rows
-        .iter()
-        .any(|row| row.id == "carrier-fm"));
-    assert!(sections
-        .iter()
-        .find(|section| section.kind == crate::model::PresentationSectionKind::Voicing)
-        .expect("voicing section")
-        .rows
-        .iter()
-        .any(|row| row.kind.is_none() && row.id == "policy"));
-    assert!(sections
-        .iter()
-        .flat_map(|section| &section.rows)
-        .all(|row| !row.source.is_empty() && !row.source_file.as_os_str().is_empty()));
+    assert!(
+        sections[0]
+            .rows
+            .iter()
+            .any(|row| row.id == "oscillator-level")
+    );
+    assert!(
+        sections
+            .iter()
+            .find(|section| section.kind == crate::model::PresentationSectionKind::Routing)
+            .expect("routing section")
+            .rows
+            .iter()
+            .any(|row| row.id == "carrier-fm")
+    );
+    assert!(
+        sections
+            .iter()
+            .find(|section| section.kind == crate::model::PresentationSectionKind::Voicing)
+            .expect("voicing section")
+            .rows
+            .iter()
+            .any(|row| row.kind.is_none() && row.id == "policy")
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.rows)
+            .all(|row| !row.source.is_empty() && !row.source_file.as_os_str().is_empty())
+    );
 
     let parsed = crate::dsl::parse_project(
         std::path::Path::new("minimal.crump"),
@@ -480,10 +492,12 @@ fn generated_instrument_sections_preserve_metadata_and_show_unassigned_topology(
     let project = parsed.project.expect("legacy Project");
     let sections = instrument_section_views(&project, &project.song.instruments[0]);
     assert_eq!(sections.len(), 8);
-    assert!(sections
-        .iter()
-        .flat_map(|section| &section.rows)
-        .any(|row| row.id == "oscillator"));
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.rows)
+            .any(|row| row.id == "oscillator")
+    );
 }
 
 #[test]
@@ -582,10 +596,12 @@ fn source_topology_edit_publishes_and_returns_to_generated_views_without_flatten
     let reopened = Workspace::load(root.path()).expect("reopen workspace");
     assert!(reopened.candidate_is_active());
     assert_eq!(reopened.history.len(), 2);
-    assert!(reopened.instrument_section_cache[0]
-        .iter()
-        .flat_map(|section| &section.rows)
-        .any(|row| row.id == "post" && row.detail.contains("Amplifier")));
+    assert!(
+        reopened.instrument_section_cache[0]
+            .iter()
+            .flat_map(|section| &section.rows)
+            .any(|row| row.id == "post" && row.detail.contains("Amplifier"))
+    );
     assert_eq!(fs::read_to_string(project_path).unwrap(), changed);
 }
 
@@ -1089,7 +1105,7 @@ fn stopped_stream_is_terminal_even_before_the_first_callback() {
 
 #[test]
 fn reload_bursts_coalesce_while_navigation_and_draw_remain_available() {
-    use std::sync::{mpsc, Arc, Barrier};
+    use std::sync::{Arc, Barrier, mpsc};
 
     let root = tempfile::tempdir().expect("temporary Project");
     let path = root.path().join("project.crump");

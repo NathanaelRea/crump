@@ -13,21 +13,21 @@ use std::{
 use crump::{
     dsl::{parse_module, parse_project},
     engine::{
+        CompiledProject,
         mix_graph::{
             MAX_PUBLICATION_RUNTIME_BYTES, MAX_RESIDENT_PUBLICATION_RUNTIMES,
             MAX_WORK_UNITS_PER_FRAME,
         },
-        CompiledProject,
     },
     media::{
-        load_asset_inventory, MAX_MEDIA_ASSETS, MAX_MEDIA_ASSET_BYTES, MAX_PROJECT_MEDIA_BYTES,
+        MAX_MEDIA_ASSET_BYTES, MAX_MEDIA_ASSETS, MAX_PROJECT_MEDIA_BYTES, load_asset_inventory,
     },
     model::{NodeKind, SettingValue},
     project::load_project,
     validate::{
-        validate_project, validate_project_assets, MAX_GRAPH_NODES, MAX_GRAPH_VOICES,
-        MAX_MODULATION_OPERATORS_PER_ROUTE, MAX_MODULATION_ROUTES, MAX_MULTISAMPLE_ZONES,
-        MAX_SAMPLE_SLICES,
+        MAX_GRAPH_NODES, MAX_GRAPH_VOICES, MAX_MODULATION_OPERATORS_PER_ROUTE,
+        MAX_MODULATION_ROUTES, MAX_MULTISAMPLE_ZONES, MAX_SAMPLE_SLICES, validate_project,
+        validate_project_assets,
     },
 };
 use serde::Deserialize;
@@ -257,9 +257,10 @@ fn alpha_contract_inventory_and_decision_dispositions_are_recorded() {
     assert_eq!(manifest.production_compatibility, "declared-per-fixture");
     assert_eq!(manifest.proposal_contract_status, "milestone-5-runnable");
     assert_eq!(manifest.fixture_language, "declared-per-fixture");
-    assert!(root
-        .join(&manifest.current_compatibility_contract)
-        .is_file());
+    assert!(
+        root.join(&manifest.current_compatibility_contract)
+            .is_file()
+    );
     assert!(root.join(&manifest.current_architecture_decision).is_file());
     let current_contract = fs::read_to_string(root.join(&manifest.current_compatibility_contract))
         .expect("read current native synthesis compatibility contract");
@@ -419,9 +420,11 @@ fn fixtures_are_readable_unique_and_only_completed_slices_are_runnable() {
             );
         }
         let declarations = declarations(&source);
-        assert!(declarations
-            .get("instrument")
-            .is_some_and(|ids| ids.len() == 1));
+        assert!(
+            declarations
+                .get("instrument")
+                .is_some_and(|ids| ids.len() == 1)
+        );
         assert!(declarations.get("node").is_some_and(|ids| !ids.is_empty()));
         assert!(declarations.get("bus").is_some_and(|ids| !ids.is_empty()));
 
@@ -622,13 +625,17 @@ fn qualification_max_profile_matches_fixture_and_probe_evidence() {
     let mut combined_observations = probe.combined_ns_per_frame_observations.clone();
     combined_observations.sort_by(f64::total_cmp);
     assert_eq!(probe.combined_ns_per_frame, combined_observations[2]);
-    assert!(probe
-        .prototype_utilization_observations
-        .contains(&probe.prototype_utilization));
-    assert!(probe
-        .prototype_utilization_observations
-        .iter()
-        .all(|value| value.is_finite() && *value > 0.0 && *value < 1.0));
+    assert!(
+        probe
+            .prototype_utilization_observations
+            .contains(&probe.prototype_utilization)
+    );
+    assert!(
+        probe
+            .prototype_utilization_observations
+            .iter()
+            .all(|value| value.is_finite() && *value > 0.0 && *value < 1.0)
+    );
     assert!(probe.combined_ns_per_frame.is_finite() && probe.combined_ns_per_frame > 0.0);
     assert!(probe.frame_deadline_ns > probe.combined_ns_per_frame);
     assert!(probe.prototype_utilization > 0.0 && probe.prototype_utilization < 1.0);

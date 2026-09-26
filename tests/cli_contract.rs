@@ -708,10 +708,12 @@ project "Sampler CLI" {{
         ],
     );
     assert_eq!(routed_asset.status.code(), Some(2));
-    assert!(response(&routed_asset)["error"]["message"]
-        .as_str()
-        .unwrap()
-        .contains("supports only the raw audition path"));
+    assert!(
+        response(&routed_asset)["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("supports only the raw audition path")
+    );
 
     let collected = invoke(&root, &["asset", "collect"]);
     assert!(
@@ -815,9 +817,11 @@ project "Sampler CLI" {{
     assert_eq!(rendered["command"], "render");
     let mut reader =
         hound::WavReader::open(root.path().join("master/master.wav")).expect("rendered master WAV");
-    assert!(reader
-        .samples::<f32>()
-        .any(|sample| sample.expect("rendered sample").abs() > 1.0e-5));
+    assert!(
+        reader
+            .samples::<f32>()
+            .any(|sample| sample.expect("rendered sample").abs() > 1.0e-5)
+    );
 }
 
 #[test]
@@ -924,10 +928,11 @@ fn render_plan_is_non_mutating_and_no_replace_is_a_conflict() {
         rendered_response["data"]["render"]["manifest"]["analysis"]["non_finite_sample_count"],
         0
     );
-    assert!(root
-        .path()
-        .join("master/stem-track-lead-post_fader.wav")
-        .is_file());
+    assert!(
+        root.path()
+            .join("master/stem-track-lead-post_fader.wav")
+            .is_file()
+    );
     let wav_before = fs::read(root.path().join("master/master.wav")).unwrap();
     let conflict = invoke(&root, &["render", "--output", "master", "--no-replace"]);
     assert_eq!(conflict.status.code(), Some(3));
@@ -1390,9 +1395,11 @@ fn inspect_exposes_resolved_processor_contracts_and_admission_facts() {
     assert_eq!(followers[0]["source"], "track/drums");
     assert_eq!(followers[0]["control_latency_frames"], 1);
     assert_eq!(followers[0]["target"]["owner"], "processor");
-    assert!(mix_graph["resources"]["processor_meter_bytes"]
-        .as_u64()
-        .is_some_and(|bytes| bytes > 0));
+    assert!(
+        mix_graph["resources"]["processor_meter_bytes"]
+            .as_u64()
+            .is_some_and(|bytes| bytes > 0)
+    );
 }
 
 #[test]
@@ -1656,9 +1663,11 @@ fn parameter_lock_cli_is_source_backed_snapped_and_inspectable() {
         &["edit", "parameter-lock-delete", "melody", "opened"],
     );
     assert!(delete.status.success());
-    assert!(!fs::read_to_string(project_path)
-        .expect("deleted lock source")
-        .contains("lock opened "));
+    assert!(
+        !fs::read_to_string(project_path)
+            .expect("deleted lock source")
+            .contains("lock opened ")
+    );
 }
 
 #[test]
@@ -1766,9 +1775,11 @@ fn pattern_variation_cli_preserves_lineage_and_checks_references() {
             String::from_utf8_lossy(&output.stdout)
         );
     }
-    assert!(!fs::read_to_string(project_path)
-        .expect("deleted Variation source")
-        .contains("pattern answer "));
+    assert!(
+        !fs::read_to_string(project_path)
+            .expect("deleted Variation source")
+            .contains("pattern answer ")
+    );
 }
 
 #[test]
@@ -2170,10 +2181,12 @@ fn oversized_modules_are_rejected_before_parsing_or_installation() {
     );
     assert_eq!(output.status.code(), Some(2));
     assert_eq!(response(&output)["error"]["code"], "module_too_large");
-    assert!(!root
-        .path()
-        .join("xdg-data/Crump/instruments/oversized.crump")
-        .exists());
+    assert!(
+        !root
+            .path()
+            .join("xdg-data/Crump/instruments/oversized.crump")
+            .exists()
+    );
 }
 
 #[test]
@@ -2212,11 +2225,13 @@ fn module_export_is_validated_atomic_and_conflict_safe() {
     assert_eq!(invalid_output.status.code(), Some(2));
     let rejected = response(&invalid_output);
     assert_eq!(rejected["error"]["code"], "invalid_module");
-    assert!(rejected["error"]["diagnostics"]
-        .as_array()
-        .expect("diagnostics")
-        .iter()
-        .any(|diagnostic| diagnostic["code"] == "CRV024"));
+    assert!(
+        rejected["error"]["diagnostics"]
+            .as_array()
+            .expect("diagnostics")
+            .iter()
+            .any(|diagnostic| diagnostic["code"] == "CRV024")
+    );
 
     let consumer = tempfile::tempdir().expect("consumer Project");
     let consumer_source = r#"crump 1
@@ -2249,11 +2264,13 @@ project "Library Consumer" {
         String::from_utf8_lossy(&validate.stdout)
     );
     let inspect = response(&invoke_with_data(&consumer, &data_home, &["inspect"]));
-    assert!(inspect["data"]["source_files"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|path| path == "library/test-lead.crump"));
+    assert!(
+        inspect["data"]["source_files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|path| path == "library/test-lead.crump")
+    );
 
     let publication = invoke_with_data(
         &consumer,
@@ -2358,9 +2375,11 @@ fn source_v2_module_export_preserves_metadata_dependencies_and_asset_preview() {
         serde_json::json!(["spectral"])
     );
     let module_path = exported["data"]["path"].as_str().expect("Module path");
-    assert!(fs::read_to_string(module_path)
-        .expect("Module source")
-        .starts_with("crump-module 2\n"));
+    assert!(
+        fs::read_to_string(module_path)
+            .expect("Module source")
+            .starts_with("crump-module 2\n")
+    );
 
     let preview_path = root.path().join("spectral-preview.wav");
     let preview = invoke(
@@ -2383,9 +2402,10 @@ fn source_v2_module_export_preserves_metadata_dependencies_and_asset_preview() {
         "source-texture"
     );
     let mut wav = hound::WavReader::open(preview_path).expect("spectral preview WAV");
-    assert!(wav
-        .samples::<f32>()
-        .any(|sample| sample.expect("preview sample").abs() > 1.0e-6));
+    assert!(
+        wav.samples::<f32>()
+            .any(|sample| sample.expect("preview sample").abs() > 1.0e-6)
+    );
 }
 
 #[test]
@@ -2474,9 +2494,10 @@ instrument tagged "Tagged Lead" graph {
     assert_eq!(preview_response["data"]["format"], "stereo_f32_wav");
     let mut wav = hound::WavReader::open(&preview_path).expect("preview WAV");
     assert_eq!(wav.spec().channels, 2);
-    assert!(wav
-        .samples::<f32>()
-        .any(|sample| sample.expect("preview sample").abs() > 1.0e-5));
+    assert!(
+        wav.samples::<f32>()
+            .any(|sample| sample.expect("preview sample").abs() > 1.0e-5)
+    );
 
     let copied = invoke(
         &root,

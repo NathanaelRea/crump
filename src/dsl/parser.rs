@@ -2406,7 +2406,7 @@ impl Parser<'_> {
         let supported = node_kind_has_runtime(kind);
         let mut settings = Vec::new();
         let mut directives = Vec::new();
-        for pair in statement.tokens[3..].chunks_exact(2) {
+        for pair in statement.tokens[3..].as_chunks::<2>().0 {
             settings.push(self.parse_node_setting(&pair[0], &pair[1]));
         }
         if version < SOURCE_VERSION_V2 && !statement.children.is_empty() {

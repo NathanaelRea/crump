@@ -174,54 +174,60 @@ fn sampler_operations_and_collection_are_checked_atomic_and_renderable() {
     bundle = load_project(directory.path()).expect("reload after pan");
     apply(
         &bundle,
-        vec![set_sample_occurrence_direction(
-            &bundle,
-            "phrase",
-            "original",
-            crate::model::SampleDirection::Reverse,
-        )
-        .expect("direction")],
+        vec![
+            set_sample_occurrence_direction(
+                &bundle,
+                "phrase",
+                "original",
+                crate::model::SampleDirection::Reverse,
+            )
+            .expect("direction"),
+        ],
         "Reverse",
     );
     bundle = load_project(directory.path()).expect("reload after direction");
     apply(
         &bundle,
-        vec![set_sample_occurrence_loop(
-            &bundle,
-            "phrase",
-            "original",
-            crate::model::SampleLoopRegion {
-                start_frame: 32,
-                end_frame: 96,
-                crossfade_frames: 8,
-            },
-        )
-        .expect("loop")],
+        vec![
+            set_sample_occurrence_loop(
+                &bundle,
+                "phrase",
+                "original",
+                crate::model::SampleLoopRegion {
+                    start_frame: 32,
+                    end_frame: 96,
+                    crossfade_frames: 8,
+                },
+            )
+            .expect("loop"),
+        ],
         "Loop",
     );
     bundle = load_project(directory.path()).expect("reload after loop");
     apply(
         &bundle,
-        vec![place_sample_occurrence(
-            &bundle,
-            "phrase",
-            &SamplePlacement {
-                id: "placed".to_owned(),
-                mapping: "zone".to_owned(),
-                at: "1beat".to_owned(),
-                duration: "1beat".to_owned(),
-                start_frame: 32,
-                end_frame: 300,
-                gain_db: -2.0,
-                pan: -0.2,
-                fade_in_frames: 5,
-                fade_out_frames: 7,
-                velocity: 0.8,
-                direction: None,
-                loop_region: None,
-            },
-        )
-        .expect("place")],
+        vec![
+            place_sample_occurrence(
+                &bundle,
+                "phrase",
+                &SamplePlacement {
+                    id: "placed".to_owned(),
+                    mapping: "zone".to_owned(),
+                    at: "1beat".to_owned(),
+                    duration: "1beat".to_owned(),
+                    start_frame: 32,
+                    end_frame: 300,
+                    gain_db: -2.0,
+                    pan: -0.2,
+                    fade_in_frames: 5,
+                    fade_out_frames: 7,
+                    velocity: 0.8,
+                    direction: None,
+                    loop_region: None,
+                },
+            )
+            .expect("place"),
+        ],
         "Place",
     );
     bundle = load_project(directory.path()).expect("reload after place");
@@ -251,18 +257,20 @@ fn sampler_operations_and_collection_are_checked_atomic_and_renderable() {
     bundle = load_project(directory.path()).expect("reload after move");
     apply(
         &bundle,
-        vec![create_sample_slice_map(
-            &bundle,
-            &SampleSliceMapPlacement {
-                instrument: "sampler".to_owned(),
-                asset: "source".to_owned(),
-                id_prefix: "slice".to_owned(),
-                start_key: crate::model::parse_pitch("C5").expect("pitch"),
-                boundaries: vec![0, 128, 256],
-                direction: crate::model::SampleDirection::Reverse,
-            },
-        )
-        .expect("slice map")],
+        vec![
+            create_sample_slice_map(
+                &bundle,
+                &SampleSliceMapPlacement {
+                    instrument: "sampler".to_owned(),
+                    asset: "source".to_owned(),
+                    id_prefix: "slice".to_owned(),
+                    start_key: crate::model::parse_pitch("C5").expect("pitch"),
+                    boundaries: vec![0, 128, 256],
+                    direction: crate::model::SampleDirection::Reverse,
+                },
+            )
+            .expect("slice map"),
+        ],
         "Slice map",
     );
 
@@ -606,11 +614,13 @@ fn undeclared_binary_mutations_cannot_create_or_delete_project_files() {
         fs::read_to_string(directory.path().join(PROJECT_FILE)).expect("source"),
         SOURCE
     );
-    assert!(HistoryStore::open(directory.path())
-        .expect("History")
-        .list()
-        .expect("entries")
-        .is_empty());
+    assert!(
+        HistoryStore::open(directory.path())
+            .expect("History")
+            .list()
+            .expect("entries")
+            .is_empty()
+    );
 }
 
 #[cfg(unix)]

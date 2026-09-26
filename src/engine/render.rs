@@ -385,7 +385,12 @@ fn materialize_stem_spools(
             for (writer, zero_frames) in writers.iter_mut().zip(&zero_frames) {
                 reader.read_exact(&mut encoded[..encoded_bytes])?;
                 let source_frames = frame_count - *zero_frames;
-                for (offset, frame) in encoded[..encoded_bytes].chunks_exact(8).enumerate() {
+                for (offset, frame) in encoded[..encoded_bytes]
+                    .as_chunks::<8>()
+                    .0
+                    .iter()
+                    .enumerate()
+                {
                     if block_start + offset as u64 >= source_frames {
                         continue;
                     }
@@ -1439,7 +1444,9 @@ project "Stem Alignment" {
                 .collect::<Result<Vec<_>, _>>()
                 .expect("decode rendered WAV");
             samples
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|frame| [frame[0], frame[1]])
                 .collect::<Vec<_>>()
         };

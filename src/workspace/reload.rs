@@ -5,12 +5,12 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 use crate::{
     engine::{control::ControlInspector, mix_graph::MixGraphInspection},
     history::{HistoryEntry, HistoryStore},
-    project::{load_project, ProjectBundle, RevisionId},
+    project::{ProjectBundle, RevisionId, load_project},
 };
 
 use super::{
-    candidate_instrument_sections, candidate_mixer_parameters, candidate_runtime_inspection,
-    instrument::InstrumentSectionView, timeline::TimelineCache, MixerParameterView, WorkspaceWatch,
+    MixerParameterView, WorkspaceWatch, candidate_instrument_sections, candidate_mixer_parameters,
+    candidate_runtime_inspection, instrument::InstrumentSectionView, timeline::TimelineCache,
 };
 
 pub(super) struct CandidateDerivedState {
