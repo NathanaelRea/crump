@@ -1,0 +1,44 @@
+crump 2
+import "instrument.crump"
+project "Disco Beater" {
+  id example-disco-beater
+  seed 23757
+  sample_rate 48000
+  render_tail 2s
+  asset disco-beater-60-soft-0 "Disco Beater" wav "media/60-soft-0.wav" sha256 "9d9fbba0352944c2323a47072294a8b44033a79ff87abdc9d8191c343973d1f8" {
+    usage multisample
+  }
+  asset disco-beater-60-hard-0 "Disco Beater" wav "media/60-hard-0.wav" sha256 "43170514e9bedb2c4b537665a9107ed428f6e10315672ae70248aa0bf804fcee" {
+    usage multisample
+  }
+  asset disco-beater-60-soft-1 "Disco Beater" wav "media/60-soft-1.wav" sha256 "2d6835fd80fdaebd464f3ab67659e1ee63ca19d35b744749476b8f9872825551" {
+    usage multisample
+  }
+  asset disco-beater-60-hard-1 "Disco Beater" wav "media/60-hard-1.wav" sha256 "c4641cfe995f7bbaae29643233507f439c25ba4a100d27fe2f88156e093c92e4" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C4 0.2beat 0.8
+      note 8.5beat C4 0.2beat 0.4
+      note 9beat C4 0.2beat 0.6
+      note 9.5beat C4 0.2beat 0.45
+      note 10beat C4 0.2beat 0.8
+      note 10.5beat C4 0.2beat 0.4
+      note 11beat C4 0.2beat 0.6
+      note 11.5beat C4 0.2beat 0.45
+      note 12beat C4 0.2beat 0.8
+      note 12.5beat C4 0.2beat 0.4
+      note 13beat C4 0.2beat 0.6
+      note 13.5beat C4 0.2beat 0.45
+    }
+    track instrument "Disco Beater" instrument disco-beater level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

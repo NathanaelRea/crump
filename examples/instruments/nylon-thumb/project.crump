@@ -1,0 +1,77 @@
+crump 2
+import "instrument.crump"
+project "Nylon Thumb" {
+  id example-nylon-thumb
+  seed 356355
+  sample_rate 48000
+  render_tail 2s
+  asset nylon-thumb-36-soft-0 "Nylon Thumb" wav "media/36-soft-0.wav" sha256 "fd5be1897603d1be523020d32216f5be80b55eac123ead5c4d20ae9d55b3ed31" {
+    usage multisample
+  }
+  asset nylon-thumb-36-hard-0 "Nylon Thumb" wav "media/36-hard-0.wav" sha256 "d85fe4137cf56fb6893ea7844cd21aa0e14dc5eb50507659f1fb96dbced0849e" {
+    usage multisample
+  }
+  asset nylon-thumb-43-soft-0 "Nylon Thumb" wav "media/43-soft-0.wav" sha256 "f88d3f04a74e8e876fbd103fc00e8af176a66cf0763abced3dc0b9d7c8859d42" {
+    usage multisample
+  }
+  asset nylon-thumb-43-hard-0 "Nylon Thumb" wav "media/43-hard-0.wav" sha256 "bd3528950823916cc6b21fef6fafedae00f9e2a834f93067cb89dac79a385be2" {
+    usage multisample
+  }
+  asset nylon-thumb-48-soft-0 "Nylon Thumb" wav "media/48-soft-0.wav" sha256 "f3e3e5871970a1e1c77ca1abf92d0348f6e445bb9232c80c3ce9af0ad3aff6e1" {
+    usage multisample
+  }
+  asset nylon-thumb-48-hard-0 "Nylon Thumb" wav "media/48-hard-0.wav" sha256 "82918604da8bbfb58aa7cec2e06a38453ca0fe865b63d2f2bcd67442a278732d" {
+    usage multisample
+  }
+  asset nylon-thumb-55-soft-0 "Nylon Thumb" wav "media/55-soft-0.wav" sha256 "942a34365bf0a9fa4978270527cc01fb0881a4411424992797c11158f7b2face" {
+    usage multisample
+  }
+  asset nylon-thumb-55-hard-0 "Nylon Thumb" wav "media/55-hard-0.wav" sha256 "2fd7e5148f1e614afcc5ee44a883b28665c53401e1accb74082817ffedf86f0c" {
+    usage multisample
+  }
+  asset nylon-thumb-60-soft-0 "Nylon Thumb" wav "media/60-soft-0.wav" sha256 "f61c97d91bb5dfe6dde41747063c0361d68bfaf6a907edc40459577ab0fac81a" {
+    usage multisample
+  }
+  asset nylon-thumb-60-hard-0 "Nylon Thumb" wav "media/60-hard-0.wav" sha256 "eff64f7eea3f6b19c87ccda48a11204fbc62470cf2f590917c9ef2e3eb0db7c7" {
+    usage multisample
+  }
+  asset nylon-thumb-67-soft-0 "Nylon Thumb" wav "media/67-soft-0.wav" sha256 "5f46a24fd055b5cd7448b65d8b34f1269c18f3a92f7c7ac5ac16beeec375bc19" {
+    usage multisample
+  }
+  asset nylon-thumb-67-hard-0 "Nylon Thumb" wav "media/67-hard-0.wav" sha256 "911ecb97eb20604051682cf32553076975ea347e5e98b21c523eac6c103ca6d1" {
+    usage multisample
+  }
+  asset nylon-thumb-72-soft-0 "Nylon Thumb" wav "media/72-soft-0.wav" sha256 "78156cf5f103b4d9b30ddce8f2296e9d60fa40918034a62d1cee62abfd6c5708" {
+    usage multisample
+  }
+  asset nylon-thumb-72-hard-0 "Nylon Thumb" wav "media/72-hard-0.wav" sha256 "a4a478c21aa878200cee5fff0474820e48f453fdd3c1088a77b84c2df7f1640d" {
+    usage multisample
+  }
+  asset nylon-thumb-79-soft-0 "Nylon Thumb" wav "media/79-soft-0.wav" sha256 "ed92b8eb0da75c5079c43953de97d1918700afb0c49c6d90e1e737e8c9e8c546" {
+    usage multisample
+  }
+  asset nylon-thumb-79-hard-0 "Nylon Thumb" wav "media/79-hard-0.wav" sha256 "23d4f1fdc8ea104489314f6dfbe988f626e64f10c633dda22bff612ff94f94b8" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C3 0.5beat 0.85
+      note 10beat G4 0.25beat 0.65
+      note 12beat C5 0.75beat 0.8
+      note 16beat C4 0.2beat 0.75
+      note 16.5beat G4 0.2beat 0.75
+      note 17beat A#4 0.2beat 0.75
+      note 17.5beat D#4 0.2beat 0.75
+      note 18beat G4 0.2beat 0.75
+      note 18.5beat C4 0.2beat 0.75
+    }
+    track instrument "Nylon Thumb" instrument nylon-thumb level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

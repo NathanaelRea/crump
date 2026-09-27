@@ -1,0 +1,20 @@
+{
+  "model": "metal",
+  "params": {
+    "decay": 0.2934026852957601,
+    "low": 239.91790642758104,
+    "high": 9452.554003046176,
+    "hipass": 3778.8367502771907,
+    "rattle": true,
+    "modes": 100,
+    "tilt": -0.25314556863941995,
+    "damping": 1.1770435721869852,
+    "noise": 0.17407746446276137,
+    "noise_decay": 0.17944135383876567
+  },
+  "pitched": false,
+  "category": "Hats and metal",
+  "id": "pedal-chick",
+  "seed_base": 140000,
+  "seconds": 4
+}

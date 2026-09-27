@@ -1,0 +1,22 @@
+{
+  "model": "collisions",
+  "params": {
+    "density": 15076.6292072239,
+    "decay": 0.07713983574708021,
+    "rise": 0.03641652051061626,
+    "ring": 0.00018083236336901561,
+    "freqs": [
+      2892.9284918556536,
+      2786.099958781193,
+      4734.970127858917
+    ],
+    "hipass": 2395.3971605188462,
+    "minimum_decay": 5e-05,
+    "friction": 0.0135535371084526
+  },
+  "pitched": false,
+  "category": "Shakers",
+  "id": "gourd-maraca",
+  "seed_base": 280000,
+  "seconds": 4
+}

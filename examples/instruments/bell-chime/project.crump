@@ -1,0 +1,77 @@
+crump 2
+import "instrument.crump"
+project "Bell Chime" {
+  id example-bell-chime
+  seed 427626
+  sample_rate 48000
+  render_tail 2s
+  asset bell-chime-36-soft-0 "Bell Chime" wav "media/36-soft-0.wav" sha256 "39562a0549bf4540df5c04dff446b23e682dc170f526dc604b1df43f11b54420" {
+    usage multisample
+  }
+  asset bell-chime-36-hard-0 "Bell Chime" wav "media/36-hard-0.wav" sha256 "af6d1f97ba42dbb430c3b7e643cf138c30579cccb2df7efea2486b8a098bfd01" {
+    usage multisample
+  }
+  asset bell-chime-43-soft-0 "Bell Chime" wav "media/43-soft-0.wav" sha256 "48e16266ad79e53dd2e05ec1aaf4802b99fe22bbfeb3231c2e9aeb5df8a631b9" {
+    usage multisample
+  }
+  asset bell-chime-43-hard-0 "Bell Chime" wav "media/43-hard-0.wav" sha256 "d3da60bec65902b470bc9091b47ec6d8801aa944b62d76d444b40a5fbcd1b549" {
+    usage multisample
+  }
+  asset bell-chime-48-soft-0 "Bell Chime" wav "media/48-soft-0.wav" sha256 "b866f0ce3fa65730666eec0aa11cdae923845e0112d5fd4b1528212b7fd33eb2" {
+    usage multisample
+  }
+  asset bell-chime-48-hard-0 "Bell Chime" wav "media/48-hard-0.wav" sha256 "ff95317df38721af09e2ccf0114ec279253333f3c75b76cfd480902e6d7fa0b6" {
+    usage multisample
+  }
+  asset bell-chime-55-soft-0 "Bell Chime" wav "media/55-soft-0.wav" sha256 "4c59fa776db708a6efbb92eb1915139adecd42ba642f9129a5b9c05e2eddd973" {
+    usage multisample
+  }
+  asset bell-chime-55-hard-0 "Bell Chime" wav "media/55-hard-0.wav" sha256 "c70af2f081bb012c10734acb9966fa93cedf774c5a3a44e47bacb98d2ca86efc" {
+    usage multisample
+  }
+  asset bell-chime-60-soft-0 "Bell Chime" wav "media/60-soft-0.wav" sha256 "48d39cc5ae3334bb30f74594063a096dece63aea675689233d9cbb9691763c87" {
+    usage multisample
+  }
+  asset bell-chime-60-hard-0 "Bell Chime" wav "media/60-hard-0.wav" sha256 "220f583678c327172f7022c8cb9d8d0df33419c8659d1f17f0a4883d07038152" {
+    usage multisample
+  }
+  asset bell-chime-67-soft-0 "Bell Chime" wav "media/67-soft-0.wav" sha256 "9d45ea1714b3ba8090a34a4ebea720cab38859cb5b1cbaa81621e6001a816e8b" {
+    usage multisample
+  }
+  asset bell-chime-67-hard-0 "Bell Chime" wav "media/67-hard-0.wav" sha256 "f2888dc9d40011f36b91e5f7c8861edfed4e06cf5c757e866df095b8b06f0826" {
+    usage multisample
+  }
+  asset bell-chime-72-soft-0 "Bell Chime" wav "media/72-soft-0.wav" sha256 "e48257100f899ef46b13be5f70b05a46e7b7de1a51c79bae3036cf9807d2cae4" {
+    usage multisample
+  }
+  asset bell-chime-72-hard-0 "Bell Chime" wav "media/72-hard-0.wav" sha256 "0f5425144b388579cd0656d0489904d6db836185fc7b08c3e41adc3df5bad692" {
+    usage multisample
+  }
+  asset bell-chime-79-soft-0 "Bell Chime" wav "media/79-soft-0.wav" sha256 "ea8216a5e80d289e64f3ac9f2d573b2041632c824456a10bdf3defa2788bc115" {
+    usage multisample
+  }
+  asset bell-chime-79-hard-0 "Bell Chime" wav "media/79-hard-0.wav" sha256 "3a78f71ec04b309870617c0be473d0e4e9050473cc18c311392c08705c6be2b3" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C3 0.5beat 0.85
+      note 10beat G4 0.25beat 0.65
+      note 12beat C5 0.75beat 0.8
+      note 16beat C4 0.2beat 0.75
+      note 16.5beat G4 0.2beat 0.75
+      note 17beat A#4 0.2beat 0.75
+      note 17.5beat D#4 0.2beat 0.75
+      note 18beat G4 0.2beat 0.75
+      note 18.5beat C4 0.2beat 0.75
+    }
+    track instrument "Bell Chime" instrument bell-chime level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

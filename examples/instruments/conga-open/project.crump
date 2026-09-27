@@ -1,0 +1,44 @@
+crump 2
+import "instrument.crump"
+project "Conga Open" {
+  id example-conga-open
+  seed 134623
+  sample_rate 48000
+  render_tail 2s
+  asset conga-open-60-soft-0 "Conga Open" wav "media/60-soft-0.wav" sha256 "a8073f3d9d9c5bc08009b025ea1e5901fe7a7badc444b818debe467e3060bc65" {
+    usage multisample
+  }
+  asset conga-open-60-hard-0 "Conga Open" wav "media/60-hard-0.wav" sha256 "75835e8687a11767b076b74f8e1edf883c10fd10be760f47f60cd9d24d61f784" {
+    usage multisample
+  }
+  asset conga-open-60-soft-1 "Conga Open" wav "media/60-soft-1.wav" sha256 "3a504d5fdcac80975604118920841616ef0db56e05a0ca06107d52e8ee763e6a" {
+    usage multisample
+  }
+  asset conga-open-60-hard-1 "Conga Open" wav "media/60-hard-1.wav" sha256 "7f2b7b3de2ffb270ef9844a4aca0367c314d53152e979d7bbd864833a107583a" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C4 0.2beat 0.8
+      note 8.5beat C4 0.2beat 0.4
+      note 9beat C4 0.2beat 0.6
+      note 9.5beat C4 0.2beat 0.45
+      note 10beat C4 0.2beat 0.8
+      note 10.5beat C4 0.2beat 0.4
+      note 11beat C4 0.2beat 0.6
+      note 11.5beat C4 0.2beat 0.45
+      note 12beat C4 0.2beat 0.8
+      note 12.5beat C4 0.2beat 0.4
+      note 13beat C4 0.2beat 0.6
+      note 13.5beat C4 0.2beat 0.45
+    }
+    track instrument "Conga Open" instrument conga-open level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

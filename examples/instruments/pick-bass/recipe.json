@@ -1,0 +1,14 @@
+{
+  "model": "string",
+  "params": {
+    "decay": 0.9,
+    "bright": 5600,
+    "position": 0.11,
+    "fret": 0.065
+  },
+  "pitched": true,
+  "category": "Bass",
+  "id": "pick-bass",
+  "seed_base": 330000,
+  "seconds": 15
+}

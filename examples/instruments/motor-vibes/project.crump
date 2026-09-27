@@ -1,0 +1,75 @@
+crump 2
+import "instrument.crump"
+project "Motor Vibes" {
+  id example-motor-vibes
+  seed 467221
+  sample_rate 48000
+  render_tail 2s
+  asset motor-vibes-36-soft-0 "Motor Vibes" wav "media/36-soft-0.wav" sha256 "9250b10cbcb17b933b4d8bd5fba722db1ce48c2b58819788ae769c7fe0490fc3" {
+    usage multisample
+  }
+  asset motor-vibes-36-hard-0 "Motor Vibes" wav "media/36-hard-0.wav" sha256 "9995c63ed5f8b14173e58f1224bbf999faa10637f717c564d1c8ef11a8722370" {
+    usage multisample
+  }
+  asset motor-vibes-43-soft-0 "Motor Vibes" wav "media/43-soft-0.wav" sha256 "0aa691d330884f8e771a306bcf047ab75b701444bc893218fa645b4a0a443dff" {
+    usage multisample
+  }
+  asset motor-vibes-43-hard-0 "Motor Vibes" wav "media/43-hard-0.wav" sha256 "8d10c6f3a4b39d89becba8401c3dd7024cdcd55eb179789a5d16d9868de9bca1" {
+    usage multisample
+  }
+  asset motor-vibes-48-soft-0 "Motor Vibes" wav "media/48-soft-0.wav" sha256 "209999810f2b2b087d0ce4e9955fe0806e756220f048fa7f0b55e2c1f3b436e5" {
+    usage multisample
+  }
+  asset motor-vibes-48-hard-0 "Motor Vibes" wav "media/48-hard-0.wav" sha256 "29dc89ac08a734580d35868fc27191f30389d6281ba0f46a4dda2abae91416fb" {
+    usage multisample
+  }
+  asset motor-vibes-55-soft-0 "Motor Vibes" wav "media/55-soft-0.wav" sha256 "64d058d7dacdf315cb7550b0b8ccd65ff5211051d34233e2a49a9bc08bd31020" {
+    usage multisample
+  }
+  asset motor-vibes-55-hard-0 "Motor Vibes" wav "media/55-hard-0.wav" sha256 "6d73304072f7129c87a3cae4f0c878e01e9184f42fcd3a0c174c6c9351296732" {
+    usage multisample
+  }
+  asset motor-vibes-60-soft-0 "Motor Vibes" wav "media/60-soft-0.wav" sha256 "f2ad9703eb8e33246f9420d52beea1a9ae7f610ce05b04f5119dcb643c61cec1" {
+    usage multisample
+  }
+  asset motor-vibes-60-hard-0 "Motor Vibes" wav "media/60-hard-0.wav" sha256 "1e80514e229148d587cf03594ec15dbd2783f18046428f5f217507ed0fac17ba" {
+    usage multisample
+  }
+  asset motor-vibes-67-soft-0 "Motor Vibes" wav "media/67-soft-0.wav" sha256 "ed53517be735dae99fb3a6d5995459d3b6bb6daf9b5a5f352d90da8f4a63b119" {
+    usage multisample
+  }
+  asset motor-vibes-67-hard-0 "Motor Vibes" wav "media/67-hard-0.wav" sha256 "04672ef284589ced335c9debf6646173c4af949244d6cf70a22b974b5571511f" {
+    usage multisample
+  }
+  asset motor-vibes-72-soft-0 "Motor Vibes" wav "media/72-soft-0.wav" sha256 "97024982e6564e38e0c1c1f9a5ac5ba122c64f6fa5fe9a33bb033c4d3b605315" {
+    usage multisample
+  }
+  asset motor-vibes-72-hard-0 "Motor Vibes" wav "media/72-hard-0.wav" sha256 "871a7b1d415607d1151db24c7443a27a1f9c6300485f3a1bfae1c9e88fdb3d8b" {
+    usage multisample
+  }
+  asset motor-vibes-79-soft-0 "Motor Vibes" wav "media/79-soft-0.wav" sha256 "7d50c55b9694e36319e556e912c302814c43b4128ba1749f5eba3bf31234c702" {
+    usage multisample
+  }
+  asset motor-vibes-79-hard-0 "Motor Vibes" wav "media/79-hard-0.wav" sha256 "9ec92eeb915cd4cf82f468075fe307931a67a2b4f727dd221ae799e9d616c8d4" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C3 0.5beat 0.85
+      note 10beat G4 0.25beat 0.65
+      note 12beat C5 0.75beat 0.8
+      note 16beat C3 0.5beat 0.65
+      note 16beat G3 0.5beat 0.65
+      note 16beat A#3 0.5beat 0.65
+      note 16beat D#4 0.5beat 0.65
+    }
+    track instrument "Motor Vibes" instrument motor-vibes level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

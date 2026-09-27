@@ -1,0 +1,20 @@
+{
+  "model": "string",
+  "params": {
+    "decay": 1.6,
+    "bright": 7200,
+    "position": 0.19,
+    "fret": 0.045,
+    "body": [
+      105,
+      210,
+      470
+    ],
+    "body_mix": 0.45
+  },
+  "pitched": true,
+  "category": "Guitar",
+  "id": "steel-finger",
+  "seed_base": 470000,
+  "seconds": 15
+}

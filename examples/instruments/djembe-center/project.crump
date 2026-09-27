@@ -1,0 +1,44 @@
+crump 2
+import "instrument.crump"
+project "Djembe Center" {
+  id example-djembe-center
+  seed 174218
+  sample_rate 48000
+  render_tail 2s
+  asset djembe-center-60-soft-0 "Djembe Center" wav "media/60-soft-0.wav" sha256 "31f58bc1111f25ee74106c390f2915257438b2dd7470d2e4632f17f17ffbf464" {
+    usage multisample
+  }
+  asset djembe-center-60-hard-0 "Djembe Center" wav "media/60-hard-0.wav" sha256 "9e75bc5323772261c093f9aad5a576f0cda1390eb7a2b49ba287719dfe94b59b" {
+    usage multisample
+  }
+  asset djembe-center-60-soft-1 "Djembe Center" wav "media/60-soft-1.wav" sha256 "f415ea1431adc9b322d3b30ba569a81be2fa5a7c7cb59e382fdd3a008b787b78" {
+    usage multisample
+  }
+  asset djembe-center-60-hard-1 "Djembe Center" wav "media/60-hard-1.wav" sha256 "9427b44ef7cdf0105f7eab758616b1d913d4d1ee80036702924f7cb1ddbb167e" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C4 0.2beat 0.8
+      note 8.5beat C4 0.2beat 0.4
+      note 9beat C4 0.2beat 0.6
+      note 9.5beat C4 0.2beat 0.45
+      note 10beat C4 0.2beat 0.8
+      note 10.5beat C4 0.2beat 0.4
+      note 11beat C4 0.2beat 0.6
+      note 11.5beat C4 0.2beat 0.45
+      note 12beat C4 0.2beat 0.8
+      note 12.5beat C4 0.2beat 0.4
+      note 13beat C4 0.2beat 0.6
+      note 13.5beat C4 0.2beat 0.45
+    }
+    track instrument "Djembe Center" instrument djembe-center level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

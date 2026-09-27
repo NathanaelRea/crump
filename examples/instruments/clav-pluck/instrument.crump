@@ -1,0 +1,45 @@
+crump-module 2
+instrument clav-pluck "Clav Pluck" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z36-soft-0 asset clav-pluck-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2 layer body articulation default round_robin rr36 0 region 0 425304 gain 0db pan 0
+      zone z36-hard-0 asset clav-pluck-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2 layer body articulation default round_robin rr36 1 region 0 446534 gain 0db pan 0
+      zone z43-soft-0 asset clav-pluck-43-soft-0 keys E2 A2 velocity 0 0.65 root G2 layer body articulation default round_robin rr43 0 region 0 424846 gain 0db pan 0
+      zone z43-hard-0 asset clav-pluck-43-hard-0 keys E2 A2 velocity 0.65 1 root G2 layer body articulation default round_robin rr43 1 region 0 444877 gain 0db pan 0
+      zone z48-soft-0 asset clav-pluck-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3 layer body articulation default round_robin rr48 0 region 0 434527 gain 0db pan 0
+      zone z48-hard-0 asset clav-pluck-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3 layer body articulation default round_robin rr48 1 region 0 455024 gain 0db pan 0
+      zone z55-soft-0 asset clav-pluck-55-soft-0 keys E3 A3 velocity 0 0.65 root G3 layer body articulation default round_robin rr55 0 region 0 424980 gain 0db pan 0
+      zone z55-hard-0 asset clav-pluck-55-hard-0 keys E3 A3 velocity 0.65 1 root G3 layer body articulation default round_robin rr55 1 region 0 444767 gain 0db pan 0
+      zone z60-soft-0 asset clav-pluck-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 430462 gain 0db pan 0
+      zone z60-hard-0 asset clav-pluck-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 450776 gain 0db pan 0
+      zone z67-soft-0 asset clav-pluck-67-soft-0 keys E4 A4 velocity 0 0.65 root G4 layer body articulation default round_robin rr67 0 region 0 397107 gain 0db pan 0
+      zone z67-hard-0 asset clav-pluck-67-hard-0 keys E4 A4 velocity 0.65 1 root G4 layer body articulation default round_robin rr67 1 region 0 417383 gain 0db pan 0
+      zone z72-soft-0 asset clav-pluck-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5 layer body articulation default round_robin rr72 0 region 0 300047 gain 0db pan 0
+      zone z72-hard-0 asset clav-pluck-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5 layer body articulation default round_robin rr72 1 region 0 315969 gain 0db pan 0
+      zone z79-soft-0 asset clav-pluck-79-soft-0 keys E5 G6 velocity 0 0.65 root G5 layer body articulation default round_robin rr79 0 region 0 317444 gain 0db pan 0
+      zone z79-hard-0 asset clav-pluck-79-hard-0 keys E5 G6 velocity 0.65 1 root G5 layer body articulation default round_robin rr79 1 region 0 337231 gain 0db pan 0
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "model": "membrane",
+  "params": {
+    "freq": 208.15984770957522,
+    "decay": 0.06733619186902494,
+    "wire": 0.020841079799552107,
+    "wire_decay": 0.2945019278667203,
+    "slap": 0.30540858809724913,
+    "bright": 1.6027212474706274,
+    "contact": 0.0021632384967594045,
+    "slap_decay": 0.06159337108793048
+  },
+  "pitched": false,
+  "category": "Backbeats",
+  "id": "disco-wire",
+  "seed_base": 60000,
+  "seconds": 4
+}

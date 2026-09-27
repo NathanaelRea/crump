@@ -1,0 +1,19 @@
+{
+  "model": "string",
+  "params": {
+    "decay": 2.1,
+    "bright": 3900,
+    "position": 0.4,
+    "body": [
+      190,
+      410,
+      850
+    ],
+    "body_mix": 0.25
+  },
+  "pitched": true,
+  "category": "Guitar",
+  "id": "small-harp",
+  "seed_base": 480000,
+  "seconds": 15
+}

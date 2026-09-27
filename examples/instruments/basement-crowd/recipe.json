@@ -1,0 +1,15 @@
+{
+  "model": "clap",
+  "params": {
+    "hands": 7,
+    "spread": 0.0029192786889724264,
+    "decay": 0.051471543648218064,
+    "low": 236.19114593219714,
+    "high": 6883.551226436004
+  },
+  "pitched": false,
+  "category": "Backbeats",
+  "id": "basement-crowd",
+  "seed_base": 90000,
+  "seconds": 4
+}

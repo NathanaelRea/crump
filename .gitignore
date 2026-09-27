@@ -15,3 +15,7 @@ renders/
 productions/
 plan-*.md
 !plan-capabilities-2.md
+
+/.scratch/
+__pycache__/
+!examples/instruments/**/*.wav

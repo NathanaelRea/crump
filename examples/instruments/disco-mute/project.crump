@@ -1,0 +1,77 @@
+crump 2
+import "instrument.crump"
+project "Disco Mute" {
+  id example-disco-mute
+  seed 364274
+  sample_rate 48000
+  render_tail 2s
+  asset disco-mute-36-soft-0 "Disco Mute" wav "media/36-soft-0.wav" sha256 "be57e3c7dd3292423072e5557efd7629b72bd28dc5d54acc9760597bb6aec47b" {
+    usage multisample
+  }
+  asset disco-mute-36-hard-0 "Disco Mute" wav "media/36-hard-0.wav" sha256 "15f4507c2ed689e8d8901ac07a44e8e3aebb63a844a2127416c2ae3616ca0f04" {
+    usage multisample
+  }
+  asset disco-mute-43-soft-0 "Disco Mute" wav "media/43-soft-0.wav" sha256 "6ac462ccd0d7dd64ff21c6c6eafee11142a8dee45b483ca3301b04f27b57a5bc" {
+    usage multisample
+  }
+  asset disco-mute-43-hard-0 "Disco Mute" wav "media/43-hard-0.wav" sha256 "90ae2a7506648ca8ab5737c8b06cb7164e395702a898a483c851a2ef0448f84c" {
+    usage multisample
+  }
+  asset disco-mute-48-soft-0 "Disco Mute" wav "media/48-soft-0.wav" sha256 "35a07f8b9154cc225938d15719d68995a3ea731ce36100516f2d31f7573400cc" {
+    usage multisample
+  }
+  asset disco-mute-48-hard-0 "Disco Mute" wav "media/48-hard-0.wav" sha256 "8c2dee518a7d3043f483513629a3eac5aa286a69ad5226aab906d19b7552b7a0" {
+    usage multisample
+  }
+  asset disco-mute-55-soft-0 "Disco Mute" wav "media/55-soft-0.wav" sha256 "0c4d18dcae1765cd91041e8ebd5c9c3431c34a437a860b31c6de97f49f3a02ca" {
+    usage multisample
+  }
+  asset disco-mute-55-hard-0 "Disco Mute" wav "media/55-hard-0.wav" sha256 "b32ecdee08f80163580d3e8210959785d198de39ef83821c01b57cdb9259ec52" {
+    usage multisample
+  }
+  asset disco-mute-60-soft-0 "Disco Mute" wav "media/60-soft-0.wav" sha256 "408bd79176ea47168f89f32dea0b6528b02edd3d3c3f771aab82ffe3c0eb85bc" {
+    usage multisample
+  }
+  asset disco-mute-60-hard-0 "Disco Mute" wav "media/60-hard-0.wav" sha256 "db4de3f7f77defb7802772c6962acb5fb1b7707a19509a334c08d9b3a1e29905" {
+    usage multisample
+  }
+  asset disco-mute-67-soft-0 "Disco Mute" wav "media/67-soft-0.wav" sha256 "048381e915fea9a6e573d60d2af712af8c7bffcf8dd1ab42b6b9033abc24ffbf" {
+    usage multisample
+  }
+  asset disco-mute-67-hard-0 "Disco Mute" wav "media/67-hard-0.wav" sha256 "862321e0ca2d963894b7ba38fc5909e9e7b590e3393fc6ae1b5515c461e1cdc9" {
+    usage multisample
+  }
+  asset disco-mute-72-soft-0 "Disco Mute" wav "media/72-soft-0.wav" sha256 "8291ad565787fbd4d0a6026690688b9556cb0f5ad191a2348db1450215c672d9" {
+    usage multisample
+  }
+  asset disco-mute-72-hard-0 "Disco Mute" wav "media/72-hard-0.wav" sha256 "fd46e361a36f10051a9dbf97bb307fa4662860369a4cd41472bc2010ca13c283" {
+    usage multisample
+  }
+  asset disco-mute-79-soft-0 "Disco Mute" wav "media/79-soft-0.wav" sha256 "40839d252ee924c38ab84da79c9d23fa8ba1e73917bddf17c7abb80bf5e4d259" {
+    usage multisample
+  }
+  asset disco-mute-79-hard-0 "Disco Mute" wav "media/79-hard-0.wav" sha256 "e2c5ca86a3fc72c211633a184b635c1d9e5b230cdf707bc73cf6440425079152" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C3 0.5beat 0.85
+      note 10beat G4 0.25beat 0.65
+      note 12beat C5 0.75beat 0.8
+      note 16beat C4 0.2beat 0.75
+      note 16.5beat G4 0.2beat 0.75
+      note 17beat A#4 0.2beat 0.75
+      note 17.5beat D#4 0.2beat 0.75
+      note 18beat G4 0.2beat 0.75
+      note 18.5beat C4 0.2beat 0.75
+    }
+    track instrument "Disco Mute" instrument disco-mute level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

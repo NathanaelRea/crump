@@ -1,0 +1,44 @@
+crump 2
+import "instrument.crump"
+project "Warehouse Skin" {
+  id example-warehouse-skin
+  seed 15838
+  sample_rate 48000
+  render_tail 2s
+  asset warehouse-skin-60-soft-0 "Warehouse Skin" wav "media/60-soft-0.wav" sha256 "e5c4be23bf7d4d1fd8b2ce3b55c6e3997df33d868ab7666c6a85f35e40d7ec31" {
+    usage multisample
+  }
+  asset warehouse-skin-60-hard-0 "Warehouse Skin" wav "media/60-hard-0.wav" sha256 "2539088054b926366215b868eeece80161476ee31cae7fcd3ad0c4addbea63c9" {
+    usage multisample
+  }
+  asset warehouse-skin-60-soft-1 "Warehouse Skin" wav "media/60-soft-1.wav" sha256 "136360e72f6b6ad3da3f4a1a5cb4c4727ce1bc8479cadd01f4b93ce86b0176d5" {
+    usage multisample
+  }
+  asset warehouse-skin-60-hard-1 "Warehouse Skin" wav "media/60-hard-1.wav" sha256 "6fce778a2bc1aab6e8af433ada49956ee95921bc6729086d051f08bc452ad163" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C4 0.2beat 0.8
+      note 8.5beat C4 0.2beat 0.4
+      note 9beat C4 0.2beat 0.6
+      note 9.5beat C4 0.2beat 0.45
+      note 10beat C4 0.2beat 0.8
+      note 10.5beat C4 0.2beat 0.4
+      note 11beat C4 0.2beat 0.6
+      note 11.5beat C4 0.2beat 0.45
+      note 12beat C4 0.2beat 0.8
+      note 12.5beat C4 0.2beat 0.4
+      note 13beat C4 0.2beat 0.6
+      note 13.5beat C4 0.2beat 0.45
+    }
+    track instrument "Warehouse Skin" instrument warehouse-skin level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

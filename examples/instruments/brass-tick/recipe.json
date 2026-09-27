@@ -1,0 +1,19 @@
+{
+  "model": "metal",
+  "params": {
+    "decay": 0.22196693237433507,
+    "low": 251.47169026130493,
+    "high": 18874.043938084764,
+    "hipass": 259.8712779854942,
+    "modes": 110,
+    "tilt": 0.7574491848540448,
+    "damping": 0.6670990892183545,
+    "noise": 1.089007774512607,
+    "noise_decay": 0.21790621542582003
+  },
+  "pitched": false,
+  "category": "Hats and metal",
+  "id": "brass-tick",
+  "seed_base": 110000,
+  "seconds": 4
+}

@@ -1,0 +1,15 @@
+{
+  "model": "string",
+  "params": {
+    "decay": 0.55,
+    "bright": 8000,
+    "position": 0.13,
+    "fret": 0.18,
+    "drive": 1.3
+  },
+  "pitched": true,
+  "category": "Bass",
+  "id": "slap-string",
+  "seed_base": 350000,
+  "seconds": 15
+}

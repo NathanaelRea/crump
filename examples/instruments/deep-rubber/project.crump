@@ -1,0 +1,77 @@
+crump 2
+import "instrument.crump"
+project "Deep Rubber" {
+  id example-deep-rubber
+  seed 285084
+  sample_rate 48000
+  render_tail 2s
+  asset deep-rubber-36-soft-0 "Deep Rubber" wav "media/36-soft-0.wav" sha256 "6ecf2547bf160a966958b0fe5716b54c1d7df5fad0cb70d40c707650fc104c89" {
+    usage multisample
+  }
+  asset deep-rubber-36-hard-0 "Deep Rubber" wav "media/36-hard-0.wav" sha256 "3544982f69a0b8558a8f831c417bd358b535e0cdfd9905d39008743795fb7c9e" {
+    usage multisample
+  }
+  asset deep-rubber-43-soft-0 "Deep Rubber" wav "media/43-soft-0.wav" sha256 "35d665607c35155583867f7985d3670aae79341189cf650bd1c314de2f2a89c7" {
+    usage multisample
+  }
+  asset deep-rubber-43-hard-0 "Deep Rubber" wav "media/43-hard-0.wav" sha256 "28952c5a4624b349787699abb5327f2fd0aa790b230ef39137cbbf81afe65ac3" {
+    usage multisample
+  }
+  asset deep-rubber-48-soft-0 "Deep Rubber" wav "media/48-soft-0.wav" sha256 "4a1ceeb3a6d538e57bce64880e450fb8e56a8aaff45be908dfc6080d2853156e" {
+    usage multisample
+  }
+  asset deep-rubber-48-hard-0 "Deep Rubber" wav "media/48-hard-0.wav" sha256 "8f6ab13dbdbe41b2eeb9fcdf90b3952cdf8b4b220447f6892183418d3f8a6f49" {
+    usage multisample
+  }
+  asset deep-rubber-55-soft-0 "Deep Rubber" wav "media/55-soft-0.wav" sha256 "2e703fe7366d902e1ede392f6dc4bf37f8b1d5fd74be5cf54851eb949eb528bf" {
+    usage multisample
+  }
+  asset deep-rubber-55-hard-0 "Deep Rubber" wav "media/55-hard-0.wav" sha256 "8696dab7e8faf22612622735d530019b6cb6137176a5fdf83c28368f1cd5b4f7" {
+    usage multisample
+  }
+  asset deep-rubber-60-soft-0 "Deep Rubber" wav "media/60-soft-0.wav" sha256 "52a2b941513d06d957d86645d7fa169917e5e4a0d7322df2a89e82d42209fdc9" {
+    usage multisample
+  }
+  asset deep-rubber-60-hard-0 "Deep Rubber" wav "media/60-hard-0.wav" sha256 "d8cbd9d835fd816e87578215abaa6cace8878a607da61f8afd4174f824176fc1" {
+    usage multisample
+  }
+  asset deep-rubber-67-soft-0 "Deep Rubber" wav "media/67-soft-0.wav" sha256 "736a679ff3d3b84ccb80d9049e91e6ff1ef4c0fe412f6abb0876ccd3e25539a6" {
+    usage multisample
+  }
+  asset deep-rubber-67-hard-0 "Deep Rubber" wav "media/67-hard-0.wav" sha256 "dabb679ed92311495ea3a728ea21b04ba0819efead9f82e148576273b1a049b1" {
+    usage multisample
+  }
+  asset deep-rubber-72-soft-0 "Deep Rubber" wav "media/72-soft-0.wav" sha256 "57346ec6482fab65d2cbd7af58a38528bc60f5c8ed78b05a2c93e1267aede789" {
+    usage multisample
+  }
+  asset deep-rubber-72-hard-0 "Deep Rubber" wav "media/72-hard-0.wav" sha256 "6f8bfbfa01f4c418e5928e415b3d05db5f4531a25b37f1e3b6eb66428770eb72" {
+    usage multisample
+  }
+  asset deep-rubber-79-soft-0 "Deep Rubber" wav "media/79-soft-0.wav" sha256 "8340a0afb47e1032ff9e263f5cb27f36ba4906fcf3bd7580a2c4a1d8ab43ba5f" {
+    usage multisample
+  }
+  asset deep-rubber-79-hard-0 "Deep Rubber" wav "media/79-hard-0.wav" sha256 "2134a52bad2ab06fdeb1eb479c5894bca05e4d182b32525b6945f8be44c9609f" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C2 0.25beat 0.92
+      note 4beat C2 2beat 0.48
+      note 8beat C1 0.5beat 0.85
+      note 10beat G2 0.25beat 0.65
+      note 12beat C3 0.75beat 0.8
+      note 16beat C2 0.2beat 0.75
+      note 16.5beat G2 0.2beat 0.75
+      note 17beat A#2 0.2beat 0.75
+      note 17.5beat D#2 0.2beat 0.75
+      note 18beat G2 0.2beat 0.75
+      note 18.5beat C2 0.2beat 0.75
+    }
+    track instrument "Deep Rubber" instrument deep-rubber level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

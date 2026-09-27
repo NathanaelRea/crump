@@ -1,0 +1,44 @@
+crump 2
+import "instrument.crump"
+project "Gourd Maraca" {
+  id example-gourd-maraca
+  seed 221732
+  sample_rate 48000
+  render_tail 2s
+  asset gourd-maraca-60-soft-0 "Gourd Maraca" wav "media/60-soft-0.wav" sha256 "7d5dd152840f634118d56460a9aa6db5531051d1e81619f5d7c1370abe898863" {
+    usage multisample
+  }
+  asset gourd-maraca-60-hard-0 "Gourd Maraca" wav "media/60-hard-0.wav" sha256 "81b395fc7d423874afdcbb6d1f0ff4b78d5e834b7c26260fe3c6c94dcf3ad59a" {
+    usage multisample
+  }
+  asset gourd-maraca-60-soft-1 "Gourd Maraca" wav "media/60-soft-1.wav" sha256 "9a2d4d33a8ca6c0652f8efdd4db69a3870f5fdf14a93a8d3a61c07a6061ec366" {
+    usage multisample
+  }
+  asset gourd-maraca-60-hard-1 "Gourd Maraca" wav "media/60-hard-1.wav" sha256 "08ac52ce6c3e567afa64def2c36b00cf2d4a11be78f6b1d01c19921f340142b8" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C4 0.2beat 0.8
+      note 8.5beat C4 0.2beat 0.4
+      note 9beat C4 0.2beat 0.6
+      note 9.5beat C4 0.2beat 0.45
+      note 10beat C4 0.2beat 0.8
+      note 10.5beat C4 0.2beat 0.4
+      note 11beat C4 0.2beat 0.6
+      note 11.5beat C4 0.2beat 0.45
+      note 12beat C4 0.2beat 0.8
+      note 12.5beat C4 0.2beat 0.4
+      note 13beat C4 0.2beat 0.6
+      note 13.5beat C4 0.2beat 0.45
+    }
+    track instrument "Gourd Maraca" instrument gourd-maraca level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}
