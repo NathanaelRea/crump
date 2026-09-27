@@ -1,8 +1,10 @@
 //! Crump's terminal-independent project, authoring, and audio engine.
 
+pub mod acoustics;
 pub mod cli;
 pub mod diagnostic;
 pub mod dsl;
+pub mod dsp;
 mod edit;
 pub mod engine;
 pub mod history;

@@ -375,3 +375,101 @@ fn malformed_sample_regions_and_zone_assets_fail_before_compilation() {
     }));
     assert!(CompiledProject::compile_with_assets(&multisample, &assets).is_err());
 }
+
+#[test]
+fn one_shot_sources_preserve_long_tails_and_fade_at_the_release_ceiling() {
+    use sha2::{Digest, Sha256};
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("ring.wav");
+    let mut wav = hound::WavWriter::create(
+        &path,
+        hound::WavSpec {
+            channels: 1,
+            sample_rate: 48000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        },
+    )
+    .unwrap();
+    for frame in 0..48000 * 32 {
+        let value = (std::f64::consts::TAU * 440.0 * f64::from(frame) / 48000.0).sin();
+        wav.write_sample((value * 8192.0) as i16).unwrap();
+    }
+    wav.finalize().unwrap();
+    let digest: String = Sha256::digest(fs::read(&path).unwrap())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    for (kind, mapping) in [
+        ("sample_source", "asset ring\nroot A4"),
+        (
+            "multisample",
+            "zone body asset ring keys C0 G9 velocity 0 1 root A4 layer body articulation default round_robin body 0 region 0 1536000 gain 0db pan 0",
+        ),
+    ] {
+        let source = format!(
+            r#"crump 2
+project "Long one-shot" {{
+  id long-one-shot
+  seed 53
+  sample_rate 48000
+  render_tail 0s
+  asset ring "Ring" wav "ring.wav" sha256 "{digest}" {{
+    usage sample multisample
+  }}
+  song {{
+    tempo 120bpm
+    meter 4/4
+    end 16bar
+    instrument ring "Ring" graph {{
+      polyphony 1
+      parameter level "Level" ratio 0 1 0.5 0.5
+      faceplate {{
+        control level "Level" "Output level" maps level
+      }}
+      graph voice 4 {{
+        node source {kind} {{
+          {mapping}
+          playback one_shot
+          level $level
+        }}
+        node out output
+        bus pitch note.pitch -> source.pitch
+        bus gate note.gate -> source.gate
+        bus velocity note.velocity -> source.velocity
+        bus audio source.audio -> out.audio
+      }}
+    }}
+    pattern strike 16bar {{
+      note 0beat A4 0.25beat 1
+    }}
+    track ring "Ring" instrument ring level 0db pan 0 {{
+      clip strike pattern strike start 0bar duration 16bar mode once
+    }}
+  }}
+}}
+"#
+        );
+        let parsed = parse_project(&folder.path().join("project.crump"), &source);
+        assert!(!parsed.diagnostics.has_errors(), "{:?}", parsed.diagnostics);
+        let project = parsed.project.unwrap();
+        let (assets, diagnostics) = load_asset_inventory(folder.path(), &project.assets);
+        assert!(!diagnostics.has_errors(), "{diagnostics:?}");
+        let compiled = CompiledProject::compile_with_assets(&project, &assets).unwrap();
+        let output = render(&compiled, 48000 * 31, 257);
+        let energy = |start: usize, end: usize| {
+            output[start..end]
+                .iter()
+                .map(|x| f64::from(x[0]).powi(2))
+                .sum::<f64>()
+                / (end - start) as f64
+        };
+        assert!(
+            energy(48000 * 9, 48000 * 10) > 0.001,
+            "{kind} lost its natural tail"
+        );
+        // Note-off is at 125 ms; the last 50 ms of its 30-second budget fade.
+        assert!(energy(1444800, 1445760) < energy(1440000, 1440960) * 0.3);
+        assert_eq!(energy(48000 * 30 + 12000, 48000 * 31), 0.0);
+    }
+}

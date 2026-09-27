@@ -28,6 +28,7 @@ use super::super::{
     wavetable::{CompiledWavetable, CompiledWavetableLibrary},
 };
 
+mod acoustic;
 mod effects;
 mod envelope;
 mod filter;
@@ -47,6 +48,11 @@ pub(super) const MAX_RELEASE_SECONDS: f64 = envelope::MAX_RELEASE_SECONDS;
 /// Returns the callback work represented by one authored node.
 pub(super) fn authored_node_work_units(instrument: &Instrument, node: &GraphNode) -> u64 {
     match node.kind {
+        NodeKind::Exciter => 64,
+        NodeKind::ModalBank => {
+            authored_node_number(instrument, node, "max_modes", 64.0).clamp(1.0, 256.0) as u64 * 32
+                + if node.setting("rise").is_some() { 8 } else { 0 }
+        }
         NodeKind::Unison => authored_node_number(instrument, node, "voices", 4.0)
             .round()
             .clamp(1.0, oscillator::MAX_UNISON_VOICES as f64) as u64,
@@ -162,6 +168,13 @@ pub(super) fn authored_node_heap_bytes(
     sample_rate: u32,
 ) -> u64 {
     match node.kind {
+        NodeKind::Exciter => std::mem::size_of::<acoustic::ExciterState>() as u64,
+        NodeKind::ModalBank => {
+            crate::acoustics::ModalBank::state_bytes(
+                authored_node_number(instrument, node, "max_modes", 64.0).clamp(1.0, 256.0)
+                    as usize,
+            ) + 16
+        }
         NodeKind::Delay => {
             let seconds = authored_node_number(instrument, node, "time", 0.25);
             let frames = (seconds * f64::from(sample_rate)).round().max(1.0) as u64;
@@ -490,6 +503,8 @@ pub(super) struct NodeProgram(NodeProgramKind);
 
 #[derive(Debug, Clone)]
 enum NodeProgramKind {
+    Exciter(Box<acoustic::ExciterConfig>),
+    ModalBank(Box<acoustic::BankConfig>),
     Oscillator(OscillatorConfig),
     Unison(UnisonConfig),
     AnalogOscillator(Box<AnalogOscillatorConfig>),
@@ -537,6 +552,8 @@ impl NodeSeedIdentity {
 
 #[derive(Debug, Clone)]
 enum NodeStateKind {
+    Exciter(Box<acoustic::ExciterState>),
+    ModalBank(Box<acoustic::BankState>),
     Oscillator(OscillatorState),
     Unison(Box<UnisonState>),
     AnalogOscillator(Box<AnalogOscillatorState>),
@@ -614,6 +631,21 @@ impl NodeProgram {
             )
         };
         Ok(Self(match node.kind {
+            NodeKind::Exciter => {
+                NodeProgramKind::Exciter(Box::new(acoustic::ExciterConfig::compile(
+                    node,
+                    stable_modulation_identity(&node.id),
+                    number,
+                )?))
+            }
+            NodeKind::ModalBank => {
+                NodeProgramKind::ModalBank(Box::new(acoustic::BankConfig::compile(
+                    node,
+                    context.project,
+                    resolve_integer(node, "max_modes", 64, 1, 256)?,
+                    number,
+                )?))
+            }
             NodeKind::Oscillator => NodeProgramKind::Oscillator(OscillatorConfig {
                 waveform: match text(node, "waveform", "saw") {
                     "sine" => OscillatorWaveform::Sine,
@@ -1439,6 +1471,7 @@ impl NodeProgram {
         legacy_index: u64,
     ) -> NodeState {
         let semantic_identity = match &self.0 {
+            NodeProgramKind::Exciter(config) => Some(config.identity),
             NodeProgramKind::Granular(config) => Some(config.node_identity),
             NodeProgramKind::Spectral(config) => Some(config.node_identity),
             _ => None,
@@ -1450,6 +1483,12 @@ impl NodeProgram {
         let seed = seed_identity.resolve(voice_seed);
         NodeState(
             match &self.0 {
+                NodeProgramKind::Exciter(_) => {
+                    NodeStateKind::Exciter(Box::new(acoustic::ExciterState::new(sample_rate, seed)))
+                }
+                NodeProgramKind::ModalBank(config) => NodeStateKind::ModalBank(Box::new(
+                    acoustic::BankState::new(config.profile.modes.len(), sample_rate),
+                )),
                 NodeProgramKind::Oscillator(_) => {
                     NodeStateKind::Oscillator(OscillatorState::new(seed))
                 }
@@ -1510,6 +1549,12 @@ impl NodeProgram {
         sample_rate: f64,
     ) -> Signal {
         match (&self.0, &mut state.0) {
+            (NodeProgramKind::Exciter(config), NodeStateKind::Exciter(state)) => {
+                Signal::Mono(config.process(state, inputs, controls))
+            }
+            (NodeProgramKind::ModalBank(config), NodeStateKind::ModalBank(state)) => {
+                Signal::Mono(config.process(state, inputs, controls))
+            }
             (NodeProgramKind::Oscillator(config), NodeStateKind::Oscillator(state)) => {
                 Signal::Mono(config.process(state, inputs.pitch.control(), controls, sample_rate))
             }
@@ -1699,6 +1744,8 @@ impl NodeProgram {
     /// Whether retained mutable state has the same structural program contract.
     pub(super) fn transition_compatible(&self, replacement: &Self) -> bool {
         match (&self.0, &replacement.0) {
+            (NodeProgramKind::Exciter(a), NodeProgramKind::Exciter(b)) => a.compatible(b),
+            (NodeProgramKind::ModalBank(a), NodeProgramKind::ModalBank(b)) => a.compatible(b),
             (NodeProgramKind::Oscillator(left), NodeProgramKind::Oscillator(right)) => {
                 left.waveform == right.waveform
             }
@@ -1792,6 +1839,8 @@ impl NodeProgram {
 
     pub(super) fn heap_bytes(&self) -> u64 {
         match &self.0 {
+            NodeProgramKind::Exciter(_) => std::mem::size_of::<acoustic::ExciterConfig>() as u64,
+            NodeProgramKind::ModalBank(config) => config.allocation_bytes(),
             NodeProgramKind::AnalogOscillator(_) => {
                 std::mem::size_of::<AnalogOscillatorConfig>() as u64
             }
@@ -1826,6 +1875,8 @@ impl NodeState {
     pub(super) fn reset(&mut self, seed: u64) {
         let seed = self.1.resolve(seed);
         match &mut self.0 {
+            NodeStateKind::Exciter(state) => state.reset(seed),
+            NodeStateKind::ModalBank(state) => state.reset(),
             NodeStateKind::Oscillator(state) => state.retrigger(seed),
             NodeStateKind::Unison(state) => state.retrigger(seed),
             NodeStateKind::AnalogOscillator(state) => state.retrigger(seed),
@@ -1848,6 +1899,8 @@ impl NodeState {
     pub(super) fn retrigger(&mut self, seed: u64) {
         let seed = self.1.resolve(seed);
         match &mut self.0 {
+            NodeStateKind::Exciter(state) => state.reset(seed),
+            NodeStateKind::ModalBank(state) => state.reset(),
             NodeStateKind::Oscillator(state) => state.retrigger(seed),
             NodeStateKind::Unison(state) => state.retrigger(seed),
             NodeStateKind::AnalogOscillator(state) => state.retrigger(seed),
@@ -1869,6 +1922,8 @@ impl NodeState {
     pub(super) fn retarget_note(&mut self, seed: u64) {
         let seed = self.1.resolve(seed);
         match &mut self.0 {
+            NodeStateKind::Exciter(state) => state.reset(seed),
+            NodeStateKind::ModalBank(state) => state.reset(),
             NodeStateKind::Envelope(state) => state.note_retrigger(),
             NodeStateKind::Lfo(state) => state.retrigger(seed),
             NodeStateKind::Oscillator(_)
@@ -1889,12 +1944,20 @@ impl NodeState {
     }
 
     pub(super) fn envelope_idle(&self) -> bool {
-        !matches!(&self.0, NodeStateKind::Envelope(state) if !state.idle())
+        match &self.0 {
+            NodeStateKind::Envelope(state) => state.idle(),
+            NodeStateKind::Exciter(state) => !state.dsp.is_active(),
+            _ => true,
+        }
     }
 
     #[cfg(test)]
     pub(super) fn heap_bytes(&self) -> u64 {
         match &self.0 {
+            NodeStateKind::Exciter(_) => std::mem::size_of::<acoustic::ExciterState>() as u64,
+            NodeStateKind::ModalBank(state) => {
+                std::mem::size_of::<acoustic::BankState>() as u64 + state.dsp.allocation_bytes()
+            }
             NodeStateKind::Delay(state) => state.heap_bytes(),
             NodeStateKind::Reverb(state) => state.heap_bytes(),
             NodeStateKind::Unison(_) => std::mem::size_of::<UnisonState>() as u64,

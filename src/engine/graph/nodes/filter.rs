@@ -1,6 +1,7 @@
 use std::f64::consts::PI;
 
 use super::Scalar;
+pub(in crate::engine::graph) use crate::dsp::StateVariableFilter as FilterState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum FilterMode {
@@ -19,45 +20,6 @@ pub(super) struct FilterConfig {
     pub(super) velocity_depth: Scalar,
     pub(super) key_track: Scalar,
     pub(super) key_reference: Scalar,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub(in crate::engine::graph) struct FilterState {
-    integrator_one: f64,
-    integrator_two: f64,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(in crate::engine::graph) struct FilterOutputs {
-    pub(in crate::engine::graph) lowpass: f64,
-    pub(in crate::engine::graph) highpass: f64,
-    pub(in crate::engine::graph) bandpass: f64,
-    pub(in crate::engine::graph) notch: f64,
-}
-
-impl FilterState {
-    pub(in crate::engine::graph) fn process(
-        &mut self,
-        input: f64,
-        cutoff: f64,
-        resonance: f64,
-        sample_rate: f64,
-    ) -> FilterOutputs {
-        let g = (PI * cutoff / sample_rate).tan().min(10.0);
-        let damping = 2.0 - 1.9 * resonance.clamp(0.0, 1.0);
-        let denominator = 1.0 + g * (g + damping);
-        let bandpass = (self.integrator_one + g * (input - self.integrator_two)) / denominator;
-        let lowpass = self.integrator_two + g * bandpass;
-        let highpass = input - damping * bandpass - lowpass;
-        self.integrator_one = 2.0 * bandpass - self.integrator_one;
-        self.integrator_two = 2.0 * lowpass - self.integrator_two;
-        FilterOutputs {
-            lowpass,
-            highpass,
-            bandpass,
-            notch: lowpass + highpass,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

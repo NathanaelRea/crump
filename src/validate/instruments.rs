@@ -2055,6 +2055,19 @@ impl NumericDomain {
 
 fn setting_domain(kind: NodeKind, key: &str) -> Option<NumericDomain> {
     match (kind, key) {
+        (NodeKind::Exciter, "contact") => Some(NumericDomain::bounded(0.00002, 0.02)),
+        (NodeKind::Exciter, "hardness") | (NodeKind::ModalBank, "key_track") => {
+            Some(NumericDomain::bounded(0.0, 1.0))
+        }
+        (NodeKind::Exciter, "rate") => Some(NumericDomain::bounded(1.0, 10000.0)),
+        (NodeKind::Exciter, "duration") => Some(NumericDomain::bounded(0.005, 2.0)),
+        (NodeKind::Exciter, "attack") => Some(NumericDomain::bounded(0.0, 1.0)),
+        (NodeKind::ModalBank, "rise") => Some(NumericDomain::bounded(0.0, 1.0)),
+        (NodeKind::ModalBank, "decay_scale") => Some(NumericDomain::bounded(0.1, 4.0)),
+        (NodeKind::ModalBank, "brightness") => Some(NumericDomain::bounded(-2.0, 2.0)),
+        (NodeKind::Exciter | NodeKind::ModalBank, "level") => {
+            Some(NumericDomain::bounded(0.0, 4.0))
+        }
         (
             NodeKind::Oscillator
             | NodeKind::Unison
@@ -2291,6 +2304,7 @@ fn input_type(
 
 fn node_output(kind: NodeKind, port: &str) -> Option<SignalType> {
     match (kind, port) {
+        (NodeKind::Exciter | NodeKind::ModalBank, "audio") => Some(SignalType::AudioMono),
         (
             NodeKind::Oscillator
             | NodeKind::Noise
@@ -2326,6 +2340,10 @@ fn node_output(kind: NodeKind, port: &str) -> Option<SignalType> {
 
 fn node_input(kind: NodeKind, port: &str) -> Option<SignalType> {
     match (kind, port) {
+        (NodeKind::Exciter | NodeKind::ModalBank, "gate") => Some(SignalType::Gate),
+        (NodeKind::Exciter, "velocity") => Some(SignalType::Unipolar),
+        (NodeKind::ModalBank, "pitch") => Some(SignalType::Hertz),
+        (NodeKind::ModalBank, "audio") => Some(SignalType::AudioMono),
         (
             NodeKind::Oscillator
             | NodeKind::Unison
@@ -2384,6 +2402,8 @@ fn node_input(kind: NodeKind, port: &str) -> Option<SignalType> {
 
 const fn required_inputs(kind: NodeKind) -> &'static [&'static str] {
     match kind {
+        NodeKind::Exciter => &["gate", "velocity"],
+        NodeKind::ModalBank => &["gate", "pitch", "audio"],
         NodeKind::Oscillator
         | NodeKind::Unison
         | NodeKind::AnalogOscillator
@@ -2432,6 +2452,69 @@ enum SettingKind {
 const fn setting_schema(kind: NodeKind) -> &'static [SettingSpec] {
     use SettingKind::{Duration, Identifier, Integer, LfoRate, Number, Pitch, Text};
     match kind {
+        NodeKind::Exciter => &[
+            SettingSpec {
+                key: "kind",
+                kind: Text(&["impact", "collisions", "texture"]),
+            },
+            SettingSpec {
+                key: "contact",
+                kind: Number(Unit::Seconds),
+            },
+            SettingSpec {
+                key: "attack",
+                kind: Number(Unit::Seconds),
+            },
+            SettingSpec {
+                key: "hardness",
+                kind: Number(Unit::Ratio),
+            },
+            SettingSpec {
+                key: "rate",
+                kind: Number(Unit::Hertz),
+            },
+            SettingSpec {
+                key: "duration",
+                kind: Number(Unit::Seconds),
+            },
+            SettingSpec {
+                key: "level",
+                kind: Number(Unit::Ratio),
+            },
+        ],
+        NodeKind::ModalBank => &[
+            SettingSpec {
+                key: "rise",
+                kind: Number(Unit::Seconds),
+            },
+            SettingSpec {
+                key: "profile",
+                kind: Identifier,
+            },
+            SettingSpec {
+                key: "max_modes",
+                kind: Integer {
+                    minimum: 1,
+                    maximum: 256,
+                },
+            },
+            SettingSpec {
+                key: "decay_scale",
+                kind: Number(Unit::Ratio),
+            },
+            SettingSpec {
+                key: "brightness",
+                kind: Number(Unit::Ratio),
+            },
+            SettingSpec {
+                key: "key_track",
+                kind: Number(Unit::Ratio),
+            },
+            SettingSpec {
+                key: "level",
+                kind: Number(Unit::Ratio),
+            },
+        ],
         NodeKind::Oscillator => &[
             SettingSpec {
                 key: "waveform",
@@ -3138,6 +3221,8 @@ const fn setting_schema(kind: NodeKind) -> &'static [SettingSpec] {
 
 const fn node_kind_name(kind: NodeKind) -> &'static str {
     match kind {
+        NodeKind::Exciter => "exciter",
+        NodeKind::ModalBank => "modal_bank",
         NodeKind::Oscillator => "oscillator",
         NodeKind::Unison => "unison",
         NodeKind::Noise => "noise",

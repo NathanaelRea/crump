@@ -710,6 +710,7 @@ fn preview_frame(
 
 fn node_section(kind: NodeKind, domain: GraphDomain) -> PresentationSectionKind {
     match kind {
+        NodeKind::Exciter | NodeKind::ModalBank => PresentationSectionKind::Sources,
         NodeKind::Oscillator
         | NodeKind::Unison
         | NodeKind::AnalogOscillator

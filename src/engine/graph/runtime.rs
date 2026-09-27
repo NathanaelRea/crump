@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     model::{
         Graph, GraphDomain, Instrument, InstrumentModulationScope, ModulationScope, NodeKind,
-        ParameterTarget, Project,
+        ParameterTarget, Project, SettingValue,
     },
     validate::{MAX_STEREO_SUM_INPUTS, validate_graph_for_compile},
 };
@@ -238,6 +238,7 @@ pub(crate) struct CompiledGraph {
     output_index: usize,
     sample_rate: f64,
     has_envelope: bool,
+    release_limit_seconds: f64,
     per_voice_routes: Vec<CompiledPerVoiceRoute>,
     route_graph_sources: Vec<(Option<usize>, Option<usize>)>,
     route_global_values: Vec<Option<usize>>,
@@ -472,7 +473,7 @@ impl CompiledGraph {
                 },
                 controls,
             )?;
-            has_envelope |= authored.kind == NodeKind::Envelope;
+            has_envelope |= matches!(authored.kind, NodeKind::Envelope | NodeKind::Exciter);
             if authored.kind == NodeKind::Output {
                 output_index = Some(nodes.len());
             }
@@ -526,6 +527,18 @@ impl CompiledGraph {
                 .ok_or_else(|| EngineError::Compile("graph has no output".to_owned()))?,
             sample_rate: f64::from(sample_rate),
             has_envelope,
+            release_limit_seconds: if graph.nodes.iter().any(|node| {
+                node.kind == NodeKind::ModalBank
+                    || (matches!(node.kind, NodeKind::SampleSource | NodeKind::Multisample)
+                        && node.settings.iter().any(|setting| {
+                            setting.key == "playback"
+                                && matches!(&setting.value, SettingValue::Text(value) if value == "one_shot")
+                        }))
+            }) {
+                30.0
+            } else {
+                MAX_RELEASE_SECONDS
+            },
             per_voice_routes,
             route_graph_sources,
             route_global_values,
@@ -826,7 +839,7 @@ impl CompiledGraph {
         }
         voice.age_frames = voice.age_frames.saturating_add(1);
         voice.modulation_age_frames = voice.modulation_age_frames.saturating_add(1);
-        let output = voice.signals[self.output_index].stereo();
+        let mut output = voice.signals[self.output_index].stereo();
         if voice.releasing {
             let amplitude = output[0].abs().max(output[1].abs());
             if amplitude < 0.000_01 {
@@ -835,7 +848,18 @@ impl CompiledGraph {
                 voice.quiet_frames = 0;
             }
             let quiet_limit = (self.sample_rate * QUIET_SECONDS) as u64;
-            let release_limit = (self.sample_rate * MAX_RELEASE_SECONDS) as u64;
+            let release_limit = (self.sample_rate * self.release_limit_seconds) as u64;
+            // Acoustic bodies and one-shot samples ring independently of note-off.
+            // Their bounded release budget ends with a fade; gated graphs retain
+            // the envelope release limit.
+            if self.release_limit_seconds > MAX_RELEASE_SECONDS {
+                let fade_frames = (self.sample_rate * 0.05) as u64;
+                let gain = (release_limit.saturating_sub(voice.age_frames) as f32
+                    / fade_frames as f32)
+                    .min(1.0);
+                output[0] *= gain;
+                output[1] *= gain;
+            }
             let envelopes_idle =
                 !self.has_envelope || voice.states.iter().all(NodeState::envelope_idle);
             if (envelopes_idle && voice.quiet_frames >= quiet_limit)
@@ -1700,6 +1724,7 @@ fn validate_runtime_graph(graph: &Graph) -> Result<(), EngineError> {
 
 fn runtime_node_output(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> {
     match (kind, port) {
+        (NodeKind::Exciter | NodeKind::ModalBank, "audio") => Some(RuntimeSignalType::AudioMono),
         (
             NodeKind::Oscillator
             | NodeKind::Noise
@@ -1735,6 +1760,10 @@ fn runtime_node_output(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> 
 
 fn runtime_node_input(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> {
     match (kind, port) {
+        (NodeKind::Exciter | NodeKind::ModalBank, "gate") => Some(RuntimeSignalType::Gate),
+        (NodeKind::Exciter, "velocity") => Some(RuntimeSignalType::Unipolar),
+        (NodeKind::ModalBank, "pitch") => Some(RuntimeSignalType::Hertz),
+        (NodeKind::ModalBank, "audio") => Some(RuntimeSignalType::AudioMono),
         (
             NodeKind::Oscillator
             | NodeKind::Unison
@@ -1795,6 +1824,8 @@ fn runtime_node_input(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> {
 
 const fn runtime_required_inputs(kind: NodeKind) -> &'static [&'static str] {
     match kind {
+        NodeKind::Exciter => &["gate", "velocity"],
+        NodeKind::ModalBank => &["gate", "pitch", "audio"],
         NodeKind::Oscillator
         | NodeKind::Unison
         | NodeKind::AnalogOscillator
@@ -2507,7 +2538,9 @@ project "Extended vectors" {
         );
 
         // This graph covers the remaining dispatch variants plus release and
-        // reuse of the same preallocated voice state.
+        // reuse of the same preallocated voice state. These noise-dependent
+        // vectors include the intentional correction from tiny unipolar noise
+        // to centered unit-range noise; the other goldens remain unchanged.
         let (graph, controls) = compile(EXTENDED_GOLDEN_SOURCE, 0);
         let mut voice = graph.create_voice(31);
         voice.activate(1, 60, 0.8, 99);
@@ -2519,18 +2552,18 @@ project "Extended vectors" {
                 &[0, 1, 2, 3, 4, 5, 7, 15, 31, 63, 127, 255]
             ),
             vec![
-                [3_183_228_578, 3_178_988_854],
-                [1_033_873_582, 1_029_004_416],
-                [1_027_768_114, 1_023_538_538],
-                [1_021_237_990, 1_016_391_729],
-                [1_014_466_502, 1_009_083_646],
-                [1_008_078_229, 1_002_997_317],
-                [1_007_768_689, 1_002_583_661],
-                [1_020_800_953, 1_016_099_710],
-                [3_143_638_558, 3_138_764_841],
-                [3_157_850_060, 3_153_538_794],
-                [1_020_446_415, 1_015_862_816],
-                [3_156_336_776, 3_151_516_508],
+                [3_186_861_714, 3_181_563_227],
+                [1_033_710_224, 1_028_786_113],
+                [1_029_129_991, 1_024_448_515],
+                [1_022_456_440, 1_017_205_872],
+                [1_018_821_630, 1_014_532_770],
+                [1_015_874_991, 1_010_595_007],
+                [1_015_092_215, 1_009_548_940],
+                [1_026_422_104, 1_021_868_149],
+                [1_004_185_075, 999_430_297],
+                [3_156_052_715, 3_151_136_900],
+                [1_021_328_610, 1_016_452_279],
+                [973_239_096, 967_726_066],
             ]
         );
 
@@ -2543,14 +2576,14 @@ project "Extended vectors" {
                 &[0, 1, 2, 7, 31, 127, 255, 511]
             ),
             vec![
-                [3_157_090_158, 3_152_523_294],
-                [3_157_290_214, 3_152_790_640],
-                [3_157_321_301, 3_152_832_185],
-                [3_156_847_986, 3_152_199_666],
-                [3_173_748_348, 3_169_141_449],
-                [1_001_827_690, 997_465_933],
-                [3_127_017_331, 3_122_091_853],
-                [668_808_787, 663_998_252],
+                [3_166_236_878, 3_161_925_011],
+                [3_154_229_078, 3_148_699_870],
+                [3_153_990_487, 3_148_465_298],
+                [3_157_447_211, 3_153_000_445],
+                [3_171_432_592, 3_166_046_772],
+                [998_721_673, 993_315_185],
+                [3_127_301_038, 3_122_281_421],
+                [668_394_627, 663_721_519],
             ]
         );
 
@@ -2558,13 +2591,13 @@ project "Extended vectors" {
         assert_eq!(
             bits_at(&graph, &controls, &mut voice, &[0, 1, 2, 3, 7, 15, 31]),
             vec![
-                [3_183_228_578, 3_178_988_854],
-                [1_034_214_086, 1_029_459_452],
-                [1_028_772_544, 1_024_209_676],
-                [1_023_480_346, 1_017_936_910],
-                [1_012_866_051, 1_008_014_259],
-                [1_024_001_682, 1_018_633_600],
-                [3_156_082_337, 3_151_176_485],
+                [3_186_861_714, 3_181_563_227],
+                [1_035_717_632, 1_031_468_726],
+                [1_030_496_960, 1_025_361_895],
+                [1_026_981_231, 1_022_615_342],
+                [1_013_907_276, 1_008_709_983],
+                [1_027_244_584, 1_022_967_276],
+                [1_001_712_304, 997_311_736],
             ]
         );
     }

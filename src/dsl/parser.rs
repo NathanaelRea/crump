@@ -58,6 +58,8 @@ pub struct ProjectDocument {
 /// Parsed human-readable Instrument Module.
 #[derive(Debug)]
 pub struct ModuleDocument {
+    /// Named acoustic data from a `crump-profile 1` import.
+    pub acoustic_profiles: Vec<crate::model::AcousticProfile>,
     /// Recovered supported source major version, absent for an invalid or missing header.
     pub source_version: Option<u32>,
     /// Instruments declared by the module.
@@ -157,6 +159,12 @@ pub fn parse_project(file: &Path, source: &str) -> ProjectDocument {
 #[must_use]
 pub fn parse_module(file: &Path, source: &str) -> ModuleDocument {
     let (statements, diagnostics) = parse_statements(file, source);
+    if statements
+        .first()
+        .is_some_and(|s| s.keyword() == Some("crump-profile"))
+    {
+        return parse_acoustic_profile(file, source, &statements, diagnostics);
+    }
     let mut parser = Parser {
         file,
         source,
@@ -164,6 +172,7 @@ pub fn parse_module(file: &Path, source: &str) -> ModuleDocument {
         source_version: None,
     };
     let mut instruments = Vec::new();
+    let mut acoustic_profiles = Vec::new();
     let mut saw_header = false;
     for (index, statement) in statements.iter().enumerate() {
         match statement.keyword() {
@@ -184,6 +193,16 @@ pub fn parse_module(file: &Path, source: &str) -> ModuleDocument {
                     saw_header = true;
                     parser.source_version = parser.parse_version_header(statement, "crump-module");
                 }
+            }
+            Some("profile") if parser.source_version == Some(SOURCE_VERSION_V2) => {
+                let data = parse_acoustic_profile(
+                    file,
+                    source,
+                    &[statements[0].clone(), statement.clone()],
+                    Diagnostics::new(),
+                );
+                acoustic_profiles.extend(data.acoustic_profiles);
+                parser.diagnostics.extend(data.diagnostics);
             }
             Some("instrument") => {
                 if let Some(instrument) = parser.parse_instrument(statement) {
@@ -216,8 +235,116 @@ pub fn parse_module(file: &Path, source: &str) -> ModuleDocument {
         );
     }
     ModuleDocument {
+        acoustic_profiles,
         source_version: parser.source_version,
         instruments,
+        diagnostics: parser.diagnostics,
+    }
+}
+
+fn parse_acoustic_profile(
+    file: &Path,
+    source: &str,
+    statements: &[Statement],
+    diagnostics: Diagnostics,
+) -> ModuleDocument {
+    let mut parser = Parser {
+        file,
+        source,
+        diagnostics,
+        source_version: Some(SOURCE_VERSION_V2),
+    };
+    let mut profiles = Vec::new();
+    if statements[0].keyword() == Some("crump-profile")
+        && (statements[0].tokens.len() != 2
+            || statements[0].tokens[1].value != "1"
+            || !statements[0].children.is_empty())
+    {
+        parser.error_at(
+            "CRP220",
+            "acoustic data requires `crump-profile 1`",
+            &statements[0],
+        );
+    }
+    for s in &statements[1..] {
+        if s.keyword() != Some("profile") || s.tokens.len() != 2 {
+            parser.error_at("CRP220", "expected `profile ID { root HZ; mode ... }`", s);
+            continue;
+        }
+        let mut root = None;
+        let mut modes = Vec::new();
+        let mut names = BTreeSet::new();
+        for d in &s.children {
+            if d.keyword() == Some("root")
+                && d.tokens.len() == 2
+                && d.children.is_empty()
+                && root.is_none()
+            {
+                root = parser.parse_physical(Unit::Hertz, &d.tokens[1]);
+            } else if d.keyword() == Some("mode")
+                && d.tokens.len() == 12
+                && d.children.is_empty()
+                && d.tokens[2].value == "frequency"
+                && d.tokens[4].value == "decay"
+                && d.tokens[6].value == "gain"
+                && d.tokens[8].value == "after_decay"
+                && d.tokens[10].value == "after_gain"
+            {
+                if !names.insert(d.tokens[1].value.clone()) {
+                    parser.error_at("CRP220", "duplicate mode identity", d);
+                }
+                let f = parser.parse_physical(Unit::Hertz, &d.tokens[3]);
+                let decay = parser.parse_physical(Unit::Seconds, &d.tokens[5]);
+                let gain = parser.parse_physical(Unit::Ratio, &d.tokens[7]);
+                let after = parser.parse_physical(Unit::Seconds, &d.tokens[9]);
+                let after_gain = parser.parse_physical(Unit::Ratio, &d.tokens[11]);
+                if let (
+                    Some(frequency_hz),
+                    Some(decay_seconds),
+                    Some(gain),
+                    Some(after_decay_seconds),
+                    Some(after_gain),
+                ) = (f, decay, gain, after, after_gain)
+                {
+                    modes.push(crate::acoustics::Mode {
+                        frequency_hz,
+                        decay_seconds,
+                        gain,
+                        after_decay_seconds,
+                        after_gain,
+                    });
+                }
+            } else {
+                parser.error_at("CRP220","profile uses one root and `mode ID frequency HZ decay SECONDS gain RATIO after_decay SECONDS after_gain RATIO`",d);
+            }
+        }
+        let body = crate::acoustics::Profile {
+            version: 1,
+            root_hz: root.unwrap_or(0.0),
+            modes,
+        };
+        if let Err(error) = body.validate() {
+            parser.error_at("CRP220", error, s);
+        }
+        profiles.push(crate::model::AcousticProfile {
+            id: s.tokens[1].value.clone(),
+            body,
+            location: s.location(file, source),
+        });
+    }
+    if profiles.len() != 1 {
+        parser.diagnostics.push(
+            Diagnostic::error(
+                "CRP220",
+                "an acoustic profile source must declare exactly one profile",
+            )
+            .at(SourceLocation::file(file.to_path_buf())),
+        );
+    }
+    ModuleDocument {
+        source_version: Some(SOURCE_VERSION_V2),
+        instruments: Vec::new(),
+        acoustic_profiles: profiles,
         diagnostics: parser.diagnostics,
     }
 }
@@ -245,7 +372,9 @@ const fn node_kind_has_runtime(kind: NodeKind) -> bool {
     node_kind_is_v1(kind)
         || matches!(
             kind,
-            NodeKind::MonoToStereo
+            NodeKind::Exciter
+                | NodeKind::ModalBank
+                | NodeKind::MonoToStereo
                 | NodeKind::StereoToMono
                 | NodeKind::StereoMixer
                 | NodeKind::StereoSum
@@ -377,6 +506,7 @@ impl Parser<'_> {
             sample_rate,
             render_tail_seconds,
             assets,
+            acoustic_profiles: Vec::new(),
             song,
             imports: Vec::new(),
         })

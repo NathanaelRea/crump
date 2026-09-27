@@ -108,6 +108,7 @@ impl CandidateAssembly {
             );
         } else if let Some(project) = self.project.as_mut() {
             project.song.instruments.extend(module.instruments);
+            project.acoustic_profiles.extend(module.acoustic_profiles);
         }
         self.canonical_imports.push(path.to_path_buf());
     }

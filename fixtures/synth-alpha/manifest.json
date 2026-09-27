@@ -276,8 +276,8 @@
       "control_targets": 23,
       "work_units_per_frame": 28780,
       "publication_transition_work_units_per_frame": 57626,
-      "runtime_bytes": 2110128,
-      "publication_peak_bytes": 4220256,
+      "runtime_bytes": 2110144,
+      "publication_peak_bytes": 4220288,
       "admitted": true,
       "feature_domain": "pipewire-enabled production build"
     }
@@ -300,8 +300,8 @@
       "control_targets": 4,
       "work_units_per_frame": 30794,
       "publication_transition_work_units_per_frame": 61616,
-      "runtime_bytes": 1039679,
-      "publication_peak_bytes": 2079358,
+      "runtime_bytes": 1039687,
+      "publication_peak_bytes": 2079374,
       "admitted": true,
       "feature_domain": "pipewire-enabled production build"
     }
