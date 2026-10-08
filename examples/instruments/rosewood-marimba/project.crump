@@ -1,0 +1,77 @@
+crump 2
+import "instrument.crump"
+project "Rosewood Marimba" {
+  id example-rosewood-marimba
+  seed 388031
+  sample_rate 48000
+  render_tail 2s
+  asset rosewood-marimba-36-soft-0 "Rosewood Marimba" wav "media/36-soft-0.wav" sha256 "7fb579812912f6023007ce1a6f4066e6dc3505c366f7b5fbda29b97d1b671132" {
+    usage multisample
+  }
+  asset rosewood-marimba-36-hard-0 "Rosewood Marimba" wav "media/36-hard-0.wav" sha256 "fb722678f8e680a3d22ad6e34b634b371cbaa360d57ba6548e2f47a2a089db4c" {
+    usage multisample
+  }
+  asset rosewood-marimba-43-soft-0 "Rosewood Marimba" wav "media/43-soft-0.wav" sha256 "08ef1a1bc61a74dae268a310f7b26062d5a721e1a3aee513068dd53cf16129ad" {
+    usage multisample
+  }
+  asset rosewood-marimba-43-hard-0 "Rosewood Marimba" wav "media/43-hard-0.wav" sha256 "b9dbf65d9cf609174a32a18a26d8ea352e7eafe4864d125336145bd91756e2e9" {
+    usage multisample
+  }
+  asset rosewood-marimba-48-soft-0 "Rosewood Marimba" wav "media/48-soft-0.wav" sha256 "4dce6d01eced6659ca9858876ceb86a31ed373dc3dc4c898786bed72143101ad" {
+    usage multisample
+  }
+  asset rosewood-marimba-48-hard-0 "Rosewood Marimba" wav "media/48-hard-0.wav" sha256 "8450466d739b724cda4cf9a4117fbb365abe3a1ff0e75b799b85562f84e5b134" {
+    usage multisample
+  }
+  asset rosewood-marimba-55-soft-0 "Rosewood Marimba" wav "media/55-soft-0.wav" sha256 "e5522654d2f9f9634c4bc88ec66e2314c9af470fcbf0611dabcb98a2051360de" {
+    usage multisample
+  }
+  asset rosewood-marimba-55-hard-0 "Rosewood Marimba" wav "media/55-hard-0.wav" sha256 "fa9fa859ff8244e3179b7e16a004ae6f5525d9c2fad5112c3412a283c3484f8e" {
+    usage multisample
+  }
+  asset rosewood-marimba-60-soft-0 "Rosewood Marimba" wav "media/60-soft-0.wav" sha256 "aba83c5709fd1acf7b4f3812e87742365c7b1044cc2ca15b05d7e2a31075daed" {
+    usage multisample
+  }
+  asset rosewood-marimba-60-hard-0 "Rosewood Marimba" wav "media/60-hard-0.wav" sha256 "fe82ae27b257e6ca37fa237a62f4e43065df09e3889373f9cf051e3042dcbd5b" {
+    usage multisample
+  }
+  asset rosewood-marimba-67-soft-0 "Rosewood Marimba" wav "media/67-soft-0.wav" sha256 "0b3f1896ab40b838091f304a55f89eeeeb055b52b793d46875dc749c5eee6c86" {
+    usage multisample
+  }
+  asset rosewood-marimba-67-hard-0 "Rosewood Marimba" wav "media/67-hard-0.wav" sha256 "3fd0ea3bfda57363f4357ed857b80ca49ca640c9aa2aee7cfd070d60c8ad360a" {
+    usage multisample
+  }
+  asset rosewood-marimba-72-soft-0 "Rosewood Marimba" wav "media/72-soft-0.wav" sha256 "a5ab405782d71ed672c94ce75acb136c4b1c0a1291fb35fcf5e6a5084da700dd" {
+    usage multisample
+  }
+  asset rosewood-marimba-72-hard-0 "Rosewood Marimba" wav "media/72-hard-0.wav" sha256 "dca2f21339b56d2799b1dabab50e72d7b4dc81e5ac578a4f93cb64b1119a9f54" {
+    usage multisample
+  }
+  asset rosewood-marimba-79-soft-0 "Rosewood Marimba" wav "media/79-soft-0.wav" sha256 "abc86ebed09f71dde230f92888ede0ea8826c2a6994afcf984a3fa00db004537" {
+    usage multisample
+  }
+  asset rosewood-marimba-79-hard-0 "Rosewood Marimba" wav "media/79-hard-0.wav" sha256 "bb7e48c16f0698cee289c68a27e5c884c6841b1ae61fa11e12c08a781c490725" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C3 0.5beat 0.85
+      note 10beat G4 0.25beat 0.65
+      note 12beat C5 0.75beat 0.8
+      note 16beat C4 0.2beat 0.75
+      note 16.5beat G4 0.2beat 0.75
+      note 17beat A#4 0.2beat 0.75
+      note 17.5beat D#4 0.2beat 0.75
+      note 18beat G4 0.2beat 0.75
+      note 18.5beat C4 0.2beat 0.75
+    }
+    track instrument "Rosewood Marimba" instrument rosewood-marimba level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

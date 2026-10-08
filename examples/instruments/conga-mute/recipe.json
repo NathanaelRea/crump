@@ -1,0 +1,15 @@
+{
+  "model": "membrane",
+  "params": {
+    "freq": 215,
+    "decay": 0.045,
+    "contact": 0.002,
+    "bright": 0.45,
+    "slap": 0.16
+  },
+  "pitched": false,
+  "category": "Hand percussion",
+  "id": "conga-mute",
+  "seed_base": 180000,
+  "seconds": 4
+}

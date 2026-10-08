@@ -31,6 +31,7 @@ pub(crate) struct ModuleAssetDependency {
 /// One parsed and semantically validated Instrument Module.
 #[derive(Debug, Clone)]
 pub(crate) struct ValidatedInstrumentModule {
+    pub(crate) acoustic_profiles: Vec<crate::model::AcousticProfile>,
     pub(crate) source_version: u32,
     pub(crate) instrument: Instrument,
     pub(crate) dependencies: Vec<ModuleAssetDependency>,
@@ -66,10 +67,20 @@ pub(crate) fn validate_module_source(
         .into_iter()
         .next()
         .expect("validated one-Instrument Module");
+    // Library installation must not silently drop an acoustic dependency. Project
+    // imports can keep profiles separate; export carries them into the Module.
+    if let Ok(mut preview) = preview_project(&instrument) {
+        preview.acoustic_profiles = document.acoustic_profiles.clone();
+        crate::validate::validate_acoustic_profiles(&preview, &mut diagnostics);
+    }
+    if diagnostics.has_errors() {
+        return Err(diagnostics);
+    }
     let dependencies = module_asset_dependencies(&instrument);
     Ok(ValidatedInstrumentModule {
         source_version: source_version.expect("validated Module header"),
         instrument,
+        acoustic_profiles: document.acoustic_profiles,
         dependencies,
     })
 }
@@ -240,6 +251,7 @@ pub(crate) fn render_module_preview(
     }
     let mut project = preview_project(&module.instrument)?;
     project.assets = project_assets.to_vec();
+    project.acoustic_profiles = module.acoustic_profiles.clone();
     let compiled = CompiledProject::compile_with_assets(&project, inventory)
         .map_err(|error| error.to_string())?;
     let frame_count = usize::try_from(compiled.total_frames())

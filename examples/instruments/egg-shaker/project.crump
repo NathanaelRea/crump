@@ -1,0 +1,44 @@
+crump 2
+import "instrument.crump"
+project "Egg Shaker" {
+  id example-egg-shaker
+  seed 213813
+  sample_rate 48000
+  render_tail 2s
+  asset egg-shaker-60-soft-0 "Egg Shaker" wav "media/60-soft-0.wav" sha256 "fce7d438ebca5b283b7425dc051ba1173a38be417daff31a4e2c06c7e4c1f515" {
+    usage multisample
+  }
+  asset egg-shaker-60-hard-0 "Egg Shaker" wav "media/60-hard-0.wav" sha256 "a451d4dbde0452c6e5cda92b0709b72856c8dcac2a729749ec7e6ebe432281e2" {
+    usage multisample
+  }
+  asset egg-shaker-60-soft-1 "Egg Shaker" wav "media/60-soft-1.wav" sha256 "1321d901590feb2c286bec3ed5996a288e54ae1dc7f4191d21b30d910f0acefc" {
+    usage multisample
+  }
+  asset egg-shaker-60-hard-1 "Egg Shaker" wav "media/60-hard-1.wav" sha256 "49f23b13329c324a7915503f834ced1e23b80d3ac7451104387eba6c4c4faa61" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C4 0.2beat 0.8
+      note 8.5beat C4 0.2beat 0.4
+      note 9beat C4 0.2beat 0.6
+      note 9.5beat C4 0.2beat 0.45
+      note 10beat C4 0.2beat 0.8
+      note 10.5beat C4 0.2beat 0.4
+      note 11beat C4 0.2beat 0.6
+      note 11.5beat C4 0.2beat 0.45
+      note 12beat C4 0.2beat 0.8
+      note 12.5beat C4 0.2beat 0.4
+      note 13beat C4 0.2beat 0.6
+      note 13.5beat C4 0.2beat 0.45
+    }
+    track instrument "Egg Shaker" instrument egg-shaker level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

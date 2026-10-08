@@ -1,0 +1,56 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "8d9ed4b16175a9361fdedca595141b93d6a1903200acc044ffa542df7da22a1d",
+  "recipe_sha256": "d99e14b701c4a624f2acd6b0eff61bb25017a3234e8880380b658c441f6b6206",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "felt-floor-60-soft-0",
+      "path": "media/60-soft-0.wav",
+      "sha256": "296e694d3b4f328fc7d3462d448f6d75b83ba17aeba0927f4011c3d9f2a221df",
+      "frames": 43596,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 10600,
+      "normalization_gain": 0.5459497999292761
+    },
+    {
+      "id": "felt-floor-60-hard-0",
+      "path": "media/60-hard-0.wav",
+      "sha256": "8c394750f301123fd03839ee4685644d95ab4ccdcf7d14421abcfa3da914629c",
+      "frames": 45560,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 10600,
+      "normalization_gain": 0.5459497999292761
+    },
+    {
+      "id": "felt-floor-60-soft-1",
+      "path": "media/60-soft-1.wav",
+      "sha256": "55aebaa87f6aa1aac05d1fd105af77e22ec42a6f7a8183e99b11caad89b7cbb8",
+      "frames": 43131,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 10601,
+      "normalization_gain": 0.4887342445726338
+    },
+    {
+      "id": "felt-floor-60-hard-1",
+      "path": "media/60-hard-1.wav",
+      "sha256": "315d1c07e3d6070c59b2854992f0abed99febbe84e70902a6968c51386a8e49e",
+      "frames": 45165,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 10601,
+      "normalization_gain": 0.4887342445726338
+    }
+  ]
+}

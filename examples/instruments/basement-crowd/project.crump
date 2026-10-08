@@ -1,0 +1,44 @@
+crump 2
+import "instrument.crump"
+project "Basement Crowd" {
+  id example-basement-crowd
+  seed 71271
+  sample_rate 48000
+  render_tail 2s
+  asset basement-crowd-60-soft-0 "Basement Crowd" wav "media/60-soft-0.wav" sha256 "2713ea75a2b30ebdea9c760d324da171b00f8b231371d02d82a5b8f2706b96d7" {
+    usage multisample
+  }
+  asset basement-crowd-60-hard-0 "Basement Crowd" wav "media/60-hard-0.wav" sha256 "874ffaddb9c2d20a03b918baf7bd2b0e8924e62df53f4d45274e9bd20dfdd2b9" {
+    usage multisample
+  }
+  asset basement-crowd-60-soft-1 "Basement Crowd" wav "media/60-soft-1.wav" sha256 "066a6c6cd3fc47be8e9b6e17bcd76f2bc130a1ec73f70aa54532a5c59d4b39dc" {
+    usage multisample
+  }
+  asset basement-crowd-60-hard-1 "Basement Crowd" wav "media/60-hard-1.wav" sha256 "f5285fab8bda947226840bc3eb948ec4f87428bb4a4c429e677808b7b3626821" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C4 0.2beat 0.8
+      note 8.5beat C4 0.2beat 0.4
+      note 9beat C4 0.2beat 0.6
+      note 9.5beat C4 0.2beat 0.45
+      note 10beat C4 0.2beat 0.8
+      note 10.5beat C4 0.2beat 0.4
+      note 11beat C4 0.2beat 0.6
+      note 11.5beat C4 0.2beat 0.45
+      note 12beat C4 0.2beat 0.8
+      note 12.5beat C4 0.2beat 0.4
+      note 13beat C4 0.2beat 0.6
+      note 13.5beat C4 0.2beat 0.45
+    }
+    track instrument "Basement Crowd" instrument basement-crowd level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

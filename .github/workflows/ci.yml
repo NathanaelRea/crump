@@ -45,7 +45,7 @@ jobs:
         run: cargo fmt --all --check
       - name: Clippy
         run: cargo clippy --all-targets --all-features --locked -- -D warnings
-      - name: Unit tests and reference smoke tests
-        run: cargo test --lib --test reference_project --all-features --locked
+      - name: Unit, reference, acoustic and sample-source tests
+        run: cargo test --lib --test reference_project --test acoustic_foundation --test sample_source_foundation --all-features --locked
       - name: Headless compile check
         run: cargo check --lib --no-default-features --locked

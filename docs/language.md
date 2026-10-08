@@ -420,6 +420,8 @@ Graph Nodes:
 | `oscillator` | `pitch` | mono `audio` | `waveform`, `detune`, `glide`, `level` |
 | `unison` | `pitch`, optional `gain`, `velocity`, `mod` | stereo `audio` | `waveform`, `voices`, `detune`, `width`, `drift`, `glide`, `mod_depth`, `velocity_amount`, `level` |
 | `noise` | — | `audio` | `level` |
+| `exciter` | `gate`, `velocity` | mono `audio` | impact/collisions/texture kind, contact time, hardness, collision rate, gesture duration/attack, level |
+| `modal_bank` | mono `audio`, `pitch`, `gate` | mono `audio` | imported acoustic profile, maximum modes, key tracking, decay scale, brightness, optional body rise, level |
 | `envelope` | `gate` | `control` | `mode`, `attack`, `hold`, `decay`, `sustain`, `release`, three segment curves, `retrigger` |
 | `lfo` | — | `control` | `rate`, `depth`, `phase`, `random_phase`, `swing`, `waveform`, `mode`, `direction`, `polarity`, `retrigger` |
 | `mixer` | mono `a`, optional mono `b` | mono `audio` | `a_level`, `b_level` |
@@ -441,6 +443,8 @@ Graph Nodes:
 | `delay` | stereo `audio` | stereo `audio` | `time`, `feedback`, `mix` |
 | `reverb` | stereo `audio` | stereo `audio` | `room`, `damping`, `mix` |
 | `output` | stereo `audio` | — | — |
+
+`noise` produces deterministic, centered uniform white noise in `[-1, 1)` before applying `level`; unit-level RMS approaches `1 / sqrt(3)`. A previous unsigned-to-signed scaling bug produced positive-only noise at roughly 1/256 of the intended AC amplitude. Corrected renders therefore change the balance of existing graphs that use this Node. The acoustic `exciter` and `modal_bank` generators do not use that noise path.
 
 Version-1 Node settings remain inline on the `node` declaration. Version-2 runnable Node block settings are normally non-nested scalar `key value` directives. `analog_oscillator` and `wavetable` each admit at most two ordered `warp ID KIND amount VALUE` stages; analog oscillator additionally admits one ordered `distortion ID KIND amount VALUE` stage. A custom graph LFO admits 2–64 strictly phase-ordered `point ID phase 0..1 value -1..1` directives beginning at phase 0 and ending at phase 1. `sample_source` admits `slice ID START END`; `multisample` admits the complete zone form described below. Other nested or multi-token runnable directives fail closed, including on `granular` and `spectral`.
 
@@ -473,6 +477,8 @@ An `envelope` defaults to backward-compatible `mode adsr` and additionally suppo
 A graph `lfo` supports sine, triangle, saw, square, sample-and-hold, or a bounded custom piecewise-linear shape; free hertz or synchronized musical period; phase/random phase; bipolar/unipolar output; loop/one-shot; forward/reverse/ping-pong; bounded swing phase relation; and `retrigger note|transport`. Note retrigger state is per graph voice; transport mode derives phase from the absolute Song frame. Sample-hold and random phase use stable semantic identity. All laws are finite and callback-block independent, and custom-point interpolation work is charged per point by admission.
 
 `unison` owns 1–8 deterministic subvoices, equal-power stereo placement, bounded semitone spread/drift, power normalization, optional envelope gain and velocity response, and bounded Control-port pitch movement. `width 0` collapses placement to a mono-compatible center. Oscillator `glide` is a deterministic note-to-note exponential frequency slew in seconds. Unison subvoice work and the preallocated short graph-voice replacement tail are included in runtime admission. For tempo-synchronized global or per-voice movement, bind these scalar settings to Parameters and use authored Modulation routes rather than inventing callback state. The curated readable modules and their frozen abstract CPU/memory costs are documented in [Expressive native Instrument Modules](expressive-instruments.md).
+
+`exciter` and `modal_bank` compose finite contact gestures and profile-driven resonant bodies. Their numerical data may live in separate imported `crump-profile 1` sources; Instrument Module export includes required profiles. Physical controls latch on note onset. Acoustic graphs and graphs with one-shot sample sources have a 30-second release ceiling with a terminal 50 ms fade; gated graph release limits are unchanged. See [Native acoustic models](native-acoustics.md) for the complete profile grammar, physical domains, admission and tail contracts.
 
 ## Grooves, Patterns, Events, Clips, and Tracks
 

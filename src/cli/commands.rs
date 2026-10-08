@@ -3083,7 +3083,41 @@ fn command_module(cli: &Cli, command: &ModuleCommand) -> Result<Success, Failure
                 .project
                 .as_ref()
                 .map_or(1, |project| project.source_version);
-            let module_source = format!("crump-module {source_version}\n{declaration}\n");
+            let mut module_source = format!("crump-module {source_version}\n{declaration}\n");
+            // Carry only the exact numerical bodies used by this Instrument. A library
+            // Module is self-contained even when its Project kept data in separate imports.
+            let authored = bundle.project.as_ref().expect("validated Project");
+            let selected = authored
+                .song
+                .instruments
+                .iter()
+                .find(|i| i.id == *instrument)
+                .expect("selected Instrument");
+            let ids: std::collections::BTreeSet<_> = selected
+                .graph
+                .iter()
+                .chain(selected.shared_graph.iter())
+                .flat_map(|g| &g.nodes)
+                .filter(|n| n.kind == crate::model::NodeKind::ModalBank)
+                .filter_map(|n| match n.setting("profile") {
+                    Some(crate::model::SettingValue::Text(id)) => Some(id.as_str()),
+                    _ => None,
+                })
+                .collect();
+            for profile in authored
+                .acoustic_profiles
+                .iter()
+                .filter(|p| ids.contains(p.id.as_str()))
+            {
+                module_source.push_str(&format!(
+                    "profile {} {{\n  root {}hz\n",
+                    profile.id, profile.body.root_hz
+                ));
+                for (i, m) in profile.body.modes.iter().enumerate() {
+                    module_source.push_str(&format!("  mode m{i} frequency {}hz decay {}s gain {} after_decay {}s after_gain {}\n",m.frequency_hz,m.decay_seconds,m.gain,m.after_decay_seconds,m.after_gain));
+                }
+                module_source.push_str("}\n");
+            }
             let module = validate_module_source(Path::new("export.crump"), &module_source)
                 .map_err(|diagnostics| {
                     Failure::blocked(

@@ -1,0 +1,15 @@
+{
+  "model": "string",
+  "params": {
+    "decay": 0.13,
+    "bright": 6400,
+    "position": 0.12,
+    "fret": 0.08,
+    "body_mix": 0.15
+  },
+  "pitched": true,
+  "category": "Guitar",
+  "id": "disco-mute",
+  "seed_base": 460000,
+  "seconds": 15
+}

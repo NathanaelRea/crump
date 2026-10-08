@@ -92,6 +92,7 @@ pub fn validate_project(project: &Project) -> Diagnostics {
 pub(crate) fn validate_project_with_topology(project: &Project) -> (Diagnostics, AuthoredTopology) {
     let mut diagnostics = Diagnostics::new();
     validate_project_header(project, &mut diagnostics);
+    validate_acoustic_profiles(project, &mut diagnostics);
     validate_media_assets(project, &mut diagnostics);
     validate_graph_assets(project, &mut diagnostics);
     validate_presentation_assets(project, &mut diagnostics);
@@ -144,6 +145,64 @@ pub(crate) fn validate_project_with_topology(project: &Project) -> (Diagnostics,
         }
     }
     (diagnostics, topology)
+}
+
+pub(crate) fn validate_acoustic_profiles(project: &Project, diagnostics: &mut Diagnostics) {
+    let mut profiles = BTreeMap::new();
+    for profile in &project.acoustic_profiles {
+        if !valid_id(&profile.id) || profiles.insert(profile.id.as_str(), profile).is_some() {
+            diagnostics.push(
+                Diagnostic::error(
+                    "CRV210",
+                    "acoustic profile identities must be valid and unique",
+                )
+                .at(profile.location.clone()),
+            );
+        }
+        if let Err(error) = profile.body.validate() {
+            diagnostics.push(Diagnostic::error("CRV210", error).at(profile.location.clone()));
+        }
+    }
+    if project.acoustic_profiles.len() > 256 {
+        diagnostics.push(Diagnostic::error(
+            "CRV210",
+            "at most 256 acoustic profiles are admitted",
+        ));
+    }
+    for node in project
+        .song
+        .instruments
+        .iter()
+        .flat_map(|i| i.graph.iter().chain(i.shared_graph.iter()))
+        .flat_map(|g| &g.nodes)
+        .filter(|n| n.kind == NodeKind::ModalBank)
+    {
+        let Some(crate::model::SettingValue::Text(id)) = node.setting("profile") else {
+            diagnostics.push(
+                Diagnostic::error("CRV210", "modal_bank requires a named profile")
+                    .at(node.location.clone()),
+            );
+            continue;
+        };
+        match profiles.get(id.as_str()) {
+            None => diagnostics.push(
+                Diagnostic::error("CRV210", format!("missing acoustic profile `{id}`"))
+                    .at(node.location.clone()),
+            ),
+            Some(profile) => {
+                let max = match node.setting("max_modes") {
+                    Some(crate::model::SettingValue::Number(n)) => *n,
+                    _ => 64.0,
+                };
+                if profile.body.modes.len() as f64 > max {
+                    diagnostics.push(
+                        Diagnostic::error("CRV210", "acoustic profile exceeds max_modes")
+                            .at(node.location.clone()),
+                    );
+                }
+            }
+        }
+    }
 }
 
 /// Validates sample source regions against verified exact-byte WAV metadata.

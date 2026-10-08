@@ -1,0 +1,14 @@
+{
+  "model": "string",
+  "params": {
+    "decay": 0.7,
+    "bright": 550,
+    "position": 0.37,
+    "body_mix": 0.1
+  },
+  "pitched": true,
+  "category": "Bass",
+  "id": "deep-rubber",
+  "seed_base": 360000,
+  "seconds": 15
+}

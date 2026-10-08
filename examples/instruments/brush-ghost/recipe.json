@@ -1,0 +1,19 @@
+{
+  "model": "membrane",
+  "params": {
+    "freq": 225.10505218487313,
+    "decay": 0.06821964932166993,
+    "wire": 0.0465593281863083,
+    "wire_decay": 0.39395918678677627,
+    "contact": 0.0005212105714326192,
+    "bright": 0.38618037276363787,
+    "edge": true,
+    "slap": 0.20745383837164103,
+    "slap_decay": 0.06292170014883504
+  },
+  "pitched": false,
+  "category": "Backbeats",
+  "id": "brush-ghost",
+  "seed_base": 70000,
+  "seconds": 4
+}

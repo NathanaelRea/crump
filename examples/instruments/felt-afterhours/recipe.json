@@ -1,0 +1,18 @@
+{
+  "model": "hammer",
+  "params": {
+    "contact": 0.0009513149371446478,
+    "decay": 0.9615935465857739,
+    "rolloff": 1.583730456586265,
+    "detune": 3.815536903242962e-05,
+    "lowpass": 4200,
+    "stiffness": 3.420573088964428e-05,
+    "strike": 0.2969626294853771,
+    "tune_cents": -8.339980401350601
+  },
+  "pitched": true,
+  "category": "Keys",
+  "id": "felt-afterhours",
+  "seed_base": 390000,
+  "seconds": 15
+}

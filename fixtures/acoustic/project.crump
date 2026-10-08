@@ -1,0 +1,45 @@
+crump 2
+import "wood-body.crump"
+project "Native acoustic body" {
+  id acoustic-body-example
+  seed 47191
+  sample_rate 48000
+  render_tail 1s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument wood "Wooden body" graph {
+      polyphony 2
+      parameter hardness "Hardness" ratio 0 1 0.35 0.35
+      parameter contact "Contact" seconds 0.00002s 0.003s 0.0001s 0.0001s
+      parameter decay "Ring" ratio 0.1 4 1 1
+      parameter brightness "Brightness" ratio -2 2 0 0
+      faceplate {
+        control hardness "Hardness" "Concentrate the contact force" maps hardness
+        control contact "Contact" "Duration of the strike" maps contact
+        control decay "Ring" "Scale the body's damping times" maps decay
+        control brightness "Brightness" "Tilt the body resonances" maps brightness
+      }
+      graph voice 4 {
+        node contact exciter kind impact contact $contact hardness $hardness
+        node body modal_bank profile wood-body max_modes 3 key_track 0 decay_scale $decay brightness $brightness level 0.5
+        node stereo mono_to_stereo
+        node out output
+        bus hit note.gate -> contact.gate
+        bus touch note.velocity -> contact.velocity
+        bus ring note.gate -> body.gate
+        bus pitch note.pitch -> body.pitch
+        bus force contact.audio -> body.audio
+        bus body body.audio -> stereo.audio
+        bus output stereo.audio -> out.audio
+      }
+    }
+    pattern strike 1bar {
+      note 0beat C4 1/4beat 0.8
+    }
+    track wood "Wood" instrument wood level 0db pan 0 {
+      clip strike pattern strike start 0bar duration 1bar mode once
+    }
+  }
+}

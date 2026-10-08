@@ -1,5 +1,47 @@
 use super::*;
 
+#[test]
+fn noise_is_centered_unit_range_and_scales_with_level() {
+    for seed in [0, 1, 91473] {
+        let full = NoiseConfig {
+            level: Scalar::constant(1.0),
+        };
+        let quiet = NoiseConfig {
+            level: Scalar::constant(0.25),
+        };
+        let mut a = NoiseState::new(seed);
+        let mut b = NoiseState::new(seed);
+        let mut sum = 0.0_f64;
+        let mut square = 0.0_f64;
+        let mut lag = 0.0_f64;
+        let mut last = 0.0_f64;
+        let mut positive = 0;
+        for _ in 0..65536 {
+            let x = full.process(&mut a, &[]);
+            assert!((-1.0..1.0).contains(&x));
+            assert_eq!(quiet.process(&mut b, &[]), x * 0.25);
+            let x = f64::from(x);
+            sum += x;
+            square += x * x;
+            lag += x * last;
+            last = x;
+            positive += usize::from(x > 0.0);
+        }
+        assert!((sum / 65536.0).abs() < 0.01);
+        assert!((square / 65536.0 - 1.0 / 3.0).abs() < 0.01);
+        assert!(lag.abs() / square < 0.02);
+        assert!((31000..34500).contains(&positive));
+        a.retrigger(seed);
+        b.retrigger(seed);
+        let allocations = allocation_counter::measure(|| {
+            for _ in 0..1024 {
+                assert_eq!(full.process(&mut a, &[]), full.process(&mut b, &[]));
+            }
+        });
+        assert_eq!(allocations.count_total, 0);
+    }
+}
+
 fn analog_config(voices: usize) -> AnalogOscillatorConfig {
     AnalogOscillatorConfig {
         waveform: OscillatorWaveform::Saw,

@@ -35,10 +35,24 @@ pub struct Project {
     pub render_tail_seconds: f64,
     /// Portable exact-byte WAV declarations owned by this Project.
     pub assets: Vec<MediaAsset>,
+    /// Numerical acoustic profiles imported as authoritative source.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub acoustic_profiles: Vec<AcousticProfile>,
     /// The Project's one Song.
     pub song: Song,
     /// Imported source paths, in declaration order after canonicalization.
     pub imports: Vec<PathBuf>,
+}
+
+/// Named acoustic-body data, separate from playable Instrument controls.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AcousticProfile {
+    /// Durable Project-local identity.
+    pub id: String,
+    /// Physical-unit response data.
+    pub body: crate::acoustics::Profile,
+    /// Authoritative declaration location.
+    pub location: SourceLocation,
 }
 
 /// One portable exact-byte media declaration.
@@ -2385,6 +2399,10 @@ fn directive_references_parameter(directive: &NodeDirective, parameter: &str) ->
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeKind {
+    /// Finite contact or collision excitation.
+    Exciter,
+    /// Profile-driven damped resonator bank.
+    ModalBank,
     /// Band-limited-enough-for-first-slice mono oscillator.
     Oscillator,
     /// Bounded deterministic stereo/unison oscillator.
@@ -2440,6 +2458,8 @@ impl FromStr for NodeKind {
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
+            "exciter" => Ok(Self::Exciter),
+            "modal_bank" => Ok(Self::ModalBank),
             "oscillator" | "osc" => Ok(Self::Oscillator),
             "unison" | "unison_oscillator" => Ok(Self::Unison),
             "noise" => Ok(Self::Noise),

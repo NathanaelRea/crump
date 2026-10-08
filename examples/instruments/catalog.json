@@ -1,0 +1,482 @@
+[
+  {
+    "id": "felt-floor",
+    "name": "Felt Floor",
+    "category": "Kicks",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 7919
+  },
+  {
+    "id": "warehouse-skin",
+    "name": "Warehouse Skin",
+    "category": "Kicks",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 15838
+  },
+  {
+    "id": "disco-beater",
+    "name": "Disco Beater",
+    "category": "Kicks",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 23757
+  },
+  {
+    "id": "deep-pillow",
+    "name": "Deep Pillow",
+    "category": "Kicks",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 31676
+  },
+  {
+    "id": "dry-birch",
+    "name": "Dry Birch",
+    "category": "Backbeats",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 39595
+  },
+  {
+    "id": "disco-wire",
+    "name": "Disco Wire",
+    "category": "Backbeats",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 47514
+  },
+  {
+    "id": "brush-ghost",
+    "name": "Brush Ghost",
+    "category": "Backbeats",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 55433
+  },
+  {
+    "id": "three-hands",
+    "name": "Three Hands",
+    "category": "Backbeats",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 63352
+  },
+  {
+    "id": "basement-crowd",
+    "name": "Basement Crowd",
+    "category": "Backbeats",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 71271
+  },
+  {
+    "id": "palm-snap",
+    "name": "Palm Snap",
+    "category": "Backbeats",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 79190
+  },
+  {
+    "id": "brass-tick",
+    "name": "Brass Tick",
+    "category": "Hats and metal",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 87109
+  },
+  {
+    "id": "dark-closed",
+    "name": "Dark Closed",
+    "category": "Hats and metal",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 95028
+  },
+  {
+    "id": "offbeat-sizzle",
+    "name": "Offbeat Sizzle",
+    "category": "Hats and metal",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 102947
+  },
+  {
+    "id": "pedal-chick",
+    "name": "Pedal Chick",
+    "category": "Hats and metal",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 110866
+  },
+  {
+    "id": "ride-shoulder",
+    "name": "Ride Shoulder",
+    "category": "Hats and metal",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 118785
+  },
+  {
+    "id": "thin-crash",
+    "name": "Thin Crash",
+    "category": "Hats and metal",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 126704
+  },
+  {
+    "id": "conga-open",
+    "name": "Conga Open",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 134623
+  },
+  {
+    "id": "conga-mute",
+    "name": "Conga Mute",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 142542
+  },
+  {
+    "id": "conga-slap",
+    "name": "Conga Slap",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 150461
+  },
+  {
+    "id": "bongo-high",
+    "name": "Bongo High",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 158380
+  },
+  {
+    "id": "bongo-low",
+    "name": "Bongo Low",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 166299
+  },
+  {
+    "id": "djembe-center",
+    "name": "Djembe Center",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 174218
+  },
+  {
+    "id": "tabla-sketch",
+    "name": "Tabla Sketch",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 182137
+  },
+  {
+    "id": "wood-rim",
+    "name": "Wood Rim",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 190056
+  },
+  {
+    "id": "cuban-clave",
+    "name": "Cuban Clave",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 197975
+  },
+  {
+    "id": "hollow-block",
+    "name": "Hollow Block",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 205894
+  },
+  {
+    "id": "egg-shaker",
+    "name": "Egg Shaker",
+    "category": "Shakers",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 213813
+  },
+  {
+    "id": "gourd-maraca",
+    "name": "Gourd Maraca",
+    "category": "Shakers",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 221732
+  },
+  {
+    "id": "cabasa-turn",
+    "name": "Cabasa Turn",
+    "category": "Shakers",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 229651
+  },
+  {
+    "id": "tambourine-shake",
+    "name": "Tambourine Shake",
+    "category": "Shakers",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 237570
+  },
+  {
+    "id": "finger-bass",
+    "name": "Finger Bass",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 245489
+  },
+  {
+    "id": "palm-bass",
+    "name": "Palm Bass",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 253408
+  },
+  {
+    "id": "pick-bass",
+    "name": "Pick Bass",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 261327
+  },
+  {
+    "id": "upright-pluck",
+    "name": "Upright Pluck",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 269246
+  },
+  {
+    "id": "slap-string",
+    "name": "Slap String",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 277165
+  },
+  {
+    "id": "deep-rubber",
+    "name": "Deep Rubber",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 285084
+  },
+  {
+    "id": "house-grand",
+    "name": "House Grand",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 293003
+  },
+  {
+    "id": "sunday-upright",
+    "name": "Sunday Upright",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 300922
+  },
+  {
+    "id": "felt-afterhours",
+    "name": "Felt Afterhours",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 308841
+  },
+  {
+    "id": "tack-keys",
+    "name": "Tack Keys",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 316760
+  },
+  {
+    "id": "warm-tines",
+    "name": "Warm Tines",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 324679
+  },
+  {
+    "id": "barking-tines",
+    "name": "Barking Tines",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 332598
+  },
+  {
+    "id": "reed-keys",
+    "name": "Reed Keys",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 340517
+  },
+  {
+    "id": "clav-pluck",
+    "name": "Clav Pluck",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 348436
+  },
+  {
+    "id": "nylon-thumb",
+    "name": "Nylon Thumb",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 356355
+  },
+  {
+    "id": "disco-mute",
+    "name": "Disco Mute",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 364274
+  },
+  {
+    "id": "steel-finger",
+    "name": "Steel Finger",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 372193
+  },
+  {
+    "id": "small-harp",
+    "name": "Small Harp",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 380112
+  },
+  {
+    "id": "rosewood-marimba",
+    "name": "Rosewood Marimba",
+    "category": "Mallets",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 388031
+  },
+  {
+    "id": "soft-vibraphone",
+    "name": "Soft Vibraphone",
+    "category": "Mallets",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 395950
+  },
+  {
+    "id": "thumb-kalimba",
+    "name": "Thumb Kalimba",
+    "category": "Mallets",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 403869
+  },
+  {
+    "id": "buzz-balafon",
+    "name": "Buzz Balafon",
+    "category": "Mallets",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 411788
+  },
+  {
+    "id": "glass-drop",
+    "name": "Glass Drop",
+    "category": "Mallets",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 419707
+  },
+  {
+    "id": "bell-chime",
+    "name": "Bell Chime",
+    "category": "Mallets",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 427626
+  },
+  {
+    "id": "piano-cut",
+    "name": "Piano Cut",
+    "category": "Resampling",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 435545
+  },
+  {
+    "id": "dusty-keys",
+    "name": "Dusty Keys",
+    "category": "Resampling",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 443464
+  },
+  {
+    "id": "dub-tines",
+    "name": "Dub Tines",
+    "category": "Resampling",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 451383
+  },
+  {
+    "id": "reverse-nylon",
+    "name": "Reverse Nylon",
+    "category": "Resampling",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 459302
+  },
+  {
+    "id": "motor-vibes",
+    "name": "Motor Vibes",
+    "category": "Resampling",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 467221
+  },
+  {
+    "id": "room-chop",
+    "name": "Room Chop",
+    "category": "Resampling",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 475140
+  }
+]

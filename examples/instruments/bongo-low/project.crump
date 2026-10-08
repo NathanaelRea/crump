@@ -1,0 +1,44 @@
+crump 2
+import "instrument.crump"
+project "Bongo Low" {
+  id example-bongo-low
+  seed 166299
+  sample_rate 48000
+  render_tail 2s
+  asset bongo-low-60-soft-0 "Bongo Low" wav "media/60-soft-0.wav" sha256 "3fa6687f7121587fc5dd37524528662269311130dea6a4eeab2da15345581e5f" {
+    usage multisample
+  }
+  asset bongo-low-60-hard-0 "Bongo Low" wav "media/60-hard-0.wav" sha256 "5088f6bdbe7e58f25c276504eb48d9f3d1e12411dad791bb542b366764f56870" {
+    usage multisample
+  }
+  asset bongo-low-60-soft-1 "Bongo Low" wav "media/60-soft-1.wav" sha256 "4d72dc44861beaf67e2e402d5ccdfd29c4ada00b32078f18fa91d6f56f3c0607" {
+    usage multisample
+  }
+  asset bongo-low-60-hard-1 "Bongo Low" wav "media/60-hard-1.wav" sha256 "80fc06792b84d3ab4c115de708578b35516285fe52fcaa412b930ef2a7662983" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C4 0.2beat 0.8
+      note 8.5beat C4 0.2beat 0.4
+      note 9beat C4 0.2beat 0.6
+      note 9.5beat C4 0.2beat 0.45
+      note 10beat C4 0.2beat 0.8
+      note 10.5beat C4 0.2beat 0.4
+      note 11beat C4 0.2beat 0.6
+      note 11.5beat C4 0.2beat 0.45
+      note 12beat C4 0.2beat 0.8
+      note 12.5beat C4 0.2beat 0.4
+      note 13beat C4 0.2beat 0.6
+      note 13.5beat C4 0.2beat 0.45
+    }
+    track instrument "Bongo Low" instrument bongo-low level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

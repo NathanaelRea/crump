@@ -1,0 +1,75 @@
+crump 2
+import "instrument.crump"
+project "Warm Tines" {
+  id example-warm-tines
+  seed 324679
+  sample_rate 48000
+  render_tail 2s
+  asset warm-tines-36-soft-0 "Warm Tines" wav "media/36-soft-0.wav" sha256 "fd55d2c411833c0d79311217b7e484fdda857d50938ea500b46c144b1aedfe62" {
+    usage multisample
+  }
+  asset warm-tines-36-hard-0 "Warm Tines" wav "media/36-hard-0.wav" sha256 "df603b7bacd894b7ec38dbc941ed05b95721deb9193f68848bb802198450d918" {
+    usage multisample
+  }
+  asset warm-tines-43-soft-0 "Warm Tines" wav "media/43-soft-0.wav" sha256 "e89fb0d11224a32684f05bfae673ef76f1440017be2634fe5c238484096e61d1" {
+    usage multisample
+  }
+  asset warm-tines-43-hard-0 "Warm Tines" wav "media/43-hard-0.wav" sha256 "d8248ba066ad46674bb293e6c7b9c4d288359306abc5ed11e8aa0f7fea189d37" {
+    usage multisample
+  }
+  asset warm-tines-48-soft-0 "Warm Tines" wav "media/48-soft-0.wav" sha256 "9c00cf5e6be6e2c1fc0f7b0820d0741cd84fa7622482608167782a1e157b79c8" {
+    usage multisample
+  }
+  asset warm-tines-48-hard-0 "Warm Tines" wav "media/48-hard-0.wav" sha256 "97ef65158c3b9d1c6ffb116e78442d9ee2f043199423f394ed5f1bf3a77f9078" {
+    usage multisample
+  }
+  asset warm-tines-55-soft-0 "Warm Tines" wav "media/55-soft-0.wav" sha256 "b9f1f24ec97a1c9fd1747dfbec378911ef5503f5f12a6f5f663017fa9aa964d7" {
+    usage multisample
+  }
+  asset warm-tines-55-hard-0 "Warm Tines" wav "media/55-hard-0.wav" sha256 "f146745868d9486a384e940a56f950764aa39c73cf904259f5e566685566f405" {
+    usage multisample
+  }
+  asset warm-tines-60-soft-0 "Warm Tines" wav "media/60-soft-0.wav" sha256 "94cd7f38baaca86b79875d8477034d2b57f93127a3080bc8435b1e9108d04cdb" {
+    usage multisample
+  }
+  asset warm-tines-60-hard-0 "Warm Tines" wav "media/60-hard-0.wav" sha256 "4fe91406714b6eef1c21d0072ede41a8d92b06929dc2b3c4ca910f6ea9265d5e" {
+    usage multisample
+  }
+  asset warm-tines-67-soft-0 "Warm Tines" wav "media/67-soft-0.wav" sha256 "b9b2cf58528a3ba1f2e86108a52546b659906e773006caeb4d5a25b4545a6877" {
+    usage multisample
+  }
+  asset warm-tines-67-hard-0 "Warm Tines" wav "media/67-hard-0.wav" sha256 "dbaf15662ec36dff14b1750d24dfb01b525f65fbb28af1a20bf9a24da73b2ae2" {
+    usage multisample
+  }
+  asset warm-tines-72-soft-0 "Warm Tines" wav "media/72-soft-0.wav" sha256 "306a6d39cc9888026a8247fa8074ee83deff8005874ed46b27d3dfe53a5107ca" {
+    usage multisample
+  }
+  asset warm-tines-72-hard-0 "Warm Tines" wav "media/72-hard-0.wav" sha256 "a4eff1196a0b896171951bc5578763de5444d182d7a95d207d2cd396c10d45d2" {
+    usage multisample
+  }
+  asset warm-tines-79-soft-0 "Warm Tines" wav "media/79-soft-0.wav" sha256 "a60f4985fd1a3031d48be8bb1a1f04da1bfd82d098d5747b1e4692ba48051de6" {
+    usage multisample
+  }
+  asset warm-tines-79-hard-0 "Warm Tines" wav "media/79-hard-0.wav" sha256 "b8a978bb19d6755e133dec7968ff28956873daff96a9b6fe10464cb425933139" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C3 0.5beat 0.85
+      note 10beat G4 0.25beat 0.65
+      note 12beat C5 0.75beat 0.8
+      note 16beat C3 0.5beat 0.65
+      note 16beat G3 0.5beat 0.65
+      note 16beat A#3 0.5beat 0.65
+      note 16beat D#4 0.5beat 0.65
+    }
+    track instrument "Warm Tines" instrument warm-tines level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

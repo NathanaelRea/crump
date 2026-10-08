@@ -1,0 +1,16 @@
+{
+  "model": "membrane",
+  "params": {
+    "freq": 240,
+    "decay": 0.09,
+    "contact": 0.0008,
+    "bright": 0.95,
+    "slap": 0.3,
+    "edge": true
+  },
+  "pitched": false,
+  "category": "Hand percussion",
+  "id": "conga-slap",
+  "seed_base": 190000,
+  "seconds": 4
+}

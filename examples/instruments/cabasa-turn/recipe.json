@@ -1,0 +1,22 @@
+{
+  "model": "collisions",
+  "params": {
+    "density": 1314.7446449242111,
+    "decay": 0.09564651980885759,
+    "rise": 0.014109167301443116,
+    "ring": 0.020305085195672774,
+    "freqs": [
+      2234.8673570728174,
+      9271.55651791568,
+      9009.124353396744
+    ],
+    "minimum_decay": 5e-05,
+    "hipass": 3976.3986605938176,
+    "friction": 0.6115426181987067
+  },
+  "pitched": false,
+  "category": "Shakers",
+  "id": "cabasa-turn",
+  "seed_base": 290000,
+  "seconds": 4
+}

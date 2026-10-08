@@ -1,0 +1,44 @@
+crump 2
+import "instrument.crump"
+project "Palm Snap" {
+  id example-palm-snap
+  seed 79190
+  sample_rate 48000
+  render_tail 2s
+  asset palm-snap-60-soft-0 "Palm Snap" wav "media/60-soft-0.wav" sha256 "dc83375009c073f2f6a2f52fcdeef7452eca0c0c40314ff1018d644477d0d640" {
+    usage multisample
+  }
+  asset palm-snap-60-hard-0 "Palm Snap" wav "media/60-hard-0.wav" sha256 "6b35f47a0d2d4566c7d42af7fe3cdcfaaee2fedf43b7481ed0ba95f2cf9d8d93" {
+    usage multisample
+  }
+  asset palm-snap-60-soft-1 "Palm Snap" wav "media/60-soft-1.wav" sha256 "f418caf4375c0884ee47427cad02c84257d7fe792c8717f70b760798c5b30818" {
+    usage multisample
+  }
+  asset palm-snap-60-hard-1 "Palm Snap" wav "media/60-hard-1.wav" sha256 "962e15ed612b227d94f3ac6a87d72850e5cb03a1869872c72a7baaa7c28876b2" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C4 0.2beat 0.8
+      note 8.5beat C4 0.2beat 0.4
+      note 9beat C4 0.2beat 0.6
+      note 9.5beat C4 0.2beat 0.45
+      note 10beat C4 0.2beat 0.8
+      note 10.5beat C4 0.2beat 0.4
+      note 11beat C4 0.2beat 0.6
+      note 11.5beat C4 0.2beat 0.45
+      note 12beat C4 0.2beat 0.8
+      note 12.5beat C4 0.2beat 0.4
+      note 13beat C4 0.2beat 0.6
+      note 13.5beat C4 0.2beat 0.45
+    }
+    track instrument "Palm Snap" instrument palm-snap level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

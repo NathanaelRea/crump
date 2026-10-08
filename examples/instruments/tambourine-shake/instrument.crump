@@ -1,0 +1,59 @@
+crump-module 2
+instrument tambourine-shake "Tambourine Shake" graph {
+  polyphony 4
+  parameter contact "Contact" seconds 0.00002s 0.003s 2e-05s 2e-05s
+  parameter ring "Ring" ratio 0.1 4 1.68467922492 1.68467922492
+  parameter brightness "Brightness" ratio -2 2 -0.0500577054784 -0.0500577054784
+  parameter hardness "Hardness" ratio 0 1 0.35 0.35
+  parameter output-level "Level" ratio 0 2 1 1
+  faceplate {
+    control output-level "Level" "Output level" maps output-level
+    control contact "Contact" "Strike duration" maps contact
+    control ring "Ring" "Body decay" maps ring
+    control brightness "Brightness" "Resonance tilt" maps brightness
+    control hardness "Hardness" "Contact concentration" maps hardness
+  }
+  graph voice 12 {
+    node body-force exciter kind collisions contact $contact hardness $hardness rate 4978.24975929hz duration 0.101334042068s attack 0.221224759218s
+    node body modal_bank profile tambourine-shake-body max_modes 23 key_track 0 decay_scale $ring brightness $brightness level 1
+    node stereo mono_to_stereo
+    node out output
+    node output-gain mixer a_level 0.124141048748 b_level 0
+    node output-level mixer a_level $output-level b_level 0
+    bus body-hit note.gate -> body-force.gate
+    bus body-velocity note.velocity -> body-force.velocity
+    bus body-gate note.gate -> body.gate
+    bus body-pitch note.pitch -> body.pitch
+    bus body-input body-force.audio -> body.audio
+    bus mono body.audio -> output-gain.a
+    bus output-gain output-gain.audio -> output-level.a
+    bus output-level output-level.audio -> stereo.audio
+    bus output stereo.audio -> out.audio
+  }
+}
+profile tambourine-shake-body {
+  root 261.625565301hz
+  mode m0 frequency 4016.6015625hz decay 0.0006s gain 0.020228908349 after_decay 0.0006s after_gain 0
+  mode m1 frequency 4016.6015625hz decay 0.008s gain 0.0298187312236 after_decay 0.008s after_gain 0
+  mode m2 frequency 4141.11328125hz decay 0.008s gain 0.0275754801688 after_decay 0.008s after_gain 0
+  mode m3 frequency 4291.9921875hz decay 0.0015s gain 0.0484045122053 after_decay 0.0015s after_gain 0
+  mode m4 frequency 4564.453125hz decay 0.0015s gain 0.0775932392864 after_decay 0.0015s after_gain 0
+  mode m5 frequency 4802.49023438hz decay 0.0006s gain 0.090464990291 after_decay 0.0006s after_gain 0
+  mode m6 frequency 5000.24414062hz decay 0.0006s gain 0.0993175372357 after_decay 0.0006s after_gain 0
+  mode m7 frequency 5666.015625hz decay 0.008s gain 0.0292324333383 after_decay 0.008s after_gain 0
+  mode m8 frequency 5841.796875hz decay 0.008s gain 0.0384922042174 after_decay 0.008s after_gain 0
+  mode m9 frequency 6011.71875hz decay 0.008s gain 0.00294538977526 after_decay 0.008s after_gain 0
+  mode m10 frequency 6123.77929688hz decay 0.008s gain 0.0319949311702 after_decay 0.008s after_gain 0
+  mode m11 frequency 6276.85546875hz decay 0.008s gain 0.0300599471019 after_decay 0.008s after_gain 0
+  mode m12 frequency 6510.49804688hz decay 0.0006s gain 0.115902504683 after_decay 0.0006s after_gain 0
+  mode m13 frequency 6510.49804688hz decay 0.008s gain 0.0457013658707 after_decay 0.008s after_gain 0
+  mode m14 frequency 9905.2734375hz decay 0.0006s gain 0.125270355904 after_decay 0.0006s after_gain 0
+  mode m15 frequency 9905.2734375hz decay 0.008s gain 0.0117963372094 after_decay 0.008s after_gain 0
+  mode m16 frequency 10136.71875hz decay 0.008s gain 0.0241356589609 after_decay 0.008s after_gain 0
+  mode m17 frequency 10369.6289062hz decay 0.0035s gain 0.0358175720172 after_decay 0.0035s after_gain 0
+  mode m18 frequency 10784.9121094hz decay 0.0006s gain 0.135646975868 after_decay 0.0006s after_gain 0
+  mode m19 frequency 16193.1152344hz decay 0.008s gain 0.0648295104066 after_decay 0.008s after_gain 0
+  mode m20 frequency 16451.6601562hz decay 0.008s gain 0.0385061318863 after_decay 0.008s after_gain 0
+  mode m21 frequency 16576.9042969hz decay 0.008s gain 0.0865047576899 after_decay 0.008s after_gain 0
+  mode m22 frequency 16945.3125hz decay 0.0006s gain 0.475784878537 after_decay 0.0006s after_gain 0
+}

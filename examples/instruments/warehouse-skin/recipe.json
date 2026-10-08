@@ -1,0 +1,18 @@
+{
+  "model": "membrane",
+  "params": {
+    "freq": 98.22162095555166,
+    "decay": 0.040889363380253924,
+    "contact": 0.0005111818997428987,
+    "slap": 0.478418317090374,
+    "bend": 0.7694533252326098,
+    "bright": 0.5067694646155328,
+    "drive": 1.5,
+    "slap_decay": 0.005347281234622863
+  },
+  "pitched": false,
+  "category": "Kicks",
+  "id": "warehouse-skin",
+  "seed_base": 20000,
+  "seconds": 4
+}

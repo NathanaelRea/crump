@@ -1,0 +1,56 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "8d9ed4b16175a9361fdedca595141b93d6a1903200acc044ffa542df7da22a1d",
+  "recipe_sha256": "d698b9358f1ede4f781eb4834d8b8fdf60cec9411794ac515d12ddae2a603a46",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "conga-mute-60-soft-0",
+      "path": "media/60-soft-0.wav",
+      "sha256": "7c6ecfd354fc48680622f8f3e8d983cccaffe36c40eff117ed58605d1e028a5a",
+      "frames": 22153,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 180600,
+      "normalization_gain": 0.5373174132631402
+    },
+    {
+      "id": "conga-mute-60-hard-0",
+      "path": "media/60-hard-0.wav",
+      "sha256": "c02646075d0d2c558234d90717258964cc84b9cd2677b0ca577a9eb017f5dbfb",
+      "frames": 23256,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 180600,
+      "normalization_gain": 0.5373174132631402
+    },
+    {
+      "id": "conga-mute-60-soft-1",
+      "path": "media/60-soft-1.wav",
+      "sha256": "39ba3dd988013a243784086d0bab093759d3c90516e0c5897facb3a9c567f751",
+      "frames": 22141,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 180601,
+      "normalization_gain": 0.5501227239027889
+    },
+    {
+      "id": "conga-mute-60-hard-1",
+      "path": "media/60-hard-1.wav",
+      "sha256": "3281cf937306462da7dad4b9f34f7d26c4841d6d76202f67e94c6c2f8c3f4439",
+      "frames": 23233,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 180601,
+      "normalization_gain": 0.5501227239027889
+    }
+  ]
+}

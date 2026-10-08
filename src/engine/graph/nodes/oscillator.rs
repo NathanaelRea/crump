@@ -479,7 +479,10 @@ impl NoiseState {
 impl NoiseConfig {
     pub(super) fn process(self, state: &mut NoiseState, controls: &[f64]) -> f32 {
         state.rng = xorshift(state.rng);
-        ((state.rng >> 40) as i32 as f32 / i32::MAX as f32) * self.level.value(controls) as f32
+        // The upper 24 bits are an unsigned fraction, not a signed i32. Map
+        // their complete range to bipolar audio without introducing DC.
+        let white = (state.rng >> 40) as f32 * (1.0 / 8_388_608.0) - 1.0;
+        white * self.level.value(controls) as f32
     }
 }
 

@@ -1,0 +1,15 @@
+{
+  "model": "membrane",
+  "params": {
+    "freq": 390,
+    "decay": 0.11,
+    "contact": 0.0011,
+    "bright": 0.85,
+    "slap": 0.09
+  },
+  "pitched": false,
+  "category": "Hand percussion",
+  "id": "bongo-high",
+  "seed_base": 200000,
+  "seconds": 4
+}

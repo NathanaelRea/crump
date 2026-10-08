@@ -1,0 +1,44 @@
+crump 2
+import "instrument.crump"
+project "Pedal Chick" {
+  id example-pedal-chick
+  seed 110866
+  sample_rate 48000
+  render_tail 2s
+  asset pedal-chick-60-soft-0 "Pedal Chick" wav "media/60-soft-0.wav" sha256 "cf0654d56b5a2e4d70d0b99c7c413da3982dbff5bbb3a4f2493186813083fc9e" {
+    usage multisample
+  }
+  asset pedal-chick-60-hard-0 "Pedal Chick" wav "media/60-hard-0.wav" sha256 "dceec96b8b1b35147557e835bb5d840104a969b27f66bcf8fc87ea0eef9f48de" {
+    usage multisample
+  }
+  asset pedal-chick-60-soft-1 "Pedal Chick" wav "media/60-soft-1.wav" sha256 "6c9db3cf4c9b9fdc3b9dca905052afc5dbe7a3d6fe3cb2097efd68a70c6f864a" {
+    usage multisample
+  }
+  asset pedal-chick-60-hard-1 "Pedal Chick" wav "media/60-hard-1.wav" sha256 "3cdacca1029537ea5045fa302984aad415c17889669bd603f36804f27e13836a" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C4 0.2beat 0.8
+      note 8.5beat C4 0.2beat 0.4
+      note 9beat C4 0.2beat 0.6
+      note 9.5beat C4 0.2beat 0.45
+      note 10beat C4 0.2beat 0.8
+      note 10.5beat C4 0.2beat 0.4
+      note 11beat C4 0.2beat 0.6
+      note 11.5beat C4 0.2beat 0.45
+      note 12beat C4 0.2beat 0.8
+      note 12.5beat C4 0.2beat 0.4
+      note 13beat C4 0.2beat 0.6
+      note 13.5beat C4 0.2beat 0.45
+    }
+    track instrument "Pedal Chick" instrument pedal-chick level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "model": "collisions",
+  "params": {
+    "density": 13690.482220699125,
+    "decay": 0.04455433501630668,
+    "rise": 0.021257378587389738,
+    "ring": 0.0004607241961106199,
+    "freqs": [
+      1974.488673830674,
+      9984.633490961476,
+      11374.822916551422
+    ],
+    "minimum_decay": 5e-05,
+    "hipass": 4678.60509553664,
+    "friction": 0.1401556863239981
+  },
+  "pitched": false,
+  "category": "Shakers",
+  "id": "egg-shaker",
+  "seed_base": 270000,
+  "seconds": 4
+}

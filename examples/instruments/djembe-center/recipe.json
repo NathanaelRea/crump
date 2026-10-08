@@ -1,0 +1,15 @@
+{
+  "model": "membrane",
+  "params": {
+    "freq": 112,
+    "decay": 0.24,
+    "contact": 0.0035,
+    "bright": 0.4,
+    "slap": 0.08
+  },
+  "pitched": false,
+  "category": "Hand percussion",
+  "id": "djembe-center",
+  "seed_base": 220000,
+  "seconds": 4
+}

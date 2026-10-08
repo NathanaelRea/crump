@@ -270,6 +270,10 @@ Machine enforcement of a Composable DSP Graph's topology, types, units, Paramete
 
 A reusable sound generator executed by Crump that turns musical Events and controls into Audio without requiring recorded source audio. It may be built in or defined as an inspectable Composable DSP Graph, including through an Agent Change.
 
+### Acoustic Profile
+
+A named description of a resonant body's frequencies, relative strengths, and decay behavior. An Instrument uses it to turn an excitation into ringing sound. A Profile describes the body independently of the musical note, playing gesture, and performer-facing controls.
+
 ### Sound Brief
 
 A musician's plain-language description of an intended sound and playing behavior without requiring oscillator, filter, modulation, or other DSP instructions. An Authoring Agent may translate it into a Native Instrument, but the brief is not itself executable project state.

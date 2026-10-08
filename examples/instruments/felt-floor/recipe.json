@@ -1,0 +1,17 @@
+{
+  "model": "membrane",
+  "params": {
+    "freq": 58.7835837138743,
+    "decay": 0.09403565963807448,
+    "contact": 0.002815369811394824,
+    "slap": 0.43650256524138425,
+    "bend": 0.9271987845531138,
+    "bright": 0.18107494964307175,
+    "slap_decay": 0.007432810928389736
+  },
+  "pitched": false,
+  "category": "Kicks",
+  "id": "felt-floor",
+  "seed_base": 10000,
+  "seconds": 4
+}

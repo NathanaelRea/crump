@@ -1,0 +1,44 @@
+crump 2
+import "instrument.crump"
+project "Tabla Sketch" {
+  id example-tabla-sketch
+  seed 182137
+  sample_rate 48000
+  render_tail 2s
+  asset tabla-sketch-60-soft-0 "Tabla Sketch" wav "media/60-soft-0.wav" sha256 "78c2d296de6a9c77f87fad81923e87315858418b92efbff6d7a11f22eb0c177b" {
+    usage multisample
+  }
+  asset tabla-sketch-60-hard-0 "Tabla Sketch" wav "media/60-hard-0.wav" sha256 "b0cfe57105b37e5a7d7376523d7789c4c1e533f41bfae913a9c620ff5d35c6af" {
+    usage multisample
+  }
+  asset tabla-sketch-60-soft-1 "Tabla Sketch" wav "media/60-soft-1.wav" sha256 "9c34e18d0bdf28826794a6de4e6fc04b6063e28bebc088458a18a30906bd7d7b" {
+    usage multisample
+  }
+  asset tabla-sketch-60-hard-1 "Tabla Sketch" wav "media/60-hard-1.wav" sha256 "a13238c66e43ed9c97844ad2689585226398c04d4956fc5d4a7edc85023992cb" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat C4 0.2beat 0.8
+      note 8.5beat C4 0.2beat 0.4
+      note 9beat C4 0.2beat 0.6
+      note 9.5beat C4 0.2beat 0.45
+      note 10beat C4 0.2beat 0.8
+      note 10.5beat C4 0.2beat 0.4
+      note 11beat C4 0.2beat 0.6
+      note 11.5beat C4 0.2beat 0.45
+      note 12beat C4 0.2beat 0.8
+      note 12.5beat C4 0.2beat 0.4
+      note 13beat C4 0.2beat 0.6
+      note 13.5beat C4 0.2beat 0.45
+    }
+    track instrument "Tabla Sketch" instrument tabla-sketch level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

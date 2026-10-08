@@ -1,0 +1,16 @@
+{
+  "model": "membrane",
+  "params": {
+    "freq": 310,
+    "decay": 0.15,
+    "contact": 0.001,
+    "bright": 0.75,
+    "slap": 0.11,
+    "bend": 0.06
+  },
+  "pitched": false,
+  "category": "Hand percussion",
+  "id": "tabla-sketch",
+  "seed_base": 230000,
+  "seconds": 4
+}
