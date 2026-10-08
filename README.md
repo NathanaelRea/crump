@@ -1,3 +1,5 @@
+<img src="assets/branding/icon.png" alt="Crump icon" width="96" height="96">
+
 # Crump
 
 Crump is a Linux-first, terminal Guided Production Instrument for electronic and synthesized music. Familiar production views lead human work, a small declarative language remains the durable Project source, and external Authoring Agents use the same readable files and versioned `crump --json` command surface.
