@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crump — icon options</title>
+  <link id="favicon" rel="icon" type="image/png" href="01-pulse-c/favicon-32.png">
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; color: #202422; background: #f3f2ec; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 56px 32px 32px; }
+    main { max-width: 1140px; margin: auto; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 32px; padding-bottom: 32px; border-bottom: 1px solid #d4d6cd; }
+    .eyebrow { font: 11px ui-monospace, monospace; text-transform: uppercase; letter-spacing: .16em; color: #686d63; }
+    h1 { margin: 12px 0 0; font-size: clamp(32px, 5vw, 56px); font-weight: 650; letter-spacing: -.055em; line-height: 1.1; }
+    header p { max-width: 290px; margin: 0; color: #656b61; font-size: 14px; line-height: 1.6; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 32px; }
+    article { --accent: #ff784f; min-width: 0; }
+    article:nth-child(2) { --accent: #c6f36b; }
+    article:nth-child(3) { --accent: #b8a0ff; }
+    .hero { display: grid; place-items: center; height: 235px; background: #e6e8de; border-radius: 14px; }
+    .hero img { width: 168px; height: 168px; object-fit: contain; }
+    .heading { display: flex; align-items: center; gap: 10px; margin-top: 24px; }
+    .number { font: 11px ui-monospace, monospace; color: #71776a; }
+    h2 { margin: 0; font-size: 21px; letter-spacing: -.04em; font-weight: 650; }
+    .description { color: #656b61; font-size: 14px; line-height: 1.55; min-height: 66px; margin: 12px 0 20px; }
+    .tab { display: flex; align-items: center; gap: 10px; padding: 13px 14px; border-radius: 8px; font-size: 12px; margin-top: 8px; }
+    .tab img { width: 16px; height: 16px; }
+    .tab.light { background: #fff; color: #414740; border: 1px solid #dedfd9; }
+    .tab.dark { background: #24282a; color: #d7dad6; }
+    .tab .close { margin-left: auto; color: #92978e; }
+    .sizes { display: flex; align-items: center; justify-content: space-around; gap: 12px; padding: 20px 0; margin-top: 8px; }
+    figure { display: grid; justify-items: center; align-items: center; grid-template-rows: 48px auto; gap: 9px; margin: 0; }
+    figcaption { font: 10px ui-monospace, monospace; color: #797e72; }
+    button { width: 100%; border: 1px solid #c9cdc0; border-radius: 7px; padding: 12px; background: transparent; color: #30372b; cursor: pointer; font: 600 12px system-ui, sans-serif; }
+    button:hover { background: #e3e6da; }
+    button[aria-pressed="true"] { background: #202422; color: #f3f2ec; border-color: #202422; }
+    button:focus-visible, a:focus-visible { outline: 3px solid #737e5e; outline-offset: 3px; }
+    .downloads { display: flex; justify-content: center; gap: 18px; margin-top: 14px; }
+    a { color: #626c56; font: 11px ui-monospace, monospace; text-underline-offset: 3px; }
+    footer { display: flex; justify-content: space-between; gap: 24px; margin-top: 36px; padding-top: 20px; border-top: 1px solid #d4d6cd; color: #777d70; font: 11px ui-monospace, monospace; line-height: 1.6; }
+    #status { color: #3e4834; }
+    @media (max-width: 760px) { body { padding: 30px 20px; } header { display: block; } header p { margin-top: 20px; } .grid { grid-template-columns: 1fr; gap: 40px; } .hero { height: 210px; } .description { min-height: auto; } footer { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><div class="eyebrow">Crump / identity exploration</div><h1>Small mark. Big sound.</h1></div>
+    <p>Three directions for a terminal music instrument. Compare the silhouettes, then try each favicon in this browser tab. <a href="synth.html">See the synth refinements →</a></p>
+  </header>
+  <div class="grid" id="options"></div>
+  <footer><span>Actual-size previews · PNG + multi-size ICO</span><span id="status" role="status">Pulse C is showing in this tab.</span></footer>
+</main>
+<script>
+  const options = [
+    { slug: '01-pulse-c', name: 'Pulse C', description: 'A warm, heavy C with the shape of an audio pulse. Direct, compact, and easy to recognize.' },
+    { slug: '02-step-sequencer', name: 'Step Sequencer', description: 'Five lime pads form a rhythmic C. A nod to pattern sequencing and the terminal grid.' },
+    { slug: '03-impact', name: 'Impact', description: 'A violet percussion burst with a cutout center. Playful, energetic, and more abstract.' }
+  ];
+  document.querySelector('#options').innerHTML = options.map((option, index) => `
+    <article>
+      <div class="hero"><img src="${option.slug}/icon.png" alt="${option.name} icon concept"></div>
+      <div class="heading"><span class="number">0${index + 1}</span><h2>${option.name}</h2></div>
+      <p class="description">${option.description}</p>
+      <div class="tab light"><img src="${option.slug}/favicon-16.png" alt=""><span>Crump — make some noise</span><span class="close" aria-hidden="true">×</span></div>
+      <div class="tab dark"><img src="${option.slug}/favicon-16.png" alt=""><span>Crump — make some noise</span><span class="close" aria-hidden="true">×</span></div>
+      <div class="sizes">${[16, 32, 48].map(size => `<figure><img src="${option.slug}/favicon-${size}.png" width="${size}" height="${size}" alt="${option.name} at ${size} pixels"><figcaption>${size} PX</figcaption></figure>`).join('')}</div>
+      <button type="button" data-slug="${option.slug}" aria-label="Try ${option.name} as this tab's favicon" aria-pressed="${index === 0}">${index === 0 ? 'Showing in this tab' : 'Try in this tab'}</button>
+      <div class="downloads"><a href="${option.slug}/icon.png" download>Icon PNG ↓</a><a href="${option.slug}/favicon.ico" download>Favicon ICO ↓</a></div>
+    </article>
+  `).join('');
+  document.querySelectorAll('button').forEach(button => button.addEventListener('click', () => {
+    const option = options.find(item => item.slug === button.dataset.slug);
+    document.querySelector('#favicon').href = `${option.slug}/favicon-32.png`;
+    document.querySelectorAll('button').forEach(item => {
+      const active = item === button;
+      item.setAttribute('aria-pressed', String(active));
+      item.textContent = active ? 'Showing in this tab' : 'Try in this tab';
+    });
+    document.querySelector('#status').textContent = `${option.name} is showing in this tab.`;
+  }));
+</script>
+</body>
+</html>
