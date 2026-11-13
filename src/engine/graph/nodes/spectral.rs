@@ -116,7 +116,12 @@ impl SpectralConfig {
         };
         let mut output = [0.0_f64; 2];
         let mut active = 0_u32;
-        for slot in 0..self.max_peaks.min(MAX_SPECTRAL_PEAKS) {
+        for (slot, phase) in state
+            .phases
+            .iter_mut()
+            .enumerate()
+            .take(self.max_peaks.min(MAX_SPECTRAL_PEAKS))
+        {
             let first = self.analysis.peak(first_frame, slot);
             let second = self.analysis.peak(second_frame, slot);
             let frequency = interpolate(
@@ -145,13 +150,11 @@ impl SpectralConfig {
                 continue;
             }
             active = active.saturating_add(1);
-            output[0] += state.phases[slot][0].cos() * left_amplitude * transient_gain;
-            output[1] += state.phases[slot][1].cos() * right_amplitude * transient_gain;
+            output[0] += phase[0].cos() * left_amplitude * transient_gain;
+            output[1] += phase[1].cos() * right_amplitude * transient_gain;
             let increment = std::f64::consts::TAU * output_frequency / sample_rate;
-            state.phases[slot][0] =
-                (state.phases[slot][0] + increment).rem_euclid(std::f64::consts::TAU);
-            state.phases[slot][1] =
-                (state.phases[slot][1] + increment).rem_euclid(std::f64::consts::TAU);
+            phase[0] = (phase[0] + increment).rem_euclid(std::f64::consts::TAU);
+            phase[1] = (phase[1] + increment).rem_euclid(std::f64::consts::TAU);
         }
         if self.freeze.value(controls) < 0.5 {
             let rate = self.rate.value(controls).clamp(-4.0, 4.0);
