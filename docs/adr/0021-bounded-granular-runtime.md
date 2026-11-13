@@ -21,7 +21,7 @@ Work admission charges every declared grain slot for every resident graph voice,
 
 Asset/cache identity, maximum slots, window, edge law, root, and seed are transition compatibility facts. Changes restart only the affected Track Instrument behind ADR 0011's bounded equal-power transition. Compatible position/scan/size/density/tune/spray/direction/spread/freeze/level changes retain state and affect future spawns; active grains keep their snapshots.
 
-Generated Instrument rows expose exact asset/container/hash facts, waveform preview, grain settings, and source navigation. The fixture asset remains original MPL-2.0 repository content.
+Generated Instrument rows expose exact asset/container/hash facts, waveform preview, grain settings, and source navigation. The fixture asset remains original MIT repository content.
 
 ## Consequences
 

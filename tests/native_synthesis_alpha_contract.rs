@@ -491,7 +491,7 @@ fn lawful_fixture_assets_match_exact_hash_container_and_provenance() {
         assert_eq!(reader.duration(), asset.frames);
         assert!(!asset.uses.is_empty());
         assert!(asset.origin.contains("generate_assets.py"));
-        assert_eq!(asset.license, "MPL-2.0");
+        assert_eq!(asset.license, "MIT");
     }
 }
 

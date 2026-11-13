@@ -79,13 +79,11 @@ use commands::{blank_project_source, play_stop_key, slug_id, workspace_needs_pro
 use commands::{emit_failure, emit_success, execute, serialize_response};
 
 /// Parses process arguments, executes one command, and returns a stable exit status.
-#[must_use]
 pub fn run() -> ExitCode {
     run_from(std::env::args_os())
 }
 
 /// Testable command entry point.
-#[must_use]
 pub fn run_from(arguments: impl IntoIterator<Item = OsString>) -> ExitCode {
     let arguments = arguments.into_iter().collect::<Vec<_>>();
     let json_requested = arguments.iter().any(|argument| argument == "--json");

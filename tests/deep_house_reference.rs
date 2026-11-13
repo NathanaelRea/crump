@@ -164,7 +164,7 @@ fn starter_library_has_exact_assets_readable_modules_and_authored_audition_phras
             bytes,
             fs::read(reference.join(relative)).expect("reference asset copy")
         );
-        assert_eq!(entry["license"], "MPL-2.0");
+        assert_eq!(entry["license"], "MIT");
         assert!(
             entry["origin"]
                 .as_str()
