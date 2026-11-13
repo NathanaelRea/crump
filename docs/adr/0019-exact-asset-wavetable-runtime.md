@@ -49,7 +49,7 @@ Asset identity, frame metadata, morph law, unison allocation, stage structure, N
 
 Wavetable assets are portable with Project source and History, and deleting derived runtime data cannot make them unrecoverable. Exact-source validation, deterministic cache identity, source-mip alias bounds, normalization/morph vectors, finite output, stereo unison, retrigger behavior, publication compatibility, admission, and callback-grouping equivalence are machine checked. The mip bound describes harmonics retained from the authored frame before phase warps or audio-rate FM/PM; nonlinear and cross-modulation sidebands require their own qualification and are not silently covered by that claim.
 
-This decision establishes deterministic playback and import semantics, not a full spectral-bin/formula editor and not evidence of commercial or producer preference. The original procedural starter table is MPL-2.0 fixture content. Independent producer and named-hardware qualification remain external evidence gates.
+This decision establishes deterministic playback and import semantics, not a full spectral-bin/formula editor and not evidence of commercial or producer preference. The original procedural starter table is MIT fixture content. Independent producer and named-hardware qualification remain external evidence gates.
 
 Graph sample/multisample behavior was subsequently accepted by [ADR 0020](0020-graph-sample-and-multisample-runtime.md). Bounded granular behavior was subsequently accepted by [ADR 0021](0021-bounded-granular-runtime.md). Deterministic spectral-peak behavior was subsequently accepted by [ADR 0022](0022-deterministic-spectral-peak-runtime.md).
 

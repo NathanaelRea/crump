@@ -12,7 +12,7 @@ Omit `--only` to build all banks. The default output is the example library itse
 
 Hard-layer peak normalization is shared with its soft layer. Media is mono PCM16, with silent suffixes removed below the quantization floor and an endpoint fade. Pitched banks span eight roots and two velocity layers; percussion uses two velocity layers and two deterministic round robins. `assets.json` records exact WAV hashes, recipe and generator hashes, seeds, gain and frame counts. Treatments retain their full generating recipe rather than requiring a hidden dry sample.
 
-Reproduction is deterministic within the same numerical environment. Different CPU/library implementations can change final rounding; compare manifest hashes before replacing distributed media. Example sources and generated audio use the repository's MPL-2.0 license.
+Reproduction is deterministic within the same numerical environment. Different CPU/library implementations can change final rounding; compare manifest hashes before replacing distributed media. Example sources and generated audio use the repository's MIT license.
 
 ## Verification
 

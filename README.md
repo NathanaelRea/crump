@@ -143,4 +143,4 @@ Every non-interactive command supports `--json` and emits exactly one response w
 
 ## License
 
-Mozilla Public License 2.0. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
