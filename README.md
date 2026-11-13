@@ -38,7 +38,7 @@ sudo apt install build-essential dpkg-dev pkg-config libpipewire-0.3-dev libclan
 Install Rust with [rustup](https://rustup.rs/), then build or install Crump:
 
 ```bash
-git clone https://github.com/nathan/crump.git
+git clone https://github.com/NathanaelRea/crump.git
 cd crump
 cargo install --path . --locked
 crump doctor

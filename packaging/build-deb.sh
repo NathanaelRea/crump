@@ -143,7 +143,7 @@ Architecture: $architecture
 Maintainer: Crump contributors
 Depends: libc6, libpipewire-0.3-0 (>= 1.2)
 Installed-Size: $installed_size
-Homepage: https://github.com/nathan/crump
+Homepage: https://github.com/NathanaelRea/crump
 Description: terminal-first guided production instrument
  Crump authors, auditions, versions, and deterministically renders electronic
  music Projects from readable declarative source and declared WAV assets.
