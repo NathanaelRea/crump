@@ -1,5 +1,6 @@
 use super::*;
 use crate::model::{WavetableMorph, WavetableNormalization};
+use crate::project::PROJECT_FILE;
 
 /// Publishes one staged bounce declaration and exact bytes through the atomic History path.
 pub fn publish_bounce_asset(
@@ -329,7 +330,12 @@ pub fn collect_media_assets(
     }
     let project = bundle.project.as_ref().ok_or(EditError::InvalidBase)?;
     let mut mutation = ProjectMutation::default();
-    for asset in &project.assets {
+    // Module-owned media stays beside its module, so the module remains portable.
+    for asset in project
+        .assets
+        .iter()
+        .filter(|asset| asset.location.file == Path::new(PROJECT_FILE))
+    {
         let destination = PathBuf::from("media").join(format!("{}.wav", asset.id));
         if asset.path == destination {
             continue;

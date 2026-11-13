@@ -1,0 +1,38 @@
+{
+  "model": "string",
+  "params": {
+    "decay": 2.4,
+    "bright": 3200,
+    "position": 0.33,
+    "body": [
+      130,
+      270,
+      520,
+      1050
+    ],
+    "body_mix": 0.28
+  },
+  "pitched": true,
+  "category": "Strings",
+  "id": "concert-harp",
+  "seed_base": 660000,
+  "seconds": 10,
+  "roots": [
+    24,
+    33,
+    41,
+    48,
+    55,
+    62,
+    69,
+    77,
+    86,
+    96
+  ],
+  "range": [
+    23,
+    103
+  ],
+  "audition": 60,
+  "highpass": 20
+}

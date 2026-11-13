@@ -1,6 +1,16 @@
 # Example instruments
 
-60 house instruments, each with a readable Instrument Module and an audition Project. Acoustic instruments generate sound in the native graph. Multisample instruments include original procedural PCM banks, key/velocity mappings and generation recipes. No downloaded reference recordings are included.
+92 instruments, each with a readable Instrument Module and an audition Project: 60 house instruments and a 32-piece orchestra. Acoustic instruments generate sound in the native graph. Multisample instruments include key/velocity mappings and the recipes that generate their original procedural PCM banks. No downloaded reference recordings are included.
+
+## Setup
+
+The multisample WAVs are generated rather than committed. From the repository root, generate them once after cloning, and again after pulling instrument changes:
+
+```bash
+uv run tools/instrument_assets/build.py --setup
+```
+
+It needs [uv](https://docs.astral.sh/uv/), which installs the pinned NumPy and SciPy, and checks every sample against the hash in its `assets.json`. Acoustic instruments need no media.
 
 ## Audition
 
@@ -12,7 +22,7 @@ crump --project examples/instruments/hollow-block publish --origin human --actor
 crump --project examples/instruments/hollow-block play
 ```
 
-Use `render --output renders/hollow-block` for an offline WAV. Each phrase includes soft/hard hits, short notes, repetition and, for pitched instruments, multiple registers. The Projects are instrument auditions; `check` additionally evaluates the separate Reference Musical Sketch contract.
+Use `render --output renders/hollow-block` for an offline WAV. To try everything at once, use the [instrument player](../../tools/instrument_player/README.md). Each phrase includes soft/hard hits, short notes, repetition and, for pitched instruments, multiple registers. The Projects are instrument auditions; `check` additionally evaluates the separate Reference Musical Sketch contract.
 
 ## Copy into a Project
 
@@ -22,19 +32,17 @@ The destination must use `crump 2`. This helper requires only Python's standard 
 python3 examples/instruments/copy_instrument.py hollow-block /path/to/my-song
 ```
 
-It copies the module and its media into `instruments/hollow-block/` and prints the import and asset declarations to paste into `project.crump`. It refuses to replace an existing instrument folder. The helper does not edit or publish your Project. Assign `instrument hollow-block` to a Track, then validate and publish through the normal Project workflow.
+It copies the module and its media into `instruments/hollow-block/` and prints the one `import` line to add before `project`. Multisample modules declare their own media, with paths relative to the module folder, so nothing else is pasted. It refuses to replace an existing instrument folder. The helper does not edit or publish your Project. Assign `instrument hollow-block` to a Track, then validate and publish through the normal Project workflow. Copying a folder by hand works the same way.
 
-For multisamples, paste both the import before `project` and the printed asset declarations inside `project`, before `song`. Media paths are relative to the destination Project root; hashes and globally unique asset IDs are preserved. You can also copy these files manually and adjust the paths in the example Project's declarations.
-
-Acoustic modules embed their profiles and require no media. They can also be exported or installed with the [module commands](../../docs/cli-and-agents.md). Multisample media must accompany its module; installing a module alone does not copy its assets.
+Acoustic modules embed their profiles and require no media. They can also be exported or installed with the [module commands](../../docs/cli-and-agents.md). A personal-library module is one file, so multisample modules, which own media, are imported from inside a Project instead.
 
 ## Playing and editing
 
-Start with the default Faceplate settings and a Track at 0 dB. Pitched multisamples cover MIDI 24–91 with eight roots and two velocity layers. Percussion banks map all keys, use two velocity layers and two round robins; C4 plays their original pitch. Native percussion ignores key tracking, while native keys and mallets track pitch.
+Start with the default Faceplate settings and a Track at 0 dB. House pitched multisamples cover MIDI 24–91 with eight roots and two velocity layers. Orchestral multisamples cover each instrument's playable range at sounding pitch with five to ten roots and two velocity layers. House percussion banks map all keys, use two velocity layers and two round robins; C4 plays their original pitch. Orchestral percussion instead stays within two semitones of its original pitch on every key from C2 to C#6. Native percussion ignores key tracking, while native keys and mallets track pitch.
 
-One-shot banks retain their natural decay after Note Off. Native bodies also ring independently of the gate. Voice stealing, the 30-second release ceiling and the Project's render range still bound tails. Raise polyphony only within resource admission. Dense chords or extreme control settings may need a lower Level.
+Bowed, blown, sung and organ instruments loop their sustain for as long as a note is held, then play a natural release; their zones use multisample `loop` regions. Note Off also starts an amplitude envelope whose Attack and Release are on their Faceplates. Other one-shot banks retain their natural decay after Note Off. Native bodies also ring independently of the gate. Voice stealing, the 30-second release ceiling and the Project's render range still bound tails. Raise polyphony only within resource admission. Dense chords or extreme control settings may need a lower Level.
 
-The [acoustic model reference](../../docs/native-acoustics.md) explains the native controls and profiles. [`tools/instrument_assets`](../../tools/instrument_assets/README.md) regenerates the PCM banks from numerical recipes with deterministic seeds. `assets.json` records file hashes, generator identity, roots, velocity, seeds and gain; `recipe.json` retains the source model and treatment.
+The [acoustic model reference](../../docs/native-acoustics.md) explains the native controls and profiles. [`tools/instrument_assets`](../../tools/instrument_assets/README.md) regenerates the PCM banks from numerical recipes with deterministic seeds. `assets.json` records file hashes, generator identity, roots, velocity, seeds and gain; `recipe.json` retains the source model and treatment. The bowed strings' recipes extend a shared family and name shared body curves in [`tools/instrument_assets/shared`](../../tools/instrument_assets/shared), whose hashes `assets.json` also records.
 
 ## Catalog
 
@@ -100,3 +108,35 @@ The [acoustic model reference](../../docs/native-acoustics.md) explains the nati
 | [Reverse Nylon](reverse-nylon/instrument.crump) | Resampling | Procedural multisample |
 | [Motor Vibes](motor-vibes/instrument.crump) | Resampling | Procedural multisample |
 | [Room Chop](room-chop/instrument.crump) | Resampling | Procedural multisample |
+| [Solo Violin](solo-violin/instrument.crump) | Strings | Procedural multisample |
+| [Viola](viola/instrument.crump) | Strings | Procedural multisample |
+| [Cello](cello/instrument.crump) | Strings | Procedural multisample |
+| [Contrabass](contrabass/instrument.crump) | Strings | Procedural multisample |
+| [String Section](string-section/instrument.crump) | Strings | Procedural multisample |
+| [Pizzicato Strings](pizzicato-strings/instrument.crump) | Strings | Procedural multisample |
+| [Concert Harp](concert-harp/instrument.crump) | Strings | Procedural multisample |
+| [Piccolo](piccolo/instrument.crump) | Woodwinds | Procedural multisample |
+| [Concert Flute](concert-flute/instrument.crump) | Woodwinds | Procedural multisample |
+| [Oboe](oboe/instrument.crump) | Woodwinds | Procedural multisample |
+| [Clarinet](clarinet/instrument.crump) | Woodwinds | Procedural multisample |
+| [Bassoon](bassoon/instrument.crump) | Woodwinds | Procedural multisample |
+| [Trumpet](trumpet/instrument.crump) | Brass | Procedural multisample |
+| [French Horn](french-horn/instrument.crump) | Brass | Procedural multisample |
+| [Tenor Trombone](tenor-trombone/instrument.crump) | Brass | Procedural multisample |
+| [Tuba](tuba/instrument.crump) | Brass | Procedural multisample |
+| [Brass Section](brass-section/instrument.crump) | Brass | Procedural multisample |
+| [Timpani](timpani/instrument.crump) | Orchestral percussion | Procedural multisample |
+| [Concert Bass Drum](concert-bass-drum/instrument.crump) | Orchestral percussion | Procedural multisample |
+| [Concert Snare](concert-snare/instrument.crump) | Orchestral percussion | Procedural multisample |
+| [Clash Cymbals](clash-cymbals/instrument.crump) | Orchestral percussion | Procedural multisample |
+| [Suspended Cymbal](suspended-cymbal/instrument.crump) | Orchestral percussion | Procedural multisample |
+| [Tam-tam](tam-tam/instrument.crump) | Orchestral percussion | Procedural multisample |
+| [Triangle](triangle/instrument.crump) | Orchestral percussion | Procedural multisample |
+| [Castanets](castanets/instrument.crump) | Orchestral percussion | Procedural multisample |
+| [Glockenspiel](glockenspiel/instrument.crump) | Tuned percussion | Procedural multisample |
+| [Xylophone](xylophone/instrument.crump) | Tuned percussion | Procedural multisample |
+| [Tubular Bells](tubular-bells/instrument.crump) | Tuned percussion | Procedural multisample |
+| [Celesta](celesta/instrument.crump) | Orchestral keys | Procedural multisample |
+| [Pipe Organ](pipe-organ/instrument.crump) | Orchestral keys | Procedural multisample |
+| [Harpsichord](harpsichord/instrument.crump) | Orchestral keys | Procedural multisample |
+| [Choir Aahs](choir-aahs/instrument.crump) | Voices | Procedural multisample |

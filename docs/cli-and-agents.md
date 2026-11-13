@@ -270,7 +270,7 @@ crump module list --json
 crump module inspect pulse-bass --json
 ```
 
-Module install/export validates before atomically replacing the destination. Names are restricted to ASCII letters, digits, `_`, and `-`. Project-local imports remain relative and source-readable; personal-library use is explicit as `import "library:name"`. Active snapshots contain the exact imported bytes, so later library changes do not alter playback or rendering of the committed revision.
+Module install/export validates before atomically replacing the destination. Names are restricted to ASCII letters, digits, `_`, and `-`. Project-local imports remain relative and source-readable; personal-library use is explicit as `import "library:name"`. A library module is one source file, so install rejects a module that owns media assets (`CRL010`); import such a module from inside the Project with its media instead. Active snapshots contain the exact imported bytes, so later library changes do not alter playback or rendering of the committed revision.
 
 ## Rendering
 

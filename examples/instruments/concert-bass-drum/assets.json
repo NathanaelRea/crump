@@ -1,0 +1,56 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "75b9ad03d8fdf3ec9bed1c80ed9c7d273acc08e94761d8cb3dbdf959c13d4c5a",
+  "recipe_sha256": "03030aa1a35ac657bf1f6727906b2672425bb1374545809189927f06f2881181",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "concert-bass-drum-60-soft-0",
+      "path": "media/60-soft-0.wav",
+      "sha256": "a782cc8c7c8c2e1f643b48074415d905cb21baadeecc8fb39212881fc79e27d0",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 780600,
+      "normalization_gain": 0.525899012418333
+    },
+    {
+      "id": "concert-bass-drum-60-hard-0",
+      "path": "media/60-hard-0.wav",
+      "sha256": "29cb504bd90ac29ace27e728bca514931c238c48cd5d2aff9efba29ee17c0caa",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 780600,
+      "normalization_gain": 0.525899012418333
+    },
+    {
+      "id": "concert-bass-drum-60-soft-1",
+      "path": "media/60-soft-1.wav",
+      "sha256": "f9b68212b561546a8c9f47daa5ca3a8d8f816b968413183c02be7da541a617fa",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 780601,
+      "normalization_gain": 0.524570455774977
+    },
+    {
+      "id": "concert-bass-drum-60-hard-1",
+      "path": "media/60-hard-1.wav",
+      "sha256": "313b447abd470b4d1169168594f1961c6730129eeae2870ba1f6eb7c755acdc7",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 780601,
+      "normalization_gain": 0.524570455774977
+    }
+  ]
+}

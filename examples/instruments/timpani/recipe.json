@@ -1,0 +1,29 @@
+{
+  "model": "timpani",
+  "params": {
+    "decay": 1.5,
+    "contact": 0.0028,
+    "bend": 0.006,
+    "felt": 0.02
+  },
+  "pitched": true,
+  "category": "Orchestral percussion",
+  "id": "timpani",
+  "seed_base": 770000,
+  "seconds": 8,
+  "roots": [
+    36,
+    41,
+    46,
+    51,
+    56,
+    61
+  ],
+  "range": [
+    33,
+    64
+  ],
+  "audition": 45,
+  "highpass": 20,
+  "phrase": "timpani"
+}

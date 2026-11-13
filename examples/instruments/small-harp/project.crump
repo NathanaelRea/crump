@@ -5,54 +5,6 @@ project "Small Harp" {
   seed 380112
   sample_rate 48000
   render_tail 2s
-  asset small-harp-36-soft-0 "Small Harp" wav "media/36-soft-0.wav" sha256 "62e769bd05eb69fd78bb4b06e341888f50008ce9aaf168cf9431dc79c8dfd7d7" {
-    usage multisample
-  }
-  asset small-harp-36-hard-0 "Small Harp" wav "media/36-hard-0.wav" sha256 "64a742ffb7f63e71acdc2504349266eb0ac66b4be6ec3b56b39677d891736cce" {
-    usage multisample
-  }
-  asset small-harp-43-soft-0 "Small Harp" wav "media/43-soft-0.wav" sha256 "909833d7a0e259f6695f94004c254d7cd392f6a3f9c45176291bf78929c232c3" {
-    usage multisample
-  }
-  asset small-harp-43-hard-0 "Small Harp" wav "media/43-hard-0.wav" sha256 "65f2396ef90cc6377bf4dbb01d9d116345db3260d311c17f47723396369dbf6d" {
-    usage multisample
-  }
-  asset small-harp-48-soft-0 "Small Harp" wav "media/48-soft-0.wav" sha256 "7094072b3b71bb48b8b81c2d24733b651efcfd18e2b8fc8be7fb0a4349121252" {
-    usage multisample
-  }
-  asset small-harp-48-hard-0 "Small Harp" wav "media/48-hard-0.wav" sha256 "c4a2165b99e30b4bfa156573281491f87f6d9a08580a1d5fa91c66ac48e5b84a" {
-    usage multisample
-  }
-  asset small-harp-55-soft-0 "Small Harp" wav "media/55-soft-0.wav" sha256 "dfdd8e715a2635bf986c1b6dd2366560ae9caeb27270871b6d309f0efc274a65" {
-    usage multisample
-  }
-  asset small-harp-55-hard-0 "Small Harp" wav "media/55-hard-0.wav" sha256 "6fa2a6cf2e9b006739a26e42175b3269e2ffc63c3d3694a1d75ff2621e1e143a" {
-    usage multisample
-  }
-  asset small-harp-60-soft-0 "Small Harp" wav "media/60-soft-0.wav" sha256 "850b9fae800bba1161d6dfe4ac5735e208a004534e0a2b9853a6d0030d262622" {
-    usage multisample
-  }
-  asset small-harp-60-hard-0 "Small Harp" wav "media/60-hard-0.wav" sha256 "520146f965af586855c1e9f3c80aae1a5324d5ba767fe961705b67911a250713" {
-    usage multisample
-  }
-  asset small-harp-67-soft-0 "Small Harp" wav "media/67-soft-0.wav" sha256 "0c8901e73f9a28279131e6b23368830e2d8d003affb0e504768e0e317aba5ce6" {
-    usage multisample
-  }
-  asset small-harp-67-hard-0 "Small Harp" wav "media/67-hard-0.wav" sha256 "eccb2b1a5126d45684f2c578dd27d646995936a7a2764b6c17cc0ede1ac910dd" {
-    usage multisample
-  }
-  asset small-harp-72-soft-0 "Small Harp" wav "media/72-soft-0.wav" sha256 "ce767e0bf47123b36a5c83bc05a2fd7d9e269092c7c7508cfee0a44d05096c4f" {
-    usage multisample
-  }
-  asset small-harp-72-hard-0 "Small Harp" wav "media/72-hard-0.wav" sha256 "24949e0d15022b51813542af3dfbe3fccf1d3859988223e9d6cdfced3e2cb42f" {
-    usage multisample
-  }
-  asset small-harp-79-soft-0 "Small Harp" wav "media/79-soft-0.wav" sha256 "dd4e7114d50a0e0c661748d077c2b19775fcb5320529b95435d62a49daa2b5c6" {
-    usage multisample
-  }
-  asset small-harp-79-hard-0 "Small Harp" wav "media/79-hard-0.wav" sha256 "54ea1335ae57f6ed1c52ddd460f724317ae47c8d88661189e13dbced47995986" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

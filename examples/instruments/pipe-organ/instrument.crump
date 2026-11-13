@@ -1,0 +1,108 @@
+crump-module 2
+instrument pipe-organ "Pipe Organ" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.2s 0.2s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z36-soft-0 asset pipe-organ-36-soft-0 keys E1 D#2 velocity 0 0.65 root C2 loop 48000 123667 crossfade 8160
+      zone z36-hard-0 asset pipe-organ-36-hard-0 keys E1 D#2 velocity 0.65 1 root C2 loop 48000 123667 crossfade 8160
+      zone z43-soft-0 asset pipe-organ-43-soft-0 keys E2 A#2 velocity 0 0.65 root G2 loop 48000 125789 crossfade 8160
+      zone z43-hard-0 asset pipe-organ-43-hard-0 keys E2 A#2 velocity 0.65 1 root G2 loop 48000 125789 crossfade 8160
+      zone z50-soft-0 asset pipe-organ-50-soft-0 keys B2 F3 velocity 0 0.65 root D3 loop 48000 125561 crossfade 8160
+      zone z50-hard-0 asset pipe-organ-50-hard-0 keys B2 F3 velocity 0.65 1 root D3 loop 48000 125561 crossfade 8160
+      zone z57-soft-0 asset pipe-organ-57-soft-0 keys F#3 C4 velocity 0 0.65 root A3 loop 48000 123809 crossfade 8160
+      zone z57-hard-0 asset pipe-organ-57-hard-0 keys F#3 C4 velocity 0.65 1 root A3 loop 48000 123809 crossfade 8160
+      zone z64-soft-0 asset pipe-organ-64-soft-0 keys C#4 G4 velocity 0 0.65 root E4 loop 48000 123721 crossfade 8160
+      zone z64-hard-0 asset pipe-organ-64-hard-0 keys C#4 G4 velocity 0.65 1 root E4 loop 48000 123721 crossfade 8160
+      zone z71-soft-0 asset pipe-organ-71-soft-0 keys G#4 D5 velocity 0 0.65 root B4 loop 48000 123748 crossfade 8160
+      zone z71-hard-0 asset pipe-organ-71-hard-0 keys G#4 D5 velocity 0.65 1 root B4 loop 48000 123748 crossfade 8160
+      zone z78-soft-0 asset pipe-organ-78-soft-0 keys D#5 A5 velocity 0 0.65 root F#5 loop 48000 125994 crossfade 8160
+      zone z78-hard-0 asset pipe-organ-78-hard-0 keys D#5 A5 velocity 0.65 1 root F#5 loop 48000 125994 crossfade 8160
+      zone z85-soft-0 asset pipe-organ-85-soft-0 keys A#5 E6 velocity 0 0.65 root C#6 loop 48000 125958 crossfade 8160
+      zone z85-hard-0 asset pipe-organ-85-hard-0 keys A#5 E6 velocity 0.65 1 root C#6 loop 48000 125958 crossfade 8160
+      zone z92-soft-0 asset pipe-organ-92-soft-0 keys F6 C7 velocity 0 0.65 root G#6 loop 48000 123635 crossfade 8160
+      zone z92-hard-0 asset pipe-organ-92-hard-0 keys F6 C7 velocity 0.65 1 root G#6 loop 48000 123635 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset pipe-organ-36-soft-0 "Pipe Organ" wav "media/36-soft-0.wav" sha256 "d68b7161bab02bd09eed4b6735c1d6d74bba75e7d75e32c112e0960e0fbec7e7" {
+  usage multisample
+}
+asset pipe-organ-36-hard-0 "Pipe Organ" wav "media/36-hard-0.wav" sha256 "f23688e2fba06f447dc0b3980f5ab2d2a674cc3379bafa168d38a0e1a4444a22" {
+  usage multisample
+}
+asset pipe-organ-43-soft-0 "Pipe Organ" wav "media/43-soft-0.wav" sha256 "c816d967c95ffffd4d5e7ca31cf8f1283801fdbdc9d68f7069769b07233c916f" {
+  usage multisample
+}
+asset pipe-organ-43-hard-0 "Pipe Organ" wav "media/43-hard-0.wav" sha256 "6b30ea5932b8b5508b1930e137c01371dee0eb648d6d40c7850051e187906c68" {
+  usage multisample
+}
+asset pipe-organ-50-soft-0 "Pipe Organ" wav "media/50-soft-0.wav" sha256 "c1f0ffe69f864578be1746c75a4be34a94160ce7017f4a8ab1cbb62616b569cd" {
+  usage multisample
+}
+asset pipe-organ-50-hard-0 "Pipe Organ" wav "media/50-hard-0.wav" sha256 "b10f81dc94fdaa776fd38413f01e97bd148260a317fef9bac05400193bd51ca7" {
+  usage multisample
+}
+asset pipe-organ-57-soft-0 "Pipe Organ" wav "media/57-soft-0.wav" sha256 "356994ce61e29f435910b4e9949f00b944e84a0e28f8f00e7709ec6ef745979e" {
+  usage multisample
+}
+asset pipe-organ-57-hard-0 "Pipe Organ" wav "media/57-hard-0.wav" sha256 "a04bdd3998b02cea7087653e2e111ec5472a136fd431acb667e1bacb66fa3b36" {
+  usage multisample
+}
+asset pipe-organ-64-soft-0 "Pipe Organ" wav "media/64-soft-0.wav" sha256 "f6b1352169ce5c808cec0a488a9b66c79376898ad99ecf0dc8414572d63f8cae" {
+  usage multisample
+}
+asset pipe-organ-64-hard-0 "Pipe Organ" wav "media/64-hard-0.wav" sha256 "f08da34dbc6d7f795fea8cf7b6d6dc1f0f6bf85cd290d29cbd8f20e37c5c110a" {
+  usage multisample
+}
+asset pipe-organ-71-soft-0 "Pipe Organ" wav "media/71-soft-0.wav" sha256 "83c879217c0847094e5999f86c56711c7db58e86b71baf65574c13cb217d2af2" {
+  usage multisample
+}
+asset pipe-organ-71-hard-0 "Pipe Organ" wav "media/71-hard-0.wav" sha256 "ae76d29fcce24360276c0acc9c2060bfec01fa48dd91718b2a9c2011a59c1515" {
+  usage multisample
+}
+asset pipe-organ-78-soft-0 "Pipe Organ" wav "media/78-soft-0.wav" sha256 "f957c83785ba50597dbe304b989afc4db855840965a0c78aa83b4e7a004cf26c" {
+  usage multisample
+}
+asset pipe-organ-78-hard-0 "Pipe Organ" wav "media/78-hard-0.wav" sha256 "fdb10f732b8c7fcb45dfb106243a429df965c3a8f1184e1c2bd3d4bd3159a7ce" {
+  usage multisample
+}
+asset pipe-organ-85-soft-0 "Pipe Organ" wav "media/85-soft-0.wav" sha256 "cb2586c7dfdba314d819f1e867778eedf844dc3d7bb3da1fee0d3b5e5e72f75b" {
+  usage multisample
+}
+asset pipe-organ-85-hard-0 "Pipe Organ" wav "media/85-hard-0.wav" sha256 "d7523815325ddcc88294cf578f87ebc0334c075433848068b63fa5d3b060e5be" {
+  usage multisample
+}
+asset pipe-organ-92-soft-0 "Pipe Organ" wav "media/92-soft-0.wav" sha256 "962f2e3a1274b48d215a8eb3158618e539dd67a69bc03a409de8859c9ad74d83" {
+  usage multisample
+}
+asset pipe-organ-92-hard-0 "Pipe Organ" wav "media/92-hard-0.wav" sha256 "76fc64cb64f93c8da0eafd7f0dd6effd0c6bde9f68494055213e5df6f203f872" {
+  usage multisample
+}

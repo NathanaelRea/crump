@@ -19,10 +19,10 @@ instrument dry-birch "Dry Birch" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset dry-birch-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 68816 gain 0db pan 0
-      zone z60-hard-0 asset dry-birch-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 72679 gain 0db pan 0
-      zone z60-soft-1 asset dry-birch-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 68583 gain 0db pan 0
-      zone z60-hard-1 asset dry-birch-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 72341 gain 0db pan 0
+      zone z60-soft-0 asset dry-birch-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset dry-birch-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset dry-birch-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset dry-birch-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument dry-birch "Dry Birch" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset dry-birch-60-soft-0 "Dry Birch" wav "media/60-soft-0.wav" sha256 "34d57f04088fe4e49f172a9c464661e26961c255e8ca941d3ee8e91a2f2007eb" {
+  usage multisample
+}
+asset dry-birch-60-hard-0 "Dry Birch" wav "media/60-hard-0.wav" sha256 "85f405f5b67c53f6292f53af89a5f3af951a2d0e79908fdf814dc2e4c4f9dfa2" {
+  usage multisample
+}
+asset dry-birch-60-soft-1 "Dry Birch" wav "media/60-soft-1.wav" sha256 "4c2bb9a3189e91ba9254c14155179c44d8a5405374e4d22a60ba26cb0af9590a" {
+  usage multisample
+}
+asset dry-birch-60-hard-1 "Dry Birch" wav "media/60-hard-1.wav" sha256 "c90b0af504103370ff9dfa6df7ee76a05447fa298412f2a0f8c4b7f62bbc3705" {
+  usage multisample
 }

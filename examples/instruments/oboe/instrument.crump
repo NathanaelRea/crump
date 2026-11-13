@@ -1,0 +1,92 @@
+crump-module 2
+instrument oboe "Oboe" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z58-soft-0 asset oboe-58-soft-0 keys A3 C4 velocity 0 0.65 root A#3 loop 48000 125933 crossfade 8160
+      zone z58-hard-0 asset oboe-58-hard-0 keys A3 C4 velocity 0.65 1 root A#3 loop 48000 125933 crossfade 8160
+      zone z63-soft-0 asset oboe-63-soft-0 keys C#4 F4 velocity 0 0.65 root D#4 loop 48000 123650 crossfade 8160
+      zone z63-hard-0 asset oboe-63-hard-0 keys C#4 F4 velocity 0.65 1 root D#4 loop 48000 123647 crossfade 8160
+      zone z68-soft-0 asset oboe-68-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4 loop 48000 125466 crossfade 8160
+      zone z68-hard-0 asset oboe-68-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4 loop 48000 125350 crossfade 8160
+      zone z73-soft-0 asset oboe-73-soft-0 keys B4 D#5 velocity 0 0.65 root C#5 loop 48000 125983 crossfade 8160
+      zone z73-hard-0 asset oboe-73-hard-0 keys B4 D#5 velocity 0.65 1 root C#5 loop 48000 125976 crossfade 8160
+      zone z78-soft-0 asset oboe-78-soft-0 keys E5 A5 velocity 0 0.65 root F#5 loop 48000 123636 crossfade 8160
+      zone z78-hard-0 asset oboe-78-hard-0 keys E5 A5 velocity 0.65 1 root F#5 loop 48000 124688 crossfade 8160
+      zone z84-soft-0 asset oboe-84-soft-0 keys A#5 D#6 velocity 0 0.65 root C6 loop 48000 125967 crossfade 8160
+      zone z84-hard-0 asset oboe-84-hard-0 keys A#5 D#6 velocity 0.65 1 root C6 loop 48000 125875 crossfade 8160
+      zone z90-soft-0 asset oboe-90-soft-0 keys E6 A#6 velocity 0 0.65 root F#6 loop 48000 125981 crossfade 8160
+      zone z90-hard-0 asset oboe-90-hard-0 keys E6 A#6 velocity 0.65 1 root F#6 loop 48000 125981 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset oboe-58-soft-0 "Oboe" wav "media/58-soft-0.wav" sha256 "fe4e458ba97ca1920ef43d39a584ba8876567faa672fd85b7f1189297e961b14" {
+  usage multisample
+}
+asset oboe-58-hard-0 "Oboe" wav "media/58-hard-0.wav" sha256 "d9790a6d45734018097041d495fbfe229807e131d206d44df34ecf104482dd95" {
+  usage multisample
+}
+asset oboe-63-soft-0 "Oboe" wav "media/63-soft-0.wav" sha256 "98b2e5e5e4310b3b329aa7529ccbea50346731bc89b1461da3202b24460c6bf6" {
+  usage multisample
+}
+asset oboe-63-hard-0 "Oboe" wav "media/63-hard-0.wav" sha256 "96e719967d1e9cdfae1fe972d9598d6bb82a2c58d6fd40ed68cce0de97f4d9f2" {
+  usage multisample
+}
+asset oboe-68-soft-0 "Oboe" wav "media/68-soft-0.wav" sha256 "cc428d3d98afd9813084d06d0cb8c0f99ab1bb8d91597731e1e68a89df8ac103" {
+  usage multisample
+}
+asset oboe-68-hard-0 "Oboe" wav "media/68-hard-0.wav" sha256 "0e270f9065253c3a2286fe2724be8953c52a8a49b2a1dedd22c48988f5b1403b" {
+  usage multisample
+}
+asset oboe-73-soft-0 "Oboe" wav "media/73-soft-0.wav" sha256 "126bcb8e8a75a7cc55aa3edb609f715fd24ddd73e659efbcdea59eb1f71df4d8" {
+  usage multisample
+}
+asset oboe-73-hard-0 "Oboe" wav "media/73-hard-0.wav" sha256 "55bfa0932cc11435d33bfbb161a56f5bef569ccc9fb4ef4de681b4eff01b279d" {
+  usage multisample
+}
+asset oboe-78-soft-0 "Oboe" wav "media/78-soft-0.wav" sha256 "0643670637de8745f3ba8d4f12c417558ab5cf3483a7769ebcbb929269c5e5c6" {
+  usage multisample
+}
+asset oboe-78-hard-0 "Oboe" wav "media/78-hard-0.wav" sha256 "95ddccb56a5724686ef29bb835d8dd055338c59a50fd01e0d9bdbbe2978bc3e1" {
+  usage multisample
+}
+asset oboe-84-soft-0 "Oboe" wav "media/84-soft-0.wav" sha256 "117fdf6633fe81981ad772e261546a73b1b9a8159096de04106f06b76aeb0322" {
+  usage multisample
+}
+asset oboe-84-hard-0 "Oboe" wav "media/84-hard-0.wav" sha256 "978479ad6c1bacab1346cfa12346ff87c6f4f48dda977cd8fe12a96ea1dd8f0e" {
+  usage multisample
+}
+asset oboe-90-soft-0 "Oboe" wav "media/90-soft-0.wav" sha256 "74b9850a53176d564ca9ac57e3199a3722de37b0c5e0657fec86b07da3ad0a25" {
+  usage multisample
+}
+asset oboe-90-hard-0 "Oboe" wav "media/90-hard-0.wav" sha256 "6f110fb2f65f2b10244492dc556a976eb3ec02c6532fec56f526ce6e81ffc8af" {
+  usage multisample
+}

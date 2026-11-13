@@ -5,54 +5,6 @@ project "Slap String" {
   seed 277165
   sample_rate 48000
   render_tail 2s
-  asset slap-string-36-soft-0 "Slap String" wav "media/36-soft-0.wav" sha256 "6577c499999803023e1f39a9482d07a78eb1d93689ce14e37c2cd5b7dac4ce49" {
-    usage multisample
-  }
-  asset slap-string-36-hard-0 "Slap String" wav "media/36-hard-0.wav" sha256 "0578c871d2f92d499b770a5fb3236abaf97ff1832e7187e22e49185e2bcb9e31" {
-    usage multisample
-  }
-  asset slap-string-43-soft-0 "Slap String" wav "media/43-soft-0.wav" sha256 "7a2f7251c44c1111619a351d6c2a5c699338496803e3ed02cedcef5c53b2e862" {
-    usage multisample
-  }
-  asset slap-string-43-hard-0 "Slap String" wav "media/43-hard-0.wav" sha256 "70c0e14a7463073d1b3051a7aa284ec53062033676b22a76f277c2d70b9d9c33" {
-    usage multisample
-  }
-  asset slap-string-48-soft-0 "Slap String" wav "media/48-soft-0.wav" sha256 "3b5570a02b9651cc2ce2d21167b42a67d351e15565b3b31ed235316c3c628676" {
-    usage multisample
-  }
-  asset slap-string-48-hard-0 "Slap String" wav "media/48-hard-0.wav" sha256 "37a6cc5bdde193e7ca3161002b908ca53879ccfdd24e4c4e7981e8fddbd9e1ae" {
-    usage multisample
-  }
-  asset slap-string-55-soft-0 "Slap String" wav "media/55-soft-0.wav" sha256 "60c1e743800dd5925afe399f727fe853a7f0c23e328d0a2397c1e3e2a2c0fa7d" {
-    usage multisample
-  }
-  asset slap-string-55-hard-0 "Slap String" wav "media/55-hard-0.wav" sha256 "17aebb1174508a43a3100f644cb152ab9a6a45a744796a7ba6bd1221fdb9d8bb" {
-    usage multisample
-  }
-  asset slap-string-60-soft-0 "Slap String" wav "media/60-soft-0.wav" sha256 "fbea8d6ca37304ba81174b563f4b153b4e35b1bc888b5c79b19c2fc31d51a9a5" {
-    usage multisample
-  }
-  asset slap-string-60-hard-0 "Slap String" wav "media/60-hard-0.wav" sha256 "657bd8a5f594b5f4483da8c7fc76901e6a5cf6f2327f1c174c5cf8e97b38e142" {
-    usage multisample
-  }
-  asset slap-string-67-soft-0 "Slap String" wav "media/67-soft-0.wav" sha256 "ab7634d87ca58ace6d23f43c7c691f9038730c7f847c14337f086d4f53c76858" {
-    usage multisample
-  }
-  asset slap-string-67-hard-0 "Slap String" wav "media/67-hard-0.wav" sha256 "5e83551c4a965d032b98a5237f0e255138337c4a2599ee1126414d512f5fc315" {
-    usage multisample
-  }
-  asset slap-string-72-soft-0 "Slap String" wav "media/72-soft-0.wav" sha256 "0e9a7c54b5103a2f6bdb3911825daa583d403990eece3a5f08772af95d88c11b" {
-    usage multisample
-  }
-  asset slap-string-72-hard-0 "Slap String" wav "media/72-hard-0.wav" sha256 "c8205f4ce80a04e5f6f9d4dcf9b4a84629bd21e7011ec29a8387337b4105402f" {
-    usage multisample
-  }
-  asset slap-string-79-soft-0 "Slap String" wav "media/79-soft-0.wav" sha256 "a409b7c53bc13de01f7c82ef8c08d261cfbeda70aa0afeac5e38557683d98452" {
-    usage multisample
-  }
-  asset slap-string-79-hard-0 "Slap String" wav "media/79-hard-0.wav" sha256 "8e3ebc78eac58f0c2050a6ae56e451152dedc7bd04561babc614dea214b21366" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

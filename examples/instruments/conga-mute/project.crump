@@ -5,18 +5,6 @@ project "Conga Mute" {
   seed 142542
   sample_rate 48000
   render_tail 2s
-  asset conga-mute-60-soft-0 "Conga Mute" wav "media/60-soft-0.wav" sha256 "7c6ecfd354fc48680622f8f3e8d983cccaffe36c40eff117ed58605d1e028a5a" {
-    usage multisample
-  }
-  asset conga-mute-60-hard-0 "Conga Mute" wav "media/60-hard-0.wav" sha256 "c02646075d0d2c558234d90717258964cc84b9cd2677b0ca577a9eb017f5dbfb" {
-    usage multisample
-  }
-  asset conga-mute-60-soft-1 "Conga Mute" wav "media/60-soft-1.wav" sha256 "39ba3dd988013a243784086d0bab093759d3c90516e0c5897facb3a9c567f751" {
-    usage multisample
-  }
-  asset conga-mute-60-hard-1 "Conga Mute" wav "media/60-hard-1.wav" sha256 "3281cf937306462da7dad4b9f34f7d26c4841d6d76202f67e94c6c2f8c3f4439" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

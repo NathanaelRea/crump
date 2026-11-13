@@ -1,0 +1,85 @@
+{
+  "model": "sustained",
+  "params": {
+    "slope": [
+      0.75,
+      0.55
+    ],
+    "gamma": 0.5,
+    "attack": [
+      0.09,
+      0.045
+    ],
+    "vibrato": [
+      5.0,
+      0,
+      3,
+      0.5,
+      0.5
+    ],
+    "drift": 1.5,
+    "scoop": [
+      -20,
+      0.04
+    ],
+    "formants": [
+      [
+        480,
+        1.4,
+        1.0
+      ],
+      [
+        900,
+        2,
+        0.4
+      ]
+    ],
+    "floor": 0.1,
+    "rolloff": [
+      1700,
+      3
+    ],
+    "shimmer": 0.012,
+    "shimmer_rate": 6,
+    "swell": 0.025,
+    "noise": [
+      0.006,
+      0.12,
+      0.02
+    ],
+    "noise_band": [
+      300,
+      6000
+    ],
+    "noise_comb": 0.7,
+    "taper": 0.5,
+    "low_cut": 140
+  },
+  "pitched": true,
+  "category": "Brass",
+  "id": "french-horn",
+  "seed_base": 730000,
+  "seconds": 3.2,
+  "loop": [
+    1.0,
+    2.6,
+    0.17
+  ],
+  "roots": [
+    41,
+    46,
+    51,
+    56,
+    61,
+    66,
+    71,
+    76
+  ],
+  "range": [
+    38,
+    79
+  ],
+  "release": 0.25,
+  "audition": 53,
+  "highpass": 24
+}

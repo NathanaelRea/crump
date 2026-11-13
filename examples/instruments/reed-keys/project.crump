@@ -5,54 +5,6 @@ project "Reed Keys" {
   seed 340517
   sample_rate 48000
   render_tail 2s
-  asset reed-keys-36-soft-0 "Reed Keys" wav "media/36-soft-0.wav" sha256 "33a73aa03253fac9f75562d5816ecef8fa7d97aa22caff6532a05e82855512fc" {
-    usage multisample
-  }
-  asset reed-keys-36-hard-0 "Reed Keys" wav "media/36-hard-0.wav" sha256 "8a20efceb5c0d1609054ac238180bbe1ce95e3b06dcb42d3126ae631a017f69f" {
-    usage multisample
-  }
-  asset reed-keys-43-soft-0 "Reed Keys" wav "media/43-soft-0.wav" sha256 "07a1edb4499c6ba41f57632e02a676778e57d02e47a226caca5d0c913b1f6e50" {
-    usage multisample
-  }
-  asset reed-keys-43-hard-0 "Reed Keys" wav "media/43-hard-0.wav" sha256 "15a18e227a1107eac76351444945e679a3d280c78f77fbd4af14a276744a1da0" {
-    usage multisample
-  }
-  asset reed-keys-48-soft-0 "Reed Keys" wav "media/48-soft-0.wav" sha256 "06264a4b995c59401a0184569c83208d391c9ea2efda41f52f25694f5143573b" {
-    usage multisample
-  }
-  asset reed-keys-48-hard-0 "Reed Keys" wav "media/48-hard-0.wav" sha256 "deae3fbdea978fdf498aa970ba1fb9d0085d00c0886cd06e6adc2535abb527e9" {
-    usage multisample
-  }
-  asset reed-keys-55-soft-0 "Reed Keys" wav "media/55-soft-0.wav" sha256 "eb1f232887ce2e0215f4a5e80dd567c4c17de441b812e26a24cd3e88910c6f50" {
-    usage multisample
-  }
-  asset reed-keys-55-hard-0 "Reed Keys" wav "media/55-hard-0.wav" sha256 "a4b4607c8d1f25fbca8293d4d654a9e3be4605d61968338146931916490bdb80" {
-    usage multisample
-  }
-  asset reed-keys-60-soft-0 "Reed Keys" wav "media/60-soft-0.wav" sha256 "40ce955be413d22a8375000c3ffe77946ae26bdc4bb25f5d635a8dbe301e9959" {
-    usage multisample
-  }
-  asset reed-keys-60-hard-0 "Reed Keys" wav "media/60-hard-0.wav" sha256 "494c5ee5dee8aa76965abd298b8e792879bd74c1a6786bb8f126006924c2c71e" {
-    usage multisample
-  }
-  asset reed-keys-67-soft-0 "Reed Keys" wav "media/67-soft-0.wav" sha256 "8037dfe17684b5e253e8bb23bbce1d78562f9a346ec7229b5dad2b776dcb6652" {
-    usage multisample
-  }
-  asset reed-keys-67-hard-0 "Reed Keys" wav "media/67-hard-0.wav" sha256 "d76af4858b5f47c927fad8e920d3b6a1fe1484cd2478def1e249b2b34a0fada8" {
-    usage multisample
-  }
-  asset reed-keys-72-soft-0 "Reed Keys" wav "media/72-soft-0.wav" sha256 "416bae2107e101d9461f46eb255fdff1b280c67738828523ff891ca60407a284" {
-    usage multisample
-  }
-  asset reed-keys-72-hard-0 "Reed Keys" wav "media/72-hard-0.wav" sha256 "a0f65d905e9426702ff935a6d322164e4eff8f86372f271d6c255f76eaa2fd96" {
-    usage multisample
-  }
-  asset reed-keys-79-soft-0 "Reed Keys" wav "media/79-soft-0.wav" sha256 "ed54dfaf0f6531f1f61d3ca9c23a3e16a5857faa2f17e3f949da240ea75852f6" {
-    usage multisample
-  }
-  asset reed-keys-79-hard-0 "Reed Keys" wav "media/79-hard-0.wav" sha256 "ed0c2983a6d0892adbb1b5cab69e000bf98db9dbc6ad144f679d3601aecc25cd" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

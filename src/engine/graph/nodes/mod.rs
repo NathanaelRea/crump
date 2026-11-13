@@ -138,18 +138,7 @@ pub(super) fn authored_node_work_units(instrument: &Instrument, node: &GraphNode
                 .clamp(1.0, MAX_SPECTRAL_PEAKS as f64) as u64
                 * 8
         }
-        NodeKind::Multisample => (node
-            .directives
-            .iter()
-            .filter(|directive| {
-                directive
-                    .tokens
-                    .first()
-                    .is_some_and(|token| token.value == "zone")
-            })
-            .count() as u64)
-            .max(1)
-            .saturating_mul(8),
+        NodeKind::Multisample => multisample_work_units(node),
         NodeKind::StereoFilter => match node.setting("model") {
             Some(SettingValue::Text(model)) if model == "ladder_drive" => 16,
             _ => 2,
@@ -159,6 +148,47 @@ pub(super) fn authored_node_work_units(instrument: &Instrument, node: &GraphNode
         }
         _ => 1,
     }
+}
+
+/// Per-frame multisample work: every zone costs one inactive-cursor check, and
+/// each round-robin group can play at most one zone at once. Playback is charged
+/// for the most groups any single key can sound. Unparseable keys fall back to
+/// charging every zone as playing.
+fn multisample_work_units(node: &GraphNode) -> u64 {
+    let zones = node
+        .directives
+        .iter()
+        .filter(|directive| {
+            directive
+                .tokens
+                .first()
+                .is_some_and(|token| token.value == "zone")
+        })
+        .collect::<Vec<_>>();
+    let mut spans = Vec::with_capacity(zones.len());
+    for zone in &zones {
+        let keys = zone.zone_clauses().and_then(|zone| {
+            let low = parse_pitch(&zone.keys[0].value).ok()?;
+            let high = parse_pitch(&zone.keys[1].value).ok()?;
+            Some((low, high, (zone.layer_id(), zone.round_robin_group())))
+        });
+        let Some(span) = keys else {
+            return (zones.len() as u64).max(1).saturating_mul(8);
+        };
+        spans.push(span);
+    }
+    let playing = (0..=127_u8)
+        .map(|key| {
+            spans
+                .iter()
+                .filter(|(low, high, _)| (*low..=*high).contains(&key))
+                .map(|(_, _, group)| group)
+                .collect::<BTreeSet<_>>()
+                .len() as u64
+        })
+        .max()
+        .unwrap_or(0);
+    (zones.len() as u64).saturating_add(playing.max(1).saturating_mul(8))
 }
 
 /// Returns heap storage allocated by one authored node state.
@@ -234,12 +264,16 @@ struct ParsedMultisampleZone {
     root_key: u8,
     layer: String,
     articulation: String,
+    /// Explicit group; empty for the layer's implicit group.
     round_robin: String,
-    round_robin_index: u16,
-    region_start: u64,
-    region_end: u64,
+    /// Explicit index; implicit-group zones use their authored order.
+    round_robin_index: Option<u16>,
+    /// Half-open original-source frames; `None` plays the whole asset.
+    region: Option<(u64, u64)>,
     gain_db: f64,
     pan: f64,
+    /// Optional `loop START END crossfade FRAMES` in original source frames.
+    loop_region: Option<(u64, u64, u64)>,
 }
 
 fn parse_sample_slices(node: &GraphNode) -> Result<Vec<ParsedSampleSlice>, EngineError> {
@@ -278,81 +312,100 @@ fn parse_multisample_zones(node: &GraphNode) -> Result<Vec<ParsedMultisampleZone
     node.directives
         .iter()
         .map(|directive| {
-            let tokens = &directive.tokens;
-            if !directive.children.is_empty()
-                || tokens.len() != 26
-                || tokens[0].value != "zone"
-                || tokens[2].value != "asset"
-                || tokens[4].value != "keys"
-                || tokens[7].value != "velocity"
-                || tokens[10].value != "root"
-                || tokens[12].value != "layer"
-                || tokens[14].value != "articulation"
-                || tokens[16].value != "round_robin"
-                || tokens[19].value != "region"
-                || tokens[22].value != "gain"
-                || tokens[24].value != "pan"
-            {
-                return Err(EngineError::Compile(
+            let zone = directive.zone_clauses().ok_or_else(|| {
+                EngineError::Compile(
                     "multisample zone directive does not match the stable zone schema".to_owned(),
-                ));
-            }
-            let parse_frame = |index: usize| {
-                tokens[index].value.parse::<u64>().map_err(|_| {
+                )
+            })?;
+            let parse_frame = |token: &crate::model::NodeDirectiveToken| {
+                token.value.parse::<u64>().map_err(|_| {
                     EngineError::Compile("multisample region frames must be unsigned".to_owned())
                 })
             };
-            let parse_velocity = |index: usize| {
-                Unit::Ratio
-                    .parse_value(&tokens[index].value)
-                    .map_err(|error| {
-                        EngineError::Compile(format!("invalid zone velocity: {error}"))
-                    })
+            let parse_velocity = |token: &crate::model::NodeDirectiveToken| {
+                Unit::Ratio.parse_value(&token.value).map_err(|error| {
+                    EngineError::Compile(format!("invalid zone velocity: {error}"))
+                })
             };
-            let low_key = parse_pitch(&tokens[5].value)
-                .map_err(|error| EngineError::Compile(error.to_string()))?;
-            let high_key = parse_pitch(&tokens[6].value)
-                .map_err(|error| EngineError::Compile(error.to_string()))?;
-            let root_key = parse_pitch(&tokens[11].value)
-                .map_err(|error| EngineError::Compile(error.to_string()))?;
-            let low_velocity = parse_velocity(8)?;
-            let high_velocity = parse_velocity(9)?;
-            let round_robin_index = tokens[18].value.parse::<u16>().map_err(|_| {
-                EngineError::Compile("round-robin index must be an unsigned integer".to_owned())
+            let pitch = |token: &crate::model::NodeDirectiveToken| {
+                parse_pitch(&token.value).map_err(|error| EngineError::Compile(error.to_string()))
+            };
+            let low_key = pitch(zone.keys[0])?;
+            let high_key = pitch(zone.keys[1])?;
+            let root_key = pitch(zone.root)?;
+            let (low_velocity, high_velocity) = match zone.velocity {
+                Some([low, high]) => (parse_velocity(low)?, parse_velocity(high)?),
+                None => (0.0, 1.0),
+            };
+            let round_robin_index = zone
+                .round_robin
+                .map(|[_, index]| {
+                    index.value.parse::<u16>().map_err(|_| {
+                        EngineError::Compile(
+                            "round-robin index must be an unsigned integer".to_owned(),
+                        )
+                    })
+                })
+                .transpose()?;
+            let region = zone
+                .region
+                .map(|[start, end]| Ok::<_, EngineError>((parse_frame(start)?, parse_frame(end)?)))
+                .transpose()?;
+            let gain_db = zone.gain.map_or(Ok(0.0), |token| {
+                Unit::Decibels
+                    .parse_value(&token.value)
+                    .map_err(|error| EngineError::Compile(error.to_string()))
             })?;
-            let region_start = parse_frame(20)?;
-            let region_end = parse_frame(21)?;
-            let gain_db = Unit::Decibels
-                .parse_value(&tokens[23].value)
-                .map_err(|error| EngineError::Compile(error.to_string()))?;
-            let pan = Unit::Pan
-                .parse_value(&tokens[25].value)
-                .map_err(|error| EngineError::Compile(error.to_string()))?;
+            let pan = zone.pan.map_or(Ok(0.0), |token| {
+                Unit::Pan
+                    .parse_value(&token.value)
+                    .map_err(|error| EngineError::Compile(error.to_string()))
+            })?;
+            let loop_region = zone
+                .loop_region
+                .map(|[start, end, crossfade]| {
+                    Ok::<_, EngineError>((
+                        parse_frame(start)?,
+                        parse_frame(end)?,
+                        parse_frame(crossfade)?,
+                    ))
+                })
+                .transpose()?;
+            let (region_start, region_end) = region.unwrap_or((0, u64::MAX));
             if low_key > high_key
                 || !(0.0..=1.0).contains(&low_velocity)
                 || !(low_velocity..=1.0).contains(&high_velocity)
                 || region_start >= region_end
+                || loop_region.is_some_and(|(start, end, crossfade)| {
+                    start < region_start
+                        || start >= end
+                        || end > region_end
+                        || crossfade.saturating_mul(2) > end - start
+                })
             {
                 return Err(EngineError::Compile(
-                    "multisample zone has an invalid key, velocity, or region range".to_owned(),
+                    "multisample zone has an invalid key, velocity, region, or loop range"
+                        .to_owned(),
                 ));
             }
             Ok(ParsedMultisampleZone {
-                id: tokens[1].value.clone(),
-                asset: tokens[3].value.clone(),
+                id: zone.id.value.clone(),
+                asset: zone.asset.value.clone(),
                 low_key,
                 high_key,
                 low_velocity,
                 high_velocity,
                 root_key,
-                layer: tokens[13].value.clone(),
-                articulation: tokens[15].value.clone(),
-                round_robin: tokens[17].value.clone(),
+                layer: zone.layer_id().to_owned(),
+                articulation: zone
+                    .articulation
+                    .map_or_else(|| "default".to_owned(), |token| token.value.clone()),
+                round_robin: zone.round_robin_group().to_owned(),
                 round_robin_index,
-                region_start,
-                region_end,
+                region,
                 gain_db,
                 pan,
+                loop_region,
             })
         })
         .collect()
@@ -520,6 +573,7 @@ enum NodeProgramKind {
     StereoToMono,
     StereoMixer(MixerConfig),
     StereoSum,
+    Sum,
     Filter(FilterConfig),
     StereoFilter(StereoFilterConfig),
     Amplifier(AmplifierConfig),
@@ -1048,15 +1102,29 @@ impl NodeProgram {
                             authored.id, authored.articulation
                         )));
                     }
-                    let minimum_frames = usize::try_from(authored.region_end).map_err(|_| {
+                    let last_frame = authored
+                        .region
+                        .map(|(_, end)| end)
+                        .or(authored.loop_region.map(|(_, end, _)| end))
+                        .unwrap_or(1);
+                    let minimum_frames = usize::try_from(last_frame).map_err(|_| {
                         EngineError::Compile("zone frame exceeds addressable storage".to_owned())
                     })?;
                     let source = compiled_sample_source(context, &authored.asset, minimum_frames)?;
                     let frame_scale =
                         f64::from(source.sample_rate()) / f64::from(source.source_sample_rate());
-                    let region_start = authored.region_start as f64 * frame_scale;
-                    let region_end = authored.region_end as f64 * frame_scale;
-                    if region_start >= region_end || region_end > source.len() as f64 + 1.0e-9 {
+                    let (region_start, region_end) = authored
+                        .region
+                        .map_or((0.0, source.len() as f64), |(start, end)| {
+                            (start as f64 * frame_scale, end as f64 * frame_scale)
+                        });
+                    let loop_end = authored
+                        .loop_region
+                        .map_or(0.0, |(_, end, _)| end as f64 * frame_scale);
+                    if region_start >= region_end
+                        || region_end > source.len() as f64 + 1.0e-9
+                        || loop_end > region_end + 1.0e-9
+                    {
                         return Err(EngineError::Compile(format!(
                             "multisample zone `{}` is outside asset `{}`",
                             authored.id, authored.asset
@@ -1068,7 +1136,7 @@ impl NodeProgram {
                     grouped
                         .entry((authored.layer.clone(), authored.round_robin.clone()))
                         .or_default()
-                        .push((authored.round_robin_index, index));
+                        .push((authored.round_robin_index.unwrap_or(index), index));
                     zones.push(MultisampleZone {
                         id: authored.id,
                         source,
@@ -1080,9 +1148,16 @@ impl NodeProgram {
                         layer: authored.layer,
                         articulation: authored.articulation,
                         round_robin: authored.round_robin,
-                        round_robin_index: authored.round_robin_index,
+                        round_robin_index: authored.round_robin_index.unwrap_or(index),
                         region_start,
                         region_end,
+                        loop_region: authored.loop_region.map(|(start, end, crossfade)| {
+                            (
+                                start as f64 * frame_scale,
+                                end as f64 * frame_scale,
+                                crossfade as f64 * frame_scale,
+                            )
+                        }),
                         gain: 10.0_f64.powf(authored.gain_db / 20.0),
                         pan: authored.pan,
                     });
@@ -1247,7 +1322,7 @@ impl NodeProgram {
                 a_level: number("a_level", Unit::Ratio, 1.0)?,
                 b_level: number("b_level", Unit::Ratio, 1.0)?,
             }),
-            NodeKind::StereoSum => {
+            NodeKind::StereoSum | NodeKind::Sum => {
                 resolve_integer(
                     node,
                     "max_inputs",
@@ -1255,7 +1330,11 @@ impl NodeProgram {
                     1,
                     MAX_STEREO_SUM_INPUTS,
                 )?;
-                NodeProgramKind::StereoSum
+                if node.kind == NodeKind::Sum {
+                    NodeProgramKind::Sum
+                } else {
+                    NodeProgramKind::StereoSum
+                }
             }
             NodeKind::Lowpass => NodeProgramKind::Filter(FilterConfig {
                 mode: match text(node, "mode", "lowpass") {
@@ -1531,6 +1610,7 @@ impl NodeProgram {
                 | NodeProgramKind::StereoToMono
                 | NodeProgramKind::StereoMixer(_)
                 | NodeProgramKind::StereoSum
+                | NodeProgramKind::Sum
                 | NodeProgramKind::Amplifier(_)
                 | NodeProgramKind::Saturation(_)
                 | NodeProgramKind::Pan(_)
@@ -1673,7 +1753,12 @@ impl NodeProgram {
                     a[1] * a_level + b[1] * b_level,
                 ])
             }
-            (NodeProgramKind::StereoSum, NodeStateKind::Stateless) => inputs.summed_audio,
+            (NodeProgramKind::StereoSum, NodeStateKind::Stateless) => {
+                Signal::Stereo(inputs.summed_audio.stereo())
+            }
+            (NodeProgramKind::Sum, NodeStateKind::Stateless) => {
+                Signal::Mono(inputs.summed_audio.mono())
+            }
             (NodeProgramKind::Filter(config), NodeStateKind::Filter(state)) => {
                 Signal::Mono(config.process(
                     state,
@@ -1828,6 +1913,7 @@ impl NodeProgram {
             | (NodeProgramKind::StereoToMono, NodeProgramKind::StereoToMono)
             | (NodeProgramKind::StereoMixer(_), NodeProgramKind::StereoMixer(_))
             | (NodeProgramKind::StereoSum, NodeProgramKind::StereoSum)
+            | (NodeProgramKind::Sum, NodeProgramKind::Sum)
             | (NodeProgramKind::Amplifier(_), NodeProgramKind::Amplifier(_))
             | (NodeProgramKind::Saturation(_), NodeProgramKind::Saturation(_))
             | (NodeProgramKind::Pan(_), NodeProgramKind::Pan(_))

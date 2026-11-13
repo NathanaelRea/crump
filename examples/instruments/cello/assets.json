@@ -1,0 +1,284 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "75b9ad03d8fdf3ec9bed1c80ed9c7d273acc08e94761d8cb3dbdf959c13d4c5a",
+  "recipe_sha256": "4625d4df99b39f5447f5ca7b251c7649b86c98744ecd33567da51563ebcfdbce",
+  "shared_sha256": {
+    "bowed.json": "8f30acf3c0156e15e724c6f152d5b15644c3a8451be3729f413b2b4a76da402a",
+    "bodies/cello.json": "84da5e05d37f24ba045d0acc531054ca4e1024a8626c64292f553f2b12b07f5d"
+  },
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "cello-36-soft-0",
+      "path": "media/36-soft-0.wav",
+      "sha256": "70105f9e496ff1a0e4cfb4e7c47fa4d1bd772cf1c621e0e08553b772575b40af",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 36,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 620360,
+      "normalization_gain": 0.2373521443487193,
+      "loop": [
+        48000,
+        124401,
+        8160
+      ]
+    },
+    {
+      "id": "cello-36-hard-0",
+      "path": "media/36-hard-0.wav",
+      "sha256": "973f8f880c1298593bcf0e6b54ed5530c1bdbf99d72e16c95e74552a067b0498",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 36,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 620360,
+      "normalization_gain": 0.2373521443487193,
+      "loop": [
+        48000,
+        123668,
+        8160
+      ]
+    },
+    {
+      "id": "cello-41-soft-0",
+      "path": "media/41-soft-0.wav",
+      "sha256": "5fac028a70d5f6e781fa494671000728c0816cacb1ec33e283066e1896815fe3",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 41,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 620410,
+      "normalization_gain": 0.2881963541216974,
+      "loop": [
+        48000,
+        123771,
+        8160
+      ]
+    },
+    {
+      "id": "cello-41-hard-0",
+      "path": "media/41-hard-0.wav",
+      "sha256": "a7b75ff7abe039ebe7c674958397f24427dc09a73dd0b6243ce2ccd53894f0d2",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 41,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 620410,
+      "normalization_gain": 0.2881963541216974,
+      "loop": [
+        48000,
+        123771,
+        8160
+      ]
+    },
+    {
+      "id": "cello-46-soft-0",
+      "path": "media/46-soft-0.wav",
+      "sha256": "0bcf439e99cf9cf1fe936d42e23444842ceb25746a574cacd1588061802a79ca",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 46,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 620460,
+      "normalization_gain": 0.23811117399716525,
+      "loop": [
+        48000,
+        125758,
+        8160
+      ]
+    },
+    {
+      "id": "cello-46-hard-0",
+      "path": "media/46-hard-0.wav",
+      "sha256": "3a16003b6ee4144215fadcd1e4b6fd5d40887c3209f8a998f2136630f16ec82a",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 46,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 620460,
+      "normalization_gain": 0.23811117399716525,
+      "loop": [
+        48000,
+        125759,
+        8160
+      ]
+    },
+    {
+      "id": "cello-52-soft-0",
+      "path": "media/52-soft-0.wav",
+      "sha256": "ae381d8f49ac248dbd1ca5614387b7aa9c1640bcb4e2ba9b20ac28803620c9f2",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 620520,
+      "normalization_gain": 0.36577412605041587,
+      "loop": [
+        48000,
+        123712,
+        8160
+      ]
+    },
+    {
+      "id": "cello-52-hard-0",
+      "path": "media/52-hard-0.wav",
+      "sha256": "d0276a48a83dcb45bc8cc54cd98651e66c2284434253935debb86872ce800e98",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 620520,
+      "normalization_gain": 0.36577412605041587,
+      "loop": [
+        48000,
+        123712,
+        8160
+      ]
+    },
+    {
+      "id": "cello-58-soft-0",
+      "path": "media/58-soft-0.wav",
+      "sha256": "c02cf8f27b8681ea5ac8c69f6f521cb20cd47c3020b839d7b9f98d352d5f34e8",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 620580,
+      "normalization_gain": 0.32971838955839117,
+      "loop": [
+        48000,
+        123726,
+        8160
+      ]
+    },
+    {
+      "id": "cello-58-hard-0",
+      "path": "media/58-hard-0.wav",
+      "sha256": "91d639eefadaab5641d5b3fd0aed50966d34e85a3004ff0c0c6c605d8baaaa84",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 620580,
+      "normalization_gain": 0.32971838955839117,
+      "loop": [
+        48000,
+        123725,
+        8160
+      ]
+    },
+    {
+      "id": "cello-64-soft-0",
+      "path": "media/64-soft-0.wav",
+      "sha256": "06ce24bec63ff39beb0a039c15271d3ab47da3bbf30f71fe84630f3a07eab546",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 620640,
+      "normalization_gain": 0.477408145701598,
+      "loop": [
+        48000,
+        125933,
+        8160
+      ]
+    },
+    {
+      "id": "cello-64-hard-0",
+      "path": "media/64-hard-0.wav",
+      "sha256": "2cb2e0444e67b2ed9c6d5e5f193c6a2791e722e09f22a8f7cc2df5931a532732",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 620640,
+      "normalization_gain": 0.477408145701598,
+      "loop": [
+        48000,
+        125932,
+        8160
+      ]
+    },
+    {
+      "id": "cello-70-soft-0",
+      "path": "media/70-soft-0.wav",
+      "sha256": "c4f96fcbb801842b7d44e3e7d61150c802be09c502be4c73d8249fb1c899d7c7",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 70,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 620700,
+      "normalization_gain": 0.5558035529735093,
+      "loop": [
+        48000,
+        125984,
+        8160
+      ]
+    },
+    {
+      "id": "cello-70-hard-0",
+      "path": "media/70-hard-0.wav",
+      "sha256": "ce865d8b8839ea0663bb84030fa0d5c7f8fb135b31a2db507eb1a2f33ba333b2",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 70,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 620700,
+      "normalization_gain": 0.5558035529735093,
+      "loop": [
+        48000,
+        125983,
+        8160
+      ]
+    },
+    {
+      "id": "cello-76-soft-0",
+      "path": "media/76-soft-0.wav",
+      "sha256": "67b35748c43f884421c3e5e6bc23df40f6e6f98185c02efac0f77fad559eafe8",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 76,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 620760,
+      "normalization_gain": 0.7331439292253821,
+      "loop": [
+        48000,
+        123665,
+        8160
+      ]
+    },
+    {
+      "id": "cello-76-hard-0",
+      "path": "media/76-hard-0.wav",
+      "sha256": "d9d12a53a0bed18b18420f584ef766acbb75306610d6ef991ebbf03da20c39e5",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 76,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 620760,
+      "normalization_gain": 0.7331439292253821,
+      "loop": [
+        48000,
+        123665,
+        8160
+      ]
+    }
+  ]
+}

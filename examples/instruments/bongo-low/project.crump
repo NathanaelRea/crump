@@ -5,18 +5,6 @@ project "Bongo Low" {
   seed 166299
   sample_rate 48000
   render_tail 2s
-  asset bongo-low-60-soft-0 "Bongo Low" wav "media/60-soft-0.wav" sha256 "3fa6687f7121587fc5dd37524528662269311130dea6a4eeab2da15345581e5f" {
-    usage multisample
-  }
-  asset bongo-low-60-hard-0 "Bongo Low" wav "media/60-hard-0.wav" sha256 "5088f6bdbe7e58f25c276504eb48d9f3d1e12411dad791bb542b366764f56870" {
-    usage multisample
-  }
-  asset bongo-low-60-soft-1 "Bongo Low" wav "media/60-soft-1.wav" sha256 "4d72dc44861beaf67e2e402d5ccdfd29c4ada00b32078f18fa91d6f56f3c0607" {
-    usage multisample
-  }
-  asset bongo-low-60-hard-1 "Bongo Low" wav "media/60-hard-1.wav" sha256 "80fc06792b84d3ab4c115de708578b35516285fe52fcaa412b930ef2a7662983" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

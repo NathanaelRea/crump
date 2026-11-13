@@ -8,8 +8,8 @@ use crate::{
     diagnostic::{Diagnostic, Diagnostics, Severity, SourceLocation},
     media::{AssetInventory, valid_asset_path, valid_sha256},
     model::{
-        InstrumentKind, MediaAssetUsage, NodeKind, PatternEvent, PresentationItemKind, Project,
-        SOURCE_VERSION_V1, SOURCE_VERSION_V2,
+        InstrumentKind, MediaAssetUsage, NodeDirective, NodeKind, PatternEvent,
+        PresentationItemKind, Project, SOURCE_VERSION_V1, SOURCE_VERSION_V2,
     },
 };
 
@@ -32,7 +32,7 @@ use crate::routing::AuthoredTopology;
 /// Maximum authored graph nodes in one voice.
 pub const MAX_GRAPH_NODES: u16 = 64;
 /// Maximum graph voices across the Project.
-pub const MAX_GRAPH_VOICES: u32 = 256;
+pub const MAX_GRAPH_VOICES: u32 = 512;
 /// Maximum Buses accepted by one explicit stereo summing input.
 pub const MAX_STEREO_SUM_INPUTS: usize = 64;
 /// Minimum power-of-two wavetable frame length.
@@ -317,27 +317,33 @@ pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) ->
                     }
                 }
                 NodeKind::Multisample => {
-                    for directive in &node.directives {
-                        let tokens = &directive.tokens;
-                        if tokens.len() != 26 || tokens[0].value != "zone" {
-                            continue;
-                        }
-                        let Some(asset) = inventory.get(&tokens[3].value) else {
+                    for zone in node
+                        .directives
+                        .iter()
+                        .filter_map(NodeDirective::zone_clauses)
+                    {
+                        let Some(asset) = inventory.get(&zone.asset.value) else {
                             continue;
                         };
-                        if let Ok(end) = tokens[21].value.parse::<u64>()
-                            && end > asset.metadata().frames
+                        let frames = asset.metadata().frames;
+                        // An explicit region must fit the asset; a whole-asset
+                        // zone's loop must end within it.
+                        let end = zone
+                            .region
+                            .map(|[_, end]| end)
+                            .or(zone.loop_region.map(|[_, end, _]| end));
+                        if let Some(end) = end
+                            && let Ok(frame) = end.value.parse::<u64>()
+                            && frame > frames
                         {
                             source_site_error(
                                 &mut diagnostics,
                                 "CRV198",
                                 format!(
-                                    "multisample zone `{}` ends at frame {end}, beyond asset `{}` length {}",
-                                    tokens[1].value,
-                                    tokens[3].value,
-                                    asset.metadata().frames
+                                    "multisample zone `{}` ends at frame {frame}, beyond asset `{}` length {frames}",
+                                    zone.id.value, zone.asset.value
                                 ),
-                                &tokens[21].site,
+                                &end.site,
                             );
                         }
                     }
@@ -757,15 +763,12 @@ fn validate_graph_assets(project: &Project, diagnostics: &mut Diagnostics) {
                     }
                 }
                 NodeKind::Multisample => {
-                    for directive in &node.directives {
-                        let tokens = &directive.tokens;
-                        if tokens.len() < 4
-                            || tokens[0].value != "zone"
-                            || tokens[2].value != "asset"
-                        {
-                            continue;
-                        }
-                        let asset_id = &tokens[3];
+                    for zone in node
+                        .directives
+                        .iter()
+                        .filter_map(NodeDirective::zone_clauses)
+                    {
+                        let asset_id = zone.asset;
                         match assets.get(asset_id.value.as_str()) {
                             None => source_site_error(
                                 diagnostics,

@@ -5,18 +5,6 @@ project "Offbeat Sizzle" {
   seed 102947
   sample_rate 48000
   render_tail 2s
-  asset offbeat-sizzle-60-soft-0 "Offbeat Sizzle" wav "media/60-soft-0.wav" sha256 "ca1046477a3032035785863811d0bc80d0a04bf2db7888b132b260f026fbcfdb" {
-    usage multisample
-  }
-  asset offbeat-sizzle-60-hard-0 "Offbeat Sizzle" wav "media/60-hard-0.wav" sha256 "f84251e149f5df1559736d372b3670f360195ecb1673cfd4dc424131335ef3ed" {
-    usage multisample
-  }
-  asset offbeat-sizzle-60-soft-1 "Offbeat Sizzle" wav "media/60-soft-1.wav" sha256 "0555d6886503bafb2136e69b84f1860c30f781a0cbad689e6667b2c5d449ddb7" {
-    usage multisample
-  }
-  asset offbeat-sizzle-60-hard-1 "Offbeat Sizzle" wav "media/60-hard-1.wav" sha256 "99a42eb36299e6fba00bf84257fdcfd03c18145aa845a6c20713169eb81f9fbc" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

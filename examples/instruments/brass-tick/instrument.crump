@@ -19,10 +19,10 @@ instrument brass-tick "Brass Tick" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset brass-tick-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 67772 gain 0db pan 0
-      zone z60-hard-0 asset brass-tick-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 70645 gain 0db pan 0
-      zone z60-soft-1 asset brass-tick-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 73917 gain 0db pan 0
-      zone z60-hard-1 asset brass-tick-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 81164 gain 0db pan 0
+      zone z60-soft-0 asset brass-tick-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset brass-tick-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset brass-tick-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset brass-tick-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument brass-tick "Brass Tick" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset brass-tick-60-soft-0 "Brass Tick" wav "media/60-soft-0.wav" sha256 "6598be3245694f90e43770f0e10066e8ec27c75b954fead4ebf701967197da24" {
+  usage multisample
+}
+asset brass-tick-60-hard-0 "Brass Tick" wav "media/60-hard-0.wav" sha256 "825fb69636bc3d51f6e8e081235d9f8b07f1547796d2777f94070c1709e78105" {
+  usage multisample
+}
+asset brass-tick-60-soft-1 "Brass Tick" wav "media/60-soft-1.wav" sha256 "ee620be25ac7eb11c3a847afd714df451158ec7f8679c29d912945b4597f0e65" {
+  usage multisample
+}
+asset brass-tick-60-hard-1 "Brass Tick" wav "media/60-hard-1.wav" sha256 "020675c8de7ccbcc76cfc7f6aec7a26cf1229b58e7de4ae3464bcf3b1155a6cb" {
+  usage multisample
 }

@@ -18,12 +18,18 @@ copier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(copier)
 
 
+SETUP = (
+    "Generate the example media first: uv run tools/instrument_assets/build.py --setup"
+)
+
+
 class LibraryTests(unittest.TestCase):
     def test_complete_catalog_has_unique_ids_and_exact_media(self):
         entries = json.loads((ROOT / "catalog.json").read_text())
-        self.assertEqual(len(entries), 60)
-        self.assertEqual(len({e["id"] for e in entries}), 60)
+        self.assertEqual(len(entries), 92)
+        self.assertEqual(len({e["id"] for e in entries}), 92)
         assets, profiles = set(), set()
+        missing = 0
         for entry in entries:
             folder = ROOT / entry["id"]
             source = (folder / "instrument.crump").read_text()
@@ -43,21 +49,33 @@ class LibraryTests(unittest.TestCase):
                 self.assertEqual(
                     manifest["generator_sha256"], hashlib.sha256(code).hexdigest()
                 )
+                for name, digest in manifest.get("shared_sha256", {}).items():
+                    shared = REPO / "tools/instrument_assets/shared" / name
+                    self.assertEqual(
+                        digest, hashlib.sha256(shared.read_bytes()).hexdigest()
+                    )
                 for asset in manifest["assets"]:
                     self.assertNotIn(asset["id"], assets)
                     assets.add(asset["id"])
+                    if not (folder / asset["path"]).exists():
+                        missing += 1
+                        continue
                     self.assertEqual(
                         asset["sha256"],
                         hashlib.sha256(
                             (folder / asset["path"]).read_bytes()
                         ).hexdigest(),
                     )
+        if missing:
+            self.skipTest(f"{missing} samples are not generated. {SETUP}")
 
     def test_copied_native_and_sample_modules_validate_together(self):
         binary = REPO / "target/release/crump"
         self.assertTrue(
             binary.is_file(), "Build the release crump binary before running this test"
         )
+        if not any((ROOT / "finger-bass/media").glob("*.wav")):
+            self.skipTest(SETUP)
         with tempfile.TemporaryDirectory() as temporary:
             folder = Path(temporary)
             subprocess.run(
@@ -66,7 +84,7 @@ class LibraryTests(unittest.TestCase):
                 capture_output=True,
             )
             original = (folder / "project.crump").read_text()
-            imports, assets = [], []
+            imports = []
             for ident in [
                 "wood-rim",
                 "cuban-clave",
@@ -78,15 +96,12 @@ class LibraryTests(unittest.TestCase):
                 snippets = copier.copy_instrument(ident, folder)
                 self.assertEqual((folder / "project.crump").read_text(), original)
                 imports += re.findall(r"^import .*", snippets, re.MULTILINE)
-                assets += re.findall(
-                    r"^asset .*?\n\}", snippets, re.MULTILINE | re.DOTALL
-                )
+                self.assertNotIn("asset ", snippets)
                 with self.assertRaises(ValueError):
                     copier.copy_instrument(ident, folder)
             source = original.replace("crump 1", "crump 2").replace(
                 "\nproject ", "\n" + "\n".join(imports) + "\nproject ", 1
             )
-            source = source.replace("  song {", "\n".join(assets) + "\n  song {", 1)
             (folder / "project.crump").write_text(source)
             result = subprocess.run(
                 [str(binary), "--project", str(folder), "--json", "validate"],

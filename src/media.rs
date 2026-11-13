@@ -20,11 +20,11 @@ use crate::{
 };
 
 /// Maximum number of authored media assets in one Project.
-pub const MAX_MEDIA_ASSETS: usize = 256;
+pub const MAX_MEDIA_ASSETS: usize = 1_024;
 /// Maximum exact bytes admitted for one media asset.
 pub const MAX_MEDIA_ASSET_BYTES: u64 = 64 * 1_048_576;
 /// Maximum exact bytes admitted across all media assets.
-pub const MAX_PROJECT_MEDIA_BYTES: u64 = 256 * 1_048_576;
+pub const MAX_PROJECT_MEDIA_BYTES: u64 = 1_024 * 1_048_576;
 
 /// Immutable exact-byte inventory loaded away from the audio callback.
 #[derive(Debug, Clone, Default)]

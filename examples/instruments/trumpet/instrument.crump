@@ -1,0 +1,92 @@
+crump-module 2
+instrument trumpet "Trumpet" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.12s 0.12s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z54-soft-0 asset trumpet-54-soft-0 keys E3 G#3 velocity 0 0.65 root F#3 loop 48000 123855 crossfade 8160
+      zone z54-hard-0 asset trumpet-54-hard-0 keys E3 G#3 velocity 0.65 1 root F#3 loop 48000 123854 crossfade 8160
+      zone z59-soft-0 asset trumpet-59-soft-0 keys A3 C#4 velocity 0 0.65 root B3 loop 48000 125905 crossfade 8160
+      zone z59-hard-0 asset trumpet-59-hard-0 keys A3 C#4 velocity 0.65 1 root B3 loop 48000 125904 crossfade 8160
+      zone z64-soft-0 asset trumpet-64-soft-0 keys D4 F#4 velocity 0 0.65 root E4 loop 48000 124603 crossfade 8160
+      zone z64-hard-0 asset trumpet-64-hard-0 keys D4 F#4 velocity 0.65 1 root E4 loop 48000 125915 crossfade 8160
+      zone z69-soft-0 asset trumpet-69-soft-0 keys G4 B4 velocity 0 0.65 root A4 loop 48000 123608 crossfade 8160
+      zone z69-hard-0 asset trumpet-69-hard-0 keys G4 B4 velocity 0.65 1 root A4 loop 48000 125900 crossfade 8160
+      zone z74-soft-0 asset trumpet-74-soft-0 keys C5 E5 velocity 0 0.65 root D5 loop 48000 124722 crossfade 8160
+      zone z74-hard-0 asset trumpet-74-hard-0 keys C5 E5 velocity 0.65 1 root D5 loop 48000 123660 crossfade 8160
+      zone z79-soft-0 asset trumpet-79-soft-0 keys F5 A5 velocity 0 0.65 root G5 loop 48000 125398 crossfade 8160
+      zone z79-hard-0 asset trumpet-79-hard-0 keys F5 A5 velocity 0.65 1 root G5 loop 48000 123620 crossfade 8160
+      zone z84-soft-0 asset trumpet-84-soft-0 keys A#5 F6 velocity 0 0.65 root C6 loop 48000 125974 crossfade 8160
+      zone z84-hard-0 asset trumpet-84-hard-0 keys A#5 F6 velocity 0.65 1 root C6 loop 48000 123636 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset trumpet-54-soft-0 "Trumpet" wav "media/54-soft-0.wav" sha256 "2470a97e5c7ccccefdd39ae9e76f2a0c4d97415c07028757146dbc171c246b7f" {
+  usage multisample
+}
+asset trumpet-54-hard-0 "Trumpet" wav "media/54-hard-0.wav" sha256 "6a1858f2ab53e2e5e50c8d9cb9db343fbdb36bb2a260f765912ae5832be81178" {
+  usage multisample
+}
+asset trumpet-59-soft-0 "Trumpet" wav "media/59-soft-0.wav" sha256 "39d589424196581f5394781ce919a69f7af07f890ccb9389660459f4c1596a5c" {
+  usage multisample
+}
+asset trumpet-59-hard-0 "Trumpet" wav "media/59-hard-0.wav" sha256 "c59b5781c1701f6a0d41cf675fd0967a7bd499eac22b80eed851b6a76fc3a6c5" {
+  usage multisample
+}
+asset trumpet-64-soft-0 "Trumpet" wav "media/64-soft-0.wav" sha256 "ebb4349fb5eed88246cd69cfe127f9aec71ec93c9d977b7d8e1172ca98856562" {
+  usage multisample
+}
+asset trumpet-64-hard-0 "Trumpet" wav "media/64-hard-0.wav" sha256 "51bc425f1a2744590b7c4f1030c5993174fbf7952a552b33cecec8ce538a33fd" {
+  usage multisample
+}
+asset trumpet-69-soft-0 "Trumpet" wav "media/69-soft-0.wav" sha256 "38a82da815126a6df11e796c85b4c8c65e05eefb196cc2bd49965bf6666fdc39" {
+  usage multisample
+}
+asset trumpet-69-hard-0 "Trumpet" wav "media/69-hard-0.wav" sha256 "4c4cd7c513002c7cbefc98879d5e8bd2525a19b070ed5918916554b1767c2938" {
+  usage multisample
+}
+asset trumpet-74-soft-0 "Trumpet" wav "media/74-soft-0.wav" sha256 "f2290bc15ca30fce4e1f8ccc35be46c8f11df4bbe5cd924961528fd7c11ed101" {
+  usage multisample
+}
+asset trumpet-74-hard-0 "Trumpet" wav "media/74-hard-0.wav" sha256 "4017a84f30dfacf34d0bf978830a866138f275a5c72ea859ac848f989e5cedd4" {
+  usage multisample
+}
+asset trumpet-79-soft-0 "Trumpet" wav "media/79-soft-0.wav" sha256 "b1b9020ffed91d2dbc29aa204568c28528341e103f679e8389c7dee034f4255e" {
+  usage multisample
+}
+asset trumpet-79-hard-0 "Trumpet" wav "media/79-hard-0.wav" sha256 "3f5a1429023b33d491fc61ff16b41a10ec1c8b96de5b857d4d1b9b4c0af448d0" {
+  usage multisample
+}
+asset trumpet-84-soft-0 "Trumpet" wav "media/84-soft-0.wav" sha256 "117b415330db7ca52f7cf7095c7fbcc8889fb9df41baeffbdee9bb2a90c80108" {
+  usage multisample
+}
+asset trumpet-84-hard-0 "Trumpet" wav "media/84-hard-0.wav" sha256 "19087605ec2d0f1e0dfbad5a150fb442cfc521e15b51f7e8b42ca235ddb6b49c" {
+  usage multisample
+}

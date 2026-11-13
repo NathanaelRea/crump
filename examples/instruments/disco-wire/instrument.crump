@@ -19,10 +19,10 @@ instrument disco-wire "Disco Wire" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset disco-wire-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 81495 gain 0db pan 0
-      zone z60-hard-0 asset disco-wire-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 88104 gain 0db pan 0
-      zone z60-soft-1 asset disco-wire-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 82864 gain 0db pan 0
-      zone z60-hard-1 asset disco-wire-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 86249 gain 0db pan 0
+      zone z60-soft-0 asset disco-wire-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset disco-wire-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset disco-wire-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset disco-wire-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument disco-wire "Disco Wire" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset disco-wire-60-soft-0 "Disco Wire" wav "media/60-soft-0.wav" sha256 "b043788a57a3b407810b6f3c33771f21b0e80e3c49394b3aac440fc8aea1c800" {
+  usage multisample
+}
+asset disco-wire-60-hard-0 "Disco Wire" wav "media/60-hard-0.wav" sha256 "f0a284a83be4890259503f93378e1a7e0800ca775b0fb58eab23d31b552e585e" {
+  usage multisample
+}
+asset disco-wire-60-soft-1 "Disco Wire" wav "media/60-soft-1.wav" sha256 "b61439ce7ac647efb2d3c61a75409fa6de410a16e7d0e24927a028173babd03e" {
+  usage multisample
+}
+asset disco-wire-60-hard-1 "Disco Wire" wav "media/60-hard-1.wav" sha256 "a497a9484fc4fc47422efdb3a3c18ea4d6cd922e63afa82813342cf1acbcedd2" {
+  usage multisample
 }

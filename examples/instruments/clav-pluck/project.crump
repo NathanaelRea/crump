@@ -5,54 +5,6 @@ project "Clav Pluck" {
   seed 348436
   sample_rate 48000
   render_tail 2s
-  asset clav-pluck-36-soft-0 "Clav Pluck" wav "media/36-soft-0.wav" sha256 "afe9fc2b632c707b5cdab8ea871c3694ccb684272efcf5630bba7224710b35c6" {
-    usage multisample
-  }
-  asset clav-pluck-36-hard-0 "Clav Pluck" wav "media/36-hard-0.wav" sha256 "f4b548c410da9c4f0f062167c747e5df3dbd59b5034f7c7383a2fb28298f52b4" {
-    usage multisample
-  }
-  asset clav-pluck-43-soft-0 "Clav Pluck" wav "media/43-soft-0.wav" sha256 "e469e12a0f97006ed98b0034217666bd926cfbd600b1f92da363b769115407c8" {
-    usage multisample
-  }
-  asset clav-pluck-43-hard-0 "Clav Pluck" wav "media/43-hard-0.wav" sha256 "5a9f5886eec7d8de087adbc989cb5621e9c44c6aa3a3bda58db27fc62d0f5104" {
-    usage multisample
-  }
-  asset clav-pluck-48-soft-0 "Clav Pluck" wav "media/48-soft-0.wav" sha256 "cb8875c9b4f1f94c7a377cfae814737bc9085d07c954aeb78dfe93bcb5cc2775" {
-    usage multisample
-  }
-  asset clav-pluck-48-hard-0 "Clav Pluck" wav "media/48-hard-0.wav" sha256 "cb2fbe5b60ad96dfeec2bfe3b7eb11e06cb135ff11548969e2c385fa1ab7f432" {
-    usage multisample
-  }
-  asset clav-pluck-55-soft-0 "Clav Pluck" wav "media/55-soft-0.wav" sha256 "731752442a773d76ba0754383c3b32c414742e073edb55707b3b2151b25b4cc1" {
-    usage multisample
-  }
-  asset clav-pluck-55-hard-0 "Clav Pluck" wav "media/55-hard-0.wav" sha256 "eeadfffd8b723fde0db2479848bb4cce9fb7434fbee877012faa954cd66afa31" {
-    usage multisample
-  }
-  asset clav-pluck-60-soft-0 "Clav Pluck" wav "media/60-soft-0.wav" sha256 "aec791081eff82ce2fb08d2c2b3eb6501fb2db28cfa6f2eb8e18461539d00cd0" {
-    usage multisample
-  }
-  asset clav-pluck-60-hard-0 "Clav Pluck" wav "media/60-hard-0.wav" sha256 "d27728aa99193155ea80207cb20c5a02e436cda3f39ee42faf46b088ce2e92f4" {
-    usage multisample
-  }
-  asset clav-pluck-67-soft-0 "Clav Pluck" wav "media/67-soft-0.wav" sha256 "c5d2d402f32b2f7edfc2150c4af3896c63c8f9f1adb3ebed83a63136de79d99b" {
-    usage multisample
-  }
-  asset clav-pluck-67-hard-0 "Clav Pluck" wav "media/67-hard-0.wav" sha256 "ed88d27053ef091689e249ce0c58dde158161ba51f48517fb408938fe3cc2880" {
-    usage multisample
-  }
-  asset clav-pluck-72-soft-0 "Clav Pluck" wav "media/72-soft-0.wav" sha256 "d3d567f67eaf1f6479deac1c8b93dd4807f3d0aae1c38068ffcd71b8b78fabfe" {
-    usage multisample
-  }
-  asset clav-pluck-72-hard-0 "Clav Pluck" wav "media/72-hard-0.wav" sha256 "dd6b1c4f5696804b86a39e0e6f56db1fb4aa3ae5ac620b420ed2b1af27254d36" {
-    usage multisample
-  }
-  asset clav-pluck-79-soft-0 "Clav Pluck" wav "media/79-soft-0.wav" sha256 "37a1a13a35bfab5ffbd004986799c41d6606ce3ee40646b95b5b6732a7bb9f25" {
-    usage multisample
-  }
-  asset clav-pluck-79-hard-0 "Clav Pluck" wav "media/79-hard-0.wav" sha256 "d6b22f434fe85fd7a17dc1c6202470f55ebfa314b1217eb95fc2d62f5a961594" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

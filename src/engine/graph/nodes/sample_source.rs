@@ -179,6 +179,8 @@ pub(super) struct MultisampleZone {
     pub(super) round_robin_index: u16,
     pub(super) region_start: f64,
     pub(super) region_end: f64,
+    /// Project-rate `(start, end, crossfade)` frames repeated while the note is held.
+    pub(super) loop_region: Option<(f64, f64, f64)>,
     pub(super) gain: f64,
     pub(super) pan: f64,
 }
@@ -288,11 +290,14 @@ impl MultisampleConfig {
                     continue;
                 };
                 let zone = &self.zones[usize::from(zone_index)];
+                let (loop_start, loop_end, _) =
+                    zone.loop_region
+                        .unwrap_or((zone.region_start, zone.region_end, 0.0));
                 state.cursors[usize::from(zone_index)].activate(
                     zone.region_start,
                     zone.region_end,
-                    zone.region_start,
-                    zone.region_end,
+                    loop_start,
+                    loop_end,
                     SampleDirection::Forward,
                     gate > 0.0,
                 );
@@ -309,11 +314,19 @@ impl MultisampleConfig {
             }
             let pitch_ratio = f64::from(pitch.max(1.0)) / midi_frequency(zone.root_key);
             let step = (pitch_ratio * tune_ratio * rate).clamp(1.0 / 64.0, 64.0);
+            // A zone loop repeats only while the note is held. Afterwards a one-shot
+            // zone plays on through the rest of its region (its natural release),
+            // while a gated zone takes the fixed source release.
+            let (loop_mode, crossfade) = zone
+                .loop_region
+                .map_or((SampleLoopMode::Off, 0.0), |(_, _, crossfade)| {
+                    (SampleLoopMode::Forward, crossfade)
+                });
             let mut frame = cursor.process(
                 &zone.source,
                 step,
-                SampleLoopMode::Off,
-                0.0,
+                loop_mode,
+                crossfade,
                 gate > 0.0,
                 self.gate_mode,
             );
@@ -353,6 +366,12 @@ impl MultisampleConfig {
                     && left.round_robin_index == right.round_robin_index
                     && left.region_start.to_bits() == right.region_start.to_bits()
                     && left.region_end.to_bits() == right.region_end.to_bits()
+                    && left
+                        .loop_region
+                        .map(|(a, b, c)| [a.to_bits(), b.to_bits(), c.to_bits()])
+                        == right
+                            .loop_region
+                            .map(|(a, b, c)| [a.to_bits(), b.to_bits(), c.to_bits()])
                     && left.gain.to_bits() == right.gain.to_bits()
                     && left.pan.to_bits() == right.pan.to_bits()
             })
@@ -492,7 +511,7 @@ impl GranularConfig {
                 &self.source,
                 grain.position,
                 0.0,
-                self.source.frames().len() as f64,
+                self.source.stored_len() as f64,
             );
             let phase = f64::from(grain.age) / f64::from(grain.duration.max(1));
             let window = grain_window(self.window, phase);
@@ -506,7 +525,7 @@ impl GranularConfig {
                 continue;
             }
             grain.position += grain.step;
-            let end = self.source.frames().len() as f64;
+            let end = self.source.stored_len() as f64;
             if grain.position < 0.0 || grain.position >= end {
                 match self.edge {
                     GrainEdge::Wrap => grain.position = grain.position.rem_euclid(end.max(1.0)),
@@ -548,7 +567,7 @@ impl GranularConfig {
             (f64::from(pitch.max(1.0)) / root) * 2.0_f64.powf(self.tune.value(controls) / 12.0);
         let reverse = random_b < self.direction_probability.value(controls).clamp(0.0, 1.0);
         grain.active = true;
-        grain.position = position * self.source.frames().len() as f64;
+        grain.position = position * self.source.stored_len() as f64;
         grain.step = if reverse { -ratio } else { ratio };
         grain.age = 0;
         grain.duration = (self.size.value(controls).clamp(0.005, 1.0) * sample_rate)
@@ -729,7 +748,7 @@ impl SampleCursor {
             }
         }
         if self.active {
-            self.advance(step, loop_mode, looping);
+            self.advance(step, loop_mode, looping, loop_crossfade);
         }
         output
     }
@@ -777,15 +796,25 @@ impl SampleCursor {
         ]
     }
 
-    fn advance(&mut self, step: f64, loop_mode: SampleLoopMode, looping: bool) {
+    fn advance(&mut self, step: f64, loop_mode: SampleLoopMode, looping: bool, crossfade: f64) {
         self.position += self.direction * step;
         if looping && self.loop_end - self.loop_start >= 1.0 {
             match loop_mode {
                 SampleLoopMode::Forward => {
+                    // The crossfade has already played the loop's first `crossfade`
+                    // frames, so the wrap resumes after them rather than repeating them.
+                    let crossfade = if crossfade > 0.0 && self.loop_end - self.loop_start >= 2.0 {
+                        crossfade.min((self.loop_end - self.loop_start) * 0.5)
+                    } else {
+                        0.0
+                    };
+                    let cycle = self.loop_end - self.loop_start - crossfade;
                     if self.direction > 0.0 && self.position >= self.loop_end {
-                        self.position = self.loop_start + (self.position - self.loop_end);
+                        self.position =
+                            self.loop_start + crossfade + (self.position - self.loop_end) % cycle;
                     } else if self.direction < 0.0 && self.position < self.loop_start {
-                        self.position = self.loop_end - (self.loop_start - self.position);
+                        self.position =
+                            self.loop_end - crossfade - (self.loop_start - self.position) % cycle;
                     }
                 }
                 SampleLoopMode::PingPong => {
@@ -815,11 +844,11 @@ fn interpolated_frame(
     region_start: f64,
     region_end: f64,
 ) -> [f32; 2] {
-    if source.frames().is_empty() || region_end - region_start < 1.0 {
+    if source.stored_len() == 0 || region_end - region_start < 1.0 {
         return [0.0, 0.0];
     }
     let maximum = (region_end - 1.0)
-        .min(source.frames().len().saturating_sub(1) as f64)
+        .min(source.stored_len().saturating_sub(1) as f64)
         .max(region_start);
     let position = position.clamp(region_start, maximum);
     let first = position.floor() as usize;

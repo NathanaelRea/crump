@@ -19,10 +19,10 @@ instrument cabasa-turn "Cabasa Turn" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset cabasa-turn-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 44665 gain 0db pan 0
-      zone z60-hard-0 asset cabasa-turn-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 45227 gain 0db pan 0
-      zone z60-soft-1 asset cabasa-turn-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 43347 gain 0db pan 0
-      zone z60-hard-1 asset cabasa-turn-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 45337 gain 0db pan 0
+      zone z60-soft-0 asset cabasa-turn-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset cabasa-turn-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset cabasa-turn-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset cabasa-turn-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument cabasa-turn "Cabasa Turn" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset cabasa-turn-60-soft-0 "Cabasa Turn" wav "media/60-soft-0.wav" sha256 "48cb55be7f398949910dfc95c19ce01d9c76e4cbfbc5f7f27d42cd094f96281f" {
+  usage multisample
+}
+asset cabasa-turn-60-hard-0 "Cabasa Turn" wav "media/60-hard-0.wav" sha256 "a85f7de3520fffea236a741b220694e66bf7993850c4e79cffc0f7f00f9450e4" {
+  usage multisample
+}
+asset cabasa-turn-60-soft-1 "Cabasa Turn" wav "media/60-soft-1.wav" sha256 "b313ac8fa9c92015f3f0d30a0fce7564b0b52d5c35efd2e6913391d410df38b7" {
+  usage multisample
+}
+asset cabasa-turn-60-hard-1 "Cabasa Turn" wav "media/60-hard-1.wav" sha256 "0253dcca65d26108a8079279a303520df19435f2f3c06994bff5aa2de88b6564" {
+  usage multisample
 }

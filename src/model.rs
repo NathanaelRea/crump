@@ -2336,6 +2336,121 @@ pub struct NodeDirective {
     pub location: SourceLocation,
 }
 
+/// Readable syntax of one multisample `zone` directive.
+pub const MULTISAMPLE_ZONE_SYNTAX: &str = "multisample zone syntax is `zone ID asset ASSET keys LOW HIGH root PITCH` followed by optional `velocity LOW HIGH`, `layer ID`, `articulation default`, `round_robin GROUP INDEX`, `region START END`, `gain DB`, `pan PAN`, and `loop START END crossfade FRAMES` clauses, each at most once";
+
+/// The clauses of one multisample `zone` directive, in any order after the ID.
+///
+/// Omitted clauses take their defaults: velocity `0 1`, layer and articulation
+/// `default`, the whole asset as region, `0db` gain, centre pan, and no loop.
+/// A zone without `round_robin` joins its layer's implicit group, in which the
+/// zones matching a note are chosen between at random.
+#[derive(Debug, Clone, Copy)]
+pub struct ZoneClauses<'a> {
+    /// Stable zone ID.
+    pub id: &'a NodeDirectiveToken,
+    /// Project asset ID.
+    pub asset: &'a NodeDirectiveToken,
+    /// Inclusive low and high keys.
+    pub keys: [&'a NodeDirectiveToken; 2],
+    /// Recorded pitch.
+    pub root: &'a NodeDirectiveToken,
+    /// Inclusive velocity range.
+    pub velocity: Option<[&'a NodeDirectiveToken; 2]>,
+    /// Layer ID.
+    pub layer: Option<&'a NodeDirectiveToken>,
+    /// Articulation ID.
+    pub articulation: Option<&'a NodeDirectiveToken>,
+    /// Explicit round-robin group and index.
+    pub round_robin: Option<[&'a NodeDirectiveToken; 2]>,
+    /// Half-open original-source frame region.
+    pub region: Option<[&'a NodeDirectiveToken; 2]>,
+    /// Zone gain.
+    pub gain: Option<&'a NodeDirectiveToken>,
+    /// Zone pan.
+    pub pan: Option<&'a NodeDirectiveToken>,
+    /// Sustain loop start, end, and crossfade in original-source frames.
+    pub loop_region: Option<[&'a NodeDirectiveToken; 3]>,
+}
+
+impl<'a> ZoneClauses<'a> {
+    /// Layer ID, `default` when omitted.
+    #[must_use]
+    pub fn layer_id(&self) -> &'a str {
+        self.layer.map_or("default", |token| token.value.as_str())
+    }
+
+    /// Round-robin group ID; empty for the layer's implicit group.
+    #[must_use]
+    pub fn round_robin_group(&self) -> &'a str {
+        self.round_robin
+            .map_or("", |[group, _]| group.value.as_str())
+    }
+}
+
+impl NodeDirective {
+    /// Reads a multisample `zone` directive's clauses, or `None` when its shape
+    /// is invalid: an unknown or repeated clause, a missing value, or a missing
+    /// `asset`, `keys`, or `root`. Values are not parsed here.
+    #[must_use]
+    pub fn zone_clauses(&self) -> Option<ZoneClauses<'_>> {
+        fn fill<T>(slot: &mut Option<T>, value: T) -> Option<()> {
+            slot.is_none().then(|| *slot = Some(value))
+        }
+        let tokens = &self.tokens;
+        if !self.children.is_empty() || tokens.len() < 2 || tokens[0].value != "zone" {
+            return None;
+        }
+        let (mut asset, mut keys, mut root, mut velocity, mut layer) =
+            (None, None, None, None, None);
+        let (mut articulation, mut round_robin, mut region) = (None, None, None);
+        let (mut gain, mut pan, mut loop_region) = (None, None, None);
+        let mut index = 2;
+        while index < tokens.len() {
+            let arity = match tokens[index].value.as_str() {
+                "asset" | "root" | "layer" | "articulation" | "gain" | "pan" => 1,
+                "keys" | "velocity" | "round_robin" | "region" => 2,
+                "loop" => 4,
+                _ => return None,
+            };
+            let values = tokens.get(index + 1..=index + arity)?;
+            match tokens[index].value.as_str() {
+                "asset" => fill(&mut asset, &values[0])?,
+                "root" => fill(&mut root, &values[0])?,
+                "layer" => fill(&mut layer, &values[0])?,
+                "articulation" => fill(&mut articulation, &values[0])?,
+                "gain" => fill(&mut gain, &values[0])?,
+                "pan" => fill(&mut pan, &values[0])?,
+                "keys" => fill(&mut keys, [&values[0], &values[1]])?,
+                "velocity" => fill(&mut velocity, [&values[0], &values[1]])?,
+                "round_robin" => fill(&mut round_robin, [&values[0], &values[1]])?,
+                "region" => fill(&mut region, [&values[0], &values[1]])?,
+                _ => {
+                    if values[2].value != "crossfade" {
+                        return None;
+                    }
+                    fill(&mut loop_region, [&values[0], &values[1], &values[3]])?;
+                }
+            }
+            index += arity + 1;
+        }
+        Some(ZoneClauses {
+            id: &tokens[1],
+            asset: asset?,
+            keys: keys?,
+            root: root?,
+            velocity,
+            layer,
+            articulation,
+            round_robin,
+            region,
+            gain,
+            pan,
+            loop_region,
+        })
+    }
+}
+
 /// A graph Processing Node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphNode {
@@ -2439,6 +2554,8 @@ pub enum NodeKind {
     StereoMixer,
     /// Bounded multi-input stereo summing Node; inputs fold in durable Bus-ID order.
     StereoSum,
+    /// Bounded multi-input mono summing Node; inputs fold in durable Bus-ID order.
+    Sum,
     /// Bounded stereo virtual-analog oscillator with unison and cross-modulation.
     AnalogOscillator,
     /// Exact-asset band-limited stereo wavetable source.
@@ -2451,6 +2568,14 @@ pub enum NodeKind {
     Granular,
     /// Exact-asset deterministic sinusoidal-peak spectral source.
     Spectral,
+}
+
+impl NodeKind {
+    /// Reports whether the Node's `inputs` port accepts many Buses and sums them.
+    #[must_use]
+    pub const fn is_summing(self) -> bool {
+        matches!(self, Self::Sum | Self::StereoSum)
+    }
 }
 
 impl FromStr for NodeKind {
@@ -2478,6 +2603,7 @@ impl FromStr for NodeKind {
             "stereo_to_mono" => Ok(Self::StereoToMono),
             "stereo_mixer" => Ok(Self::StereoMixer),
             "stereo_sum" => Ok(Self::StereoSum),
+            "sum" => Ok(Self::Sum),
             "analog_oscillator" => Ok(Self::AnalogOscillator),
             "wavetable" => Ok(Self::Wavetable),
             "sample_source" => Ok(Self::SampleSource),

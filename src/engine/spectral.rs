@@ -193,7 +193,8 @@ impl CompiledSpectralAnalysis {
             source.source_sha256().len(),
         )?;
         let frame_count = analysis_frame_count(source.len());
-        let (peaks, transients) = analyze(source.frames(), source.sample_rate(), frame_count)?;
+        let (peaks, transients) =
+            analyze(&source.stereo_frames(), source.sample_rate(), frame_count)?;
         let transient_count = transients.iter().filter(|value| **value != 0).count();
         let analysis = Self {
             asset_id: source.asset_id().to_owned(),

@@ -1,0 +1,318 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "75b9ad03d8fdf3ec9bed1c80ed9c7d273acc08e94761d8cb3dbdf959c13d4c5a",
+  "recipe_sha256": "588ff0930a0fe8eb9c77521d50993f4d2f70aecdb3d33095907a866c6f777d57",
+  "shared_sha256": {
+    "bowed.json": "8f30acf3c0156e15e724c6f152d5b15644c3a8451be3729f413b2b4a76da402a",
+    "bodies/violin.json": "d64e37a1111fd3f534db0c2457c37666e119547f51aadfc7b68cf8202797edea"
+  },
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "solo-violin-55-soft-0",
+      "path": "media/55-soft-0.wav",
+      "sha256": "44884066bc23c443f531e8ec31b0b1bcf012313874c210452026f874afceb055",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 55,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 600550,
+      "normalization_gain": 0.16933685705353466,
+      "loop": [
+        48000,
+        125940,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-55-hard-0",
+      "path": "media/55-hard-0.wav",
+      "sha256": "e2e14cf29c3ba97806feb94d5afc912f67be4a3eea11e179877ec7d96d7d9983",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 55,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 600550,
+      "normalization_gain": 0.16933685705353466,
+      "loop": [
+        48000,
+        125939,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-60-soft-0",
+      "path": "media/60-soft-0.wav",
+      "sha256": "608f4771a700b13abfd818ff326c492ef864dfc648ddd37d8b40abb1bb82b57c",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 600600,
+      "normalization_gain": 0.22062706737196666,
+      "loop": [
+        48000,
+        125890,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-60-hard-0",
+      "path": "media/60-hard-0.wav",
+      "sha256": "62164621af482f0cfd006dfe7d360b3733bbbb82f61f052c84436089008fd9ed",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 600600,
+      "normalization_gain": 0.22062706737196666,
+      "loop": [
+        48000,
+        125889,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-65-soft-0",
+      "path": "media/65-soft-0.wav",
+      "sha256": "326dd438ad0795104172405368fdf2ece56f5cbae688123ddb4a79380f70fd5d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 65,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 600650,
+      "normalization_gain": 0.14005450717246717,
+      "loop": [
+        48000,
+        125985,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-65-hard-0",
+      "path": "media/65-hard-0.wav",
+      "sha256": "3ecb47d815dcf1dd50c9cf9e7f671ef81ca0cf8912145244fb64dc3e0c0b1055",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 65,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 600650,
+      "normalization_gain": 0.14005450717246717,
+      "loop": [
+        48000,
+        125985,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-70-soft-0",
+      "path": "media/70-soft-0.wav",
+      "sha256": "46c75156f7d941868c867f362084b0020ccf4d6f6e7cce4b4d0c33e71533a528",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 70,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 600700,
+      "normalization_gain": 0.21083735160873168,
+      "loop": [
+        48000,
+        124600,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-70-hard-0",
+      "path": "media/70-hard-0.wav",
+      "sha256": "72bd952ba42878e21960602948c989546f749fb63b250bc92cdcf44403496502",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 70,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 600700,
+      "normalization_gain": 0.21083735160873168,
+      "loop": [
+        48000,
+        124700,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-76-soft-0",
+      "path": "media/76-soft-0.wav",
+      "sha256": "9865a16f037d63b403cc1822375a9ffbf12c6ccfb7f8f499b05d3510de71a5af",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 76,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 600760,
+      "normalization_gain": 0.2763785717419643,
+      "loop": [
+        48000,
+        123641,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-76-hard-0",
+      "path": "media/76-hard-0.wav",
+      "sha256": "bc8683acea9a21284daab78d9b8b9f74f70df32170a35bedc110718728729855",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 76,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 600760,
+      "normalization_gain": 0.2763785717419643,
+      "loop": [
+        48000,
+        125671,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-82-soft-0",
+      "path": "media/82-soft-0.wav",
+      "sha256": "a4b43d3c4f56ed6b7b7e31a4c77e8f76ab4b754d82389f5cd99a30187b51c554",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 82,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 600820,
+      "normalization_gain": 0.27387742472512155,
+      "loop": [
+        48000,
+        124274,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-82-hard-0",
+      "path": "media/82-hard-0.wav",
+      "sha256": "af17cf806df740fe9f36c9b4fe190c96865490344b225198dff4c403e31bc0ae",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 82,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 600820,
+      "normalization_gain": 0.27387742472512155,
+      "loop": [
+        48000,
+        124381,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-88-soft-0",
+      "path": "media/88-soft-0.wav",
+      "sha256": "638e1c79a7a5348c94611b6bd4882df8ebc9ee378d782ff53f62d61e9ee2b095",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 88,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 600880,
+      "normalization_gain": 0.36609704980327096,
+      "loop": [
+        48000,
+        123663,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-88-hard-0",
+      "path": "media/88-hard-0.wav",
+      "sha256": "aa15fcbc2555aaef2f8120355d71eaf5e94d77b9eb64aa07b01f77baa6cb00bd",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 88,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 600880,
+      "normalization_gain": 0.36609704980327096,
+      "loop": [
+        48000,
+        125960,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-94-soft-0",
+      "path": "media/94-soft-0.wav",
+      "sha256": "0bb91b89ce85e1a5b966be4b54f3a18f689b8c8c72bb173e537b9c191509bc3e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 94,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 600940,
+      "normalization_gain": 0.24452654205079624,
+      "loop": [
+        48000,
+        123619,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-94-hard-0",
+      "path": "media/94-hard-0.wav",
+      "sha256": "104cacbda15c27312ab4f6aa00524eb6eede426c1dcd76fc7e1b7ce4ac6873cd",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 94,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 600940,
+      "normalization_gain": 0.24452654205079624,
+      "loop": [
+        48000,
+        123600,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-100-soft-0",
+      "path": "media/100-soft-0.wav",
+      "sha256": "9559d32844f5b14b45c7876b93dffd1b25cfb46134d086990047a5fd8352ee1f",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 100,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 601000,
+      "normalization_gain": 0.48016172333877877,
+      "loop": [
+        48000,
+        124416,
+        8160
+      ]
+    },
+    {
+      "id": "solo-violin-100-hard-0",
+      "path": "media/100-hard-0.wav",
+      "sha256": "c853c4524cad870e25a8b49cd26a6cce78368579269fe12adb16d4db705576ba",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 100,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 601000,
+      "normalization_gain": 0.48016172333877877,
+      "loop": [
+        48000,
+        124165,
+        8160
+      ]
+    }
+  ]
+}

@@ -38,6 +38,8 @@ Pitch is ordinary repitch: playback increment is note/root ratio × semitone tun
 
 A `multisample` requires `pitch`, `gate`, and normalized `velocity`, with optional `gain`. It owns 1–256 ordered `zone` directives. Each zone declares a stable ID, exact asset, inclusive key and velocity ranges, root pitch, layer ID, articulation, round-robin group/index, exact half-open original-source region, gain, and pan.
 
+Amended 2026-11-12: only the asset, keys, and root are required. The other clauses may follow the ID in any order and default to velocity `0 1`, layer and articulation `default`, the whole asset, `0db`, and centre pan. A zone without `round_robin` joins its layer's implicit group; because a group sounds one matching zone per note, non-overlapping zones there behave as if each had its own group. The defaults are in [the language reference](../language.md).
+
 The first stable articulation vocabulary is only `default`; other authored values fail closed rather than pretending an unavailable selector exists. Every matching round-robin group chooses exactly one zone from stable index order using Project/Track/voice/note/Node seed identity. Distinct groups layer additively with their explicit gains and pans. Selection allocates nothing, scans a bounded precompiled group/index program only on note start, and remains callback-grouping independent. Global tune/rate/velocity/level/pan settings then use the same repitch and gated/one-shot laws as the single sample source.
 
 SFZ import is not part of this slice. A later importer may translate a strict subset into these ordinary readable zone directives, but an external SFZ path can never become runtime authority.

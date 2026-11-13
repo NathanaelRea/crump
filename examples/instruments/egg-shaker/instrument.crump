@@ -19,10 +19,10 @@ instrument egg-shaker "Egg Shaker" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset egg-shaker-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 20296 gain 0db pan 0
-      zone z60-hard-0 asset egg-shaker-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 21423 gain 0db pan 0
-      zone z60-soft-1 asset egg-shaker-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 21343 gain 0db pan 0
-      zone z60-hard-1 asset egg-shaker-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 22365 gain 0db pan 0
+      zone z60-soft-0 asset egg-shaker-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset egg-shaker-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset egg-shaker-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset egg-shaker-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument egg-shaker "Egg Shaker" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset egg-shaker-60-soft-0 "Egg Shaker" wav "media/60-soft-0.wav" sha256 "fce7d438ebca5b283b7425dc051ba1173a38be417daff31a4e2c06c7e4c1f515" {
+  usage multisample
+}
+asset egg-shaker-60-hard-0 "Egg Shaker" wav "media/60-hard-0.wav" sha256 "a451d4dbde0452c6e5cda92b0709b72856c8dcac2a729749ec7e6ebe432281e2" {
+  usage multisample
+}
+asset egg-shaker-60-soft-1 "Egg Shaker" wav "media/60-soft-1.wav" sha256 "1321d901590feb2c286bec3ed5996a288e54ae1dc7f4191d21b30d910f0acefc" {
+  usage multisample
+}
+asset egg-shaker-60-hard-1 "Egg Shaker" wav "media/60-hard-1.wav" sha256 "49f23b13329c324a7915503f834ced1e23b80d3ac7451104387eba6c4c4faa61" {
+  usage multisample
 }

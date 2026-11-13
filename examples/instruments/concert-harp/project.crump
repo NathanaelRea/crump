@@ -1,0 +1,39 @@
+crump 2
+import "instrument.crump"
+project "Concert Harp" {
+  id example-concert-harp
+  seed 530573
+  sample_rate 48000
+  render_tail 2s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 0.25beat 0.92
+      note 4beat C4 2beat 0.48
+      note 8beat F3 0.5beat 0.85
+      note 10beat G4 0.25beat 0.65
+      note 12beat C5 0.75beat 0.8
+      note 16beat C4 0.4beat 0.75
+      note 16.5beat E4 0.4beat 0.75
+      note 17beat G4 0.4beat 0.75
+      note 17.5beat C5 0.4beat 0.75
+      note 18beat E5 0.4beat 0.75
+      note 18.5beat C5 0.4beat 0.75
+      note 19beat G4 0.4beat 0.75
+      note 19.5beat E4 0.4beat 0.75
+      note 24beat C4 0.2beat 0.55
+      note 24.25beat D4 0.2beat 0.6
+      note 24.5beat E4 0.2beat 0.65
+      note 24.75beat F4 0.2beat 0.55
+      note 25beat G4 0.2beat 0.6
+      note 25.25beat A4 0.2beat 0.65
+      note 25.5beat B4 0.2beat 0.55
+      note 25.75beat C5 0.2beat 0.6
+    }
+    track instrument "Concert Harp" instrument concert-harp level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

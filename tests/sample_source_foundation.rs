@@ -473,3 +473,130 @@ project "Long one-shot" {{
         assert_eq!(energy(48000 * 30 + 12000, 48000 * 31), 0.0);
     }
 }
+
+#[test]
+fn multisample_zone_loops_sustain_while_held_then_play_their_release() {
+    let path = Path::new("fixtures/synth-alpha/minimal-multisample.crump");
+    // One held low note: twice the 24,000-frame zone region, with no envelope.
+    let authored = fs::read_to_string(path)
+        .expect("fixture")
+        .lines()
+        .filter(|line| {
+            !line.contains("note 2beat C5")
+                && !line.contains("node envelope envelope")
+                && !line.contains("bus envelope-gate")
+                && !line.contains("bus envelope-gain")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let looped = |source: &str| {
+        source.replace(
+            "region 0 24000 gain -3db pan -0.2",
+            "region 0 24000 gain -3db pan -0.2 loop 4000 8000 crossfade 400",
+        )
+    };
+    let compile = |source: &str| {
+        let parsed = parse_project(path, source);
+        assert!(!parsed.diagnostics.has_errors(), "{:?}", parsed.diagnostics);
+        let project = parsed.project.expect("Project");
+        let diagnostics = validate_project(&project);
+        assert!(!diagnostics.has_errors(), "{diagnostics:?}");
+        let (assets, diagnostics) =
+            load_asset_inventory(Path::new("fixtures/synth-alpha"), &project.assets);
+        assert!(!diagnostics.has_errors(), "{diagnostics:?}");
+        CompiledProject::compile_with_assets(&project, &assets).expect("multisample Project")
+    };
+    let peak = |output: &[[f32; 2]], range: std::ops::Range<usize>| {
+        output[range]
+            .iter()
+            .flatten()
+            .map(|sample| sample.abs())
+            .fold(0.0_f32, f32::max)
+    };
+    let one_shot = authored.replace("playback gated", "playback one_shot");
+    let plain = render(&compile(&one_shot), 96_000, 128);
+    let sustained = render(&compile(&looped(&one_shot)), 96_000, 128);
+    let gated = render(&compile(&looped(&authored)), 96_000, 128);
+    // Without a loop the zone ends halfway through the held note.
+    assert!(peak(&plain, 30_000..46_000) < 1.0e-6);
+    assert!(peak(&sustained, 30_000..46_000) > 1.0e-4);
+    assert!(peak(&gated, 30_000..46_000) > 1.0e-4);
+    // After Note Off at 48,000 frames a one-shot zone plays the rest of its
+    // region, at most 20,000 frames, while a gated zone stops at once.
+    assert!(peak(&sustained, 48_500..52_000) > 1.0e-4);
+    assert!(peak(&sustained, 70_000..96_000) < 1.0e-6);
+    assert!(peak(&gated, 48_500..96_000) < 1.0e-6);
+    assert_eq!(sustained, render(&compile(&looped(&one_shot)), 96_000, 257));
+
+    let outside = parse_project(
+        path,
+        &one_shot.replace(
+            "region 0 24000 gain -3db pan -0.2",
+            "region 0 24000 gain -3db pan -0.2 loop 4000 30000 crossfade 400",
+        ),
+    );
+    let project = outside.project.expect("Project");
+    assert!(validate_project(&project).has_errors());
+}
+
+#[test]
+fn compact_zones_take_the_documented_defaults_in_any_clause_order() {
+    let path = Path::new("fixtures/synth-alpha/minimal-multisample.crump");
+    let compile = |source: &str| {
+        let parsed = parse_project(path, source);
+        assert!(!parsed.diagnostics.has_errors(), "{:?}", parsed.diagnostics);
+        let project = parsed.project.expect("Project");
+        let diagnostics = validate_project(&project);
+        assert!(!diagnostics.has_errors(), "{diagnostics:?}");
+        let (assets, diagnostics) =
+            load_asset_inventory(Path::new("fixtures/synth-alpha"), &project.assets);
+        assert!(!diagnostics.has_errors(), "{diagnostics:?}");
+        let diagnostics = validate_project_assets(&project, &assets);
+        assert!(!diagnostics.has_errors(), "{diagnostics:?}");
+        CompiledProject::compile_with_assets(&project, &assets).expect("multisample Project")
+    };
+    // Both fixture zones cover their whole 24,000-frame asset.
+    let explicit = fs::read_to_string(path)
+        .expect("fixture")
+        .replace("gain -3db pan -0.2", "gain 0db pan 0")
+        .replace("gain -3db pan 0.2", "gain 0db pan 0");
+    let compact = explicit
+        .replace(
+            "zone low asset zone-low keys C1 B3 velocity 0 1 root C3 layer body articulation default round_robin low-rr 0 region 0 24000 gain 0db pan 0",
+            "zone low asset zone-low keys C1 B3 root C3",
+        )
+        .replace(
+            "zone high asset zone-high keys C4 C7 velocity 0 1 root C5 layer body articulation default round_robin high-rr 0 region 0 24000 gain 0db pan 0",
+            "zone high root C5 keys C4 C7 asset zone-high",
+        );
+    assert_ne!(explicit, compact);
+    assert_eq!(
+        render(&compile(&explicit), 96_000, 128),
+        render(&compile(&compact), 96_000, 128)
+    );
+
+    let invalid = |replacement: &str| {
+        let parsed = parse_project(
+            path,
+            &compact.replace("zone low asset zone-low keys C1 B3 root C3", replacement),
+        );
+        let project = parsed.project.expect("Project");
+        let (assets, _) = load_asset_inventory(Path::new("fixtures/synth-alpha"), &project.assets);
+        let mut diagnostics = validate_project(&project).into_vec();
+        diagnostics.extend(validate_project_assets(&project, &assets).into_vec());
+        diagnostics
+            .into_iter()
+            .map(|diagnostic| diagnostic.code)
+            .collect::<Vec<_>>()
+    };
+    assert!(
+        invalid("zone low asset zone-low keys C1 B3 root C3 gain 0db gain 1db")
+            .contains(&"CRV060".to_owned())
+    );
+    assert!(invalid("zone low asset zone-low keys C1 B3").contains(&"CRV060".to_owned()));
+    // A whole-asset zone's loop must end inside the asset.
+    assert!(
+        invalid("zone low asset zone-low keys C1 B3 root C3 loop 4000 30000 crossfade 400")
+            .contains(&"CRV198".to_owned())
+    );
+}

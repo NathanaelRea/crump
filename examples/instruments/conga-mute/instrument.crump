@@ -19,10 +19,10 @@ instrument conga-mute "Conga Mute" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset conga-mute-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 22153 gain 0db pan 0
-      zone z60-hard-0 asset conga-mute-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 23256 gain 0db pan 0
-      zone z60-soft-1 asset conga-mute-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 22141 gain 0db pan 0
-      zone z60-hard-1 asset conga-mute-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 23233 gain 0db pan 0
+      zone z60-soft-0 asset conga-mute-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset conga-mute-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset conga-mute-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset conga-mute-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument conga-mute "Conga Mute" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset conga-mute-60-soft-0 "Conga Mute" wav "media/60-soft-0.wav" sha256 "7c6ecfd354fc48680622f8f3e8d983cccaffe36c40eff117ed58605d1e028a5a" {
+  usage multisample
+}
+asset conga-mute-60-hard-0 "Conga Mute" wav "media/60-hard-0.wav" sha256 "c02646075d0d2c558234d90717258964cc84b9cd2677b0ca577a9eb017f5dbfb" {
+  usage multisample
+}
+asset conga-mute-60-soft-1 "Conga Mute" wav "media/60-soft-1.wav" sha256 "39ba3dd988013a243784086d0bab093759d3c90516e0c5897facb3a9c567f751" {
+  usage multisample
+}
+asset conga-mute-60-hard-1 "Conga Mute" wav "media/60-hard-1.wav" sha256 "3281cf937306462da7dad4b9f34f7d26c4841d6d76202f67e94c6c2f8c3f4439" {
+  usage multisample
 }

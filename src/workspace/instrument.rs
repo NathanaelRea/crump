@@ -291,13 +291,8 @@ fn instrument_section_views_impl(
             referenced_assets.insert(asset_id.as_str());
         }
         if node.kind == NodeKind::Multisample {
-            for directive in &node.directives {
-                if directive.tokens.len() >= 4
-                    && directive.tokens[0].value == "zone"
-                    && directive.tokens[2].value == "asset"
-                {
-                    referenced_assets.insert(directive.tokens[3].value.as_str());
-                }
+            for zone in node.directives.iter().filter_map(|d| d.zone_clauses()) {
+                referenced_assets.insert(zone.asset.value.as_str());
             }
         }
     }
@@ -546,23 +541,18 @@ fn node_detail(node: &crate::model::GraphNode, domain: GraphDomain) -> String {
             let zones = node
                 .directives
                 .iter()
-                .filter(|directive| {
-                    directive
-                        .tokens
-                        .first()
-                        .is_some_and(|token| token.value == "zone")
-                })
-                .map(|directive| {
+                .filter_map(|directive| directive.zone_clauses())
+                .map(|zone| {
+                    let [low, high] = zone.velocity.map_or(["0", "1"], |[low, high]| {
+                        [low.value.as_str(), high.value.as_str()]
+                    });
+                    let round_robin = zone.round_robin.map_or_else(
+                        || "-".to_owned(),
+                        |[group, index]| format!("{}/{}", group.value, index.value),
+                    );
                     format!(
-                        "{}:{} {}..{} v{}..{} rr {}/{}",
-                        directive.tokens[1].value,
-                        directive.tokens[3].value,
-                        directive.tokens[5].value,
-                        directive.tokens[6].value,
-                        directive.tokens[8].value,
-                        directive.tokens[9].value,
-                        directive.tokens[17].value,
-                        directive.tokens[18].value
+                        "{}:{} {}..{} v{low}..{high} rr {round_robin}",
+                        zone.id.value, zone.asset.value, zone.keys[0].value, zone.keys[1].value,
                     )
                 })
                 .collect::<Vec<_>>()
@@ -730,6 +720,7 @@ fn node_section(kind: NodeKind, domain: GraphDomain) -> PresentationSectionKind 
         NodeKind::Mixer
         | NodeKind::StereoMixer
         | NodeKind::StereoSum
+        | NodeKind::Sum
         | NodeKind::MonoToStereo
         | NodeKind::StereoToMono
         | NodeKind::Amplifier

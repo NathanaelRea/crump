@@ -1,0 +1,87 @@
+crump 2
+import "instrument.crump"
+project "Timpani" {
+  id example-timpani
+  seed 617682
+  sample_rate 48000
+  render_tail 2s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat A2 1beat 0.92
+      note 2beat D2 1beat 0.6
+      note 4beat A2 2beat 0.48
+      note 8beat A2 0.125beat 0.3
+      note 8.125beat A2 0.125beat 0.319355
+      note 8.25beat A2 0.125beat 0.33871
+      note 8.375beat A2 0.125beat 0.358065
+      note 8.5beat A2 0.125beat 0.377419
+      note 8.625beat A2 0.125beat 0.396774
+      note 8.75beat A2 0.125beat 0.416129
+      note 8.875beat A2 0.125beat 0.435484
+      note 9beat A2 0.125beat 0.454839
+      note 9.125beat A2 0.125beat 0.474194
+      note 9.25beat A2 0.125beat 0.493548
+      note 9.375beat A2 0.125beat 0.512903
+      note 9.5beat A2 0.125beat 0.532258
+      note 9.625beat A2 0.125beat 0.551613
+      note 9.75beat A2 0.125beat 0.570968
+      note 9.875beat A2 0.125beat 0.590323
+      note 10beat A2 0.125beat 0.609677
+      note 10.125beat A2 0.125beat 0.629032
+      note 10.25beat A2 0.125beat 0.648387
+      note 10.375beat A2 0.125beat 0.667742
+      note 10.5beat A2 0.125beat 0.687097
+      note 10.625beat A2 0.125beat 0.706452
+      note 10.75beat A2 0.125beat 0.725806
+      note 10.875beat A2 0.125beat 0.745161
+      note 11beat A2 0.125beat 0.764516
+      note 11.125beat A2 0.125beat 0.783871
+      note 11.25beat A2 0.125beat 0.803226
+      note 11.375beat A2 0.125beat 0.822581
+      note 11.5beat A2 0.125beat 0.841935
+      note 11.625beat A2 0.125beat 0.86129
+      note 11.75beat A2 0.125beat 0.880645
+      note 11.875beat A2 0.125beat 0.9
+      note 13beat D2 0.5beat 0.85
+      note 14beat A2 0.5beat 0.85
+      note 16beat A2 0.4beat 0.75
+      note 16.5beat C3 0.4beat 0.75
+      note 17beat D3 0.4beat 0.75
+      note 17.5beat E3 0.4beat 0.75
+      note 18beat D3 0.4beat 0.75
+      note 18.5beat C3 0.4beat 0.75
+      note 19beat A2 0.4beat 0.75
+      note 19.5beat E2 0.4beat 0.75
+      note 24beat D2 0.125beat 0.85
+      note 24.125beat D2 0.125beat 0.828261
+      note 24.25beat D2 0.125beat 0.806522
+      note 24.375beat D2 0.125beat 0.784783
+      note 24.5beat D2 0.125beat 0.763043
+      note 24.625beat D2 0.125beat 0.741304
+      note 24.75beat D2 0.125beat 0.719565
+      note 24.875beat D2 0.125beat 0.697826
+      note 25beat D2 0.125beat 0.676087
+      note 25.125beat D2 0.125beat 0.654348
+      note 25.25beat D2 0.125beat 0.632609
+      note 25.375beat D2 0.125beat 0.61087
+      note 25.5beat D2 0.125beat 0.58913
+      note 25.625beat D2 0.125beat 0.567391
+      note 25.75beat D2 0.125beat 0.545652
+      note 25.875beat D2 0.125beat 0.523913
+      note 26beat D2 0.125beat 0.502174
+      note 26.125beat D2 0.125beat 0.480435
+      note 26.25beat D2 0.125beat 0.458696
+      note 26.375beat D2 0.125beat 0.436957
+      note 26.5beat D2 0.125beat 0.415217
+      note 26.625beat D2 0.125beat 0.393478
+      note 26.75beat D2 0.125beat 0.371739
+      note 26.875beat D2 0.125beat 0.35
+    }
+    track instrument "Timpani" instrument timpani level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

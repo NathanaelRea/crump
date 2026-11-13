@@ -107,6 +107,15 @@ def main():
     if args.only and not set(args.only) <= {e["id"] for e in entries}:
         parser.error("Unknown instrument ID")
     selected = [e for e in entries if not args.only or e["id"] in args.only]
+    for entry in selected:
+        manifest = ROOT / entry["id"] / "assets.json"
+        if manifest.exists() and not all(
+            (ROOT / entry["id"] / asset["path"]).exists()
+            for asset in json.loads(manifest.read_text())["assets"]
+        ):
+            parser.error(
+                f"{entry['id']} has no media; run uv run tools/instrument_assets/build.py --setup"
+            )
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     results, errors = [], []

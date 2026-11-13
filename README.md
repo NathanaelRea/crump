@@ -96,7 +96,7 @@ Both Projects keep each Instrument in `instruments/<id>.crump`, imported by `pro
 
 [`fixtures/starter/`](fixtures/starter/) contains nine source-readable native-synthesis Instrument Modules, exact lawful assets, and authored Audition Phrases. [`fixtures/deep-house-reference/`](fixtures/deep-house-reference/) is an original portable 112-bar (3:40) integration fixture using every runnable source family with Patterns, Automation, Modulation, routing, effects, stems, and deterministic delivery evidence. These fixtures are engineering/content preparation; independent listening and named-hardware acceptance remain pending under the [native-synthesis qualification runbook](docs/qualification/native-synthesis.md).
 
-[`examples/instruments/`](examples/instruments/README.md) contains 60 copyable house instruments with audition Projects: native acoustic graphs and procedural multisample banks. The [acoustic model reference](docs/native-acoustics.md) explains excitation and resonant-body profiles. The [audio comparison tool](tools/audio_compare/README.md) builds standalone listening and time/frequency reports from WAV files.
+[`examples/instruments/`](examples/instruments/README.md) contains 92 copyable instruments with audition Projects: 60 house instruments and a 32-piece orchestra, built from native acoustic graphs and procedural multisample banks. The [instrument player](tools/instrument_player/README.md) plays all of them in a browser. The [acoustic model reference](docs/native-acoustics.md) explains excitation and resonant-body profiles. The [audio comparison tool](tools/audio_compare/README.md) builds standalone listening and time/frequency reports from WAV files.
 
 ## Safe source workflow
 

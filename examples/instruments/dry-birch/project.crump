@@ -5,18 +5,6 @@ project "Dry Birch" {
   seed 39595
   sample_rate 48000
   render_tail 2s
-  asset dry-birch-60-soft-0 "Dry Birch" wav "media/60-soft-0.wav" sha256 "34d57f04088fe4e49f172a9c464661e26961c255e8ca941d3ee8e91a2f2007eb" {
-    usage multisample
-  }
-  asset dry-birch-60-hard-0 "Dry Birch" wav "media/60-hard-0.wav" sha256 "85f405f5b67c53f6292f53af89a5f3af951a2d0e79908fdf814dc2e4c4f9dfa2" {
-    usage multisample
-  }
-  asset dry-birch-60-soft-1 "Dry Birch" wav "media/60-soft-1.wav" sha256 "4c2bb9a3189e91ba9254c14155179c44d8a5405374e4d22a60ba26cb0af9590a" {
-    usage multisample
-  }
-  asset dry-birch-60-hard-1 "Dry Birch" wav "media/60-hard-1.wav" sha256 "c90b0af504103370ff9dfa6df7ee76a05447fa298412f2a0f8c4b7f62bbc3705" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

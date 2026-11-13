@@ -1,0 +1,69 @@
+crump-module 2
+instrument tubular-bells "Tubular Bells" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z60-soft-0 asset tubular-bells-60-soft-0 keys A#3 D4 velocity 0 0.65 root C4
+      zone z60-hard-0 asset tubular-bells-60-hard-0 keys A#3 D4 velocity 0.65 1 root C4
+      zone z64-soft-0 asset tubular-bells-64-soft-0 keys D#4 F#4 velocity 0 0.65 root E4
+      zone z64-hard-0 asset tubular-bells-64-hard-0 keys D#4 F#4 velocity 0.65 1 root E4
+      zone z68-soft-0 asset tubular-bells-68-soft-0 keys G4 A#4 velocity 0 0.65 root G#4
+      zone z68-hard-0 asset tubular-bells-68-hard-0 keys G4 A#4 velocity 0.65 1 root G#4
+      zone z72-soft-0 asset tubular-bells-72-soft-0 keys B4 D5 velocity 0 0.65 root C5
+      zone z72-hard-0 asset tubular-bells-72-hard-0 keys B4 D5 velocity 0.65 1 root C5
+      zone z76-soft-0 asset tubular-bells-76-soft-0 keys D#5 G5 velocity 0 0.65 root E5
+      zone z76-hard-0 asset tubular-bells-76-hard-0 keys D#5 G5 velocity 0.65 1 root E5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset tubular-bells-60-soft-0 "Tubular Bells" wav "media/60-soft-0.wav" sha256 "9171a141ad230a773d8922facdd006303492f57f2007aabd2a77f37e0496c1c0" {
+  usage multisample
+}
+asset tubular-bells-60-hard-0 "Tubular Bells" wav "media/60-hard-0.wav" sha256 "2962385f7ad943849444082cf6cd0d2eda7b4b9e99446b4f083727cd0d0e5bd6" {
+  usage multisample
+}
+asset tubular-bells-64-soft-0 "Tubular Bells" wav "media/64-soft-0.wav" sha256 "3cc63daab64a6aa31813a7db72e888087b73f02c2ecb61a832009ac65df23fe2" {
+  usage multisample
+}
+asset tubular-bells-64-hard-0 "Tubular Bells" wav "media/64-hard-0.wav" sha256 "e17c9d899fd6851548c7ee1bec368d4e262939806ab3a85fbfe57345b80c01dd" {
+  usage multisample
+}
+asset tubular-bells-68-soft-0 "Tubular Bells" wav "media/68-soft-0.wav" sha256 "cd2b78c154c03478d3ee35ea55d289ba542e16334e0569723a6bee6c70ad2c77" {
+  usage multisample
+}
+asset tubular-bells-68-hard-0 "Tubular Bells" wav "media/68-hard-0.wav" sha256 "fc002a34a07db1ce8d9d8b105170a25047658fc6910f3f873d6b650b6b18305d" {
+  usage multisample
+}
+asset tubular-bells-72-soft-0 "Tubular Bells" wav "media/72-soft-0.wav" sha256 "f4e86256c6884637faf7ac7f5a1761bb82c7b0bcd58cedb3c4ad1d5537f8c6c7" {
+  usage multisample
+}
+asset tubular-bells-72-hard-0 "Tubular Bells" wav "media/72-hard-0.wav" sha256 "8736f34c353e437b99beae39a851c32ff55ce2a6b25395a0c0461eea23345613" {
+  usage multisample
+}
+asset tubular-bells-76-soft-0 "Tubular Bells" wav "media/76-soft-0.wav" sha256 "229e6b0b2e9ac2dffd5109596acceba0f6b7ca962bf8d848f84631f199c3278a" {
+  usage multisample
+}
+asset tubular-bells-76-hard-0 "Tubular Bells" wav "media/76-hard-0.wav" sha256 "dcbefa01df4e6f2897ebacf46083711f53fae4a00eb3a0c4d4fc7b10fa0bd3be" {
+  usage multisample
+}

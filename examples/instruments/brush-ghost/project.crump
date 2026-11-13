@@ -5,18 +5,6 @@ project "Brush Ghost" {
   seed 55433
   sample_rate 48000
   render_tail 2s
-  asset brush-ghost-60-soft-0 "Brush Ghost" wav "media/60-soft-0.wav" sha256 "44a651ccc665ae35543360f5ef63d2110807a5a3160b37dc959a6dde29709d59" {
-    usage multisample
-  }
-  asset brush-ghost-60-hard-0 "Brush Ghost" wav "media/60-hard-0.wav" sha256 "8c578fbe4591198269c9f4695a6038dafc6058ef2ef722ef40e673759e905508" {
-    usage multisample
-  }
-  asset brush-ghost-60-soft-1 "Brush Ghost" wav "media/60-soft-1.wav" sha256 "f5fc0e5a8f171da5f2f00c2f638cfc04d89c97f4ed0e3ead1296b5600349670b" {
-    usage multisample
-  }
-  asset brush-ghost-60-hard-1 "Brush Ghost" wav "media/60-hard-1.wav" sha256 "75c490a7d45134d9a5eeb409d5dc890c56c18ce80b49104f54212806814e6d73" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

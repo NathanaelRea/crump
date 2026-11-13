@@ -5,54 +5,6 @@ project "Pick Bass" {
   seed 261327
   sample_rate 48000
   render_tail 2s
-  asset pick-bass-36-soft-0 "Pick Bass" wav "media/36-soft-0.wav" sha256 "0f6285ff5fa78df23605127aa40089c335cc2bade5b50b90373fb3cb5b23ec3a" {
-    usage multisample
-  }
-  asset pick-bass-36-hard-0 "Pick Bass" wav "media/36-hard-0.wav" sha256 "9048056d22c03a75350ca0366251082a86fc5ee5a9f06a5ea0b1d9ded88c699f" {
-    usage multisample
-  }
-  asset pick-bass-43-soft-0 "Pick Bass" wav "media/43-soft-0.wav" sha256 "d6f30cf8b3fa85bac14ad21b559bea500da217d7ca3f24108399928cba265f01" {
-    usage multisample
-  }
-  asset pick-bass-43-hard-0 "Pick Bass" wav "media/43-hard-0.wav" sha256 "ff135e46028b79d97b033d04e53f8e34689d18f41f9c171b71c8747c798d773a" {
-    usage multisample
-  }
-  asset pick-bass-48-soft-0 "Pick Bass" wav "media/48-soft-0.wav" sha256 "e9ce6dba8a4356c134ebab8c0b5549b39c27d59109bc29d2e5abc84c9def18a1" {
-    usage multisample
-  }
-  asset pick-bass-48-hard-0 "Pick Bass" wav "media/48-hard-0.wav" sha256 "6ffd1716a0d93b8de7ec27e4dd86c9bdc8241ac202a7b87e188e08c41f727fc1" {
-    usage multisample
-  }
-  asset pick-bass-55-soft-0 "Pick Bass" wav "media/55-soft-0.wav" sha256 "dfd10c130f12bd2a860b375722935f42db3799dce7bf7c98d31c26ec5b7bdee9" {
-    usage multisample
-  }
-  asset pick-bass-55-hard-0 "Pick Bass" wav "media/55-hard-0.wav" sha256 "11817899c29a683894cb12a9ce1429468ecdddfd191e9710937582985b320d78" {
-    usage multisample
-  }
-  asset pick-bass-60-soft-0 "Pick Bass" wav "media/60-soft-0.wav" sha256 "577e042de56f6b852f2c6dc4f7404cc92a71875ac1afa40c3478a071bfae050e" {
-    usage multisample
-  }
-  asset pick-bass-60-hard-0 "Pick Bass" wav "media/60-hard-0.wav" sha256 "f9ac48428ba98175e7cf9c132010b7eff78dbe1167b73c8eb8373d8a92e02f77" {
-    usage multisample
-  }
-  asset pick-bass-67-soft-0 "Pick Bass" wav "media/67-soft-0.wav" sha256 "f8260d72600636394986163abaf25a378c527aac136d5d5f41cc18b6b7473aad" {
-    usage multisample
-  }
-  asset pick-bass-67-hard-0 "Pick Bass" wav "media/67-hard-0.wav" sha256 "671cfd176de712b536eedccfbd83bd4b8a6548b82834c402c39064bcd71745c5" {
-    usage multisample
-  }
-  asset pick-bass-72-soft-0 "Pick Bass" wav "media/72-soft-0.wav" sha256 "8d89084e26ff9d869f9d656be90cd56000324a2dbfd521598721e142718a2783" {
-    usage multisample
-  }
-  asset pick-bass-72-hard-0 "Pick Bass" wav "media/72-hard-0.wav" sha256 "c855f4adfd8cc15fc6fb0b414d060f029ace3c523469ced51a13a8ad4013c1cb" {
-    usage multisample
-  }
-  asset pick-bass-79-soft-0 "Pick Bass" wav "media/79-soft-0.wav" sha256 "144961e434d672fc12e0a7abc4ca2c477f0ec585b5a79f0de83e5e5d3c382f61" {
-    usage multisample
-  }
-  asset pick-bass-79-hard-0 "Pick Bass" wav "media/79-hard-0.wav" sha256 "c7cef570cd757db17584431f9b1b049eabb08e276c54539d847b84df86d06e34" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

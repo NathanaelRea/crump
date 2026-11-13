@@ -19,10 +19,10 @@ instrument warehouse-skin "Warehouse Skin" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset warehouse-skin-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 20449 gain 0db pan 0
-      zone z60-hard-0 asset warehouse-skin-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 21435 gain 0db pan 0
-      zone z60-soft-1 asset warehouse-skin-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 20261 gain 0db pan 0
-      zone z60-hard-1 asset warehouse-skin-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 20987 gain 0db pan 0
+      zone z60-soft-0 asset warehouse-skin-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset warehouse-skin-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset warehouse-skin-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset warehouse-skin-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument warehouse-skin "Warehouse Skin" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset warehouse-skin-60-soft-0 "Warehouse Skin" wav "media/60-soft-0.wav" sha256 "e5c4be23bf7d4d1fd8b2ce3b55c6e3997df33d868ab7666c6a85f35e40d7ec31" {
+  usage multisample
+}
+asset warehouse-skin-60-hard-0 "Warehouse Skin" wav "media/60-hard-0.wav" sha256 "2539088054b926366215b868eeece80161476ee31cae7fcd3ad0c4addbea63c9" {
+  usage multisample
+}
+asset warehouse-skin-60-soft-1 "Warehouse Skin" wav "media/60-soft-1.wav" sha256 "136360e72f6b6ad3da3f4a1a5cb4c4727ce1bc8479cadd01f4b93ce86b0176d5" {
+  usage multisample
+}
+asset warehouse-skin-60-hard-1 "Warehouse Skin" wav "media/60-hard-1.wav" sha256 "6fce778a2bc1aab6e8af433ada49956ee95921bc6729086d051f08bc452ad163" {
+  usage multisample
 }

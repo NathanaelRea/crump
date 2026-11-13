@@ -478,5 +478,261 @@
     "pitched": true,
     "kind": "multisample",
     "seed": 475140
+  },
+  {
+    "id": "solo-violin",
+    "name": "Solo Violin",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 483059
+  },
+  {
+    "id": "viola",
+    "name": "Viola",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 490978
+  },
+  {
+    "id": "cello",
+    "name": "Cello",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 498897
+  },
+  {
+    "id": "contrabass",
+    "name": "Contrabass",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 506816
+  },
+  {
+    "id": "string-section",
+    "name": "String Section",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 514735
+  },
+  {
+    "id": "pizzicato-strings",
+    "name": "Pizzicato Strings",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 522654
+  },
+  {
+    "id": "concert-harp",
+    "name": "Concert Harp",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 530573
+  },
+  {
+    "id": "piccolo",
+    "name": "Piccolo",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 538492
+  },
+  {
+    "id": "concert-flute",
+    "name": "Concert Flute",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 546411
+  },
+  {
+    "id": "oboe",
+    "name": "Oboe",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 554330
+  },
+  {
+    "id": "clarinet",
+    "name": "Clarinet",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 562249
+  },
+  {
+    "id": "bassoon",
+    "name": "Bassoon",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 570168
+  },
+  {
+    "id": "trumpet",
+    "name": "Trumpet",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 578087
+  },
+  {
+    "id": "french-horn",
+    "name": "French Horn",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 586006
+  },
+  {
+    "id": "tenor-trombone",
+    "name": "Tenor Trombone",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 593925
+  },
+  {
+    "id": "tuba",
+    "name": "Tuba",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 601844
+  },
+  {
+    "id": "brass-section",
+    "name": "Brass Section",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 609763
+  },
+  {
+    "id": "timpani",
+    "name": "Timpani",
+    "category": "Orchestral percussion",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 617682
+  },
+  {
+    "id": "concert-bass-drum",
+    "name": "Concert Bass Drum",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 625601
+  },
+  {
+    "id": "concert-snare",
+    "name": "Concert Snare",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 633520
+  },
+  {
+    "id": "clash-cymbals",
+    "name": "Clash Cymbals",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 641439
+  },
+  {
+    "id": "suspended-cymbal",
+    "name": "Suspended Cymbal",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 649358
+  },
+  {
+    "id": "tam-tam",
+    "name": "Tam-tam",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 657277
+  },
+  {
+    "id": "triangle",
+    "name": "Triangle",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 665196
+  },
+  {
+    "id": "castanets",
+    "name": "Castanets",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 673115
+  },
+  {
+    "id": "glockenspiel",
+    "name": "Glockenspiel",
+    "category": "Tuned percussion",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 681034
+  },
+  {
+    "id": "xylophone",
+    "name": "Xylophone",
+    "category": "Tuned percussion",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 688953
+  },
+  {
+    "id": "tubular-bells",
+    "name": "Tubular Bells",
+    "category": "Tuned percussion",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 696872
+  },
+  {
+    "id": "celesta",
+    "name": "Celesta",
+    "category": "Orchestral keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 704791
+  },
+  {
+    "id": "pipe-organ",
+    "name": "Pipe Organ",
+    "category": "Orchestral keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 712710
+  },
+  {
+    "id": "harpsichord",
+    "name": "Harpsichord",
+    "category": "Orchestral keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 720629
+  },
+  {
+    "id": "choir-aahs",
+    "name": "Choir Aahs",
+    "category": "Voices",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 728548
   }
 ]

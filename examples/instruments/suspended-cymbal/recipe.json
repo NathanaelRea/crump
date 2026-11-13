@@ -1,0 +1,24 @@
+{
+  "model": "metal",
+  "params": {
+    "modes": 220,
+    "low": 280,
+    "high": 14000,
+    "tilt": 0.1,
+    "decay": 2.4,
+    "damping": 0.25,
+    "contact": 0.0018,
+    "noise": 0.16,
+    "noise_decay": 0.6,
+    "hipass": 200
+  },
+  "pitched": false,
+  "category": "Orchestral percussion",
+  "id": "suspended-cymbal",
+  "seed_base": 810000,
+  "seconds": 9,
+  "fixed_keys": [
+    36,
+    81
+  ]
+}

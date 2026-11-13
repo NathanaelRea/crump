@@ -5,18 +5,6 @@ project "Disco Beater" {
   seed 23757
   sample_rate 48000
   render_tail 2s
-  asset disco-beater-60-soft-0 "Disco Beater" wav "media/60-soft-0.wav" sha256 "9d9fbba0352944c2323a47072294a8b44033a79ff87abdc9d8191c343973d1f8" {
-    usage multisample
-  }
-  asset disco-beater-60-hard-0 "Disco Beater" wav "media/60-hard-0.wav" sha256 "43170514e9bedb2c4b537665a9107ed428f6e10315672ae70248aa0bf804fcee" {
-    usage multisample
-  }
-  asset disco-beater-60-soft-1 "Disco Beater" wav "media/60-soft-1.wav" sha256 "2d6835fd80fdaebd464f3ab67659e1ee63ca19d35b744749476b8f9872825551" {
-    usage multisample
-  }
-  asset disco-beater-60-hard-1 "Disco Beater" wav "media/60-hard-1.wav" sha256 "c4641cfe995f7bbaae29643233507f439c25ba4a100d27fe2f88156e093c92e4" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

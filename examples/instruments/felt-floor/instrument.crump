@@ -19,10 +19,10 @@ instrument felt-floor "Felt Floor" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset felt-floor-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 43596 gain 0db pan 0
-      zone z60-hard-0 asset felt-floor-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 45560 gain 0db pan 0
-      zone z60-soft-1 asset felt-floor-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 43131 gain 0db pan 0
-      zone z60-hard-1 asset felt-floor-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 45165 gain 0db pan 0
+      zone z60-soft-0 asset felt-floor-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset felt-floor-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset felt-floor-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset felt-floor-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument felt-floor "Felt Floor" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset felt-floor-60-soft-0 "Felt Floor" wav "media/60-soft-0.wav" sha256 "296e694d3b4f328fc7d3462d448f6d75b83ba17aeba0927f4011c3d9f2a221df" {
+  usage multisample
+}
+asset felt-floor-60-hard-0 "Felt Floor" wav "media/60-hard-0.wav" sha256 "8c394750f301123fd03839ee4685644d95ab4ccdcf7d14421abcfa3da914629c" {
+  usage multisample
+}
+asset felt-floor-60-soft-1 "Felt Floor" wav "media/60-soft-1.wav" sha256 "55aebaa87f6aa1aac05d1fd105af77e22ec42a6f7a8183e99b11caad89b7cbb8" {
+  usage multisample
+}
+asset felt-floor-60-hard-1 "Felt Floor" wav "media/60-hard-1.wav" sha256 "315d1c07e3d6070c59b2854992f0abed99febbe84e70902a6968c51386a8e49e" {
+  usage multisample
 }

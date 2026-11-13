@@ -1,0 +1,23 @@
+{
+  "model": "snare",
+  "params": {
+    "freq": 280,
+    "decay": 0.06,
+    "contact": 0.0004,
+    "wire_low": 1800,
+    "wire_high": 12000,
+    "wire_decay": 0.11,
+    "head": 0.55,
+    "wires": 1.0,
+    "click": 0.3
+  },
+  "pitched": false,
+  "category": "Orchestral percussion",
+  "id": "concert-snare",
+  "seed_base": 790000,
+  "seconds": 1.5,
+  "fixed_keys": [
+    36,
+    81
+  ]
+}

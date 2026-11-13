@@ -5,18 +5,6 @@ project "Three Hands" {
   seed 63352
   sample_rate 48000
   render_tail 2s
-  asset three-hands-60-soft-0 "Three Hands" wav "media/60-soft-0.wav" sha256 "d2ff23f577e3755056bcc3eede62f406355181166c240f7e96390eb2aa764302" {
-    usage multisample
-  }
-  asset three-hands-60-hard-0 "Three Hands" wav "media/60-hard-0.wav" sha256 "11a82298823233b58c0fdaf81614e35454cbd9d112734c053732777ef197be21" {
-    usage multisample
-  }
-  asset three-hands-60-soft-1 "Three Hands" wav "media/60-soft-1.wav" sha256 "7244f38a0b4b84584fad382e7f117b77f9cad6a8056a61f64722b5ebfda2a0d0" {
-    usage multisample
-  }
-  asset three-hands-60-hard-1 "Three Hands" wav "media/60-hard-1.wav" sha256 "522ba60a64299f9e8c0827002f6ac9ca6d1a92b75c5bdfa517b68953a3004c79" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

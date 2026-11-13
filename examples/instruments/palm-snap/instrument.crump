@@ -19,10 +19,10 @@ instrument palm-snap "Palm Snap" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset palm-snap-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 8890 gain 0db pan 0
-      zone z60-hard-0 asset palm-snap-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 9255 gain 0db pan 0
-      zone z60-soft-1 asset palm-snap-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 8987 gain 0db pan 0
-      zone z60-hard-1 asset palm-snap-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 9022 gain 0db pan 0
+      zone z60-soft-0 asset palm-snap-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset palm-snap-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset palm-snap-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset palm-snap-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument palm-snap "Palm Snap" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset palm-snap-60-soft-0 "Palm Snap" wav "media/60-soft-0.wav" sha256 "dc83375009c073f2f6a2f52fcdeef7452eca0c0c40314ff1018d644477d0d640" {
+  usage multisample
+}
+asset palm-snap-60-hard-0 "Palm Snap" wav "media/60-hard-0.wav" sha256 "6b35f47a0d2d4566c7d42af7fe3cdcfaaee2fedf43b7481ed0ba95f2cf9d8d93" {
+  usage multisample
+}
+asset palm-snap-60-soft-1 "Palm Snap" wav "media/60-soft-1.wav" sha256 "f418caf4375c0884ee47427cad02c84257d7fe792c8717f70b760798c5b30818" {
+  usage multisample
+}
+asset palm-snap-60-hard-1 "Palm Snap" wav "media/60-hard-1.wav" sha256 "962e15ed612b227d94f3ac6a87d72850e5cb03a1869872c72a7baaa7c28876b2" {
+  usage multisample
 }

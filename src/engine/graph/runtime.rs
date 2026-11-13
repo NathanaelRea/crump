@@ -50,7 +50,7 @@ fn authored_graph_domain_work_units(
     graph: &Graph,
 ) -> u64 {
     let node_work = graph.nodes.iter().fold(0_u64, |work, node| {
-        let node_work = if node.kind == NodeKind::StereoSum {
+        let node_work = if node.kind.is_summing() {
             graph
                 .connections
                 .iter()
@@ -1522,7 +1522,7 @@ fn process_compiled_node(
         amplitude_modulation: input("am"),
         input_a: input("a"),
         input_b: input("b"),
-        summed_audio: resolve_stereo_sum_values(
+        summed_audio: resolve_summed_values(
             node,
             signals,
             context.pitch_hz,
@@ -1563,7 +1563,7 @@ fn resolve_input_values(
 
 #[cfg(test)]
 fn resolve_stereo_sum(node: &CompiledNode, voice: &GraphVoice) -> Signal {
-    resolve_stereo_sum_values(
+    resolve_summed_values(
         node,
         &voice.signals,
         voice.pitch_hz,
@@ -1573,7 +1573,8 @@ fn resolve_stereo_sum(node: &CompiledNode, voice: &GraphVoice) -> Signal {
     )
 }
 
-fn resolve_stereo_sum_values(
+/// Sums a summing Node's `inputs`; Bus typing makes them all mono or all stereo.
+fn resolve_summed_values(
     node: &CompiledNode,
     signals: &[Signal],
     pitch_hz: f32,
@@ -1584,14 +1585,24 @@ fn resolve_stereo_sum_values(
     let Some(sources) = node.inputs.get("inputs") else {
         return Signal::None;
     };
-    let mut sum = [0.0_f32; 2];
+    let mut mono = None;
+    let mut stereo = None;
     for source in sources {
-        let value =
-            resolve_source_values(*source, signals, pitch_hz, gate, velocity, voice_sum).stereo();
-        sum[0] += value[0];
-        sum[1] += value[1];
+        match resolve_source_values(*source, signals, pitch_hz, gate, velocity, voice_sum) {
+            Signal::Mono(value) => *mono.get_or_insert(0.0) += value,
+            value => {
+                let sum = stereo.get_or_insert([0.0_f32; 2]);
+                let value = value.stereo();
+                sum[0] += value[0];
+                sum[1] += value[1];
+            }
+        }
     }
-    Signal::Stereo(sum)
+    match (mono, stereo) {
+        (Some(value), None) => Signal::Mono(value),
+        (_, Some(value)) => Signal::Stereo(value),
+        (None, None) => Signal::None,
+    }
 }
 
 fn resolve_source_values(
@@ -1682,13 +1693,14 @@ fn validate_runtime_graph(graph: &Graph) -> Result<(), EngineError> {
             .entry((connection.to.node.as_str(), connection.to.port.as_str()))
             .or_default();
         *count += 1;
-        let summing_limit = (target_node.kind == NodeKind::StereoSum
-            && connection.to.port == "inputs")
-            .then(|| match target_node.setting("max_inputs") {
-                Some(crate::model::SettingValue::Number(value)) if value.is_finite() => {
-                    (*value as usize).clamp(1, MAX_STEREO_SUM_INPUTS)
+        let summing_limit =
+            (target_node.kind.is_summing() && connection.to.port == "inputs").then(|| {
+                match target_node.setting("max_inputs") {
+                    Some(crate::model::SettingValue::Number(value)) if value.is_finite() => {
+                        (*value as usize).clamp(1, MAX_STEREO_SUM_INPUTS)
+                    }
+                    _ => MAX_STEREO_SUM_INPUTS,
                 }
-                _ => MAX_STEREO_SUM_INPUTS,
             });
         if (summing_limit.is_none() && *count > 1)
             || summing_limit.is_some_and(|limit| *count > limit)
@@ -1729,6 +1741,7 @@ fn runtime_node_output(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> 
             NodeKind::Oscillator
             | NodeKind::Noise
             | NodeKind::Mixer
+            | NodeKind::Sum
             | NodeKind::Lowpass
             | NodeKind::Amplifier
             | NodeKind::Saturation
@@ -1796,6 +1809,7 @@ fn runtime_node_input(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> {
         (NodeKind::Mixer, "a" | "b") => Some(RuntimeSignalType::AudioMono),
         (NodeKind::StereoMixer, "a" | "b") => Some(RuntimeSignalType::AudioStereo),
         (NodeKind::StereoSum, "inputs") => Some(RuntimeSignalType::AudioStereo),
+        (NodeKind::Sum, "inputs") => Some(RuntimeSignalType::AudioMono),
         (
             NodeKind::Lowpass
             | NodeKind::Amplifier
@@ -1837,7 +1851,7 @@ const fn runtime_required_inputs(kind: NodeKind) -> &'static [&'static str] {
         NodeKind::Noise | NodeKind::Lfo => &[],
         NodeKind::Envelope => &["gate"],
         NodeKind::Mixer | NodeKind::StereoMixer => &["a"],
-        NodeKind::StereoSum => &["inputs"],
+        NodeKind::StereoSum | NodeKind::Sum => &["inputs"],
         NodeKind::Lowpass
         | NodeKind::Saturation
         | NodeKind::Pan
