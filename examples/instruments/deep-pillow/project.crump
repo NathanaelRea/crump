@@ -5,18 +5,6 @@ project "Deep Pillow" {
   seed 31676
   sample_rate 48000
   render_tail 2s
-  asset deep-pillow-60-soft-0 "Deep Pillow" wav "media/60-soft-0.wav" sha256 "f509743700a638d7d47c5c3679f36ecfaf9a58bf5c37541f60aa679a5419d178" {
-    usage multisample
-  }
-  asset deep-pillow-60-hard-0 "Deep Pillow" wav "media/60-hard-0.wav" sha256 "f1d0caf46207cdab65c598caab2066f767f9459f3cd16663e50fbd21cae386d8" {
-    usage multisample
-  }
-  asset deep-pillow-60-soft-1 "Deep Pillow" wav "media/60-soft-1.wav" sha256 "8775f4e3cafac687c6ace7c9ed516ac04ac776e79e68ed185aed2c49099b9a90" {
-    usage multisample
-  }
-  asset deep-pillow-60-hard-1 "Deep Pillow" wav "media/60-hard-1.wav" sha256 "47c9434ccb570e1a90a97e1859ae430dbc2ebd8e0053e5c79e2fcdd84f99e59f" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

@@ -205,7 +205,7 @@ pub fn transform_sample_revision(
     let intermediate_frames = (intermediate_frames_f64.round() as usize).max(1);
     admit_working_storage(intermediate_frames, output_frames)?;
 
-    let stretched = overlap_add_stretch(&compiled.frames()[start..end], intermediate_frames);
+    let stretched = overlap_add_stretch(&compiled.stereo_frames()[start..end], intermediate_frames);
     let output = if intermediate_frames == output_frames {
         stretched
     } else {

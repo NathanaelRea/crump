@@ -5,7 +5,6 @@ project "Tambourine Shake" {
   seed 237570
   sample_rate 48000
   render_tail 2s
-
   song {
     tempo 120bpm
     meter 4/4

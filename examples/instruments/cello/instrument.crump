@@ -1,0 +1,100 @@
+crump-module 2
+instrument cello "Cello" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.45s 0.45s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z36-soft-0 asset cello-36-soft-0 keys C2 D2 velocity 0 0.65 root C2 loop 48000 124401 crossfade 8160
+      zone z36-hard-0 asset cello-36-hard-0 keys C2 D2 velocity 0.65 1 root C2 loop 48000 123668 crossfade 8160
+      zone z41-soft-0 asset cello-41-soft-0 keys D#2 G2 velocity 0 0.65 root F2 loop 48000 123771 crossfade 8160
+      zone z41-hard-0 asset cello-41-hard-0 keys D#2 G2 velocity 0.65 1 root F2 loop 48000 123771 crossfade 8160
+      zone z46-soft-0 asset cello-46-soft-0 keys G#2 C#3 velocity 0 0.65 root A#2 loop 48000 125758 crossfade 8160
+      zone z46-hard-0 asset cello-46-hard-0 keys G#2 C#3 velocity 0.65 1 root A#2 loop 48000 125759 crossfade 8160
+      zone z52-soft-0 asset cello-52-soft-0 keys D3 G3 velocity 0 0.65 root E3 loop 48000 123712 crossfade 8160
+      zone z52-hard-0 asset cello-52-hard-0 keys D3 G3 velocity 0.65 1 root E3 loop 48000 123712 crossfade 8160
+      zone z58-soft-0 asset cello-58-soft-0 keys G#3 C#4 velocity 0 0.65 root A#3 loop 48000 123726 crossfade 8160
+      zone z58-hard-0 asset cello-58-hard-0 keys G#3 C#4 velocity 0.65 1 root A#3 loop 48000 123725 crossfade 8160
+      zone z64-soft-0 asset cello-64-soft-0 keys D4 G4 velocity 0 0.65 root E4 loop 48000 125933 crossfade 8160
+      zone z64-hard-0 asset cello-64-hard-0 keys D4 G4 velocity 0.65 1 root E4 loop 48000 125932 crossfade 8160
+      zone z70-soft-0 asset cello-70-soft-0 keys G#4 C#5 velocity 0 0.65 root A#4 loop 48000 125984 crossfade 8160
+      zone z70-hard-0 asset cello-70-hard-0 keys G#4 C#5 velocity 0.65 1 root A#4 loop 48000 125983 crossfade 8160
+      zone z76-soft-0 asset cello-76-soft-0 keys D5 A5 velocity 0 0.65 root E5 loop 48000 123665 crossfade 8160
+      zone z76-hard-0 asset cello-76-hard-0 keys D5 A5 velocity 0.65 1 root E5 loop 48000 123665 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset cello-36-soft-0 "Cello" wav "media/36-soft-0.wav" sha256 "70105f9e496ff1a0e4cfb4e7c47fa4d1bd772cf1c621e0e08553b772575b40af" {
+  usage multisample
+}
+asset cello-36-hard-0 "Cello" wav "media/36-hard-0.wav" sha256 "973f8f880c1298593bcf0e6b54ed5530c1bdbf99d72e16c95e74552a067b0498" {
+  usage multisample
+}
+asset cello-41-soft-0 "Cello" wav "media/41-soft-0.wav" sha256 "5fac028a70d5f6e781fa494671000728c0816cacb1ec33e283066e1896815fe3" {
+  usage multisample
+}
+asset cello-41-hard-0 "Cello" wav "media/41-hard-0.wav" sha256 "a7b75ff7abe039ebe7c674958397f24427dc09a73dd0b6243ce2ccd53894f0d2" {
+  usage multisample
+}
+asset cello-46-soft-0 "Cello" wav "media/46-soft-0.wav" sha256 "0bcf439e99cf9cf1fe936d42e23444842ceb25746a574cacd1588061802a79ca" {
+  usage multisample
+}
+asset cello-46-hard-0 "Cello" wav "media/46-hard-0.wav" sha256 "3a16003b6ee4144215fadcd1e4b6fd5d40887c3209f8a998f2136630f16ec82a" {
+  usage multisample
+}
+asset cello-52-soft-0 "Cello" wav "media/52-soft-0.wav" sha256 "ae381d8f49ac248dbd1ca5614387b7aa9c1640bcb4e2ba9b20ac28803620c9f2" {
+  usage multisample
+}
+asset cello-52-hard-0 "Cello" wav "media/52-hard-0.wav" sha256 "d0276a48a83dcb45bc8cc54cd98651e66c2284434253935debb86872ce800e98" {
+  usage multisample
+}
+asset cello-58-soft-0 "Cello" wav "media/58-soft-0.wav" sha256 "c02cf8f27b8681ea5ac8c69f6f521cb20cd47c3020b839d7b9f98d352d5f34e8" {
+  usage multisample
+}
+asset cello-58-hard-0 "Cello" wav "media/58-hard-0.wav" sha256 "91d639eefadaab5641d5b3fd0aed50966d34e85a3004ff0c0c6c605d8baaaa84" {
+  usage multisample
+}
+asset cello-64-soft-0 "Cello" wav "media/64-soft-0.wav" sha256 "06ce24bec63ff39beb0a039c15271d3ab47da3bbf30f71fe84630f3a07eab546" {
+  usage multisample
+}
+asset cello-64-hard-0 "Cello" wav "media/64-hard-0.wav" sha256 "2cb2e0444e67b2ed9c6d5e5f193c6a2791e722e09f22a8f7cc2df5931a532732" {
+  usage multisample
+}
+asset cello-70-soft-0 "Cello" wav "media/70-soft-0.wav" sha256 "c4f96fcbb801842b7d44e3e7d61150c802be09c502be4c73d8249fb1c899d7c7" {
+  usage multisample
+}
+asset cello-70-hard-0 "Cello" wav "media/70-hard-0.wav" sha256 "ce865d8b8839ea0663bb84030fa0d5c7f8fb135b31a2db507eb1a2f33ba333b2" {
+  usage multisample
+}
+asset cello-76-soft-0 "Cello" wav "media/76-soft-0.wav" sha256 "67b35748c43f884421c3e5e6bc23df40f6e6f98185c02efac0f77fad559eafe8" {
+  usage multisample
+}
+asset cello-76-hard-0 "Cello" wav "media/76-hard-0.wav" sha256 "d9d12a53a0bed18b18420f584ef766acbb75306610d6ef991ebbf03da20c39e5" {
+  usage multisample
+}

@@ -1,0 +1,108 @@
+crump-module 2
+instrument viola "Viola" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.4s 0.4s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z48-soft-0 asset viola-48-soft-0 keys C3 D3 velocity 0 0.65 root C3 loop 48000 125895 crossfade 8160
+      zone z48-hard-0 asset viola-48-hard-0 keys C3 D3 velocity 0.65 1 root C3 loop 48000 125895 crossfade 8160
+      zone z53-soft-0 asset viola-53-soft-0 keys D#3 G3 velocity 0 0.65 root F3 loop 48000 125958 crossfade 8160
+      zone z53-hard-0 asset viola-53-hard-0 keys D#3 G3 velocity 0.65 1 root F3 loop 48000 125960 crossfade 8160
+      zone z58-soft-0 asset viola-58-soft-0 keys G#3 C4 velocity 0 0.65 root A#3 loop 48000 123724 crossfade 8160
+      zone z58-hard-0 asset viola-58-hard-0 keys G#3 C4 velocity 0.65 1 root A#3 loop 48000 123723 crossfade 8160
+      zone z63-soft-0 asset viola-63-soft-0 keys C#4 F4 velocity 0 0.65 root D#4 loop 48000 123707 crossfade 8160
+      zone z63-hard-0 asset viola-63-hard-0 keys C#4 F4 velocity 0.65 1 root D#4 loop 48000 123707 crossfade 8160
+      zone z68-soft-0 asset viola-68-soft-0 keys F#4 B4 velocity 0 0.65 root G#4 loop 48000 123648 crossfade 8160
+      zone z68-hard-0 asset viola-68-hard-0 keys F#4 B4 velocity 0.65 1 root G#4 loop 48000 125961 crossfade 8160
+      zone z74-soft-0 asset viola-74-soft-0 keys C5 E5 velocity 0 0.65 root D5 loop 48000 125933 crossfade 8160
+      zone z74-hard-0 asset viola-74-hard-0 keys C5 E5 velocity 0.65 1 root D5 loop 48000 125934 crossfade 8160
+      zone z79-soft-0 asset viola-79-soft-0 keys F5 A5 velocity 0 0.65 root G5 loop 48000 123618 crossfade 8160
+      zone z79-hard-0 asset viola-79-hard-0 keys F5 A5 velocity 0.65 1 root G5 loop 48000 123617 crossfade 8160
+      zone z84-soft-0 asset viola-84-soft-0 keys A#5 D6 velocity 0 0.65 root C6 loop 48000 125762 crossfade 8160
+      zone z84-hard-0 asset viola-84-hard-0 keys A#5 D6 velocity 0.65 1 root C6 loop 48000 125581 crossfade 8160
+      zone z88-soft-0 asset viola-88-soft-0 keys D#6 E6 velocity 0 0.65 root E6 loop 48000 123628 crossfade 8160
+      zone z88-hard-0 asset viola-88-hard-0 keys D#6 E6 velocity 0.65 1 root E6 loop 48000 123628 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset viola-48-soft-0 "Viola" wav "media/48-soft-0.wav" sha256 "c369286d5e98f3872d009c6d49dfea7036d8ef2604c6706b48d55a2d169655fd" {
+  usage multisample
+}
+asset viola-48-hard-0 "Viola" wav "media/48-hard-0.wav" sha256 "ff01232d19d7dd575190e0bbc518d40221faad5d430819cd6372d80568f8bb28" {
+  usage multisample
+}
+asset viola-53-soft-0 "Viola" wav "media/53-soft-0.wav" sha256 "08a1fe65d30f02713123b7bf68258c731d61f17a198595001d0411d7ec93fa9c" {
+  usage multisample
+}
+asset viola-53-hard-0 "Viola" wav "media/53-hard-0.wav" sha256 "4cf891eb7fec1e8e2d58a0fe043c1140ffca6ba8843a319dffedc304a81274da" {
+  usage multisample
+}
+asset viola-58-soft-0 "Viola" wav "media/58-soft-0.wav" sha256 "eb9799edd4108d86f08ed9487b3edb41018141313d4542b51e4617f2bf5ca43b" {
+  usage multisample
+}
+asset viola-58-hard-0 "Viola" wav "media/58-hard-0.wav" sha256 "3ac548cba2cd215dbbb0885c1435efd34ae093e33dfd02b124bdc68d20258485" {
+  usage multisample
+}
+asset viola-63-soft-0 "Viola" wav "media/63-soft-0.wav" sha256 "2ece160881bc79fae07082e59ef258b3a6461d51d5638cb1d2d098ce8f2292b9" {
+  usage multisample
+}
+asset viola-63-hard-0 "Viola" wav "media/63-hard-0.wav" sha256 "94f73b65f106b29759b45654cb066b9ef5f401dfd4d5570e5f0ea94a54733ecf" {
+  usage multisample
+}
+asset viola-68-soft-0 "Viola" wav "media/68-soft-0.wav" sha256 "5d9e03576903809b864fd111d5e949b38cf322db6acf9ce26552a521ad1071b8" {
+  usage multisample
+}
+asset viola-68-hard-0 "Viola" wav "media/68-hard-0.wav" sha256 "af2080cbdd5d7b282cd25959dad59b326d5d079c022b27aff4cb055d35dd5476" {
+  usage multisample
+}
+asset viola-74-soft-0 "Viola" wav "media/74-soft-0.wav" sha256 "82db9f8492f4caea02d7038be72a54f45f34ec3083efd508e33227994345cd22" {
+  usage multisample
+}
+asset viola-74-hard-0 "Viola" wav "media/74-hard-0.wav" sha256 "135cbec441ad0e8a8c3cc7021b700fdb1d052304d1c8c644aa4134397599e4fb" {
+  usage multisample
+}
+asset viola-79-soft-0 "Viola" wav "media/79-soft-0.wav" sha256 "f60729e53612b3d78599af7cc3eba26a4c8c28b419d2dc3ffac248736957fb59" {
+  usage multisample
+}
+asset viola-79-hard-0 "Viola" wav "media/79-hard-0.wav" sha256 "822e8f693d2093ad0696375c9476b48de7f221e5f87651027043e8eb715f87a8" {
+  usage multisample
+}
+asset viola-84-soft-0 "Viola" wav "media/84-soft-0.wav" sha256 "7fb5c9bee98c763dcd8a3683db0d840c329ad1c0ea92a8e37319e6ee8b42e116" {
+  usage multisample
+}
+asset viola-84-hard-0 "Viola" wav "media/84-hard-0.wav" sha256 "8ee628adc4004812662bbe2341fdcd228256114cfda88f9f29990f27b49aad51" {
+  usage multisample
+}
+asset viola-88-soft-0 "Viola" wav "media/88-soft-0.wav" sha256 "02ea0a7d14df46c5e64e7c5b271a78618011171f7a2e38da56c31ad8461c8ef4" {
+  usage multisample
+}
+asset viola-88-hard-0 "Viola" wav "media/88-hard-0.wav" sha256 "2c8a877d2cdeb89c2df3017d0c7cb581cd0fd05facd13981256c706a2c8b71c7" {
+  usage multisample
+}

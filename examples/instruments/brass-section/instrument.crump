@@ -1,0 +1,92 @@
+crump-module 2
+instrument brass-section "Brass Section" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.25s 0.25s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z36-soft-0 asset brass-section-36-soft-0 keys F#1 D#2 velocity 0 0.65 root C2 loop 48000 123801 crossfade 8160
+      zone z36-hard-0 asset brass-section-36-hard-0 keys F#1 D#2 velocity 0.65 1 root C2 loop 48000 123810 crossfade 8160
+      zone z43-soft-0 asset brass-section-43-soft-0 keys E2 A#2 velocity 0 0.65 root G2 loop 48000 123613 crossfade 8160
+      zone z43-hard-0 asset brass-section-43-hard-0 keys E2 A#2 velocity 0.65 1 root G2 loop 48000 125670 crossfade 8160
+      zone z50-soft-0 asset brass-section-50-soft-0 keys B2 F3 velocity 0 0.65 root D3 loop 48000 125696 crossfade 8160
+      zone z50-hard-0 asset brass-section-50-hard-0 keys B2 F3 velocity 0.65 1 root D3 loop 48000 123857 crossfade 8160
+      zone z57-soft-0 asset brass-section-57-soft-0 keys F#3 C4 velocity 0 0.65 root A3 loop 48000 123751 crossfade 8160
+      zone z57-hard-0 asset brass-section-57-hard-0 keys F#3 C4 velocity 0.65 1 root A3 loop 48000 125840 crossfade 8160
+      zone z64-soft-0 asset brass-section-64-soft-0 keys C#4 G4 velocity 0 0.65 root E4 loop 48000 125901 crossfade 8160
+      zone z64-hard-0 asset brass-section-64-hard-0 keys C#4 G4 velocity 0.65 1 root E4 loop 48000 124635 crossfade 8160
+      zone z71-soft-0 asset brass-section-71-soft-0 keys G#4 D5 velocity 0 0.65 root B4 loop 48000 125968 crossfade 8160
+      zone z71-hard-0 asset brass-section-71-hard-0 keys G#4 D5 velocity 0.65 1 root B4 loop 48000 125971 crossfade 8160
+      zone z78-soft-0 asset brass-section-78-soft-0 keys D#5 C6 velocity 0 0.65 root F#5 loop 48000 125942 crossfade 8160
+      zone z78-hard-0 asset brass-section-78-hard-0 keys D#5 C6 velocity 0.65 1 root F#5 loop 48000 126000 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset brass-section-36-soft-0 "Brass Section" wav "media/36-soft-0.wav" sha256 "d8b4e86ca20a2078779c1de7c16383f21b6b459585c92639e6078f2a928d2d0a" {
+  usage multisample
+}
+asset brass-section-36-hard-0 "Brass Section" wav "media/36-hard-0.wav" sha256 "c514c638c12a7966a377d16daf6e511a800fc90cb2a1fa4eb0c6fb90aa64cb81" {
+  usage multisample
+}
+asset brass-section-43-soft-0 "Brass Section" wav "media/43-soft-0.wav" sha256 "3af23a2c056f20a844af4f199bb2574d3fc75b3bdfe0088c58658d686b3e9e75" {
+  usage multisample
+}
+asset brass-section-43-hard-0 "Brass Section" wav "media/43-hard-0.wav" sha256 "9d613f5a480828af693cdf504aa230c27d98c47a1f1695afe20a3949e519f6c7" {
+  usage multisample
+}
+asset brass-section-50-soft-0 "Brass Section" wav "media/50-soft-0.wav" sha256 "d9d39b90db94d835f17e51697e7095bc20e193a78d4c6f4a47bc07f9690b46ca" {
+  usage multisample
+}
+asset brass-section-50-hard-0 "Brass Section" wav "media/50-hard-0.wav" sha256 "c38103e7e6fc5de7e26ac60c574c255f310963bcc3aa20613f8cbc21d2515ce8" {
+  usage multisample
+}
+asset brass-section-57-soft-0 "Brass Section" wav "media/57-soft-0.wav" sha256 "a6cb656e78a82a961150ad92377ad603b2e59b5c094550a160d7bda653d3c868" {
+  usage multisample
+}
+asset brass-section-57-hard-0 "Brass Section" wav "media/57-hard-0.wav" sha256 "c257b47917d9537407b82bc3c9963777363c8971857b94245097687a1ea44404" {
+  usage multisample
+}
+asset brass-section-64-soft-0 "Brass Section" wav "media/64-soft-0.wav" sha256 "1a81c12e1e44d58ed55cecc0b389913e17c33e728b61ab8d9cee9218ca3745a0" {
+  usage multisample
+}
+asset brass-section-64-hard-0 "Brass Section" wav "media/64-hard-0.wav" sha256 "7598a9d3eef874f9e76fcf3818b1a62d64ddb943bcbff42654c99930c64d23f2" {
+  usage multisample
+}
+asset brass-section-71-soft-0 "Brass Section" wav "media/71-soft-0.wav" sha256 "2f6bad64f74a6819bb308ccc99ad09d83091d7b3b6c0e69b31a603d36ed26da4" {
+  usage multisample
+}
+asset brass-section-71-hard-0 "Brass Section" wav "media/71-hard-0.wav" sha256 "ef7e77131f93039f2a18e11dd8ea4468c37ef9750b992cca54245687795ce93b" {
+  usage multisample
+}
+asset brass-section-78-soft-0 "Brass Section" wav "media/78-soft-0.wav" sha256 "7e17afbe81ba8ce0a724ccc0d8796d2145cc38744ac3118089743bbe7d862cf0" {
+  usage multisample
+}
+asset brass-section-78-hard-0 "Brass Section" wav "media/78-hard-0.wav" sha256 "63c58cd82304c3c4cc50e2a557805818cb4cfe157d41ecc02453471c1c352f62" {
+  usage multisample
+}

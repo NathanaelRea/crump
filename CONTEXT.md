@@ -32,7 +32,7 @@ The complete portable authored unit: human-readable DSL and configuration files 
 
 ### Media Asset
 
-A Project-owned regular WAV file with a durable source ID, normalized Project-relative path, and required lowercase SHA-256 of its complete bytes. An external path may be used only as an import input; Crump copies those exact bytes into the Project and never persists the external path. Distinct paths with identical content remain separate identities and produce a warning.
+A Project-owned regular WAV file with a durable source ID, normalized Project-relative path, and required lowercase SHA-256 of its complete bytes. It is declared in `project.crump` or in an imported Instrument Module that owns it. An external path may be used only as an import input; Crump copies those exact bytes into the Project and never persists the external path. Distinct paths with identical content remain separate identities and produce a warning.
 
 ### Changed Media Asset
 
@@ -296,7 +296,7 @@ The inspection surface for navigating a Composable DSP Graph's nodes, connection
 
 ### Instrument Module
 
-A portable human-readable source unit containing a Native Instrument's Composable DSP Graph, typed interface, and Instrument Faceplate. It may be copied or imported across Projects and saved to a personal library without compilation, a package registry, or an opaque preset format.
+A portable human-readable source unit containing a Native Instrument's Composable DSP Graph, typed interface, and Instrument Faceplate. A version-2 module may also own the Media Assets it plays, with paths relative to its own directory. It may be copied or imported across Projects and saved to a personal library without compilation, a package registry, or an opaque preset format; a module that owns media is imported from inside the Project, not from the single-file personal library.
 
 ### Processing Node
 

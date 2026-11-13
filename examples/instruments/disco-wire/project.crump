@@ -5,18 +5,6 @@ project "Disco Wire" {
   seed 47514
   sample_rate 48000
   render_tail 2s
-  asset disco-wire-60-soft-0 "Disco Wire" wav "media/60-soft-0.wav" sha256 "b043788a57a3b407810b6f3c33771f21b0e80e3c49394b3aac440fc8aea1c800" {
-    usage multisample
-  }
-  asset disco-wire-60-hard-0 "Disco Wire" wav "media/60-hard-0.wav" sha256 "f0a284a83be4890259503f93378e1a7e0800ca775b0fb58eab23d31b552e585e" {
-    usage multisample
-  }
-  asset disco-wire-60-soft-1 "Disco Wire" wav "media/60-soft-1.wav" sha256 "b61439ce7ac647efb2d3c61a75409fa6de410a16e7d0e24927a028173babd03e" {
-    usage multisample
-  }
-  asset disco-wire-60-hard-1 "Disco Wire" wav "media/60-hard-1.wav" sha256 "a497a9484fc4fc47422efdb3a3c18ea4d6cd922e63afa82813342cf1acbcedd2" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

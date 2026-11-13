@@ -1,0 +1,73 @@
+{
+  "model": "sustained",
+  "params": {
+    "slope": [
+      1.6,
+      1.15
+    ],
+    "gamma": 0.08,
+    "attack": [
+      0.06,
+      0.035
+    ],
+    "vibrato": [
+      5.2,
+      9,
+      13,
+      0.25,
+      0.4
+    ],
+    "drift": 2,
+    "formants": [],
+    "floor": 1,
+    "rolloff": [
+      3200,
+      2.5
+    ],
+    "shimmer": 0.03,
+    "shimmer_rate": 7,
+    "swell": 0.03,
+    "noise": [
+      0.045,
+      0.12,
+      0.03
+    ],
+    "noise_band": [
+      800,
+      9000
+    ],
+    "noise_comb": 0.93,
+    "taper": 0.5,
+    "jitter": 2.5,
+    "vibrato_wander": 0.25,
+    "motions": 12,
+    "motion_tilt": 0.4,
+    "pulse": 0.5,
+    "am": 0.1
+  },
+  "pitched": true,
+  "category": "Woodwinds",
+  "id": "piccolo",
+  "seed_base": 670000,
+  "seconds": 3.2,
+  "loop": [
+    1.0,
+    2.6,
+    0.17
+  ],
+  "roots": [
+    74,
+    79,
+    84,
+    89,
+    94,
+    99,
+    104
+  ],
+  "range": [
+    72,
+    108
+  ],
+  "release": 0.18,
+  "audition": 86
+}

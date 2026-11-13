@@ -575,7 +575,7 @@ impl SamplerVoice {
             self.last_output = [0.0; 2];
             return [0.0; 2];
         }
-        let sample = self.source_sample(mapping.source.frames());
+        let sample = self.source_sample(&mapping.source);
         let attack = if attack_frames == 0 {
             1.0
         } else {
@@ -662,8 +662,8 @@ impl SamplerVoice {
         }
     }
 
-    fn source_sample(&self, frames: &[[f32; 2]]) -> [f32; 2] {
-        let primary = interpolated_region_frame(frames, self.position, self.start, self.end);
+    fn source_sample(&self, source: &CompiledSampleSource) -> [f32; 2] {
+        let primary = interpolated_region_frame(source, self.position, self.start, self.end);
         let Some(loop_region) = self
             .loop_region
             .filter(|loop_region| loop_region.crossfade > 0.0)
@@ -694,7 +694,7 @@ impl SamplerVoice {
             SampleDirection::Forward | SampleDirection::Reverse => return primary,
         };
         let alternate = interpolated_region_frame(
-            frames,
+            source,
             alternate_position,
             loop_region.start,
             loop_region.end,
@@ -753,18 +753,26 @@ fn compile_loop_region(
     })
 }
 
-fn interpolated_region_frame(frames: &[[f32; 2]], position: f64, start: f64, end: f64) -> [f32; 2] {
-    if frames.is_empty() {
+fn interpolated_region_frame(
+    source: &CompiledSampleSource,
+    position: f64,
+    start: f64,
+    end: f64,
+) -> [f32; 2] {
+    let stored = source.stored_len();
+    if stored == 0 {
         return [0.0; 2];
     }
     let minimum = start.floor().max(0.0) as usize;
     let maximum = (end.ceil().max(1.0) as usize)
         .saturating_sub(1)
-        .min(frames.len().saturating_sub(1));
+        .min(stored.saturating_sub(1));
     let index = (position.floor().max(0.0) as usize).clamp(minimum.min(maximum), maximum);
     let fraction = (position - position.floor()).clamp(0.0, 1.0) as f32;
-    let first = frames[index];
-    let second = frames[index.saturating_add(1).min(maximum)];
+    let first = source.frame(index).unwrap_or([0.0; 2]);
+    let second = source
+        .frame(index.saturating_add(1).min(maximum))
+        .unwrap_or(first);
     [
         first[0] + (second[0] - first[0]) * fraction,
         first[1] + (second[1] - first[1]) * fraction,
@@ -1088,9 +1096,9 @@ project "Sampler Test" {{
 
     #[test]
     fn reverse_traversal_and_loop_crossfade_use_bounded_region_samples() {
-        let frames = (0..8)
-            .map(|value| [value as f32, value as f32])
-            .collect::<Vec<_>>();
+        let frames = CompiledSampleSource::from_test_frames(
+            (0..8).map(|value| [value as f32, value as f32]).collect(),
+        );
         let mut reverse = SamplerVoice {
             active: true,
             start: 0.0,

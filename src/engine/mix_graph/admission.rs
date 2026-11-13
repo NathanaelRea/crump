@@ -5,7 +5,7 @@ pub const SUPPORTED_QUANTA: [usize; 3] = [64, 128, 256];
 /// Tracks, Groups, Returns, and the singleton Master admitted by the runtime.
 pub const MAX_MIX_CHANNELS: usize = MAX_RUNTIME_TRACKS * 3 + 1;
 /// Named maximum runtime bytes, including every admitted resident publication runtime.
-pub const MAX_PUBLICATION_RUNTIME_BYTES: u64 = 256 * 1024 * 1024;
+pub const MAX_PUBLICATION_RUNTIME_BYTES: u64 = 1024 * 1024 * 1024;
 /// One Active runtime plus at most one guarded replacement/retired runtime.
 pub const MAX_RESIDENT_PUBLICATION_RUNTIMES: u64 = 2;
 /// Named abstract work-unit budget per rendered sample.

@@ -71,10 +71,10 @@ Use distribution-managed RTKit policy. Crump does not require root, broad `rtpri
 Validation and compilation enforce these bounds before runtime publication:
 
 - one finite linear Song at 48 kHz;
-- at most 64 authored Nodes per graph voice and 256 graph voices across Track instances;
+- at most 64 authored Nodes per graph voice and 512 graph voices across Track instances;
 - at most 128 Automation lanes, 1,024 points per lane, and 8,192 points total;
 - at most 256 Modulation routes, 2,048 route operators, and 512 callback-time Parameter targets;
-- at most 256 declared WAV assets, 64 MiB per asset, and 256 MiB of declared WAV bytes per Project; and
+- at most 1,024 declared WAV assets, 64 MiB per asset, and 1 GiB of declared WAV bytes per Project; and
 - at most 30 seconds of explicit Render Tail.
 
 Additional schedule, routing, processor, voice, work, memory, latency, and generated-audio limits are validated and exposed through diagnostics or inspection. The limits bound work; they are not recommended project sizes for every machine.

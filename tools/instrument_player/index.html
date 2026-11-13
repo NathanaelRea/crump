@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crump Instrument Player</title>
+<link rel="icon" href="../../assets/branding/favicon.ico">
+<style>
+  :root {
+    --bg: #101216; --panel: #181b21; --panel-2: #1f232b; --line: #2b313b;
+    --text: #e6e9ef; --muted: #8b93a1; --accent: #f2a541; --accent-2: #5cc8b0;
+    --bad: #e2645a; --key-white: #f4f1ea; --key-black: #1b1d22;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+    padding: 5px 10px; cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  button.on { background: var(--accent); border-color: var(--accent); color: #17130c; }
+  .app { display: grid; grid-template-columns: 300px 1fr; grid-template-rows: auto 1fr; height: 100vh; }
+  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 16px; margin: 0 8px 0 0; display: flex; align-items: center; gap: 8px; }
+  header h1 img { width: 22px; height: 22px; }
+  .control { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  .control input[type=range] { width: 80px; accent-color: var(--accent); }
+  .control output { color: var(--text); min-width: 34px; font-variant-numeric: tabular-nums; }
+  .spacer { flex: 1; }
+  aside { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
+  .filters { padding: 10px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--line); }
+  .filters input { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+  .chips { display: flex; gap: 6px; }
+  .chips button { flex: 1; padding: 4px 6px; font-size: 12px; }
+  #library { overflow-y: auto; flex: 1; padding-bottom: 20px; }
+  .group h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+    margin: 14px 12px 4px; display: flex; justify-content: space-between; }
+  .row { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 12px; cursor: pointer;
+    border-left: 3px solid transparent; user-select: none; }
+  .row:hover { background: var(--panel-2); }
+  .row.selected { background: #2a2418; border-left-color: var(--accent); }
+  .row .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .tag { font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .row .rate { width: 14px; text-align: center; font-size: 12px; }
+  .row .play { padding: 1px 7px; font-size: 11px; }
+  .row.loading .name::after { content: " …"; color: var(--muted); }
+  .new { color: var(--accent-2); }
+  section.stage { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .info { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 16px 20px 8px; }
+  .info h2 { margin: 0; font-size: 22px; }
+  .info .meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .info .facts { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .info .facts b { color: var(--text); font-weight: 500; }
+  .actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  .actions .buttons { display: flex; gap: 6px; }
+  .verdict button { min-width: 38px; }
+  .verdict .up.on { background: var(--accent-2); border-color: var(--accent-2); }
+  .verdict .down.on { background: var(--bad); border-color: var(--bad); }
+  textarea#note { width: 320px; height: 52px; resize: vertical; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px; }
+  canvas#scope { width: 100%; height: 140px; display: block; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #0c0e11; }
+  .keyboard-wrap { overflow-x: auto; padding: 14px 20px 8px; }
+  #keyboard { position: relative; height: 170px; min-width: 1040px; display: flex; touch-action: none; user-select: none; }
+  .key { position: relative; flex: 1; background: var(--key-white); border: 1px solid #9a968c; border-radius: 0 0 5px 5px;
+    margin-right: -1px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+    padding-bottom: 6px; font-size: 10px; color: #7a766d; }
+  .key.black { position: absolute; top: 0; height: 62%; z-index: 2; background: var(--key-black);
+    border: 1px solid #000; border-radius: 0 0 4px 4px; color: #888; }
+  .key.out { background: #8f8c86; }
+  .key.black.out { background: #3a3c42; }
+  .key.down { background: var(--accent) !important; }
+  .key .hint { font-weight: 600; color: #b5772a; }
+  .key.black .hint { color: var(--accent); }
+  .help { padding: 0 20px 16px; color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+  kbd { background: var(--panel-2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font: 11px ui-monospace, monospace; color: var(--text); }
+  .status { color: var(--muted); font-size: 12px; }
+  .overlay { position: fixed; inset: 0; background: rgba(8,9,11,.82); display: flex; align-items: center; justify-content: center; z-index: 10; }
+  .overlay .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 24px 28px; max-width: 560px; }
+  .overlay h3 { margin-top: 0; }
+  .overlay pre { background: var(--bg); padding: 10px; border-radius: 6px; overflow-x: auto; }
+  #feedback-text { width: 100%; height: 260px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: 12px ui-monospace, monospace; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1><img src="../../assets/branding/icon.png" alt="">Crump Instrument Player</h1>
+    <label class="control">Volume <input id="volume" type="range" min="0" max="2" step="0.01" value="1"><output id="volume-out"></output></label>
+    <label class="control">Room <input id="room" type="range" min="0" max="1" step="0.01" value="0.28"><output id="room-out"></output></label>
+    <label class="control">Velocity <input id="velocity" type="range" min="0.05" max="1" step="0.01" value="0.75"><output id="velocity-out"></output></label>
+    <span class="control">Octave <output id="octave-out"></output></span>
+    <button id="sustain" title="Sustain pedal (hold Space)">Pedal</button>
+    <button id="panic" title="Stop every sound (Esc)">Stop all</button>
+    <span class="spacer"></span>
+    <button id="midi">Enable MIDI</button>
+    <button id="export">Copy feedback</button>
+  </header>
+  <aside>
+    <div class="filters">
+      <input id="search" placeholder="Search instruments" autocomplete="off">
+      <div class="chips">
+        <button data-scope="orchestra" class="on">Orchestra</button>
+        <button data-scope="house">House</button>
+        <button data-scope="all">All</button>
+      </div>
+      <div class="status" id="count"></div>
+    </div>
+    <div id="library"></div>
+  </aside>
+  <section class="stage">
+    <div class="info">
+      <div>
+        <h2 id="title">Loading library…</h2>
+        <div class="meta" id="meta"></div>
+        <div class="facts" id="facts"></div>
+      </div>
+      <div class="actions">
+        <div class="buttons">
+          <button id="phrase">▶ Audition phrase</button>
+          <button id="prev" title="Previous instrument ([)">◀</button>
+          <button id="next" title="Next instrument (])">▶</button>
+        </div>
+        <div class="buttons verdict">
+          <button class="up" id="like" title="I like it">👍</button>
+          <button class="down" id="dislike" title="Not for me">👎</button>
+        </div>
+        <textarea id="note" placeholder="Notes on this instrument (saved in this browser)"></textarea>
+      </div>
+    </div>
+    <canvas id="scope"></canvas>
+    <div class="keyboard-wrap"><div id="keyboard"></div></div>
+    <div class="help">
+      <span><kbd>A</kbd>–<kbd>;</kbd> play, <kbd>W</kbd><kbd>E</kbd><kbd>T</kbd><kbd>Y</kbd><kbd>U</kbd><kbd>O</kbd><kbd>P</kbd> sharps</span>
+      <span><kbd>Z</kbd>/<kbd>X</kbd> octave</span>
+      <span><kbd>C</kbd>/<kbd>V</kbd> velocity</span>
+      <span><kbd>Space</kbd> pedal</span>
+      <span><kbd>[</kbd>/<kbd>]</kbd> previous/next</span>
+      <span><kbd>Enter</kbd> audition phrase</span>
+      <span><kbd>Esc</kbd> stop</span>
+      <span>Click lower on a key to play harder. Shift-click instruments to layer them.</span>
+    </div>
+  </section>
+</div>
+<div class="overlay hidden" id="setup">
+  <div class="card">
+    <h3>Build the player first</h3>
+    <p>The page needs its generated manifest and must be served over HTTP. From the repository root:</p>
+    <pre>uv run tools/instrument_player/build.py --serve</pre>
+    <p class="status" id="setup-error"></p>
+  </div>
+</div>
+<div class="overlay hidden" id="feedback">
+  <div class="card" style="width: 620px; max-width: 92vw">
+    <h3>Your feedback</h3>
+    <p class="status" id="feedback-status"></p>
+    <textarea id="feedback-text" readonly></textarea>
+    <p style="text-align: right; margin-bottom: 0"><button id="feedback-close">Close</button></p>
+  </div>
+</div>
+<script>
+"use strict";
+
+const ORCHESTRA = ["Strings", "Woodwinds", "Brass", "Orchestral percussion", "Tuned percussion", "Orchestral keys", "Voices"];
+const HOUSE = ["Keys", "Bass", "Guitar", "Mallets", "Kicks", "Backbeats", "Hats and metal", "Hand percussion", "Shakers", "Resampling"];
+const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const LOW_KEY = 21, HIGH_KEY = 108;
+const POLYPHONY = 16;
+// Musical typing: home row whites, upper row sharps, starting at C of the current octave.
+const TYPING = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ";": 16 };
+const STORE = "crump-instrument-player";
+const BASE = new URL("../../", location.href);
+
+const $ = (id) => document.getElementById(id);
+const noteName = (n) => NAMES[n % 12] + (Math.floor(n / 12) - 1);
+const state = {
+  instruments: [], byId: new Map(), selected: [], scope: "orchestra", search: "",
+  octave: 4, pedal: false, held: new Map(), saved: JSON.parse(localStorage.getItem(STORE) || "{}"),
+};
+
+// ---------- Audio graph ----------
+let ctx, bus, master, dry, wet, analyser;
+const buffers = new Map();
+const voices = [];
+const scheduled = [];
+
+function audio() {
+  if (ctx) { if (ctx.state === "suspended") ctx.resume(); return ctx; }
+  ctx = new AudioContext({ latencyHint: "interactive" });
+  bus = ctx.createGain();
+  dry = ctx.createGain();
+  wet = ctx.createGain();
+  master = ctx.createGain();
+  const room = ctx.createConvolver();
+  room.buffer = impulse(ctx, 2.4);
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -3; limiter.knee.value = 4; limiter.ratio.value = 16;
+  limiter.attack.value = 0.002; limiter.release.value = 0.12;
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 4096;
+  analyser.smoothingTimeConstant = 0.6;
+  bus.connect(dry).connect(master);
+  bus.connect(room).connect(wet).connect(master);
+  master.connect(limiter).connect(analyser).connect(ctx.destination);
+  applyMix();
+  return ctx;
+}
+
+// A small hall: decorrelated noise with a darkening exponential tail and a few early reflections.
+function impulse(context, seconds) {
+  const rate = context.sampleRate, length = Math.floor(rate * seconds);
+  const buffer = context.createBuffer(2, length, rate);
+  for (let c = 0; c < 2; c++) {
+    const data = buffer.getChannelData(c);
+    let low = 0;
+    for (let i = 0; i < length; i++) {
+      const t = i / rate;
+      const smoothing = Math.min(0.92, 0.25 + t * 0.45);
+      low = low * smoothing + (Math.random() * 2 - 1) * (1 - smoothing);
+      data[i] = low * Math.exp(-t * 6.9 / seconds) * (t < 0.012 ? 0 : 1);
+    }
+    for (const [ms, g] of [[13, 0.5], [19, -0.35], [27, 0.3], [41, -0.2]]) {
+      data[Math.floor((ms + c * 3) / 1000 * rate)] += g;
+    }
+  }
+  return buffer;
+}
+
+function applyMix() {
+  const volume = +$("volume").value, room = +$("room").value;
+  $("volume-out").value = volume === 0 ? "−∞" : `${(20 * Math.log10(volume)).toFixed(0)} dB`;
+  $("room-out").value = `${Math.round(room * 100)}%`;
+  if (!ctx) return;
+  // Instrument Levels are conservative for mixing; the player adds fixed make-up gain.
+  master.gain.setTargetAtTime(volume * 3, ctx.currentTime, 0.02);
+  dry.gain.setTargetAtTime(1 - room * 0.45, ctx.currentTime, 0.02);
+  wet.gain.setTargetAtTime(room * 0.9, ctx.currentTime, 0.02);
+}
+
+function buffer(url) {
+  if (!buffers.has(url)) {
+    buffers.set(url, fetch(new URL(url, BASE)).then((r) => {
+      if (!r.ok) throw new Error(`${r.status} ${url}`);
+      return r.arrayBuffer();
+    }).then((data) => audio().decodeAudioData(data)));
+  }
+  return buffers.get(url);
+}
+
+async function load(instrument) {
+  if (instrument.ready) return instrument.ready;
+  const row = document.querySelector(`.row[data-id="${instrument.id}"]`);
+  row?.classList.add("loading");
+  instrument.ready = Promise.all(instrument.zones.map(async (zone) => {
+    const decoded = await buffer(zone.url);
+    zone.buffer = zone.loop ? looped(decoded, zone) : decoded;
+  }))
+    .finally(() => row?.classList.remove("loading"));
+  return instrument.ready;
+}
+
+// Bakes the engine's sustain-loop crossfade into a copy: the loop's last frames
+// blend linearly into its first ones, and playback wraps to just after them.
+function looped(source, zone) {
+  const rate = source.sampleRate;
+  const [start, end, fade] = zone.loop.map((frames) => Math.round(frames * rate / 48000));
+  const copy = new AudioBuffer({ length: source.length, numberOfChannels: source.numberOfChannels, sampleRate: rate });
+  for (let channel = 0; channel < source.numberOfChannels; channel++) {
+    const data = source.getChannelData(channel).slice();
+    for (let i = 0; i < fade; i++) {
+      const amount = i / fade;
+      data[end - fade + i] = data[end - fade + i] * (1 - amount) + data[start + i] * amount;
+    }
+    copy.copyToChannel(data, channel);
+  }
+  zone.loopStart = (start + fade) / rate;
+  zone.loopEnd = end / rate;
+  return copy;
+}
+
+// Mirrors the multisample node: key and velocity filter, then one stable choice per round-robin group.
+function zonesFor(instrument, note, velocity) {
+  const groups = new Map();
+  for (const zone of instrument.zones) {
+    const [low, high] = zone.velocity;
+    if (note < zone.low || note > zone.high) continue;
+    if (!(velocity >= low && (velocity < high || high === 1))) continue;
+    if (!groups.has(zone.group)) groups.set(zone.group, []);
+    groups.get(zone.group).push(zone);
+  }
+  instrument.turn = (instrument.turn || 0) + 1;
+  return [...groups.values()].map((list) => list.sort((a, b) => a.index - b.index)[instrument.turn % list.length]);
+}
+
+function noteOn(instrument, note, velocity, when = ctx.currentTime, source = "live") {
+  for (const zone of zonesFor(instrument, note, velocity)) {
+    if (!zone.buffer) continue;
+    const player = ctx.createBufferSource();
+    player.buffer = zone.buffer;
+    player.playbackRate.value = zone.track ? 2 ** ((note - zone.root) / 12) : 1;
+    if (zone.loop) {
+      // Held notes repeat the sustain loop; the release envelope fades it out.
+      player.loop = true;
+      player.loopStart = zone.loopStart;
+      player.loopEnd = zone.loopEnd;
+    }
+    // Engine law: Level × ((1 − Touch) + Touch × velocity) × zone gain.
+    let amount = instrument.level * zone.gain * ((1 - instrument.touch) + instrument.touch * velocity);
+    if (zone.render_velocity) amount *= Math.min(1.6, Math.max(0.3, velocity / zone.render_velocity));
+    const envelope = ctx.createGain();
+    if (instrument.sustain) {
+      envelope.gain.setValueAtTime(0, when);
+      envelope.gain.linearRampToValueAtTime(amount, when + instrument.sustain.attack);
+    } else {
+      envelope.gain.value = amount;
+    }
+    player.connect(envelope).connect(bus);
+    player.start(when);
+    const voice = { instrument, note, player, envelope, amount, when, source, released: false };
+    player.onended = () => { const i = voices.indexOf(voice); if (i >= 0) voices.splice(i, 1); envelope.disconnect(); };
+    voices.push(voice);
+    steal(instrument, when);
+  }
+}
+
+function steal(instrument, when) {
+  const own = voices.filter((v) => v.instrument === instrument && !v.stolen);
+  while (own.length > POLYPHONY) {
+    own.sort((a, b) => (b.released - a.released) || (a.when - b.when));
+    fade(own.shift(), when, 0.02);
+  }
+}
+
+// Envelope level at `time`, for browsers without cancelAndHoldAtTime.
+function levelAt(voice, time) {
+  const attack = voice.instrument.sustain?.attack || 0;
+  if (!attack || time >= voice.when + attack) return voice.amount;
+  return voice.amount * Math.max(0, time - voice.when) / attack;
+}
+
+function fade(voice, when, seconds) {
+  voice.stolen = voice.released = true;
+  const gain = voice.envelope.gain;
+  if (gain.cancelAndHoldAtTime) gain.cancelAndHoldAtTime(when);
+  else { gain.cancelScheduledValues(when); gain.setValueAtTime(levelAt(voice, when), when); }
+  gain.linearRampToValueAtTime(0, when + seconds);
+  try { voice.player.stop(when + seconds + 0.01); } catch { /* already stopped */ }
+}
+
+// One-shot instruments ignore Note Off, like the engine; sustained ones run their release envelope.
+function noteOff(instrument, note, when = ctx.currentTime, source = "live") {
+  for (const voice of voices) {
+    if (voice.instrument !== instrument || voice.note !== note || voice.released || voice.source !== source) continue;
+    if (source === "live" && state.pedal) { voice.pedalled = true; continue; }
+    if (instrument.sustain) fade(voice, when, instrument.sustain.release);
+    else voice.released = true;
+  }
+}
+
+function releasePedal() {
+  for (const voice of voices) {
+    if (!voice.pedalled || voice.released) continue;
+    voice.pedalled = false;
+    if (state.held.has(voice.note)) continue;
+    if (voice.instrument.sustain) fade(voice, ctx.currentTime, voice.instrument.sustain.release);
+    else voice.released = true;
+  }
+}
+
+function stopAll() {
+  if (!ctx) return;
+  for (const timer of scheduled.splice(0)) clearTimeout(timer);
+  for (const voice of [...voices]) fade(voice, ctx.currentTime, 0.04);
+  state.held.clear();
+  for (const key of document.querySelectorAll(".key.down")) key.classList.remove("down");
+}
+
+// ---------- Playing ----------
+function velocityNow() { return +$("velocity").value; }
+
+async function press(note, velocity = velocityNow()) {
+  audio();
+  if (state.held.has(note)) return;
+  state.held.set(note, velocity);
+  light(note, true);
+  try { await Promise.all(state.selected.map(load)); } catch { return; }
+  if (!state.held.has(note)) return;
+  for (const instrument of state.selected) noteOn(instrument, note, velocity);
+}
+
+function lift(note) {
+  if (!state.held.has(note)) return;
+  state.held.delete(note);
+  light(note, false);
+  if (!ctx) return;
+  for (const instrument of state.selected) noteOff(instrument, note);
+}
+
+async function playPhrase() {
+  const lead = state.selected[0];
+  if (!lead) return;
+  audio();
+  stopAll();
+  await Promise.all(state.selected.map(load));
+  const beat = 60 / lead.phrase.tempo;
+  const start = ctx.currentTime + 0.12;
+  for (const [at, note, length, velocity] of lead.phrase.notes) {
+    const on = start + at * beat, off = on + length * beat;
+    for (const instrument of state.selected) {
+      noteOn(instrument, note, velocity, on, "phrase");
+      noteOff(instrument, note, off, "phrase");
+    }
+    scheduled.push(setTimeout(() => light(note, true), (on - ctx.currentTime) * 1000));
+    scheduled.push(setTimeout(() => light(note, state.held.has(note)), (off - ctx.currentTime) * 1000));
+  }
+}
+
+// ---------- Keyboard ----------
+const keys = new Map();
+function buildKeyboard() {
+  const board = $("keyboard");
+  const whites = [];
+  for (let n = LOW_KEY; n <= HIGH_KEY; n++) if (![1, 3, 6, 8, 10].includes(n % 12)) whites.push(n);
+  const width = 100 / whites.length;
+  for (let n = LOW_KEY; n <= HIGH_KEY; n++) {
+    const key = document.createElement("div");
+    const black = [1, 3, 6, 8, 10].includes(n % 12);
+    key.className = "key" + (black ? " black" : "");
+    key.dataset.note = n;
+    if (black) {
+      const left = whites.indexOf(n - 1) + 1;
+      key.style.left = `calc(${left * width}% - ${width * 0.32}%)`;
+      key.style.width = `${width * 0.64}%`;
+    }
+    key.innerHTML = `<span class="hint"></span><span>${n % 12 === 0 ? noteName(n) : ""}</span>`;
+    board.appendChild(key);
+    keys.set(n, key);
+  }
+  const pointers = new Map();
+  const at = (event) => {
+    const el = document.elementFromPoint(event.clientX, event.clientY)?.closest(".key");
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    // Lower on the key plays harder.
+    const depth = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+    return { note: +el.dataset.note, velocity: 0.25 + 0.75 * depth };
+  };
+  board.addEventListener("pointerdown", (event) => {
+    const hit = at(event);
+    if (!hit) return;
+    board.setPointerCapture(event.pointerId);
+    pointers.set(event.pointerId, hit.note);
+    press(hit.note, hit.velocity);
+  });
+  board.addEventListener("pointermove", (event) => {
+    if (!pointers.has(event.pointerId)) return;
+    const hit = at(event);
+    if (!hit || hit.note === pointers.get(event.pointerId)) return;
+    lift(pointers.get(event.pointerId));
+    pointers.set(event.pointerId, hit.note);
+    press(hit.note, hit.velocity);
+  });
+  const end = (event) => {
+    if (!pointers.has(event.pointerId)) return;
+    lift(pointers.get(event.pointerId));
+    pointers.delete(event.pointerId);
+  };
+  board.addEventListener("pointerup", end);
+  board.addEventListener("pointercancel", end);
+}
+
+function light(note, on) { keys.get(note)?.classList.toggle("down", on); }
+
+function refreshKeyboard() {
+  const ranges = state.selected.map((i) => i.range);
+  for (const [n, key] of keys) {
+    key.classList.toggle("out", ranges.length > 0 && !ranges.some(([lo, hi]) => n >= lo && n <= hi));
+    key.querySelector(".hint").textContent = "";
+  }
+  const base = 12 * (state.octave + 1);
+  for (const [letter, offset] of Object.entries(TYPING)) {
+    const key = keys.get(base + offset);
+    if (key) key.querySelector(".hint").textContent = letter.toUpperCase();
+  }
+  $("octave-out").value = `C${state.octave}`;
+  const centre = keys.get(base + 7);
+  centre?.scrollIntoView({ block: "nearest", inline: "center" });
+}
+
+// ---------- Library ----------
+function scopeOf(instrument) { return ORCHESTRA.includes(instrument.category) ? "orchestra" : "house"; }
+
+function visible() {
+  const order = [...ORCHESTRA, ...HOUSE];
+  const query = state.search.toLowerCase();
+  return state.instruments
+    .filter((i) => state.scope === "all" || scopeOf(i) === state.scope)
+    .filter((i) => !query || `${i.name} ${i.category} ${i.model || ""}`.toLowerCase().includes(query))
+    .sort((a, b) => order.indexOf(a.category) - order.indexOf(b.category));
+}
+
+function renderLibrary() {
+  const list = visible();
+  const library = $("library");
+  library.innerHTML = "";
+  let group;
+  for (const instrument of list) {
+    if (instrument.category !== group?.dataset.category) {
+      group = document.createElement("div");
+      group.className = "group";
+      group.dataset.category = instrument.category;
+      const count = list.filter((i) => i.category === instrument.category).length;
+      group.innerHTML = `<h2><span>${instrument.category}</span><span>${count}</span></h2>`;
+      library.appendChild(group);
+    }
+    const row = document.createElement("div");
+    row.className = "row" + (state.selected.includes(instrument) ? " selected" : "");
+    row.dataset.id = instrument.id;
+    const verdict = state.saved[instrument.id]?.rating;
+    row.innerHTML = `<span class="name ${scopeOf(instrument) === "orchestra" ? "new" : ""}">${instrument.name}</span>
+      <span class="tag">${instrument.sustain ? "held" : instrument.source === "Acoustic graph" ? "graph" : "rings"}</span>
+      <span class="rate">${verdict === 1 ? "👍" : verdict === -1 ? "👎" : ""}</span>
+      <button class="play" title="Audition phrase">▶</button>`;
+    row.addEventListener("click", (event) => {
+      const layer = event.shiftKey || event.metaKey || event.ctrlKey;
+      select(instrument, layer);
+      if (event.target.closest(".play")) playPhrase();
+    });
+    group.appendChild(row);
+  }
+  $("count").textContent = `${list.length} instruments · ${state.instruments.length} total`;
+}
+
+function select(instrument, layer = false) {
+  if (layer) {
+    const i = state.selected.indexOf(instrument);
+    if (i >= 0 && state.selected.length > 1) state.selected.splice(i, 1);
+    else if (i < 0) state.selected.push(instrument);
+  } else {
+    state.selected = [instrument];
+    // Centre musical typing on the instrument's range.
+    const [low, high] = instrument.range;
+    if (instrument.pitched) state.octave = Math.min(7, Math.max(0, Math.round(((low + high) / 2 - 8) / 12) - 1));
+  }
+  load(instrument).catch((error) => { $("meta").textContent = `Could not load media: ${error.message}`; });
+  location.hash = state.selected.map((i) => i.id).join("+");
+  renderLibrary();
+  renderInfo();
+  refreshKeyboard();
+  document.querySelector(".row.selected")?.scrollIntoView({ block: "nearest" });
+}
+
+function step(direction) {
+  const list = visible();
+  if (!list.length) return;
+  const i = list.indexOf(state.selected[0]);
+  select(list[(i + direction + list.length) % list.length]);
+}
+
+const MODELS = {
+  sustained: "Additive source–filter tone", courses: "Plucked string courses", string: "Plucked string loop",
+  timpani: "Tuned membrane", gong: "Blooming metal plate", clack: "Paired shells", membrane: "Membrane",
+  metal: "Metal modes", bar: "Struck bar modes", collisions: "Collision gesture", hammer: "Hammered strings",
+  piano: "Hammered strings", tine: "Struck tine",
+};
+
+function renderInfo() {
+  const lead = state.selected[0];
+  if (!lead) return;
+  $("title").textContent = state.selected.map((i) => i.name).join(" + ");
+  $("meta").textContent = `${lead.category} · ${lead.source}${lead.model ? ` · ${MODELS[lead.model] || lead.model}` : ""}`;
+  const roots = [...new Set(lead.zones.map((z) => z.root))].sort((a, b) => a - b);
+  const layers = new Set(lead.zones.map((z) => z.velocity.join())).size;
+  const facts = [
+    ["Range", lead.pitched || lead.fixed ? `${noteName(lead.range[0])}–${noteName(lead.range[1])}` : lead.native ? "any key" : "any key (C4 = original)"],
+    ...(lead.fixed ? [["Pitch", "within 2 semitones of original"]] : lead.native ? [["Pitch", "same on every key"]] : []),
+    ["Roots", lead.pitched ? roots.map(noteName).join(" ") : "1"],
+    ["Velocity layers", layers],
+    ["Note Off", lead.sustain ? `${Math.round(lead.sustain.release * 1000)} ms release` : "rings out"],
+  ];
+  $("facts").innerHTML = facts.map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("");
+  const saved = state.saved[lead.id] || {};
+  $("like").classList.toggle("on", saved.rating === 1);
+  $("dislike").classList.toggle("on", saved.rating === -1);
+  $("note").value = saved.note || "";
+}
+
+function remember(id, change) {
+  state.saved[id] = { ...(state.saved[id] || {}), ...change };
+  localStorage.setItem(STORE, JSON.stringify(state.saved));
+  renderLibrary();
+}
+
+function exportFeedback() {
+  const lines = ["# Instrument player feedback", ""];
+  for (const category of [...ORCHESTRA, ...HOUSE]) {
+    const rated = state.instruments.filter((i) => i.category === category && (state.saved[i.id]?.rating || state.saved[i.id]?.note));
+    if (!rated.length) continue;
+    lines.push(`## ${category}`);
+    for (const i of rated) {
+      const s = state.saved[i.id];
+      const mark = s.rating === 1 ? "👍" : s.rating === -1 ? "👎" : "–";
+      lines.push(`- ${mark} **${i.name}** (\`${i.id}\`)${s.note ? `: ${s.note.trim().replace(/\n+/g, " ")}` : ""}`);
+    }
+    lines.push("");
+  }
+  const text = lines.length > 2 ? lines.join("\n") : "Nothing rated yet. Use 👍/👎 and notes on any instrument.";
+  $("feedback-text").value = text;
+  $("feedback").classList.remove("hidden");
+  navigator.clipboard?.writeText(text).then(
+    () => { $("feedback-status").textContent = "Copied to the clipboard."; },
+    () => { $("feedback-status").textContent = "Select and copy the text below."; },
+  );
+}
+
+// ---------- Scope ----------
+function drawScope() {
+  const canvas = $("scope");
+  const ratio = devicePixelRatio || 1;
+  const width = Math.floor(canvas.clientWidth * ratio), height = Math.floor(canvas.clientHeight * ratio);
+  if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+  const g = canvas.getContext("2d"), w = canvas.width, h = canvas.height;
+  g.clearRect(0, 0, w, h);
+  if (analyser) {
+    const bins = new Float32Array(analyser.frequencyBinCount);
+    analyser.getFloatFrequencyData(bins);
+    const nyquist = ctx.sampleRate / 2;
+    g.beginPath();
+    for (let x = 0; x < w; x++) {
+      const f = 30 * Math.pow(16000 / 30, x / w);
+      const db = bins[Math.min(bins.length - 1, Math.round(f / nyquist * bins.length))];
+      const y = h - Math.max(0, (db + 110) / 100) * h;
+      x ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.lineTo(w, h); g.lineTo(0, h); g.closePath();
+    g.fillStyle = "rgba(242, 165, 65, 0.25)"; g.fill();
+    g.strokeStyle = "#f2a541"; g.lineWidth = ratio; g.stroke();
+    const wave = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(wave);
+    let start = 0;
+    for (let i = 1; i < wave.length / 2; i++) if (wave[i - 1] < 0 && wave[i] >= 0) { start = i; break; }
+    g.beginPath();
+    const span = Math.min(wave.length - start, 1600);
+    for (let x = 0; x < w; x++) {
+      const y = h / 2 - wave[start + Math.floor(x / w * span)] * h * 0.45;
+      x ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.strokeStyle = "#5cc8b0"; g.stroke();
+  }
+  g.fillStyle = "#4b5260"; g.font = `${11 * ratio}px system-ui`;
+  for (const f of [100, 1000, 10000]) {
+    const x = Math.log(f / 30) / Math.log(16000 / 30) * w;
+    g.fillText(f >= 1000 ? `${f / 1000}k` : f, x + 3 * ratio, h - 4 * ratio);
+  }
+  requestAnimationFrame(drawScope);
+}
+
+// ---------- Input ----------
+function typing(event) {
+  return event.target.closest("input, textarea") || event.metaKey || event.ctrlKey || event.altKey;
+}
+
+addEventListener("keydown", (event) => {
+  if (typing(event)) return;
+  const key = event.key.toLowerCase();
+  if (key in TYPING) {
+    event.preventDefault();
+    if (!event.repeat) press(12 * (state.octave + 1) + TYPING[key]);
+    return;
+  }
+  if (event.repeat) return;
+  if (key === "z" || key === "x") { state.octave = Math.min(7, Math.max(0, state.octave + (key === "x" ? 1 : -1))); refreshKeyboard(); }
+  else if (key === "c" || key === "v") { $("velocity").value = +$("velocity").value + (key === "v" ? 0.1 : -0.1); $("velocity").dispatchEvent(new Event("input")); }
+  else if (key === " ") { event.preventDefault(); setPedal(true); }
+  else if (key === "[" || key === "]") step(key === "]" ? 1 : -1);
+  else if (key === "enter") playPhrase();
+  else if (key === "escape") stopAll();
+  else return;
+});
+
+addEventListener("keyup", (event) => {
+  const key = event.key.toLowerCase();
+  if (key in TYPING) lift(12 * (state.octave + 1) + TYPING[key]);
+  if (key === " " && !typing(event)) setPedal(false);
+});
+
+// Lifting every held key when the window loses focus prevents stuck notes.
+addEventListener("blur", () => { for (const note of [...state.held.keys()]) lift(note); setPedal(false); });
+
+function setPedal(down) {
+  if (state.pedal === down) return;
+  state.pedal = down;
+  $("sustain").classList.toggle("on", down);
+  if (!down && ctx) releasePedal();
+}
+
+async function enableMidi() {
+  if (!navigator.requestMIDIAccess) { $("midi").textContent = "No Web MIDI"; return; }
+  try {
+    const access = await navigator.requestMIDIAccess();
+    const attach = () => {
+      for (const input of access.inputs.values()) {
+        input.onmidimessage = ({ data: [status, a, b] }) => {
+          const kind = status & 0xf0;
+          if (kind === 0x90 && b > 0) press(a, b / 127);
+          else if (kind === 0x80 || (kind === 0x90 && b === 0)) lift(a);
+          else if (kind === 0xb0 && a === 64) setPedal(b >= 64);
+        };
+      }
+      $("midi").textContent = `MIDI: ${access.inputs.size} input${access.inputs.size === 1 ? "" : "s"}`;
+    };
+    access.onstatechange = attach;
+    attach();
+  } catch (error) {
+    $("midi").textContent = "MIDI blocked";
+  }
+}
+
+// ---------- Start ----------
+async function start() {
+  buildKeyboard();
+  for (const id of ["volume", "room"]) $(id).addEventListener("input", applyMix);
+  $("velocity").addEventListener("input", () => { $("velocity-out").value = Math.round(velocityNow() * 127); });
+  $("velocity").dispatchEvent(new Event("input"));
+  applyMix();
+  $("panic").onclick = stopAll;
+  $("sustain").onclick = () => setPedal(!state.pedal);
+  $("phrase").onclick = playPhrase;
+  $("prev").onclick = () => step(-1);
+  $("next").onclick = () => step(1);
+  $("midi").onclick = enableMidi;
+  $("export").onclick = exportFeedback;
+  $("feedback-close").onclick = () => $("feedback").classList.add("hidden");
+  $("like").onclick = () => { const i = state.selected[0]; remember(i.id, { rating: state.saved[i.id]?.rating === 1 ? 0 : 1 }); renderInfo(); };
+  $("dislike").onclick = () => { const i = state.selected[0]; remember(i.id, { rating: state.saved[i.id]?.rating === -1 ? 0 : -1 }); renderInfo(); };
+  $("note").addEventListener("input", (event) => {
+    const i = state.selected[0];
+    state.saved[i.id] = { ...(state.saved[i.id] || {}), note: event.target.value };
+    localStorage.setItem(STORE, JSON.stringify(state.saved));
+  });
+  $("search").addEventListener("input", (event) => { state.search = event.target.value; renderLibrary(); });
+  for (const chip of document.querySelectorAll("[data-scope]")) {
+    chip.onclick = () => {
+      state.scope = chip.dataset.scope;
+      for (const c of document.querySelectorAll("[data-scope]")) c.classList.toggle("on", c === chip);
+      renderLibrary();
+    };
+  }
+  let manifest;
+  try {
+    const response = await fetch(new URL("renders/instrument-player/manifest.json", BASE), { cache: "no-store" });
+    if (!response.ok) throw new Error(`manifest: HTTP ${response.status}`);
+    manifest = await response.json();
+  } catch (error) {
+    $("setup-error").textContent = location.protocol === "file:" ? "Opened from a file: browsers block loading audio that way." : error.message;
+    $("setup").classList.remove("hidden");
+    return;
+  }
+  for (const instrument of manifest.instruments) {
+    instrument.range = [
+      Math.max(LOW_KEY, Math.min(...instrument.zones.map((z) => z.low))),
+      Math.min(HIGH_KEY, Math.max(...instrument.zones.map((z) => z.high))),
+    ];
+    // Native percussion ignores key tracking entirely.
+    instrument.native = !instrument.pitched && instrument.zones.every((z) => !z.track);
+    state.instruments.push(instrument);
+    state.byId.set(instrument.id, instrument);
+  }
+  const wanted = location.hash.slice(1).split("+").map((id) => state.byId.get(id)).filter(Boolean);
+  if (wanted.length && wanted.every((i) => scopeOf(i) === "house")) {
+    document.querySelector('[data-scope="house"]').click();
+  }
+  select(wanted[0] || visible()[0]);
+  for (const extra of wanted.slice(1)) select(extra, true);
+  drawScope();
+}
+
+start();
+</script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+crump-module 2
+instrument glockenspiel "Glockenspiel" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z79-soft-0 asset glockenspiel-79-soft-0 keys F5 A5 velocity 0 0.65 root G5
+      zone z79-hard-0 asset glockenspiel-79-hard-0 keys F5 A5 velocity 0.65 1 root G5
+      zone z84-soft-0 asset glockenspiel-84-soft-0 keys A#5 D6 velocity 0 0.65 root C6
+      zone z84-hard-0 asset glockenspiel-84-hard-0 keys A#5 D6 velocity 0.65 1 root C6
+      zone z89-soft-0 asset glockenspiel-89-soft-0 keys D#6 G6 velocity 0 0.65 root F6
+      zone z89-hard-0 asset glockenspiel-89-hard-0 keys D#6 G6 velocity 0.65 1 root F6
+      zone z94-soft-0 asset glockenspiel-94-soft-0 keys G#6 C7 velocity 0 0.65 root A#6
+      zone z94-hard-0 asset glockenspiel-94-hard-0 keys G#6 C7 velocity 0.65 1 root A#6
+      zone z99-soft-0 asset glockenspiel-99-soft-0 keys C#7 F7 velocity 0 0.65 root D#7
+      zone z99-hard-0 asset glockenspiel-99-hard-0 keys C#7 F7 velocity 0.65 1 root D#7
+      zone z104-soft-0 asset glockenspiel-104-soft-0 keys F#7 D8 velocity 0 0.65 root G#7
+      zone z104-hard-0 asset glockenspiel-104-hard-0 keys F#7 D8 velocity 0.65 1 root G#7
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset glockenspiel-79-soft-0 "Glockenspiel" wav "media/79-soft-0.wav" sha256 "f9a68248f7bc62a11676f1d366cf1be6b443b8e8f0be66c52508445454c329be" {
+  usage multisample
+}
+asset glockenspiel-79-hard-0 "Glockenspiel" wav "media/79-hard-0.wav" sha256 "66e4595db47c81bf351822165f75da429857adbf36bdbe7860842c67080f2676" {
+  usage multisample
+}
+asset glockenspiel-84-soft-0 "Glockenspiel" wav "media/84-soft-0.wav" sha256 "2666e4f2cf4ec8858dd945f949416f4ae938c3793071dee8624c6c21e55574fe" {
+  usage multisample
+}
+asset glockenspiel-84-hard-0 "Glockenspiel" wav "media/84-hard-0.wav" sha256 "b34bbfb73b6fa6c598c9f80f92d7375e9f8a2eecb2996faf182b6c2914e4d301" {
+  usage multisample
+}
+asset glockenspiel-89-soft-0 "Glockenspiel" wav "media/89-soft-0.wav" sha256 "00f6ec0e008804ce43c45cdd97e52b8a42d29ab6570278a3acad0cd4ec4d2218" {
+  usage multisample
+}
+asset glockenspiel-89-hard-0 "Glockenspiel" wav "media/89-hard-0.wav" sha256 "7d566c54b0fce8145ebfcd00c163ab060f0bb2f22c834cd02111b79d18eaf08e" {
+  usage multisample
+}
+asset glockenspiel-94-soft-0 "Glockenspiel" wav "media/94-soft-0.wav" sha256 "1719bddbad883b6d562d3b07e8e7ee3bd554649e3ee855760cad38ce2893d3ab" {
+  usage multisample
+}
+asset glockenspiel-94-hard-0 "Glockenspiel" wav "media/94-hard-0.wav" sha256 "545fc140e80de62f041f9f9e06697aa34955e74256a41677d3335c8acc454f0e" {
+  usage multisample
+}
+asset glockenspiel-99-soft-0 "Glockenspiel" wav "media/99-soft-0.wav" sha256 "3298d5def8df1aedc2693aaffa27a97548ca167d3591c4b4424381b69b67cb91" {
+  usage multisample
+}
+asset glockenspiel-99-hard-0 "Glockenspiel" wav "media/99-hard-0.wav" sha256 "9f950faf13802bc75910af34d96f69540453607d3dd99589e9deecf7f0bb6a80" {
+  usage multisample
+}
+asset glockenspiel-104-soft-0 "Glockenspiel" wav "media/104-soft-0.wav" sha256 "7146d06c65b1429b0def28d101a36c39b19e561d63f55dac7e8b549ce88bc23e" {
+  usage multisample
+}
+asset glockenspiel-104-hard-0 "Glockenspiel" wav "media/104-hard-0.wav" sha256 "acfa02557f965ce7ed1fe3b99ab86c7d39fc2e2c2f7bd26e81ad3173e5142bb8" {
+  usage multisample
+}

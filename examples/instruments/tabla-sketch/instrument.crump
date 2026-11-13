@@ -19,10 +19,10 @@ instrument tabla-sketch "Tabla Sketch" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset tabla-sketch-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 67369 gain 0db pan 0
-      zone z60-hard-0 asset tabla-sketch-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 70657 gain 0db pan 0
-      zone z60-soft-1 asset tabla-sketch-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 67547 gain 0db pan 0
-      zone z60-hard-1 asset tabla-sketch-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 70670 gain 0db pan 0
+      zone z60-soft-0 asset tabla-sketch-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset tabla-sketch-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset tabla-sketch-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset tabla-sketch-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument tabla-sketch "Tabla Sketch" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset tabla-sketch-60-soft-0 "Tabla Sketch" wav "media/60-soft-0.wav" sha256 "78c2d296de6a9c77f87fad81923e87315858418b92efbff6d7a11f22eb0c177b" {
+  usage multisample
+}
+asset tabla-sketch-60-hard-0 "Tabla Sketch" wav "media/60-hard-0.wav" sha256 "b0cfe57105b37e5a7d7376523d7789c4c1e533f41bfae913a9c620ff5d35c6af" {
+  usage multisample
+}
+asset tabla-sketch-60-soft-1 "Tabla Sketch" wav "media/60-soft-1.wav" sha256 "9c34e18d0bdf28826794a6de4e6fc04b6063e28bebc088458a18a30906bd7d7b" {
+  usage multisample
+}
+asset tabla-sketch-60-hard-1 "Tabla Sketch" wav "media/60-hard-1.wav" sha256 "a13238c66e43ed9c97844ad2689585226398c04d4956fc5d4a7edc85023992cb" {
+  usage multisample
 }

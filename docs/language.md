@@ -88,6 +88,20 @@ instrument bass "Pulse Bass" graph {
 }
 ```
 
+A `crump-module 2` module may also own the Media Assets its Instrument plays, declared at top level with the ordinary [asset syntax](#portable-wav-assets-sampler-sources-and-wavetables):
+
+```crump
+crump-module 2
+instrument violin "Violin" graph {
+  # ... zones referencing violin-g3 ...
+}
+asset violin-g3 "Violin" wav "media/g3.wav" sha256 "..." {
+  usage multisample
+}
+```
+
+A module asset path is relative to the module's directory and must stay beneath it; importing `instruments/violin/instrument.crump` resolves the asset above to `instruments/violin/media/g3.wav`. Module assets otherwise behave exactly like Project assets: they share one ID namespace and the same budgets, and their exact bytes are part of the Revision. Copying a module directory with its media into another Project therefore needs only the `import`. `asset collect` leaves module media in place. A personal-library module is a single source file, so a `library:` import or `module install` of a module that owns assets fails. `module export` copies only the Instrument declaration; as before, its asset references must then be satisfied by the importing Project. [ADR 0025](adr/0025-module-owned-media-assets.md) records the decision.
+
 A version-1 root imports only version-1 modules. A version-2 root may import version-1 or version-2 modules. Unsupported versions and suffixes such as `2-alpha` fail closed. Use `crump module export`, `install`, `list`, and `inspect` rather than copying into the personal library by hand. The library is resolved through the platform user data directory.
 
 ## Project and Song
@@ -100,7 +114,7 @@ A Project declares:
 | `seed` | Deterministic unsigned random seed |
 | `sample_rate` | fixed at `48000` |
 | `render_tail` | Explicit finite effect/release tail, at most 30 seconds |
-| `asset` | Optional portable Project-owned WAV identity, described below |
+| `asset` | Optional portable Project-owned WAV identity, described below; an imported module may also own assets |
 
 ### Portable WAV assets, sampler sources, and wavetables
 
@@ -136,7 +150,7 @@ asset texture "Texture" wav "media/texture.wav" sha256 "..." {
 
 `sample` admits a direct graph sample source; `multisample` admits readable zone maps; `granular` admits bounded grain reads; and `spectral` admits versioned off-callback analysis. These tags do not copy, trim, normalize, or reinterpret bytes. Verified source container frames remain the coordinate space for slices/zones. Only assets reached by Track-assigned sampler or graph programs compile to immutable Project-rate stereo frames and, for spectral sources, a second disposable analysis derivative.
 
-Inventory loading currently admits at most 256 assets, 64 MiB per file, and 256 MiB total. It validates non-empty mono/stereo WAV containers with a positive source rate and PCM 8/16/24/32-bit or IEEE float32 storage. Engine sample compilation happens away from the callback: it decodes to immutable stereo float frames, rejects non-finite float input, duplicates mono without a gain change, and deterministically converts source rates to the Project rate with a windowed-sinc low-pass converter. Compiled storage is bounded to 256 MiB per source. Sampler mappings retain these immutable project-rate frames; the callback only performs bounded interpolation, envelopes, fades, panning, and deterministic voice selection.
+Inventory loading currently admits at most 1,024 assets, 64 MiB per file, and 1 GiB total. It validates non-empty mono/stereo WAV containers with a positive source rate and PCM 8/16/24/32-bit or IEEE float32 storage. Engine sample compilation happens away from the callback: it decodes to immutable float frames that keep mono sources mono (read as two identical channels without a gain change), rejects non-finite float input, and deterministically converts source rates to the Project rate with a windowed-sinc low-pass converter. Compiled storage is bounded to 256 MiB per source. Sampler mappings retain these immutable project-rate frames; the callback only performs bounded interpolation, envelopes, fades, panning, and deterministic voice selection.
 
 Use a checked import rather than authoring an external path:
 
@@ -429,6 +443,7 @@ Graph Nodes:
 | `stereo_to_mono` | stereo `audio` | mono `audio` | — |
 | `stereo_mixer` | stereo `a`, optional stereo `b` | stereo `audio` | `a_level`, `b_level` |
 | `stereo_sum` | one or more stereo `inputs` | stereo `audio` | `max_inputs` (`1…64`, default `64`) |
+| `sum` | one or more mono `inputs` | mono `audio` | `max_inputs` (`1…64`, default `64`) |
 | `lowpass` / `filter` | mono `audio`, optional `mod`, `velocity`, `key` | mono `audio` | `mode`, `cutoff`, `resonance`, `mod_depth`, `velocity_depth`, `key_track`, `key_reference` |
 | `stereo_filter` | stereo `audio`, optional `mod`, `velocity`, `key` | stereo `audio` | `model`, `mode`, `cutoff`, `resonance`, `drive`, `mix`, `pan`, `mod_depth`, `velocity_depth`, `key_track`, `key_reference` |
 | `analog_oscillator` | `pitch`, optional mono `fm`, `pm`, `sync`, `am`, Control `gain`, `velocity` | stereo `audio` | waveform, tuning, unison/blend, phase, drift/glide, cross-mod depths, level/pan, bounded warp/distortion stages |
@@ -448,7 +463,7 @@ Graph Nodes:
 
 Version-1 Node settings remain inline on the `node` declaration. Version-2 runnable Node block settings are normally non-nested scalar `key value` directives. `analog_oscillator` and `wavetable` each admit at most two ordered `warp ID KIND amount VALUE` stages; analog oscillator additionally admits one ordered `distortion ID KIND amount VALUE` stage. A custom graph LFO admits 2–64 strictly phase-ordered `point ID phase 0..1 value -1..1` directives beginning at phase 0 and ending at phase 1. `sample_source` admits `slice ID START END`; `multisample` admits the complete zone form described below. Other nested or multi-token runnable directives fail closed, including on `granular` and `spectral`.
 
-Special per-note sources are `note.pitch`, `note.gate`, and normalized `note.velocity` in the voice domain; the shared domain instead has only the external stereo source `voice_sum.audio`. Every required input must have exactly one compatible source except the bounded repeated `stereo_sum.inputs` Port. Stereo-sum inputs fold in durable Bus-ID order. Mono-to-stereo duplicates the sample without gain change; stereo-to-mono produces `(left + right) / 2`. No other channel coercion or fan-in is implicit. Each graph must be acyclic, every authored Node must reach its one Output, and duplicate or unknown settings are errors. Topological compilation is deterministic.
+Special per-note sources are `note.pitch`, `note.gate`, and normalized `note.velocity` in the voice domain; the shared domain instead has only the external stereo source `voice_sum.audio`. Every required input must have exactly one compatible source except the bounded repeated `sum.inputs` and `stereo_sum.inputs` Ports. Summed inputs fold in durable Bus-ID order. Mono-to-stereo duplicates the sample without gain change; stereo-to-mono produces `(left + right) / 2`. No other channel coercion or fan-in is implicit. Each graph must be acyclic, every authored Node must reach its one Output, and duplicate or unknown settings are errors. Topological compilation is deterministic.
 
 A filter `mod` input accepts either uni- or bipolar Control, so an AHDSR timbre envelope and an LFO use the same explicit port without weakening Audio typing. `velocity` adds `velocity_depth` hertz. `key` scales the base cutoff around `key_reference` (C4 / 261.625565 Hz by default); `key_track 1` doubles cutoff for each played-note octave. The stereo `svf_clean` model provides low-pass, high-pass, band-pass, and notch modes. `ladder_drive` is the bounded nonlinear four-pole low-pass model; unsupported ladder mode combinations fail closed rather than silently approximating another response. `svf_clean` applies its smoothed `drive` as normalized input soft saturation before the state-variable stages; zero drive is exact clean input. `ladder_drive` uses deterministic 2× oversampling with midpoint interpolation, four saturating stages, and per-substep resonance feedback. Both models use 1 ms cutoff/resonance/drive smoothing, zero declared latency, channel-isolated state, and deterministic reset. Resonance is clamped to `0…1`: `svf_clean` does not promise self-oscillation, and ladder feedback may ring but is deliberately saturating and not specified as a free-running oscillator. `mix 0` is exact dry; `pan` attenuates the opposite output side.
 
@@ -458,15 +473,31 @@ A filter `mod` input accepts either uni- or bipolar Control, so an AHDSR timbre 
 
 `sample_source` uses exact half-open original-source frames for at most 256 `slice ID START END` directives. `selected_slice` chooses one; omission chooses the first declared slice or the complete asset. Normalized `start`/`end` and loop bounds are evaluated from the same-frame Parameter/Modulation projection and latched on note start; their complete Parameter domains must remain ordered. `loop_mode` is `off`, forward wrap, or reflected `ping_pong`; `loop_crossfade` is a bounded original-source frame count. Direction is forward/reverse. `playback gated` applies a fixed 64-frame source release on Note Off; `one_shot` ignores Note Off, forbids loops, and ends at the region boundary. Linear interpolation reads immutable Project-rate stereo frames. Root/tune and positive `rate 0.125…8` are repitch only—pitch and duration move together, with no implied time stretch or formant preservation.
 
-A multisample zone has the complete readable form:
+A multisample zone names its asset, inclusive keys, and root pitch. Every other clause is optional, may appear in any order after the zone ID, and may appear at most once:
 
 ```crump
+zone soft asset violin-g3-soft keys G3 B3 velocity 0 0.65 root G3 loop 24000 72000 crossfade 4800
 zone low asset piano-c3 keys C1 B3 velocity 0 1 root C3 layer body articulation default round_robin body-low 0 region 0 24000 gain -3db pan -0.2
 ```
 
+| Clause | Default |
+| --- | --- |
+| `velocity LOW HIGH` | `0 1` |
+| `layer ID` | `default` |
+| `articulation ID` | `default`, the only supported value |
+| `round_robin GROUP INDEX` | the layer's implicit group |
+| `region START END` | the whole asset |
+| `gain DB` | `0db` |
+| `pan PAN` | `0` |
+| `loop START END crossfade FRAMES` | no loop |
+
+Zones without `round_robin` share their layer's implicit group. A group sounds at most one zone per note, chosen at random among the zones matching the key and velocity. Non-overlapping zones in the implicit group therefore play exactly as if each had its own group, and overlapping ones become round-robin alternatives. An explicit `round_robin` group keeps its authored indexes, unique within the layer and group.
+
+The optional `loop START END crossfade FRAMES` clause repeats a half-open original-frame range inside the zone region while the note is held. The crossfade is at most half the loop and 8,192 frames. After Note Off, a `one_shot` zone leaves the loop and plays through the rest of its region, so a sample can hold an attack, a sustain loop and a natural release. A `gated` zone instead takes the fixed source release.
+
 `multisample` owns 1–256 zones. Key bounds are inclusive; source regions remain exact half-open original frames. Every matching round-robin group chooses one stable index from semantic note identity, while distinct groups layer additively with authored gain/pan. The first stable articulation selector accepts only `default`; unsupported values fail rather than becoming inert labels. Pitch/root/tune/rate, linear interpolation, gate/one-shot release, velocity response, immutable cache sharing, and callback bounds match `sample_source`. SFZ import is deferred; no external mapping path is runtime authority.
 
-`crump-sample-windowed-sinc-v1` binds each disposable decoded cache to exact source SHA-256 and Project sample rate. Asset-aware admission computes converted frame storage before payload allocation, counts per-zone cursor state and worst-case zone scans, and includes both publication runtimes. Asset/cache, slice/loop/playback/direction/root, and zone-map changes restart only affected Track Instrument state; compatible scalar changes retain state and apply to future note-on-latched regions.
+`crump-sample-windowed-sinc-v1` binds each disposable decoded cache to exact source SHA-256 and Project sample rate. Asset-aware admission computes converted frame storage before payload allocation, counts per-zone cursor state, charges one check per zone plus playback for the most round-robin groups any single key can sound, and includes both publication runtimes. Mono sources are stored as one channel. Asset/cache, slice/loop/playback/direction/root, and zone-map changes restart only affected Track Instrument state; compatible scalar changes retain state and apply to future note-on-latched regions.
 
 `granular` reuses that immutable exact-asset cache and owns 1–64 preallocated slots per graph voice. A sample-accurate fractional density accumulator may spawn at most one grain per sample. Stable authored/note/Node identity plus a monotonic per-note spawn index determines spray, reverse probability, and equal-power pan, independently of callback grouping and unrelated topology insertion. Position combines normalized control, signed scan phase, and spray; `freeze true` stops scan movement. Grain sizes are 5 ms…1 s, density is 0.1…1,000 Hz, and pitch is root-relative repitch. `hann`, `triangle`, and `tukey` windows are exact finite laws. `wrap`, `reflect`, and `clamp` define source edges; reflect uses bounded triangular folding for any admitted multi-boundary overshoot. Note Off stops spawning while active grains finish, bounding source tail to one second. Maximum slots, window, edge, root, and seed are structural; compatible scalar changes affect future spawn snapshots. Work/state for every slot, both graph-voice storage positions, and both publication runtimes is admitted before callback execution.
 
@@ -682,4 +713,4 @@ Arbitrary text editors and Agents may edit source directly. Such bytes remain a 
 
 ## Limits
 
-The validator enforces finite numbers, domains, unique IDs, references, portable asset identities and exact hashes, exact mono wavetable shape and its 32…8,192-sample power-of-two frame / 1…256-frame / 2,097,152-sample interpretation ceilings, at most 256 sample slices or multisample zones with exact asset-frame bounds, at most 64 preallocated grains per granular source, at most two spectral sources per voice with 1–128 peaks each and ordered frequency domains, graph compatibility/reachability, acyclic legal channel routing, Send/sidechain destinations, panner modes, processor schemas and latency, supported sample rate, maximum render tail, maximum Nodes, at most 256 media assets within the declared byte ceilings, at most 256 graph voices across actual runtime Track instances, at most 128 Automation lanes, at most 1,024 points per lane, at most 8,192 Automation points per Project, at most 8,192 materialized Parameter-lock points, and at most 1,024 dense callback-time Parameter targets. It also rejects duplicate targets, non-automatable or allocation-changing targets, non-step boolean Automation, ambiguous same-frame points, conflicting lock-bearing Clips, out-of-domain physical values, and Projects exceeding named compiled runtime work/memory budgets before allocation. These are safety and product-scope limits, not invitations to generate at the ceiling. Use `crump check` for the narrower Reference Musical Sketch structural checks.
+The validator enforces finite numbers, domains, unique IDs, references, portable asset identities and exact hashes, exact mono wavetable shape and its 32…8,192-sample power-of-two frame / 1…256-frame / 2,097,152-sample interpretation ceilings, at most 256 sample slices or multisample zones with exact asset-frame bounds, at most 64 preallocated grains per granular source, at most two spectral sources per voice with 1–128 peaks each and ordered frequency domains, graph compatibility/reachability, acyclic legal channel routing, Send/sidechain destinations, panner modes, processor schemas and latency, supported sample rate, maximum render tail, maximum Nodes, at most 1,024 media assets within the declared byte ceilings, at most 512 graph voices across actual runtime Track instances, at most 128 Automation lanes, at most 1,024 points per lane, at most 8,192 Automation points per Project, at most 8,192 materialized Parameter-lock points, and at most 1,024 dense callback-time Parameter targets. It also rejects duplicate targets, non-automatable or allocation-changing targets, non-step boolean Automation, ambiguous same-frame points, conflicting lock-bearing Clips, out-of-domain physical values, and Projects exceeding named compiled runtime work/memory budgets before allocation. These are safety and product-scope limits, not invitations to generate at the ceiling. Use `crump check` for the narrower Reference Musical Sketch structural checks.

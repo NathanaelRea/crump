@@ -1,0 +1,38 @@
+{
+  "model": "bar",
+  "params": {
+    "ratios": [
+      1,
+      2.76,
+      5.4
+    ],
+    "gains": [
+      1,
+      0.06,
+      0.015
+    ],
+    "decay": 0.9,
+    "damping": 0.8,
+    "contact": 0.0007
+  },
+  "pitched": true,
+  "category": "Orchestral keys",
+  "id": "celesta",
+  "seed_base": 880000,
+  "seconds": 6,
+  "roots": [
+    60,
+    66,
+    72,
+    78,
+    84,
+    90,
+    96,
+    102
+  ],
+  "range": [
+    58,
+    108
+  ],
+  "audition": 72
+}

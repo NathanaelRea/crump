@@ -13,7 +13,9 @@ use sha2::{Digest, Sha256};
 use crate::{
     diagnostic::{Diagnostic, Diagnostics, SourceLocation},
     dsl::{ImportDeclaration, parse_module, parse_project},
-    media::{AssetInventory, load_asset_inventory, load_asset_inventory_from_bytes},
+    media::{
+        AssetInventory, load_asset_inventory, load_asset_inventory_from_bytes, valid_asset_path,
+    },
     model::{Project, SOURCE_VERSION_V1},
     validate::{validate_project, validate_project_assets},
 };
@@ -91,8 +93,14 @@ impl CandidateAssembly {
         )
     }
 
-    fn push_import(&mut self, path: &Path, source: &str, import_location: &SourceLocation) {
-        let module = parse_module(path, source);
+    fn push_import(
+        &mut self,
+        path: &Path,
+        source: &str,
+        import_location: &SourceLocation,
+        library: bool,
+    ) {
+        let mut module = parse_module(path, source);
         let incompatible = self.root_source_version == SOURCE_VERSION_V1
             && module
                 .source_version
@@ -106,9 +114,27 @@ impl CandidateAssembly {
                 )
                 .at(import_location.clone()),
             );
+        } else if library && !module.assets.is_empty() {
+            self.diagnostics.push(
+                Diagnostic::error(
+                    "CRL010",
+                    "a personal-library module is one source file and cannot own media assets",
+                )
+                .at(import_location.clone())
+                .with_help("copy the module and its media into the Project and import it by path"),
+            );
         } else if let Some(project) = self.project.as_mut() {
+            // Module media paths are relative to the module's directory. A
+            // malformed path stays as written so asset validation reports it.
+            let directory = path.parent().unwrap_or_else(|| Path::new(""));
+            for asset in &mut module.assets {
+                if valid_asset_path(&asset.path) {
+                    asset.path = directory.join(&asset.path);
+                }
+            }
             project.song.instruments.extend(module.instruments);
             project.acoustic_profiles.extend(module.acoustic_profiles);
+            project.assets.extend(module.assets);
         }
         self.canonical_imports.push(path.to_path_buf());
     }
@@ -194,7 +220,12 @@ pub fn load_project(path: impl AsRef<Path>) -> Result<ProjectBundle, ProjectIoEr
                 }
                 match read_source(&resolved.real_path) {
                     Ok(source) => {
-                        assembly.push_import(&resolved.display_path, &source, &import.location);
+                        assembly.push_import(
+                            &resolved.display_path,
+                            &source,
+                            &import.location,
+                            import.path.starts_with("library:"),
+                        );
                         if sources
                             .insert(resolved.display_path.clone(), source)
                             .is_some()
@@ -330,7 +361,12 @@ fn load_project_sources_inner(
             );
             continue;
         };
-        assembly.push_import(&display_path, source, &import.location);
+        assembly.push_import(
+            &display_path,
+            source,
+            &import.location,
+            import.path.starts_with("library:"),
+        );
     }
     let mut authoritative = imported;
     authoritative.insert(PathBuf::from(PROJECT_FILE));
@@ -727,6 +763,91 @@ instrument shared "Shared" stock_drums {
         assert_eq!(
             serde_json::to_value(snapshot.project.as_ref()).expect("snapshot model"),
             serde_json::to_value(filesystem.project.as_ref()).expect("filesystem model")
+        );
+    }
+
+    #[test]
+    fn module_owned_assets_resolve_beside_their_module() {
+        const MODULE: &str = r#"crump-module 2
+instrument kit "Kit" stock_drums {
+  polyphony 4
+  parameter tone "Tone" ratio 0 1 0.4 0.4
+  faceplate {
+    control tone "Tone" "Brightness" maps tone
+  }
+}
+asset kit-hit "Kit hit" wav "media/hit.wav" sha256 "DIGEST"
+"#;
+        let root = tempdir().expect("Project root");
+        let bytes = write_test_wav(
+            &root.path().join("instruments/kit/media/hit.wav"),
+            &[0, 100, -100],
+        );
+        let module = MODULE.replace("DIGEST", &digest(&bytes));
+        fs::write(root.path().join("instruments/kit/kit.crump"), &module).expect("module");
+        let source = include_str!("../tests/fixtures/minimal.crump").replacen(
+            "crump 1\n",
+            "crump 2\nimport \"instruments/kit/kit.crump\"\n",
+            1,
+        );
+        fs::write(root.path().join(PROJECT_FILE), &source).expect("Project source");
+
+        let bundle = load_project(root.path()).expect("load Project");
+        assert!(!bundle.diagnostics.has_errors(), "{:?}", bundle.diagnostics);
+        let project = bundle.project.as_ref().expect("Project");
+        assert_eq!(
+            project.assets[0].path,
+            Path::new("instruments/kit/media/hit.wav")
+        );
+        assert_eq!(
+            project.assets[0].location.file,
+            Path::new("instruments/kit/kit.crump")
+        );
+        assert_eq!(bundle.assets.iter().len(), 1);
+
+        // Changed module media changes the Revision like Project media does.
+        write_test_wav(
+            &root.path().join("instruments/kit/media/hit.wav"),
+            &[0, 200, -200],
+        );
+        let changed = load_project(root.path()).expect("reload changed media");
+        assert_ne!(bundle.revision, changed.revision);
+        assert!(changed.diagnostics.has_errors());
+
+        // Module media must stay beneath the module, and needs a version-2 module.
+        let escaping = module.replace("media/hit.wav", "../hit.wav");
+        fs::write(root.path().join("instruments/kit/kit.crump"), escaping).expect("module");
+        assert!(
+            load_project(root.path())
+                .expect("load")
+                .diagnostics
+                .has_errors()
+        );
+        let version_one = module.replace("crump-module 2", "crump-module 1");
+        fs::write(root.path().join("instruments/kit/kit.crump"), version_one).expect("module");
+        let bundle = load_project(root.path()).expect("load");
+        assert!(
+            bundle
+                .diagnostics
+                .as_slice()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "CRP237")
+        );
+
+        // A personal-library module is one file, so it cannot own media.
+        let mut sources = BTreeMap::new();
+        sources.insert(
+            PathBuf::from(PROJECT_FILE),
+            source.replace("instruments/kit/kit.crump", "library:kit"),
+        );
+        sources.insert(PathBuf::from("library/kit.crump"), module);
+        let library = load_project_sources(root.path().to_path_buf(), sources);
+        assert!(
+            library
+                .diagnostics
+                .as_slice()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "CRL010")
         );
     }
 

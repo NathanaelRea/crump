@@ -19,10 +19,10 @@ instrument three-hands "Three Hands" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset three-hands-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 15157 gain 0db pan 0
-      zone z60-hard-0 asset three-hands-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 15265 gain 0db pan 0
-      zone z60-soft-1 asset three-hands-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 14819 gain 0db pan 0
-      zone z60-hard-1 asset three-hands-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 15323 gain 0db pan 0
+      zone z60-soft-0 asset three-hands-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset three-hands-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset three-hands-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset three-hands-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument three-hands "Three Hands" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset three-hands-60-soft-0 "Three Hands" wav "media/60-soft-0.wav" sha256 "d2ff23f577e3755056bcc3eede62f406355181166c240f7e96390eb2aa764302" {
+  usage multisample
+}
+asset three-hands-60-hard-0 "Three Hands" wav "media/60-hard-0.wav" sha256 "11a82298823233b58c0fdaf81614e35454cbd9d112734c053732777ef197be21" {
+  usage multisample
+}
+asset three-hands-60-soft-1 "Three Hands" wav "media/60-soft-1.wav" sha256 "7244f38a0b4b84584fad382e7f117b77f9cad6a8056a61f64722b5ebfda2a0d0" {
+  usage multisample
+}
+asset three-hands-60-hard-1 "Three Hands" wav "media/60-hard-1.wav" sha256 "522ba60a64299f9e8c0827002f6ac9ca6d1a92b75c5bdfa517b68953a3004c79" {
+  usage multisample
 }

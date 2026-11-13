@@ -19,10 +19,10 @@ instrument conga-slap "Conga Slap" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset conga-slap-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 36096 gain 0db pan 0
-      zone z60-hard-0 asset conga-slap-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 37782 gain 0db pan 0
-      zone z60-soft-1 asset conga-slap-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 35715 gain 0db pan 0
-      zone z60-hard-1 asset conga-slap-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 37860 gain 0db pan 0
+      zone z60-soft-0 asset conga-slap-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset conga-slap-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset conga-slap-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset conga-slap-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument conga-slap "Conga Slap" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset conga-slap-60-soft-0 "Conga Slap" wav "media/60-soft-0.wav" sha256 "4650794ed7332b2bd225f6461080850ab77debca1e6228c876c7569490e04b4c" {
+  usage multisample
+}
+asset conga-slap-60-hard-0 "Conga Slap" wav "media/60-hard-0.wav" sha256 "3659e0f20f23b6ca22df6d739b6f4405e4dcdef368c9d288a02967fcd64a4ffb" {
+  usage multisample
+}
+asset conga-slap-60-soft-1 "Conga Slap" wav "media/60-soft-1.wav" sha256 "5cc6d686e08475c67eb8909f9433ebf268b699ed070742bce930b6322b4425f6" {
+  usage multisample
+}
+asset conga-slap-60-hard-1 "Conga Slap" wav "media/60-hard-1.wav" sha256 "f9d43843e9a5b8e09928dc1d90ca4ba6ec002a588d6f33a55194bc595ebb31e2" {
+  usage multisample
 }

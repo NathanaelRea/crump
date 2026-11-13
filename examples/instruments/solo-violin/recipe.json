@@ -1,0 +1,46 @@
+{
+  "extends": "bowed",
+  "model": "bowed",
+  "params": {
+    "attack": [
+      0.12,
+      0.05
+    ],
+    "vibrato": [
+      5.6,
+      4,
+      7,
+      0.3,
+      0.45
+    ],
+    "vibrato_wander": 0.25,
+    "body_seed": 11,
+    "body_range": [
+      250,
+      11000
+    ],
+    "eq": "violin",
+    "beta": 0.1,
+    "bow_noise": 0.025,
+    "bow_noise_low": 2500
+  },
+  "id": "solo-violin",
+  "seed_base": 600000,
+  "roots": [
+    55,
+    60,
+    65,
+    70,
+    76,
+    82,
+    88,
+    94,
+    100
+  ],
+  "range": [
+    55,
+    100
+  ],
+  "release": 0.35,
+  "audition": 67
+}

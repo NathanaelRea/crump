@@ -60,6 +60,8 @@ pub struct ProjectDocument {
 pub struct ModuleDocument {
     /// Named acoustic data from a `crump-profile 1` import.
     pub acoustic_profiles: Vec<crate::model::AcousticProfile>,
+    /// Media Assets the module owns, with paths relative to the module's directory.
+    pub assets: Vec<MediaAsset>,
     /// Recovered supported source major version, absent for an invalid or missing header.
     pub source_version: Option<u32>,
     /// Instruments declared by the module.
@@ -173,6 +175,7 @@ pub fn parse_module(file: &Path, source: &str) -> ModuleDocument {
     };
     let mut instruments = Vec::new();
     let mut acoustic_profiles = Vec::new();
+    let mut assets = Vec::new();
     let mut saw_header = false;
     for (index, statement) in statements.iter().enumerate() {
         match statement.keyword() {
@@ -209,6 +212,16 @@ pub fn parse_module(file: &Path, source: &str) -> ModuleDocument {
                     instruments.push(instrument);
                 }
             }
+            Some("asset") if parser.source_version == Some(SOURCE_VERSION_V2) => {
+                if let Some(asset) = parser.parse_media_asset(statement) {
+                    assets.push(asset);
+                }
+            }
+            Some("asset") => parser.error_at(
+                "CRP237",
+                "module-owned media assets require `crump-module 2`",
+                statement,
+            ),
             Some(keyword) => parser.unknown("Instrument Module", keyword, statement),
             None => {}
         }
@@ -236,6 +249,7 @@ pub fn parse_module(file: &Path, source: &str) -> ModuleDocument {
     }
     ModuleDocument {
         acoustic_profiles,
+        assets,
         source_version: parser.source_version,
         instruments,
         diagnostics: parser.diagnostics,
@@ -345,6 +359,7 @@ fn parse_acoustic_profile(
         source_version: Some(SOURCE_VERSION_V2),
         instruments: Vec::new(),
         acoustic_profiles: profiles,
+        assets: Vec::new(),
         diagnostics: parser.diagnostics,
     }
 }
@@ -378,6 +393,7 @@ const fn node_kind_has_runtime(kind: NodeKind) -> bool {
                 | NodeKind::StereoToMono
                 | NodeKind::StereoMixer
                 | NodeKind::StereoSum
+                | NodeKind::Sum
                 | NodeKind::AnalogOscillator
                 | NodeKind::Wavetable
                 | NodeKind::SampleSource

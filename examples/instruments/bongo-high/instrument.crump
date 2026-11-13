@@ -19,10 +19,10 @@ instrument bongo-high "Bongo High" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset bongo-high-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 50133 gain 0db pan 0
-      zone z60-hard-0 asset bongo-high-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 52680 gain 0db pan 0
-      zone z60-soft-1 asset bongo-high-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 49873 gain 0db pan 0
-      zone z60-hard-1 asset bongo-high-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 52440 gain 0db pan 0
+      zone z60-soft-0 asset bongo-high-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset bongo-high-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset bongo-high-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset bongo-high-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument bongo-high "Bongo High" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset bongo-high-60-soft-0 "Bongo High" wav "media/60-soft-0.wav" sha256 "f06cae5f82154dd319b6d105401abaf9477f7fecd0c4e4de87a4d81f58e56a38" {
+  usage multisample
+}
+asset bongo-high-60-hard-0 "Bongo High" wav "media/60-hard-0.wav" sha256 "ed494c1b06d6355c0f152c5fabbfb9a8fe159d4adc3baa780d9f515f7dba35c1" {
+  usage multisample
+}
+asset bongo-high-60-soft-1 "Bongo High" wav "media/60-soft-1.wav" sha256 "9361d292f084dc0f3d6548b302fabd42e4cf5ea487a8695cbe3cdd5a0aa2a98e" {
+  usage multisample
+}
+asset bongo-high-60-hard-1 "Bongo High" wav "media/60-hard-1.wav" sha256 "7c5838de18ec766e57095c42587a8ff691aaa1694cc4543517a0bab533ac6012" {
+  usage multisample
 }

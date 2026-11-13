@@ -1,0 +1,108 @@
+crump-module 2
+instrument harpsichord "Harpsichord" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.18s 0.18s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z29-soft-0 asset harpsichord-29-soft-0 keys F1 G#1 velocity 0 0.65 root F1
+      zone z29-hard-0 asset harpsichord-29-hard-0 keys F1 G#1 velocity 0.65 1 root F1
+      zone z36-soft-0 asset harpsichord-36-soft-0 keys A1 D#2 velocity 0 0.65 root C2
+      zone z36-hard-0 asset harpsichord-36-hard-0 keys A1 D#2 velocity 0.65 1 root C2
+      zone z43-soft-0 asset harpsichord-43-soft-0 keys E2 A#2 velocity 0 0.65 root G2
+      zone z43-hard-0 asset harpsichord-43-hard-0 keys E2 A#2 velocity 0.65 1 root G2
+      zone z50-soft-0 asset harpsichord-50-soft-0 keys B2 F3 velocity 0 0.65 root D3
+      zone z50-hard-0 asset harpsichord-50-hard-0 keys B2 F3 velocity 0.65 1 root D3
+      zone z57-soft-0 asset harpsichord-57-soft-0 keys F#3 C4 velocity 0 0.65 root A3
+      zone z57-hard-0 asset harpsichord-57-hard-0 keys F#3 C4 velocity 0.65 1 root A3
+      zone z64-soft-0 asset harpsichord-64-soft-0 keys C#4 G4 velocity 0 0.65 root E4
+      zone z64-hard-0 asset harpsichord-64-hard-0 keys C#4 G4 velocity 0.65 1 root E4
+      zone z71-soft-0 asset harpsichord-71-soft-0 keys G#4 D5 velocity 0 0.65 root B4
+      zone z71-hard-0 asset harpsichord-71-hard-0 keys G#4 D5 velocity 0.65 1 root B4
+      zone z78-soft-0 asset harpsichord-78-soft-0 keys D#5 A5 velocity 0 0.65 root F#5
+      zone z78-hard-0 asset harpsichord-78-hard-0 keys D#5 A5 velocity 0.65 1 root F#5
+      zone z85-soft-0 asset harpsichord-85-soft-0 keys A#5 F6 velocity 0 0.65 root C#6
+      zone z85-hard-0 asset harpsichord-85-hard-0 keys A#5 F6 velocity 0.65 1 root C#6
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset harpsichord-29-soft-0 "Harpsichord" wav "media/29-soft-0.wav" sha256 "95235021609f070c8ce33e63f9f629134f94a0c9b9cfd9a64ca6328272f22cde" {
+  usage multisample
+}
+asset harpsichord-29-hard-0 "Harpsichord" wav "media/29-hard-0.wav" sha256 "d860fed8c18b1986bd85042c9b19144a6187551664e518208cecb5c6e24dbaa4" {
+  usage multisample
+}
+asset harpsichord-36-soft-0 "Harpsichord" wav "media/36-soft-0.wav" sha256 "4cd5bbaff2543147ad44f9e3f4d35d0b0b0f2cfa551f1418c8181ce142cc43fa" {
+  usage multisample
+}
+asset harpsichord-36-hard-0 "Harpsichord" wav "media/36-hard-0.wav" sha256 "cfae1320ca1396cb5b79922b08f3b52cb02e840269ce2ea2e62a75babe3f72a2" {
+  usage multisample
+}
+asset harpsichord-43-soft-0 "Harpsichord" wav "media/43-soft-0.wav" sha256 "4a36bde1fe71b1290c83a9ffa26776c82f3aebc9ab1a522fc9e43579fec4c4e8" {
+  usage multisample
+}
+asset harpsichord-43-hard-0 "Harpsichord" wav "media/43-hard-0.wav" sha256 "2ae49f46e1216d59db6ef7496d22533269be2e09b07957d8664424ff4e485ee3" {
+  usage multisample
+}
+asset harpsichord-50-soft-0 "Harpsichord" wav "media/50-soft-0.wav" sha256 "0e44728d0d1d1b902890a3f97a3b235a4deebe63e95508a6dab4313638cd67a2" {
+  usage multisample
+}
+asset harpsichord-50-hard-0 "Harpsichord" wav "media/50-hard-0.wav" sha256 "2b13dae6d1e281cb3bf0a36971fd7247961c0e1821e03a95d21c7233024e1361" {
+  usage multisample
+}
+asset harpsichord-57-soft-0 "Harpsichord" wav "media/57-soft-0.wav" sha256 "09914ba0b687647b23480e91abe64fb3104163718e2266c2a2d7f62ba1bfa3f4" {
+  usage multisample
+}
+asset harpsichord-57-hard-0 "Harpsichord" wav "media/57-hard-0.wav" sha256 "81126decf8ac1c096fa689af9fb8c8910036f9035cdefa32b2ef2d599728d058" {
+  usage multisample
+}
+asset harpsichord-64-soft-0 "Harpsichord" wav "media/64-soft-0.wav" sha256 "af1fec18b61f68b4ac4b9fd08d49b05312896e075779cdf9aeeb443ac6b75427" {
+  usage multisample
+}
+asset harpsichord-64-hard-0 "Harpsichord" wav "media/64-hard-0.wav" sha256 "cc0eab22d598cc7f02b1c15cfaa6ecd8df006e04012f8748075a4592af7dbd16" {
+  usage multisample
+}
+asset harpsichord-71-soft-0 "Harpsichord" wav "media/71-soft-0.wav" sha256 "1a06cb866749387a62d2378c75e908b4898de21c717c634918344babac103ba5" {
+  usage multisample
+}
+asset harpsichord-71-hard-0 "Harpsichord" wav "media/71-hard-0.wav" sha256 "4819472f1939695ba6c6acab3dd0966c2f23b9993ddce234262e3967241819be" {
+  usage multisample
+}
+asset harpsichord-78-soft-0 "Harpsichord" wav "media/78-soft-0.wav" sha256 "d04fb42bca1a88f27e8a493b61fe18e3fddefe12cb294e8d645a8faf42afacaf" {
+  usage multisample
+}
+asset harpsichord-78-hard-0 "Harpsichord" wav "media/78-hard-0.wav" sha256 "7445af9891ebb8d4fcb2e9067b4b9313a859bfb37f31ebe6ec998ce438ea9f11" {
+  usage multisample
+}
+asset harpsichord-85-soft-0 "Harpsichord" wav "media/85-soft-0.wav" sha256 "6192c7f770520a3fbcc4f0538035402a9094f0d1e579972df13ccf6ed40acd4c" {
+  usage multisample
+}
+asset harpsichord-85-hard-0 "Harpsichord" wav "media/85-hard-0.wav" sha256 "ebcc5053a230b9a9ad509e7c97e924462ef7b05a23b63ad2b98a5f3b118ecb98" {
+  usage multisample
+}

@@ -5,18 +5,6 @@ project "Dark Closed" {
   seed 95028
   sample_rate 48000
   render_tail 2s
-  asset dark-closed-60-soft-0 "Dark Closed" wav "media/60-soft-0.wav" sha256 "3fa0bd5e2ca827b8739f66ae9649591b385c05b0f4782e70789b17f437311e59" {
-    usage multisample
-  }
-  asset dark-closed-60-hard-0 "Dark Closed" wav "media/60-hard-0.wav" sha256 "ef4d47315c2465ce4f7e93ce90a857e0bec72c6628c692e559138bcefd617222" {
-    usage multisample
-  }
-  asset dark-closed-60-soft-1 "Dark Closed" wav "media/60-soft-1.wav" sha256 "88b3f1b6cb3b7c1a12df9783507d86e2db091df2e7a809507e99761fd961bd50" {
-    usage multisample
-  }
-  asset dark-closed-60-hard-1 "Dark Closed" wav "media/60-hard-1.wav" sha256 "94741fd17c82a18adc6d7c76ee77ae6403bed510e2f037bef6e39cab3eb2d76c" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

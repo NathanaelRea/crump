@@ -5,54 +5,6 @@ project "Felt Afterhours" {
   seed 308841
   sample_rate 48000
   render_tail 2s
-  asset felt-afterhours-36-soft-0 "Felt Afterhours" wav "media/36-soft-0.wav" sha256 "a9d8773b9522ca6023a2931e40bd726e04902125d028a742a16ef37b236ed034" {
-    usage multisample
-  }
-  asset felt-afterhours-36-hard-0 "Felt Afterhours" wav "media/36-hard-0.wav" sha256 "ac67cd3791326781b15dde6068e7f0a29842403e8b14cedb84a5a0f1bb4fe1ba" {
-    usage multisample
-  }
-  asset felt-afterhours-43-soft-0 "Felt Afterhours" wav "media/43-soft-0.wav" sha256 "bc839597d8088981c113e4e10f0004e00cd34d3fc07938b06794ff15ffbbad31" {
-    usage multisample
-  }
-  asset felt-afterhours-43-hard-0 "Felt Afterhours" wav "media/43-hard-0.wav" sha256 "a4a298526921583654e757279538729027bbf868fc7599e368085f9e441bf51f" {
-    usage multisample
-  }
-  asset felt-afterhours-48-soft-0 "Felt Afterhours" wav "media/48-soft-0.wav" sha256 "ba2f5bab9033732e8113f02c000b5d1367752ecc22ede8b169d79ac4db5abef9" {
-    usage multisample
-  }
-  asset felt-afterhours-48-hard-0 "Felt Afterhours" wav "media/48-hard-0.wav" sha256 "f65bfecc2c577bc632a73598598e358fd9a160817d7f82c78f7c8969939d7055" {
-    usage multisample
-  }
-  asset felt-afterhours-55-soft-0 "Felt Afterhours" wav "media/55-soft-0.wav" sha256 "a7c77f38cc47f1434c59d95e3b68a80b07f506baf15afb5b10c4d36a9f69dc98" {
-    usage multisample
-  }
-  asset felt-afterhours-55-hard-0 "Felt Afterhours" wav "media/55-hard-0.wav" sha256 "3eac39bcb71315fc137f66a7a5e68e5b59ec7f22c4056b171a1d93fee4112ce6" {
-    usage multisample
-  }
-  asset felt-afterhours-60-soft-0 "Felt Afterhours" wav "media/60-soft-0.wav" sha256 "4e36ec893ffac75dbb06149c31804e01e346453df80bb332cbe2cddf1e144b22" {
-    usage multisample
-  }
-  asset felt-afterhours-60-hard-0 "Felt Afterhours" wav "media/60-hard-0.wav" sha256 "4fbae8d6ce30c07f52cebb29e9bd38981f17d48402ac0bb9cbb639a0e65974eb" {
-    usage multisample
-  }
-  asset felt-afterhours-67-soft-0 "Felt Afterhours" wav "media/67-soft-0.wav" sha256 "dc1f0f1301371cd94c0c3f820f26086fec66672b7dedca326c9ef7034c88c9ba" {
-    usage multisample
-  }
-  asset felt-afterhours-67-hard-0 "Felt Afterhours" wav "media/67-hard-0.wav" sha256 "92db29555aa0818dbbb9aa1e82fc2f1b3e50eb1df5c59ba8e89688b990f2a0f6" {
-    usage multisample
-  }
-  asset felt-afterhours-72-soft-0 "Felt Afterhours" wav "media/72-soft-0.wav" sha256 "32ee25bebc0bf76ec485f689a7ffc08621e723f1e2040ef40b7a6536b88e4643" {
-    usage multisample
-  }
-  asset felt-afterhours-72-hard-0 "Felt Afterhours" wav "media/72-hard-0.wav" sha256 "732fa634a53b1051ec940b20fbccf5f176881c06ea8d5cc2e876b20222a37700" {
-    usage multisample
-  }
-  asset felt-afterhours-79-soft-0 "Felt Afterhours" wav "media/79-soft-0.wav" sha256 "700234f7f37f9324b60adbbf22d2b523715e9d4024198325c232f0516aa1c349" {
-    usage multisample
-  }
-  asset felt-afterhours-79-hard-0 "Felt Afterhours" wav "media/79-hard-0.wav" sha256 "7af6ef2b29df7321116af17811384f38a6313d7ac2f15de7ba5196b0dc7f7f5a" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

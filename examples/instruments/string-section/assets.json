@@ -1,0 +1,355 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "75b9ad03d8fdf3ec9bed1c80ed9c7d273acc08e94761d8cb3dbdf959c13d4c5a",
+  "recipe_sha256": "f5f2af4939f1dc71d6680fc017557d7cdf150af921110eb01362c0052bc5a341",
+  "shared_sha256": {
+    "bowed.json": "8f30acf3c0156e15e724c6f152d5b15644c3a8451be3729f413b2b4a76da402a",
+    "bodies/contrabass.json": "d946025623aaa613b3a4c329284cb1d11a12c52faab662449ff83f6271deee39",
+    "bodies/cello.json": "84da5e05d37f24ba045d0acc531054ca4e1024a8626c64292f553f2b12b07f5d",
+    "bodies/viola.json": "ce80b99c0dd2193c1e68a6820f74c4c4159dd617febee51591916b917b6f38aa",
+    "bodies/violin.json": "d64e37a1111fd3f534db0c2457c37666e119547f51aadfc7b68cf8202797edea"
+  },
+  "format": "stereo PCM16",
+  "assets": [
+    {
+      "id": "string-section-36-soft-0",
+      "path": "media/36-soft-0.wav",
+      "sha256": "9cf48bb2f36ac77245b67b82ccc93ea6b1cf9fbcc65f2871247127e41b483083",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 36,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 640360,
+      "normalization_gain": 0.5023971135681868,
+      "loop": [
+        48000,
+        125509,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-36-hard-0",
+      "path": "media/36-hard-0.wav",
+      "sha256": "5423db6cbfd39816cecc7dcdac1748d748710da47ba87f67fff2c57ac0c03aeb",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 36,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 640360,
+      "normalization_gain": 0.5023971135681868,
+      "loop": [
+        48000,
+        125513,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-43-soft-0",
+      "path": "media/43-soft-0.wav",
+      "sha256": "9040773fd7aaf743d8e82bbd1857e68818c99b4f10433b6e07b0179b190fd75b",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 43,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 640430,
+      "normalization_gain": 0.2424907369141717,
+      "loop": [
+        48000,
+        125736,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-43-hard-0",
+      "path": "media/43-hard-0.wav",
+      "sha256": "f22b48a08062b8cb9f29d1d4a754747f6625680d14f4e94dbb073a86dbe980c0",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 43,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 640430,
+      "normalization_gain": 0.2424907369141717,
+      "loop": [
+        48000,
+        125748,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-50-soft-0",
+      "path": "media/50-soft-0.wav",
+      "sha256": "9d6e1767c229b93d6043f6914c9687ffb928f1c4644e88e8102cacb84a2d5e26",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 50,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 640500,
+      "normalization_gain": 0.3282639351730942,
+      "loop": [
+        48000,
+        123643,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-50-hard-0",
+      "path": "media/50-hard-0.wav",
+      "sha256": "dfbcaeec761e5680be0679a1cf4b913e175b461095e5ab68cc919d9f6f88e15e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 50,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 640500,
+      "normalization_gain": 0.3282639351730942,
+      "loop": [
+        48000,
+        124332,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-57-soft-0",
+      "path": "media/57-soft-0.wav",
+      "sha256": "286c30ef7ca74d37a8b1ab21d900b1052f3e0e77766f58cf78280090c928be1e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 640570,
+      "normalization_gain": 0.11792280240322095,
+      "loop": [
+        48000,
+        125863,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-57-hard-0",
+      "path": "media/57-hard-0.wav",
+      "sha256": "ddc86f29f28744ad79e8b987dd13ed7bc4909a46a6c649fde0ee287808d3f0ca",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 640570,
+      "normalization_gain": 0.11792280240322095,
+      "loop": [
+        48000,
+        125862,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-64-soft-0",
+      "path": "media/64-soft-0.wav",
+      "sha256": "6fe02d7dfeea15fdb1ef3262430b4f52b48eac31cb4799e219f5ea693d8b4555",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 640640,
+      "normalization_gain": 0.12443022902882697,
+      "loop": [
+        48000,
+        124107,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-64-hard-0",
+      "path": "media/64-hard-0.wav",
+      "sha256": "fa80d2113bbf09bd597b81316486e811ee37cd7bfbe3fa2d880f72208617b32d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 640640,
+      "normalization_gain": 0.12443022902882697,
+      "loop": [
+        48000,
+        123663,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-71-soft-0",
+      "path": "media/71-soft-0.wav",
+      "sha256": "672c184423531400db732612ce592e7909d7935f61916b6a4f79a906ad47d3c5",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 71,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 640710,
+      "normalization_gain": 0.11861023633596131,
+      "loop": [
+        48000,
+        123677,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-71-hard-0",
+      "path": "media/71-hard-0.wav",
+      "sha256": "cc54b0f1761c0c855368cd06a6cbad6b58804cbe5c3334c93f291c68f4b0403d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 71,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 640710,
+      "normalization_gain": 0.11861023633596131,
+      "loop": [
+        48000,
+        123668,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-78-soft-0",
+      "path": "media/78-soft-0.wav",
+      "sha256": "138538e1ef554c411ba5d0ea2c76082fc6d0923692bb4971b7546f9893d988bf",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 78,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 640780,
+      "normalization_gain": 0.1819562654077054,
+      "loop": [
+        48000,
+        124801,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-78-hard-0",
+      "path": "media/78-hard-0.wav",
+      "sha256": "0dd122e03f4b35ecc82f3a1fb7c7d5306c4ea7a93e64fb95e26f10a06deea1b5",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 78,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 640780,
+      "normalization_gain": 0.1819562654077054,
+      "loop": [
+        48000,
+        124555,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-85-soft-0",
+      "path": "media/85-soft-0.wav",
+      "sha256": "175196c5090cfd8337b1b0d71422b3924c553015cee423eb20751440e69ce80f",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 85,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 640850,
+      "normalization_gain": 0.17482894131232676,
+      "loop": [
+        48000,
+        123655,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-85-hard-0",
+      "path": "media/85-hard-0.wav",
+      "sha256": "39579ebc169ab083371518a00b5d34f0af9410e9a5793ed63c726329124cf1ec",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 85,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 640850,
+      "normalization_gain": 0.17482894131232676,
+      "loop": [
+        48000,
+        125173,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-92-soft-0",
+      "path": "media/92-soft-0.wav",
+      "sha256": "02da78d292dd77b1cc089ab784b831ba50737684a1144fddef3bbdf68d66f817",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 92,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 640920,
+      "normalization_gain": 0.19138000926554244,
+      "loop": [
+        48000,
+        123856,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-92-hard-0",
+      "path": "media/92-hard-0.wav",
+      "sha256": "2d741fed6991f22c391cf296dd59bf8d18f9ba05c113f847e80cdd1d65ce248c",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 92,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 640920,
+      "normalization_gain": 0.19138000926554244,
+      "loop": [
+        48000,
+        123612,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-98-soft-0",
+      "path": "media/98-soft-0.wav",
+      "sha256": "818bc947b41ef52d176443b4901fd1d8c6c1ff01f478bc2fb4ae1934611debcd",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 98,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 640980,
+      "normalization_gain": 0.23506473801591668,
+      "loop": [
+        48000,
+        123619,
+        8160
+      ]
+    },
+    {
+      "id": "string-section-98-hard-0",
+      "path": "media/98-hard-0.wav",
+      "sha256": "12622be73f2220cc15f625535c5aa872e297c1ba6670c54a8ed41a0fd1f340fc",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 98,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 640980,
+      "normalization_gain": 0.23506473801591668,
+      "loop": [
+        48000,
+        125589,
+        8160
+      ]
+    }
+  ]
+}

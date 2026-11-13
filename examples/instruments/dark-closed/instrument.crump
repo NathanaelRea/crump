@@ -19,10 +19,10 @@ instrument dark-closed "Dark Closed" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset dark-closed-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 139816 gain 0db pan 0
-      zone z60-hard-0 asset dark-closed-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 153974 gain 0db pan 0
-      zone z60-soft-1 asset dark-closed-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 158104 gain 0db pan 0
-      zone z60-hard-1 asset dark-closed-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 176767 gain 0db pan 0
+      zone z60-soft-0 asset dark-closed-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset dark-closed-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset dark-closed-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset dark-closed-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument dark-closed "Dark Closed" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset dark-closed-60-soft-0 "Dark Closed" wav "media/60-soft-0.wav" sha256 "3fa0bd5e2ca827b8739f66ae9649591b385c05b0f4782e70789b17f437311e59" {
+  usage multisample
+}
+asset dark-closed-60-hard-0 "Dark Closed" wav "media/60-hard-0.wav" sha256 "ef4d47315c2465ce4f7e93ce90a857e0bec72c6628c692e559138bcefd617222" {
+  usage multisample
+}
+asset dark-closed-60-soft-1 "Dark Closed" wav "media/60-soft-1.wav" sha256 "88b3f1b6cb3b7c1a12df9783507d86e2db091df2e7a809507e99761fd961bd50" {
+  usage multisample
+}
+asset dark-closed-60-hard-1 "Dark Closed" wav "media/60-hard-1.wav" sha256 "94741fd17c82a18adc6d7c76ee77ae6403bed510e2f037bef6e39cab3eb2d76c" {
+  usage multisample
 }

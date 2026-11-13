@@ -1,0 +1,100 @@
+crump-module 2
+instrument bassoon "Bassoon" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z34-soft-0 asset bassoon-34-soft-0 keys A1 C2 velocity 0 0.65 root A#1 loop 48000 123639 crossfade 8160
+      zone z34-hard-0 asset bassoon-34-hard-0 keys A1 C2 velocity 0.65 1 root A#1 loop 48000 123639 crossfade 8160
+      zone z39-soft-0 asset bassoon-39-soft-0 keys C#2 F2 velocity 0 0.65 root D#2 loop 48000 124035 crossfade 8160
+      zone z39-hard-0 asset bassoon-39-hard-0 keys C#2 F2 velocity 0.65 1 root D#2 loop 48000 124035 crossfade 8160
+      zone z44-soft-0 asset bassoon-44-soft-0 keys F#2 B2 velocity 0 0.65 root G#2 loop 48000 125509 crossfade 8160
+      zone z44-hard-0 asset bassoon-44-hard-0 keys F#2 B2 velocity 0.65 1 root G#2 loop 48000 125509 crossfade 8160
+      zone z50-soft-0 asset bassoon-50-soft-0 keys C3 F3 velocity 0 0.65 root D3 loop 48000 125834 crossfade 8160
+      zone z50-hard-0 asset bassoon-50-hard-0 keys C3 F3 velocity 0.65 1 root D3 loop 48000 125833 crossfade 8160
+      zone z56-soft-0 asset bassoon-56-soft-0 keys F#3 B3 velocity 0 0.65 root G#3 loop 48000 123812 crossfade 8160
+      zone z56-hard-0 asset bassoon-56-hard-0 keys F#3 B3 velocity 0.65 1 root G#3 loop 48000 123812 crossfade 8160
+      zone z62-soft-0 asset bassoon-62-soft-0 keys C4 F4 velocity 0 0.65 root D4 loop 48000 125967 crossfade 8160
+      zone z62-hard-0 asset bassoon-62-hard-0 keys C4 F4 velocity 0.65 1 root D4 loop 48000 125966 crossfade 8160
+      zone z68-soft-0 asset bassoon-68-soft-0 keys F#4 B4 velocity 0 0.65 root G#4 loop 48000 125386 crossfade 8160
+      zone z68-hard-0 asset bassoon-68-hard-0 keys F#4 B4 velocity 0.65 1 root G#4 loop 48000 125962 crossfade 8160
+      zone z74-soft-0 asset bassoon-74-soft-0 keys C5 F5 velocity 0 0.65 root D5 loop 48000 123612 crossfade 8160
+      zone z74-hard-0 asset bassoon-74-hard-0 keys C5 F5 velocity 0.65 1 root D5 loop 48000 123611 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset bassoon-34-soft-0 "Bassoon" wav "media/34-soft-0.wav" sha256 "a0a6744da896ac73f69eb8930a2eb8cdeb0f2b507c5e0ddd1537f55916a64bc7" {
+  usage multisample
+}
+asset bassoon-34-hard-0 "Bassoon" wav "media/34-hard-0.wav" sha256 "d2ab589e92eeed81810009cfd5cb0126c2317c5b2a8b4136b5b8ef061de3efd3" {
+  usage multisample
+}
+asset bassoon-39-soft-0 "Bassoon" wav "media/39-soft-0.wav" sha256 "24d48867e916545b0ee885a000e8d1a322703172e3a7fa31a23d38eee57f4f78" {
+  usage multisample
+}
+asset bassoon-39-hard-0 "Bassoon" wav "media/39-hard-0.wav" sha256 "266c8e85db78eacdc8988184424618551a7f310903a9832b6f48849678324643" {
+  usage multisample
+}
+asset bassoon-44-soft-0 "Bassoon" wav "media/44-soft-0.wav" sha256 "d92bbdc2838dbcf64800b0c5936789f05aa5e7e28087060db8907cd0c736bac9" {
+  usage multisample
+}
+asset bassoon-44-hard-0 "Bassoon" wav "media/44-hard-0.wav" sha256 "a4c6b8b01ec8a5f83cc860f3c5dbe1002ce952c5a35b8c1a184f2931362e986f" {
+  usage multisample
+}
+asset bassoon-50-soft-0 "Bassoon" wav "media/50-soft-0.wav" sha256 "632539de207ece0931a86a1816c88eed216096645e7c8331948ea85f0542cc6f" {
+  usage multisample
+}
+asset bassoon-50-hard-0 "Bassoon" wav "media/50-hard-0.wav" sha256 "6fe92b7ee955e9b44d124bbae0010a8e1a2fd39c2877d20a9aa6c50f1a87f724" {
+  usage multisample
+}
+asset bassoon-56-soft-0 "Bassoon" wav "media/56-soft-0.wav" sha256 "37c50bd577deed7606d14cffc945cd4f6c7aa00340703cf4a8d778111b36d556" {
+  usage multisample
+}
+asset bassoon-56-hard-0 "Bassoon" wav "media/56-hard-0.wav" sha256 "4a9f31cb5ca340d73c88c81d2031a59d8dd3539decc89adbd14462d4f125ecc2" {
+  usage multisample
+}
+asset bassoon-62-soft-0 "Bassoon" wav "media/62-soft-0.wav" sha256 "14d2eb690632ef5bbc6064d17b896d615f9563c2a1b81dba41dd7560beb79211" {
+  usage multisample
+}
+asset bassoon-62-hard-0 "Bassoon" wav "media/62-hard-0.wav" sha256 "ec7391bea468cd3857893f2b3507857f69a1d9f6389b25ebb55ce55596ff0d70" {
+  usage multisample
+}
+asset bassoon-68-soft-0 "Bassoon" wav "media/68-soft-0.wav" sha256 "61698fbcc701eb6e529e3b69608f005f8df6d6f3c072dc93bfffedd54e966884" {
+  usage multisample
+}
+asset bassoon-68-hard-0 "Bassoon" wav "media/68-hard-0.wav" sha256 "416f5167298355829a9092881b4a09eef3a62b9a6d18334a3a86ae73457056ba" {
+  usage multisample
+}
+asset bassoon-74-soft-0 "Bassoon" wav "media/74-soft-0.wav" sha256 "f6267456216001054b670403fd81e4ad9e2e427fa783f2fa5204d74c498ccac2" {
+  usage multisample
+}
+asset bassoon-74-hard-0 "Bassoon" wav "media/74-hard-0.wav" sha256 "65e92cab5fc0cbb00839c78b492dd459fbf49d45515c41d0baecff37783382fc" {
+  usage multisample
+}

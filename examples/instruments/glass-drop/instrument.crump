@@ -19,22 +19,22 @@ instrument glass-drop "Glass Drop" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z36-soft-0 asset glass-drop-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2 layer body articulation default round_robin rr36 0 region 0 412742 gain 0db pan 0
-      zone z36-hard-0 asset glass-drop-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2 layer body articulation default round_robin rr36 1 region 0 434023 gain 0db pan 0
-      zone z43-soft-0 asset glass-drop-43-soft-0 keys E2 A2 velocity 0 0.65 root G2 layer body articulation default round_robin rr43 0 region 0 410494 gain 0db pan 0
-      zone z43-hard-0 asset glass-drop-43-hard-0 keys E2 A2 velocity 0.65 1 root G2 layer body articulation default round_robin rr43 1 region 0 431559 gain 0db pan 0
-      zone z48-soft-0 asset glass-drop-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3 layer body articulation default round_robin rr48 0 region 0 409775 gain 0db pan 0
-      zone z48-hard-0 asset glass-drop-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3 layer body articulation default round_robin rr48 1 region 0 431057 gain 0db pan 0
-      zone z55-soft-0 asset glass-drop-55-soft-0 keys E3 A3 velocity 0 0.65 root G3 layer body articulation default round_robin rr55 0 region 0 409847 gain 0db pan 0
-      zone z55-hard-0 asset glass-drop-55-hard-0 keys E3 A3 velocity 0.65 1 root G3 layer body articulation default round_robin rr55 1 region 0 431153 gain 0db pan 0
-      zone z60-soft-0 asset glass-drop-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 410476 gain 0db pan 0
-      zone z60-hard-0 asset glass-drop-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 431758 gain 0db pan 0
-      zone z67-soft-0 asset glass-drop-67-soft-0 keys E4 A4 velocity 0 0.65 root G4 layer body articulation default round_robin rr67 0 region 0 411842 gain 0db pan 0
-      zone z67-hard-0 asset glass-drop-67-hard-0 keys E4 A4 velocity 0.65 1 root G4 layer body articulation default round_robin rr67 1 region 0 433087 gain 0db pan 0
-      zone z72-soft-0 asset glass-drop-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5 layer body articulation default round_robin rr72 0 region 0 413483 gain 0db pan 0
-      zone z72-hard-0 asset glass-drop-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5 layer body articulation default round_robin rr72 1 region 0 434720 gain 0db pan 0
-      zone z79-soft-0 asset glass-drop-79-soft-0 keys E5 G6 velocity 0 0.65 root G5 layer body articulation default round_robin rr79 0 region 0 417859 gain 0db pan 0
-      zone z79-hard-0 asset glass-drop-79-hard-0 keys E5 G6 velocity 0.65 1 root G5 layer body articulation default round_robin rr79 1 region 0 439104 gain 0db pan 0
+      zone z36-soft-0 asset glass-drop-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
+      zone z36-hard-0 asset glass-drop-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
+      zone z43-soft-0 asset glass-drop-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
+      zone z43-hard-0 asset glass-drop-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
+      zone z48-soft-0 asset glass-drop-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
+      zone z48-hard-0 asset glass-drop-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
+      zone z55-soft-0 asset glass-drop-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
+      zone z55-hard-0 asset glass-drop-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
+      zone z60-soft-0 asset glass-drop-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
+      zone z60-hard-0 asset glass-drop-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
+      zone z67-soft-0 asset glass-drop-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
+      zone z67-hard-0 asset glass-drop-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
+      zone z72-soft-0 asset glass-drop-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
+      zone z72-hard-0 asset glass-drop-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
+      zone z79-soft-0 asset glass-drop-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
+      zone z79-hard-0 asset glass-drop-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -42,4 +42,52 @@ instrument glass-drop "Glass Drop" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset glass-drop-36-soft-0 "Glass Drop" wav "media/36-soft-0.wav" sha256 "e44b2ce51357d49f0fd53974fac91f914d69952525cf6cb1b35fd0c000ee48da" {
+  usage multisample
+}
+asset glass-drop-36-hard-0 "Glass Drop" wav "media/36-hard-0.wav" sha256 "264f4fa025ad8df9f1d1d320a87ac2ffc31afb9fddb004d534aec881480bea08" {
+  usage multisample
+}
+asset glass-drop-43-soft-0 "Glass Drop" wav "media/43-soft-0.wav" sha256 "42edf6c5781d34b7e27596d562da73228f3401fddfd616babd03bcfefaa7e6f1" {
+  usage multisample
+}
+asset glass-drop-43-hard-0 "Glass Drop" wav "media/43-hard-0.wav" sha256 "abade439b4a4e215c19f532bd860b21f97af48eef8c14b9d53f4c967afc7e872" {
+  usage multisample
+}
+asset glass-drop-48-soft-0 "Glass Drop" wav "media/48-soft-0.wav" sha256 "eee244c2aafbbf7ca2bb1bf1ec507d55e79f368a08aba4287590e6469cd11272" {
+  usage multisample
+}
+asset glass-drop-48-hard-0 "Glass Drop" wav "media/48-hard-0.wav" sha256 "5635b8df90cd066a6e89d3b920f3633a78afb823313f70120d3d7678c78fdf4c" {
+  usage multisample
+}
+asset glass-drop-55-soft-0 "Glass Drop" wav "media/55-soft-0.wav" sha256 "5f320cd296c9f610ffd637b166462e2092d4c092fee2a00ac21bc78266e2baf7" {
+  usage multisample
+}
+asset glass-drop-55-hard-0 "Glass Drop" wav "media/55-hard-0.wav" sha256 "8dcab445630ab10c4d96d132564bffc5816369678d53b8b210d66834dc534fe2" {
+  usage multisample
+}
+asset glass-drop-60-soft-0 "Glass Drop" wav "media/60-soft-0.wav" sha256 "44521f7d92d6f900173e5172bc0141d6a70b0bd91600810322156b643398e70e" {
+  usage multisample
+}
+asset glass-drop-60-hard-0 "Glass Drop" wav "media/60-hard-0.wav" sha256 "04e5789d1a9f944c94765f9d5aea31fee8c1bc1fdfe4a5197104e9d761f967a9" {
+  usage multisample
+}
+asset glass-drop-67-soft-0 "Glass Drop" wav "media/67-soft-0.wav" sha256 "ad09570f8e1846c4672b54ecd56d604ba7326f88e539371400a8d58da6d2596d" {
+  usage multisample
+}
+asset glass-drop-67-hard-0 "Glass Drop" wav "media/67-hard-0.wav" sha256 "049f57a9083b5a760e0ed54bed94fd28a4d6e0bc49374460775a7030e863f7d8" {
+  usage multisample
+}
+asset glass-drop-72-soft-0 "Glass Drop" wav "media/72-soft-0.wav" sha256 "1439c5d59c51213b0fdf81a59807ebab11ee18dd06589c2dcbd1bbc5719ffa3e" {
+  usage multisample
+}
+asset glass-drop-72-hard-0 "Glass Drop" wav "media/72-hard-0.wav" sha256 "fec86927ad706efee62f04038bf01cbeae18a70ee4d93da6937a865a4cd55a4f" {
+  usage multisample
+}
+asset glass-drop-79-soft-0 "Glass Drop" wav "media/79-soft-0.wav" sha256 "bc38785843e10731c5ce320b60cabc2ae3fc399680e6379c2a1ddeaf77332f1b" {
+  usage multisample
+}
+asset glass-drop-79-hard-0 "Glass Drop" wav "media/79-hard-0.wav" sha256 "d319614edf3c9d30b1f25af818d3aaf11921bb3c0d283f1816101f08b88ad817" {
+  usage multisample
 }

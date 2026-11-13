@@ -1,0 +1,77 @@
+crump-module 2
+instrument timpani "Timpani" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z36-soft-0 asset timpani-36-soft-0 keys A1 D2 velocity 0 0.65 root C2
+      zone z36-hard-0 asset timpani-36-hard-0 keys A1 D2 velocity 0.65 1 root C2
+      zone z41-soft-0 asset timpani-41-soft-0 keys D#2 G2 velocity 0 0.65 root F2
+      zone z41-hard-0 asset timpani-41-hard-0 keys D#2 G2 velocity 0.65 1 root F2
+      zone z46-soft-0 asset timpani-46-soft-0 keys G#2 C3 velocity 0 0.65 root A#2
+      zone z46-hard-0 asset timpani-46-hard-0 keys G#2 C3 velocity 0.65 1 root A#2
+      zone z51-soft-0 asset timpani-51-soft-0 keys C#3 F3 velocity 0 0.65 root D#3
+      zone z51-hard-0 asset timpani-51-hard-0 keys C#3 F3 velocity 0.65 1 root D#3
+      zone z56-soft-0 asset timpani-56-soft-0 keys F#3 A#3 velocity 0 0.65 root G#3
+      zone z56-hard-0 asset timpani-56-hard-0 keys F#3 A#3 velocity 0.65 1 root G#3
+      zone z61-soft-0 asset timpani-61-soft-0 keys B3 E4 velocity 0 0.65 root C#4
+      zone z61-hard-0 asset timpani-61-hard-0 keys B3 E4 velocity 0.65 1 root C#4
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset timpani-36-soft-0 "Timpani" wav "media/36-soft-0.wav" sha256 "1751db0c3307dda34a588934a22d420e73bed061ecb89cbd03fc169cc57a1888" {
+  usage multisample
+}
+asset timpani-36-hard-0 "Timpani" wav "media/36-hard-0.wav" sha256 "0641b8d32f2501be432cffa6319c677b5fd72d081fe59d285e87f787bbf79601" {
+  usage multisample
+}
+asset timpani-41-soft-0 "Timpani" wav "media/41-soft-0.wav" sha256 "7030e1fca7deef653283e6f689ed67a509e28d14526da0aab582f1c71f5ef7e6" {
+  usage multisample
+}
+asset timpani-41-hard-0 "Timpani" wav "media/41-hard-0.wav" sha256 "df2d1dc4e37b81ab89596598ba426c2c0ab1ce71a2968e1d287d53721a509e4d" {
+  usage multisample
+}
+asset timpani-46-soft-0 "Timpani" wav "media/46-soft-0.wav" sha256 "a5cc61bceb2ab6b8afc9e845ba43819b3bd283b662e3b14aeaedc181d945d797" {
+  usage multisample
+}
+asset timpani-46-hard-0 "Timpani" wav "media/46-hard-0.wav" sha256 "00c8834419d682db3093fb23e27155efb567de22b754c2c6afdff9e39dc74f22" {
+  usage multisample
+}
+asset timpani-51-soft-0 "Timpani" wav "media/51-soft-0.wav" sha256 "b8ba0a2d8c5f248e22c0daffdf94204597f6e9d1dd58237e16214b3c9417c626" {
+  usage multisample
+}
+asset timpani-51-hard-0 "Timpani" wav "media/51-hard-0.wav" sha256 "ad43c1ea92563dd211720527aa659f410d2357d7dbae20ba2e3e55dda6d0b82e" {
+  usage multisample
+}
+asset timpani-56-soft-0 "Timpani" wav "media/56-soft-0.wav" sha256 "f12f93bc97c8930f9caf945b00faeb19820c7b528e94e968db6897e48cee4bea" {
+  usage multisample
+}
+asset timpani-56-hard-0 "Timpani" wav "media/56-hard-0.wav" sha256 "e9a3a82b05566dcaa639292299ce8eddbfa6c4c6ea2ef63547ecba0b741ecdc7" {
+  usage multisample
+}
+asset timpani-61-soft-0 "Timpani" wav "media/61-soft-0.wav" sha256 "dc7c6f3483b557036f34eed639f40efb8342ac38954fad6551a405e3b88f8690" {
+  usage multisample
+}
+asset timpani-61-hard-0 "Timpani" wav "media/61-hard-0.wav" sha256 "5b13a068b117e115a1098e222246a939936556aa98ceea5c219149610a8053d2" {
+  usage multisample
+}

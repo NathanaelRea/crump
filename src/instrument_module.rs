@@ -59,6 +59,16 @@ pub(crate) fn validate_module_source(
     let source_version = document.source_version;
     let mut diagnostics = document.diagnostics;
     diagnostics.extend(validate_instrument_module(&document.instruments).into_vec());
+    if let Some(asset) = document.assets.first() {
+        diagnostics.push(
+            Diagnostic::error(
+                "CRL010",
+                "a personal-library module is one source file and cannot own media assets",
+            )
+            .at(asset.location.clone())
+            .with_help("import the module from inside a Project together with its media"),
+        );
+    }
     if diagnostics.has_errors() || document.instruments.len() != 1 {
         return Err(diagnostics);
     }
@@ -190,17 +200,12 @@ pub(crate) fn module_asset_dependencies(instrument: &Instrument) -> Vec<ModuleAs
                 include(asset_id, Some(usage), format!("node {}", node.id));
             }
             if node.kind == NodeKind::Multisample {
-                for directive in &node.directives {
-                    if directive.tokens.len() >= 4
-                        && directive.tokens[0].value == "zone"
-                        && directive.tokens[2].value == "asset"
-                    {
-                        include(
-                            &directive.tokens[3].value,
-                            Some(MediaAssetUsage::Multisample),
-                            format!("node {} zone {}", node.id, directive.tokens[1].value),
-                        );
-                    }
+                for zone in node.directives.iter().filter_map(|d| d.zone_clauses()) {
+                    include(
+                        &zone.asset.value,
+                        Some(MediaAssetUsage::Multisample),
+                        format!("node {} zone {}", node.id, zone.id.value),
+                    );
                 }
             }
         }

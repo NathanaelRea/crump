@@ -5,18 +5,6 @@ project "Felt Floor" {
   seed 7919
   sample_rate 48000
   render_tail 2s
-  asset felt-floor-60-soft-0 "Felt Floor" wav "media/60-soft-0.wav" sha256 "296e694d3b4f328fc7d3462d448f6d75b83ba17aeba0927f4011c3d9f2a221df" {
-    usage multisample
-  }
-  asset felt-floor-60-hard-0 "Felt Floor" wav "media/60-hard-0.wav" sha256 "8c394750f301123fd03839ee4685644d95ab4ccdcf7d14421abcfa3da914629c" {
-    usage multisample
-  }
-  asset felt-floor-60-soft-1 "Felt Floor" wav "media/60-soft-1.wav" sha256 "55aebaa87f6aa1aac05d1fd105af77e22ec42a6f7a8183e99b11caad89b7cbb8" {
-    usage multisample
-  }
-  asset felt-floor-60-hard-1 "Felt Floor" wav "media/60-hard-1.wav" sha256 "315d1c07e3d6070c59b2854992f0abed99febbe84e70902a6968c51386a8e49e" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

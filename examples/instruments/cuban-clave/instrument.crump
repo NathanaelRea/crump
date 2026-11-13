@@ -45,18 +45,7 @@ instrument cuban-clave "Cuban Clave" graph {
     node band-13 modal_bank profile cuban-clave-band-13-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
     node force-16 exciter kind impact contact 8e-05s hardness $hardness attack 0.0s duration 0.025s level 1
     node band-16 modal_bank profile cuban-clave-band-16-profile max_modes 6 key_track 0 rise $rise-12 decay_scale $ring level 1
-    node sum-0 mixer a_level 1 b_level 1
-    node sum-1 mixer a_level 1 b_level 1
-    node sum-2 mixer a_level 1 b_level 1
-    node sum-3 mixer a_level 1 b_level 1
-    node sum-4 mixer a_level 1 b_level 1
-    node sum-5 mixer a_level 1 b_level 1
-    node sum-6 mixer a_level 1 b_level 1
-    node sum-7 mixer a_level 1 b_level 1
-    node sum-8 mixer a_level 1 b_level 1
-    node sum-9 mixer a_level 1 b_level 1
-    node sum-10 mixer a_level 1 b_level 1
-    node sum-13 mixer a_level 1 b_level 1
+    node bands sum max_inputs 13
     node level mixer a_level $level b_level 0
     node lowcut-0 filter mode highpass cutoff 1100hz resonance 0 key_track 0
     node lowcut-1 filter mode highpass cutoff 1100hz resonance 0 key_track 0
@@ -128,31 +117,20 @@ instrument cuban-clave "Cuban Clave" graph {
     bus force-12 force-16.audio -> band-16.audio
     bus trigger-12 note.gate -> band-16.gate
     bus pitch-12 note.pitch -> band-16.pitch
-    bus sum-0-a band-0.audio -> sum-0.a
-    bus sum-0-b band-1.audio -> sum-0.b
-    bus sum-1-a band-2.audio -> sum-1.a
-    bus sum-1-b band-3.audio -> sum-1.b
-    bus sum-2-a band-4.audio -> sum-2.a
-    bus sum-2-b band-5.audio -> sum-2.b
-    bus sum-3-a band-6.audio -> sum-3.a
-    bus sum-3-b band-7.audio -> sum-3.b
-    bus sum-4-a band-8.audio -> sum-4.a
-    bus sum-4-b band-9.audio -> sum-4.b
-    bus sum-5-a band-10.audio -> sum-5.a
-    bus sum-5-b band-13.audio -> sum-5.b
-    bus sum-6-a sum-0.audio -> sum-6.a
-    bus sum-6-b sum-1.audio -> sum-6.b
-    bus sum-7-a sum-2.audio -> sum-7.a
-    bus sum-7-b sum-3.audio -> sum-7.b
-    bus sum-8-a sum-4.audio -> sum-8.a
-    bus sum-8-b sum-5.audio -> sum-8.b
-    bus sum-9-a sum-6.audio -> sum-9.a
-    bus sum-9-b sum-7.audio -> sum-9.b
-    bus sum-10-a sum-8.audio -> sum-10.a
-    bus sum-10-b sum-9.audio -> sum-10.b
-    bus sum-13-a sum-10.audio -> sum-13.a
-    bus sum-13-b band-16.audio -> sum-13.b
-    bus level sum-13.audio -> level.a
+    bus band-8-sum band-8.audio -> bands.inputs
+    bus band-9-sum band-9.audio -> bands.inputs
+    bus band-10-sum band-10.audio -> bands.inputs
+    bus band-13-sum band-13.audio -> bands.inputs
+    bus band-0-sum band-0.audio -> bands.inputs
+    bus band-1-sum band-1.audio -> bands.inputs
+    bus band-2-sum band-2.audio -> bands.inputs
+    bus band-3-sum band-3.audio -> bands.inputs
+    bus band-4-sum band-4.audio -> bands.inputs
+    bus band-5-sum band-5.audio -> bands.inputs
+    bus band-6-sum band-6.audio -> bands.inputs
+    bus band-7-sum band-7.audio -> bands.inputs
+    bus band-16-sum band-16.audio -> bands.inputs
+    bus level bands.audio -> level.a
     bus lowcut-0 level.audio -> lowcut-0.audio
     bus lowcut-1 lowcut-0.audio -> lowcut-1.audio
     bus stereo lowcut-1.audio -> output-gain.a

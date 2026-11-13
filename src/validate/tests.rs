@@ -604,7 +604,7 @@ fn graph_voice_bound_counts_each_runtime_track_instance() {
     project.song.instruments[0].polyphony = 64;
     let template = project.song.tracks[0].clone();
     project.song.tracks.clear();
-    for index in 0..4 {
+    for index in 0..MAX_GRAPH_VOICES / 64 {
         let mut track = template.clone();
         track.id = format!("lead-{index}");
         track.name = format!("Lead {index}");
@@ -895,13 +895,14 @@ fn repeated_instrument_post_chains_count_as_runtime_processor_instances() {
 fn graph_voice_effect_state_survives_compiled_resource_recalculation() {
     let source = include_str!("../../tests/fixtures/minimal.crump")
             .replace("polyphony 4", "polyphony 64")
+            .replace("graph 8 {", "graph 12 {")
             .replace(
                 "        node output output",
-                "        node long_delay delay time 2s feedback 0 mix 0\n        node output output",
+                "        node long_delay delay time 2s feedback 0 mix 0\n        node long_delay_2 delay time 2s feedback 0 mix 0\n        node long_delay_3 delay time 2s feedback 0 mix 0\n        node output output",
             )
             .replace(
                 "        connect position.audio -> output.audio",
-                "        connect position.audio -> long_delay.audio\n        connect long_delay.audio -> output.audio",
+                "        connect position.audio -> long_delay.audio\n        connect long_delay.audio -> long_delay_2.audio\n        connect long_delay_2.audio -> long_delay_3.audio\n        connect long_delay_3.audio -> output.audio",
             )
             .replace(
                 "    track drums \"Drums\" instrument drums level -7db pan 0.1 {",
@@ -916,7 +917,7 @@ fn graph_voice_effect_state_survives_compiled_resource_recalculation() {
     let project = document.project.expect("Project");
     let estimate = crate::engine::mix_graph::RuntimeResourceEstimate::for_project(&project, 0)
         .expect("resource estimate");
-    let delay_payload = 256_u64 * 2 * 48_000 * std::mem::size_of::<[f32; 2]>() as u64;
+    let delay_payload = 3 * 256_u64 * 2 * 48_000 * std::mem::size_of::<[f32; 2]>() as u64;
     assert!(estimate.graph_voice_state_bytes >= delay_payload);
     assert!(!estimate.admitted);
     let diagnostics = validate_project(&project);
@@ -931,7 +932,7 @@ fn graph_voice_effect_state_survives_compiled_resource_recalculation() {
 
 #[test]
 fn rejects_named_mix_runtime_budget_before_allocation() {
-    let processors = (0..90)
+    let processors = (0..360)
         .map(|index| {
             format!("      processor delay_{index} delay {{\n        setting time 1s\n      }}\n")
         })

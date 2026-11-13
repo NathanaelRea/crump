@@ -1,0 +1,40 @@
+{
+  "model": "bar",
+  "params": {
+    "ratios": [
+      1,
+      3.0,
+      6.04,
+      9.8
+    ],
+    "gains": [
+      1,
+      0.45,
+      0.14,
+      0.05
+    ],
+    "decay": 0.42,
+    "damping": 0.9,
+    "contact": 9e-05
+  },
+  "pitched": true,
+  "category": "Tuned percussion",
+  "id": "xylophone",
+  "seed_base": 860000,
+  "seconds": 3,
+  "roots": [
+    65,
+    70,
+    75,
+    80,
+    86,
+    92,
+    98,
+    104
+  ],
+  "range": [
+    64,
+    108
+  ],
+  "audition": 77
+}

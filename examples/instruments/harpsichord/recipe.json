@@ -1,0 +1,52 @@
+{
+  "model": "courses",
+  "params": {
+    "decay": 1.6,
+    "bright": 10000,
+    "position": 0.09,
+    "body": [
+      140,
+      330,
+      700,
+      1600,
+      3200
+    ],
+    "body_mix": 0.32,
+    "courses": [
+      [
+        0,
+        0,
+        0.6
+      ],
+      [
+        3,
+        0.0015,
+        0.5
+      ]
+    ]
+  },
+  "pitched": true,
+  "category": "Orchestral keys",
+  "id": "harpsichord",
+  "seed_base": 900000,
+  "seconds": 8,
+  "roots": [
+    29,
+    36,
+    43,
+    50,
+    57,
+    64,
+    71,
+    78,
+    85
+  ],
+  "range": [
+    29,
+    89
+  ],
+  "release": 0.18,
+  "audition": 60,
+  "highpass": 24,
+  "phrase": "keys"
+}

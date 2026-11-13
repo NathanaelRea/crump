@@ -58,19 +58,19 @@ fn maximum_profile_is_admitted_deterministic_grouping_independent_and_rebuildabl
 
     assert!(resources.admitted);
     assert_eq!(resources.graph_voices, 7);
-    assert_eq!(resources.graph_node_instances, 28_730);
+    assert_eq!(resources.graph_node_instances, 28_646);
     assert_eq!(resources.shared_graphs, 1);
     assert_eq!(resources.shared_graph_work_units_per_frame, 16);
     assert_eq!(resources.control_targets, 23);
-    assert_eq!(resources.work_units_per_frame, 28_780);
+    assert_eq!(resources.work_units_per_frame, 28_696);
     assert_eq!(
         resources.publication_transition_work_units_per_frame,
-        57_626
+        57_458
     );
     let expected_runtime_bytes = if cfg!(feature = "pipewire") {
-        2_110_144
+        1_726_288
     } else {
-        2_110_104
+        1_726_248
     };
     assert_eq!(resources.runtime_bytes, expected_runtime_bytes);
     assert_eq!(

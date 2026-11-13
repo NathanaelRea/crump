@@ -5,18 +5,6 @@ project "Cabasa Turn" {
   seed 229651
   sample_rate 48000
   render_tail 2s
-  asset cabasa-turn-60-soft-0 "Cabasa Turn" wav "media/60-soft-0.wav" sha256 "48cb55be7f398949910dfc95c19ce01d9c76e4cbfbc5f7f27d42cd094f96281f" {
-    usage multisample
-  }
-  asset cabasa-turn-60-hard-0 "Cabasa Turn" wav "media/60-hard-0.wav" sha256 "a85f7de3520fffea236a741b220694e66bf7993850c4e79cffc0f7f00f9450e4" {
-    usage multisample
-  }
-  asset cabasa-turn-60-soft-1 "Cabasa Turn" wav "media/60-soft-1.wav" sha256 "b313ac8fa9c92015f3f0d30a0fce7564b0b52d5c35efd2e6913391d410df38b7" {
-    usage multisample
-  }
-  asset cabasa-turn-60-hard-1 "Cabasa Turn" wav "media/60-hard-1.wav" sha256 "0253dcca65d26108a8079279a303520df19435f2f3c06994bff5aa2de88b6564" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

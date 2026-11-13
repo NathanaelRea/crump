@@ -5,9 +5,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use crate::{
     diagnostic::{Diagnostic, Diagnostics},
     model::{
-        GlideMode, Graph, GraphDomain, Instrument, InstrumentKind, NodeKind, NotePriority,
-        PresentationItemKind, Project, RetriggerPolicy, SettingValue, StealPriority, Unit,
-        VoicingMode, parse_pitch,
+        GlideMode, Graph, GraphDomain, Instrument, InstrumentKind, MULTISAMPLE_ZONE_SYNTAX,
+        NodeKind, NotePriority, PresentationItemKind, Project, RetriggerPolicy, SettingValue,
+        StealPriority, Unit, VoicingMode, parse_pitch,
     },
     time::{Meter, parse_musical_time},
 };
@@ -964,7 +964,7 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
         *count += 1;
         let summing_limit = nodes
             .get(connection.to.node.as_str())
-            .filter(|node| node.kind == NodeKind::StereoSum && connection.to.port == "inputs")
+            .filter(|node| node.kind.is_summing() && connection.to.port == "inputs")
             .map(|node| match node.setting("max_inputs") {
                 Some(SettingValue::Number(value)) if value.is_finite() => {
                     (*value as usize).clamp(1, MAX_STEREO_SUM_INPUTS)
@@ -1673,6 +1673,9 @@ fn validate_sample_source_directives(
     }
 }
 
+/// Longest multisample zone loop crossfade, matching `sample_source`.
+const MAX_ZONE_LOOP_CROSSFADE: u64 = 8_192;
+
 fn validate_multisample_directives(node: &crate::model::GraphNode, diagnostics: &mut Diagnostics) {
     if node.directives.is_empty() || node.directives.len() > MAX_MULTISAMPLE_ZONES {
         located_error(
@@ -1685,119 +1688,149 @@ fn validate_multisample_directives(node: &crate::model::GraphNode, diagnostics: 
     let mut ids = BTreeSet::new();
     let mut round_robin_indexes = BTreeSet::new();
     for directive in &node.directives {
-        let tokens = &directive.tokens;
-        if !directive.children.is_empty()
-            || tokens.len() != 26
-            || tokens[0].value != "zone"
-            || tokens[2].value != "asset"
-            || tokens[4].value != "keys"
-            || tokens[7].value != "velocity"
-            || tokens[10].value != "root"
-            || tokens[12].value != "layer"
-            || tokens[14].value != "articulation"
-            || tokens[16].value != "round_robin"
-            || tokens[19].value != "region"
-            || tokens[22].value != "gain"
-            || tokens[24].value != "pan"
-        {
+        let Some(zone) = directive.zone_clauses() else {
             located_error(
                 diagnostics,
                 "CRV060",
-                "multisample zone syntax is `zone ID asset ASSET keys LOW HIGH velocity LOW HIGH root PITCH layer ID articulation default round_robin GROUP INDEX region START END gain DB pan PAN`",
+                MULTISAMPLE_ZONE_SYNTAX,
                 &directive.location,
             );
             continue;
-        }
-        if !valid_id(&tokens[1].value) || !ids.insert(tokens[1].value.as_str()) {
+        };
+        if !valid_id(&zone.id.value) || !ids.insert(zone.id.value.as_str()) {
             source_site_error(
                 diagnostics,
                 "CRV060",
                 "multisample zone ID is invalid or duplicated",
-                &tokens[1].site,
+                &zone.id.site,
             );
         }
-        for index in [3, 13, 17] {
-            if !valid_id(&tokens[index].value) {
+        let identities = [
+            Some(zone.asset),
+            zone.layer,
+            zone.round_robin.map(|[group, _]| group),
+        ];
+        for token in identities.into_iter().flatten() {
+            if !valid_id(&token.value) {
                 source_site_error(
                     diagnostics,
                     "CRV060",
                     "zone asset, layer, and round-robin identities must be stable IDs",
-                    &tokens[index].site,
+                    &token.site,
                 );
             }
         }
-        if tokens[15].value != "default" {
+        if let Some(articulation) = zone.articulation
+            && articulation.value != "default"
+        {
             source_site_error(
                 diagnostics,
                 "CRV060",
                 "the first multisample slice supports only articulation `default`",
-                &tokens[15].site,
+                &articulation.site,
             );
         }
-        let low_key = parse_pitch(&tokens[5].value);
-        let high_key = parse_pitch(&tokens[6].value);
-        let root_key = parse_pitch(&tokens[11].value);
+        let low_key = parse_pitch(&zone.keys[0].value);
+        let high_key = parse_pitch(&zone.keys[1].value);
+        let root_key = parse_pitch(&zone.root.value);
         if !matches!((low_key, high_key, root_key), (Ok(low), Ok(high), Ok(_)) if low <= high) {
             source_site_error(
                 diagnostics,
                 "CRV060",
                 "zone keys/root require scientific pitches and LOW must not exceed HIGH",
-                &tokens[5].site,
+                &zone.keys[0].site,
             );
         }
-        let low_velocity = Unit::Ratio.parse_value(&tokens[8].value);
-        let high_velocity = Unit::Ratio.parse_value(&tokens[9].value);
-        if !matches!((low_velocity, high_velocity), (Ok(low), Ok(high)) if (0.0..=1.0).contains(&low) && (low..=1.0).contains(&high))
+        if let Some([low, high]) = zone.velocity {
+            let low_velocity = Unit::Ratio.parse_value(&low.value);
+            let high_velocity = Unit::Ratio.parse_value(&high.value);
+            if !matches!((low_velocity, high_velocity), (Ok(low), Ok(high)) if (0.0..=1.0).contains(&low) && (low..=1.0).contains(&high))
+            {
+                source_site_error(
+                    diagnostics,
+                    "CRV060",
+                    "zone velocity range must be ordered within 0..=1",
+                    &low.site,
+                );
+            }
+        }
+        if let Some([group, index]) = zone.round_robin {
+            match index.value.parse::<u16>() {
+                Ok(index)
+                    if round_robin_indexes.insert((
+                        zone.layer_id(),
+                        group.value.as_str(),
+                        index,
+                    )) => {}
+                _ => source_site_error(
+                    diagnostics,
+                    "CRV060",
+                    "round-robin index must be an unsigned value unique within its layer/group",
+                    &index.site,
+                ),
+            }
+        }
+        let region = zone
+            .region
+            .map(|[start, end]| (start, start.value.parse::<u64>(), end.value.parse::<u64>()));
+        if let Some((start_token, start, end)) = &region
+            && !matches!((start, end), (Ok(start), Ok(end)) if start < end)
         {
             source_site_error(
                 diagnostics,
                 "CRV060",
-                "zone velocity range must be ordered within 0..=1",
-                &tokens[8].site,
-            );
-        }
-        let round_robin = tokens[18].value.parse::<u16>();
-        match round_robin {
-            Ok(index)
-                if round_robin_indexes.insert((
-                    tokens[13].value.as_str(),
-                    tokens[17].value.as_str(),
-                    index,
-                )) => {}
-            _ => source_site_error(
-                diagnostics,
-                "CRV060",
-                "round-robin index must be an unsigned value unique within its layer/group",
-                &tokens[18].site,
-            ),
-        }
-        let start = tokens[20].value.parse::<u64>();
-        let end = tokens[21].value.parse::<u64>();
-        if !matches!((start, end), (Ok(start), Ok(end)) if start < end) {
-            source_site_error(
-                diagnostics,
-                "CRV060",
                 "zone region must be a positive half-open unsigned frame range",
-                &tokens[20].site,
+                &start_token.site,
             );
         }
-        if !matches!(Unit::Decibels.parse_value(&tokens[23].value), Ok(gain) if (-96.0..=24.0).contains(&gain))
+        let bounds = match &region {
+            Some((_, Ok(start), Ok(end))) => Some((*start, *end)),
+            Some(_) => None,
+            // The asset length bounds a loop in a whole-asset zone; it is
+            // checked against the media inventory.
+            None => Some((0, u64::MAX)),
+        };
+        if let (Some([start_token, end_token, crossfade_token]), Some((start, end))) =
+            (zone.loop_region, bounds)
+        {
+            let valid = matches!(
+                (
+                    start_token.value.parse::<u64>(),
+                    end_token.value.parse::<u64>(),
+                    crossfade_token.value.parse::<u64>()
+                ),
+                (Ok(loop_start), Ok(loop_end), Ok(crossfade))
+                    if start <= loop_start
+                        && loop_start < loop_end
+                        && loop_end <= end
+                        && crossfade <= MAX_ZONE_LOOP_CROSSFADE
+                        && crossfade.saturating_mul(2) <= loop_end - loop_start
+            );
+            if !valid {
+                source_site_error(
+                    diagnostics,
+                    "CRV060",
+                    format!(
+                        "zone loop must be a non-empty frame range inside the zone region with a crossfade of at most half the loop and {MAX_ZONE_LOOP_CROSSFADE} frames"
+                    ),
+                    &start_token.site,
+                );
+            }
+        }
+        if let Some(gain) = zone.gain
+            && !matches!(Unit::Decibels.parse_value(&gain.value), Ok(gain) if (-96.0..=24.0).contains(&gain))
         {
             source_site_error(
                 diagnostics,
                 "CRV060",
                 "zone gain must be -96db..=24db",
-                &tokens[23].site,
+                &gain.site,
             );
         }
-        if !matches!(Unit::Pan.parse_value(&tokens[25].value), Ok(pan) if (-1.0..=1.0).contains(&pan))
+        if let Some(pan) = zone.pan
+            && !matches!(Unit::Pan.parse_value(&pan.value), Ok(pan) if (-1.0..=1.0).contains(&pan))
         {
-            source_site_error(
-                diagnostics,
-                "CRV060",
-                "zone pan must be -1..=1",
-                &tokens[25].site,
-            );
+            source_site_error(diagnostics, "CRV060", "zone pan must be -1..=1", &pan.site);
         }
     }
 }
@@ -2309,6 +2342,7 @@ fn node_output(kind: NodeKind, port: &str) -> Option<SignalType> {
             NodeKind::Oscillator
             | NodeKind::Noise
             | NodeKind::Mixer
+            | NodeKind::Sum
             | NodeKind::Lowpass
             | NodeKind::Amplifier
             | NodeKind::Saturation
@@ -2376,6 +2410,7 @@ fn node_input(kind: NodeKind, port: &str) -> Option<SignalType> {
         (NodeKind::Mixer, "a" | "b") => Some(SignalType::AudioMono),
         (NodeKind::StereoMixer, "a" | "b") => Some(SignalType::AudioStereo),
         (NodeKind::StereoSum, "inputs") => Some(SignalType::AudioStereo),
+        (NodeKind::Sum, "inputs") => Some(SignalType::AudioMono),
         (
             NodeKind::Lowpass
             | NodeKind::Amplifier
@@ -2415,7 +2450,7 @@ const fn required_inputs(kind: NodeKind) -> &'static [&'static str] {
         NodeKind::Noise | NodeKind::Lfo => &[],
         NodeKind::Envelope => &["gate"],
         NodeKind::Mixer | NodeKind::StereoMixer => &["a"],
-        NodeKind::StereoSum => &["inputs"],
+        NodeKind::StereoSum | NodeKind::Sum => &["inputs"],
         NodeKind::Lowpass
         | NodeKind::Saturation
         | NodeKind::Pan
@@ -2986,7 +3021,7 @@ const fn setting_schema(kind: NodeKind) -> &'static [SettingSpec] {
             },
         ],
         NodeKind::MonoToStereo | NodeKind::StereoToMono => &[],
-        NodeKind::StereoSum => &[SettingSpec {
+        NodeKind::StereoSum | NodeKind::Sum => &[SettingSpec {
             key: "max_inputs",
             kind: Integer {
                 minimum: 1,
@@ -3241,6 +3276,7 @@ const fn node_kind_name(kind: NodeKind) -> &'static str {
         NodeKind::StereoToMono => "stereo_to_mono",
         NodeKind::StereoMixer => "stereo_mixer",
         NodeKind::StereoSum => "stereo_sum",
+        NodeKind::Sum => "sum",
         NodeKind::AnalogOscillator => "analog_oscillator",
         NodeKind::Wavetable => "wavetable",
         NodeKind::SampleSource => "sample_source",

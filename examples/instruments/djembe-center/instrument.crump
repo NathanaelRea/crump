@@ -19,10 +19,10 @@ instrument djembe-center "Djembe Center" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z60-soft-0 asset djembe-center-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 109012 gain 0db pan 0
-      zone z60-hard-0 asset djembe-center-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 114444 gain 0db pan 0
-      zone z60-soft-1 asset djembe-center-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 2 region 0 109064 gain 0db pan 0
-      zone z60-hard-1 asset djembe-center-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 3 region 0 114637 gain 0db pan 0
+      zone z60-soft-0 asset djembe-center-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-0 asset djembe-center-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
+      zone z60-soft-1 asset djembe-center-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
+      zone z60-hard-1 asset djembe-center-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -30,4 +30,16 @@ instrument djembe-center "Djembe Center" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset djembe-center-60-soft-0 "Djembe Center" wav "media/60-soft-0.wav" sha256 "31f58bc1111f25ee74106c390f2915257438b2dd7470d2e4632f17f17ffbf464" {
+  usage multisample
+}
+asset djembe-center-60-hard-0 "Djembe Center" wav "media/60-hard-0.wav" sha256 "9e75bc5323772261c093f9aad5a576f0cda1390eb7a2b49ba287719dfe94b59b" {
+  usage multisample
+}
+asset djembe-center-60-soft-1 "Djembe Center" wav "media/60-soft-1.wav" sha256 "f415ea1431adc9b322d3b30ba569a81be2fa5a7c7cb59e382fdd3a008b787b78" {
+  usage multisample
+}
+asset djembe-center-60-hard-1 "Djembe Center" wav "media/60-hard-1.wav" sha256 "9427b44ef7cdf0105f7eab758616b1d913d4d1ee80036702924f7cb1ddbb167e" {
+  usage multisample
 }

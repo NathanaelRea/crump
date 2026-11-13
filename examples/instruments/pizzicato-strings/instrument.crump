@@ -1,0 +1,109 @@
+crump-module 2
+instrument pizzicato-strings "Pizzicato Strings" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z36-soft-0 asset pizzicato-strings-36-soft-0 keys E1 D#2 velocity 0 0.65 root C2
+      zone z36-hard-0 asset pizzicato-strings-36-hard-0 keys E1 D#2 velocity 0.65 1 root C2
+      zone z43-soft-0 asset pizzicato-strings-43-soft-0 keys E2 A#2 velocity 0 0.65 root G2
+      zone z43-hard-0 asset pizzicato-strings-43-hard-0 keys E2 A#2 velocity 0.65 1 root G2
+      zone z50-soft-0 asset pizzicato-strings-50-soft-0 keys B2 F3 velocity 0 0.65 root D3
+      zone z50-hard-0 asset pizzicato-strings-50-hard-0 keys B2 F3 velocity 0.65 1 root D3
+      zone z57-soft-0 asset pizzicato-strings-57-soft-0 keys F#3 C4 velocity 0 0.65 root A3
+      zone z57-hard-0 asset pizzicato-strings-57-hard-0 keys F#3 C4 velocity 0.65 1 root A3
+      zone z64-soft-0 asset pizzicato-strings-64-soft-0 keys C#4 G4 velocity 0 0.65 root E4
+      zone z64-hard-0 asset pizzicato-strings-64-hard-0 keys C#4 G4 velocity 0.65 1 root E4
+      zone z71-soft-0 asset pizzicato-strings-71-soft-0 keys G#4 D5 velocity 0 0.65 root B4
+      zone z71-hard-0 asset pizzicato-strings-71-hard-0 keys G#4 D5 velocity 0.65 1 root B4
+      zone z78-soft-0 asset pizzicato-strings-78-soft-0 keys D#5 A5 velocity 0 0.65 root F#5
+      zone z78-hard-0 asset pizzicato-strings-78-hard-0 keys D#5 A5 velocity 0.65 1 root F#5
+      zone z85-soft-0 asset pizzicato-strings-85-soft-0 keys A#5 E6 velocity 0 0.65 root C#6
+      zone z85-hard-0 asset pizzicato-strings-85-hard-0 keys A#5 E6 velocity 0.65 1 root C#6
+      zone z92-soft-0 asset pizzicato-strings-92-soft-0 keys F6 B6 velocity 0 0.65 root G#6
+      zone z92-hard-0 asset pizzicato-strings-92-hard-0 keys F6 B6 velocity 0.65 1 root G#6
+      zone z98-soft-0 asset pizzicato-strings-98-soft-0 keys C7 D7 velocity 0 0.65 root D7
+      zone z98-hard-0 asset pizzicato-strings-98-hard-0 keys C7 D7 velocity 0.65 1 root D7
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset pizzicato-strings-36-soft-0 "Pizzicato Strings" wav "media/36-soft-0.wav" sha256 "9247a0328b0c1584afb2e8730dd654de54c764fa1ce8d806ad3e03cab3739a90" {
+  usage multisample
+}
+asset pizzicato-strings-36-hard-0 "Pizzicato Strings" wav "media/36-hard-0.wav" sha256 "a199ef76c43d4da5db1c9cb9e820be2243131fe71f30e54a85f3600d7e4afa8b" {
+  usage multisample
+}
+asset pizzicato-strings-43-soft-0 "Pizzicato Strings" wav "media/43-soft-0.wav" sha256 "ca64c76b4470de88ae531e69dddbd942007d59a086d38edbf31a1c533ff8ab27" {
+  usage multisample
+}
+asset pizzicato-strings-43-hard-0 "Pizzicato Strings" wav "media/43-hard-0.wav" sha256 "a113400e7ddd5ab4d009c51ed90d64f3847c04e538d7a328429265c70b0957cc" {
+  usage multisample
+}
+asset pizzicato-strings-50-soft-0 "Pizzicato Strings" wav "media/50-soft-0.wav" sha256 "71682470a8440004bb2015c43de3f3d1458d72bc33e4dab26633c3eccf7bb9ec" {
+  usage multisample
+}
+asset pizzicato-strings-50-hard-0 "Pizzicato Strings" wav "media/50-hard-0.wav" sha256 "8e4b235b2ca9e5242056dbcd0f4945b6cebc2500d0d395d3a43060f9b5b97e63" {
+  usage multisample
+}
+asset pizzicato-strings-57-soft-0 "Pizzicato Strings" wav "media/57-soft-0.wav" sha256 "034435f5f2a8f7d116c7bcf5d579dd8c0bc8053e1bf0a855a65536f797009478" {
+  usage multisample
+}
+asset pizzicato-strings-57-hard-0 "Pizzicato Strings" wav "media/57-hard-0.wav" sha256 "4d3176e6fb7c1a28e84cf0d172102634c2745f938508b48cd022e6e970ed6231" {
+  usage multisample
+}
+asset pizzicato-strings-64-soft-0 "Pizzicato Strings" wav "media/64-soft-0.wav" sha256 "727c42285589f5596634892e296eeb409ec7570f65e614ee116965c384d32997" {
+  usage multisample
+}
+asset pizzicato-strings-64-hard-0 "Pizzicato Strings" wav "media/64-hard-0.wav" sha256 "b2ecf174d57e61dc1df7d4598e9d74915a7bc95d361515762b5bae0d3a750235" {
+  usage multisample
+}
+asset pizzicato-strings-71-soft-0 "Pizzicato Strings" wav "media/71-soft-0.wav" sha256 "ebea9fc524be4a71cca75c5f4149614cb7fd51a35fbc44a1ff6fe93e2a2ba878" {
+  usage multisample
+}
+asset pizzicato-strings-71-hard-0 "Pizzicato Strings" wav "media/71-hard-0.wav" sha256 "cf17e592f78d7ab964a938e8a9d917cdcb6b5c0268135bab5dc36665749eed47" {
+  usage multisample
+}
+asset pizzicato-strings-78-soft-0 "Pizzicato Strings" wav "media/78-soft-0.wav" sha256 "68807d149fcfcab1179862bb55566b8f8a9e684691bed2ff361aaf5d81adddaf" {
+  usage multisample
+}
+asset pizzicato-strings-78-hard-0 "Pizzicato Strings" wav "media/78-hard-0.wav" sha256 "6b26b5a63192959a7a109ae680eca865307fd75fec8b4463e834151150bda695" {
+  usage multisample
+}
+asset pizzicato-strings-85-soft-0 "Pizzicato Strings" wav "media/85-soft-0.wav" sha256 "51f9811c7a9f773f6c29c0304f615b99a8b22c8bd908af4aff4bfa567715861b" {
+  usage multisample
+}
+asset pizzicato-strings-85-hard-0 "Pizzicato Strings" wav "media/85-hard-0.wav" sha256 "d9a7d6effefada5346e5a5a7afabd38f8b7a82ea0af0470f2f332893bf632ca2" {
+  usage multisample
+}
+asset pizzicato-strings-92-soft-0 "Pizzicato Strings" wav "media/92-soft-0.wav" sha256 "895436b46e829a06f0527d3c5134fda1d6537894d8141c6494f0faf531cecd4c" {
+  usage multisample
+}
+asset pizzicato-strings-92-hard-0 "Pizzicato Strings" wav "media/92-hard-0.wav" sha256 "dbfa5198411dc3404617a9740fbedc64d88fb0e7412142ee06cd378b7c000264" {
+  usage multisample
+}
+asset pizzicato-strings-98-soft-0 "Pizzicato Strings" wav "media/98-soft-0.wav" sha256 "273f969be5c14cd40facd7a4a2a317fb2f9e2d1a234e73e9fc4023e579ca3cdb" {
+  usage multisample
+}
+asset pizzicato-strings-98-hard-0 "Pizzicato Strings" wav "media/98-hard-0.wav" sha256 "d500eaf9aa28267db13b33360f9506e99dd0bccf5bbd3889c06adcd3e11ae8ca" {
+  usage multisample
+}

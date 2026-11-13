@@ -19,22 +19,22 @@ instrument room-chop "Room Chop" graph {
       velocity_amount $touch
       level $level
       pan $pan
-      zone z36-soft-0 asset room-chop-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2 layer body articulation default round_robin rr36 0 region 0 55713 gain 0db pan 0
-      zone z36-hard-0 asset room-chop-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2 layer body articulation default round_robin rr36 1 region 0 58646 gain 0db pan 0
-      zone z43-soft-0 asset room-chop-43-soft-0 keys E2 A2 velocity 0 0.65 root G2 layer body articulation default round_robin rr43 0 region 0 55039 gain 0db pan 0
-      zone z43-hard-0 asset room-chop-43-hard-0 keys E2 A2 velocity 0.65 1 root G2 layer body articulation default round_robin rr43 1 region 0 57487 gain 0db pan 0
-      zone z48-soft-0 asset room-chop-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3 layer body articulation default round_robin rr48 0 region 0 59457 gain 0db pan 0
-      zone z48-hard-0 asset room-chop-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3 layer body articulation default round_robin rr48 1 region 0 62025 gain 0db pan 0
-      zone z55-soft-0 asset room-chop-55-soft-0 keys E3 A3 velocity 0 0.65 root G3 layer body articulation default round_robin rr55 0 region 0 54474 gain 0db pan 0
-      zone z55-hard-0 asset room-chop-55-hard-0 keys E3 A3 velocity 0.65 1 root G3 layer body articulation default round_robin rr55 1 region 0 57167 gain 0db pan 0
-      zone z60-soft-0 asset room-chop-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4 layer body articulation default round_robin rr60 0 region 0 52547 gain 0db pan 0
-      zone z60-hard-0 asset room-chop-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4 layer body articulation default round_robin rr60 1 region 0 54932 gain 0db pan 0
-      zone z67-soft-0 asset room-chop-67-soft-0 keys E4 A4 velocity 0 0.65 root G4 layer body articulation default round_robin rr67 0 region 0 46633 gain 0db pan 0
-      zone z67-hard-0 asset room-chop-67-hard-0 keys E4 A4 velocity 0.65 1 root G4 layer body articulation default round_robin rr67 1 region 0 48958 gain 0db pan 0
-      zone z72-soft-0 asset room-chop-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5 layer body articulation default round_robin rr72 0 region 0 44352 gain 0db pan 0
-      zone z72-hard-0 asset room-chop-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5 layer body articulation default round_robin rr72 1 region 0 46461 gain 0db pan 0
-      zone z79-soft-0 asset room-chop-79-soft-0 keys E5 G6 velocity 0 0.65 root G5 layer body articulation default round_robin rr79 0 region 0 38068 gain 0db pan 0
-      zone z79-hard-0 asset room-chop-79-hard-0 keys E5 G6 velocity 0.65 1 root G5 layer body articulation default round_robin rr79 1 region 0 40088 gain 0db pan 0
+      zone z36-soft-0 asset room-chop-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
+      zone z36-hard-0 asset room-chop-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
+      zone z43-soft-0 asset room-chop-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
+      zone z43-hard-0 asset room-chop-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
+      zone z48-soft-0 asset room-chop-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
+      zone z48-hard-0 asset room-chop-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
+      zone z55-soft-0 asset room-chop-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
+      zone z55-hard-0 asset room-chop-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
+      zone z60-soft-0 asset room-chop-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
+      zone z60-hard-0 asset room-chop-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
+      zone z67-soft-0 asset room-chop-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
+      zone z67-hard-0 asset room-chop-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
+      zone z72-soft-0 asset room-chop-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
+      zone z72-hard-0 asset room-chop-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
+      zone z79-soft-0 asset room-chop-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
+      zone z79-hard-0 asset room-chop-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
     }
     node out output
     bus pitch note.pitch -> source.pitch
@@ -42,4 +42,52 @@ instrument room-chop "Room Chop" graph {
     bus velocity note.velocity -> source.velocity
     bus output source.audio -> out.audio
   }
+}
+asset room-chop-36-soft-0 "Room Chop" wav "media/36-soft-0.wav" sha256 "efc1a5300f6489452d2f78c73f572550155436bbfbbbc0892dbf9b856d76ea5f" {
+  usage multisample
+}
+asset room-chop-36-hard-0 "Room Chop" wav "media/36-hard-0.wav" sha256 "99abccf9a407899e6fe56988c2783fb968173bfd7324a25c23b7f124ef9321fc" {
+  usage multisample
+}
+asset room-chop-43-soft-0 "Room Chop" wav "media/43-soft-0.wav" sha256 "516c8124f41e3fa324a0941fb88d9afab4028d9464b0a10dbff9795caf8ac03a" {
+  usage multisample
+}
+asset room-chop-43-hard-0 "Room Chop" wav "media/43-hard-0.wav" sha256 "ed3c6636183aa6b4a45d135b6f192a44a0e29c664883d93516dffa9d6fdd1f59" {
+  usage multisample
+}
+asset room-chop-48-soft-0 "Room Chop" wav "media/48-soft-0.wav" sha256 "2f75247b5fadca280b2bb9f9defe16aefea77f7771cd7dff673ce4f82a27a1f8" {
+  usage multisample
+}
+asset room-chop-48-hard-0 "Room Chop" wav "media/48-hard-0.wav" sha256 "fc14bd21c3bab8cf8c19365ae01d4dd67e822619cfb883545e3c4113a8985837" {
+  usage multisample
+}
+asset room-chop-55-soft-0 "Room Chop" wav "media/55-soft-0.wav" sha256 "fbc503440fe22f96fab6f40a3e703e7407d27778983739e82723594a6c04d860" {
+  usage multisample
+}
+asset room-chop-55-hard-0 "Room Chop" wav "media/55-hard-0.wav" sha256 "13b2d66bba08dbc0b5f9b4e442ddf24191089059e537fa4b994971d8cde59069" {
+  usage multisample
+}
+asset room-chop-60-soft-0 "Room Chop" wav "media/60-soft-0.wav" sha256 "b1850580f3ae1710ed88d044a8e75bffe9366be5c7516eb0cd85d73c5cc43b66" {
+  usage multisample
+}
+asset room-chop-60-hard-0 "Room Chop" wav "media/60-hard-0.wav" sha256 "6fb329e9d7af30317bba67a9ce4319aa170ac6d032c9b2d5c41a14c6a3b8aba2" {
+  usage multisample
+}
+asset room-chop-67-soft-0 "Room Chop" wav "media/67-soft-0.wav" sha256 "7707a9aa0e711cadb0c45e91663bab9c4fe6b9d28ea00f95ff0883e46d4128e2" {
+  usage multisample
+}
+asset room-chop-67-hard-0 "Room Chop" wav "media/67-hard-0.wav" sha256 "d8f0a6b533d57c05412beb30e845a63e304f7b8a6df5f782fdd930acd79744f1" {
+  usage multisample
+}
+asset room-chop-72-soft-0 "Room Chop" wav "media/72-soft-0.wav" sha256 "100c83c4f5d4a9833c3e7d1c23675553a7a3e8ead89dd87e42fb539c5e6bd6cc" {
+  usage multisample
+}
+asset room-chop-72-hard-0 "Room Chop" wav "media/72-hard-0.wav" sha256 "992f1e8c7866bcaffeb5f31df6b42933fc7e7884c09d99a604f28ba2fe2c04e5" {
+  usage multisample
+}
+asset room-chop-79-soft-0 "Room Chop" wav "media/79-soft-0.wav" sha256 "d16f458af01048dce32117d93004894755deb40f55519efbb67f1ea82619bebb" {
+  usage multisample
+}
+asset room-chop-79-hard-0 "Room Chop" wav "media/79-hard-0.wav" sha256 "502bdf213f1d33e4fdee73863d7756892a6c7b2ebaebcfe83ccec1e43d850724" {
+  usage multisample
 }

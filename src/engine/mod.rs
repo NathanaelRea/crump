@@ -630,10 +630,9 @@ fn track_semantic_hash(
                 .directives
                 .iter()
                 .filter_map(|directive| {
-                    (directive.tokens.len() >= 4
-                        && directive.tokens[0].value == "zone"
-                        && directive.tokens[2].value == "asset")
-                        .then_some(directive.tokens[3].value.as_str())
+                    directive
+                        .zone_clauses()
+                        .map(|zone| zone.asset.value.as_str())
                 })
                 .collect::<Vec<_>>(),
             _ => Vec::new(),
@@ -761,7 +760,7 @@ fn canonical_graph_for_semantic_hash(graph: &crate::model::Graph) -> crate::mode
     let summing_nodes = graph
         .nodes
         .iter()
-        .filter(|node| node.kind == crate::model::NodeKind::StereoSum)
+        .filter(|node| node.kind.is_summing())
         .map(|node| node.id.clone())
         .collect::<Vec<_>>();
     graph.nodes.sort_by(|left, right| left.id.cmp(&right.id));
@@ -3459,9 +3458,27 @@ mod tests {
 
     #[test]
     fn shared_state_can_independently_fail_the_named_admission_budget() {
+        // Enough 2 s shared delays on every Track to cross the publication budget.
+        let delays = 28;
+        let nodes = (1..=delays)
+            .map(|index| {
+                format!("        node shared-delay-{index} delay time 2s feedback 0.5 mix $fx\n")
+            })
+            .collect::<String>();
+        let chain = (2..=delays)
+            .map(|index| {
+                format!(
+                    "        bus delay-chain-{index} shared-delay-{}.audio -> shared-delay-{index}.audio\n",
+                    index - 1
+                )
+            })
+            .collect::<String>();
         let source = include_str!("../../tests/fixtures/shared_graph_foundation.crump").replace(
             "      graph shared 2 {\n        node shared-delay delay time 5ms feedback 0.5 mix $fx\n        node shared-out output\n        bus voice-sum voice_sum.audio -> shared-delay.audio\n        bus shared-output shared-delay.audio -> shared-out.audio\n      }",
-            "      graph shared 8 {\n        node shared-delay delay time 2s feedback 0.5 mix $fx\n        node shared-delay-2 delay time 2s feedback 0.5 mix $fx\n        node shared-delay-3 delay time 2s feedback 0.5 mix $fx\n        node shared-delay-4 delay time 2s feedback 0.5 mix $fx\n        node shared-delay-5 delay time 2s feedback 0.5 mix $fx\n        node shared-delay-6 delay time 2s feedback 0.5 mix $fx\n        node shared-delay-7 delay time 2s feedback 0.5 mix $fx\n        node shared-out output\n        bus voice-sum voice_sum.audio -> shared-delay.audio\n        bus delay-chain-2 shared-delay.audio -> shared-delay-2.audio\n        bus delay-chain-3 shared-delay-2.audio -> shared-delay-3.audio\n        bus delay-chain-4 shared-delay-3.audio -> shared-delay-4.audio\n        bus delay-chain-5 shared-delay-4.audio -> shared-delay-5.audio\n        bus delay-chain-6 shared-delay-5.audio -> shared-delay-6.audio\n        bus delay-chain-7 shared-delay-6.audio -> shared-delay-7.audio\n        bus shared-output shared-delay-7.audio -> shared-out.audio\n      }",
+            &format!(
+                "      graph shared {} {{\n{nodes}        node shared-out output\n        bus voice-sum voice_sum.audio -> shared-delay-1.audio\n{chain}        bus shared-output shared-delay-{delays}.audio -> shared-out.audio\n      }}",
+                delays + 1
+            ),
         );
         let mut heavy = fixture(&source);
         let template = heavy.song.tracks[0].clone();

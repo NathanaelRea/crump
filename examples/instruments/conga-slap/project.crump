@@ -5,18 +5,6 @@ project "Conga Slap" {
   seed 150461
   sample_rate 48000
   render_tail 2s
-  asset conga-slap-60-soft-0 "Conga Slap" wav "media/60-soft-0.wav" sha256 "4650794ed7332b2bd225f6461080850ab77debca1e6228c876c7569490e04b4c" {
-    usage multisample
-  }
-  asset conga-slap-60-hard-0 "Conga Slap" wav "media/60-hard-0.wav" sha256 "3659e0f20f23b6ca22df6d739b6f4405e4dcdef368c9d288a02967fcd64a4ffb" {
-    usage multisample
-  }
-  asset conga-slap-60-soft-1 "Conga Slap" wav "media/60-soft-1.wav" sha256 "5cc6d686e08475c67eb8909f9433ebf268b699ed070742bce930b6322b4425f6" {
-    usage multisample
-  }
-  asset conga-slap-60-hard-1 "Conga Slap" wav "media/60-hard-1.wav" sha256 "f9d43843e9a5b8e09928dc1d90ca4ba6ec002a588d6f33a55194bc595ebb31e2" {
-    usage multisample
-  }
   song {
     tempo 120bpm
     meter 4/4

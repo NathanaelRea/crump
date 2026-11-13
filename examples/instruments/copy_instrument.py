@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy an example into a Project and print the source declarations to add."""
+"""Copy an example into a Project and print the import to add."""
 
 import argparse
 import hashlib
@@ -34,6 +34,10 @@ def copy_instrument(ident, project):
         path = Path(asset["path"])
         if path.is_absolute() or ".." in path.parts or path.as_posix() != asset["path"]:
             raise ValueError("Invalid asset path")
+        if not (source / path).exists():
+            raise ValueError(
+                "Generate the example media first: uv run tools/instrument_assets/build.py --setup"
+            )
         data = (source / path).read_bytes()
         if hashlib.sha256(data).hexdigest() != asset["sha256"]:
             raise ValueError(f"Changed example media: {path}")
@@ -47,18 +51,12 @@ def copy_instrument(ident, project):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source / filename, target)
         staged.rename(destination)
-    prefix = f"instruments/{ident}"
-    lines = [
-        f'# Add before the Project declaration:\nimport "{prefix}/instrument.crump"'
-    ]
-    if assets:
-        lines.append("\n# Add inside the Project block, before song:")
-        for a in assets:
-            lines.append(
-                f'asset {a["id"]} "{catalog[ident]["name"]}" wav "{prefix}/{a["path"]}" sha256 "{a["sha256"]}" {{\n  usage multisample\n}}'
-            )
-    lines.append(f"\n# Track Instrument ID: {ident}")
-    return "\n".join(lines) + "\n"
+    # The module declares its own media, so the import is the only source to add.
+    return (
+        "# Add before the Project declaration (a `crump 2` root):\n"
+        f'import "instruments/{ident}/instrument.crump"\n'
+        f"\n# Track Instrument ID: {ident}\n"
+    )
 
 
 def main():

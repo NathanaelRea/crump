@@ -5,7 +5,6 @@ project "House Grand" {
   seed 293003
   sample_rate 48000
   render_tail 2s
-
   song {
     tempo 120bpm
     meter 4/4

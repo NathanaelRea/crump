@@ -1,0 +1,280 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "75b9ad03d8fdf3ec9bed1c80ed9c7d273acc08e94761d8cb3dbdf959c13d4c5a",
+  "recipe_sha256": "2e04e12ce9a456e45cb7cb7e7b1d780f5a4ba3252a3021bca9358adebeb65321",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "tenor-trombone-40-soft-0",
+      "path": "media/40-soft-0.wav",
+      "sha256": "b5093c4245bedf7a3b057fb4c53434f097ce8991d26c7565ca416bf28b831e3e",
+      "frames": 152946,
+      "sample_rate": 48000,
+      "root_midi": 40,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 740400,
+      "normalization_gain": 0.49403735779538904,
+      "loop": [
+        48000,
+        125479,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-40-hard-0",
+      "path": "media/40-hard-0.wav",
+      "sha256": "2b3bf0003575a6c37df3d7ec2d25236e6e6d3d7032a2dc0b6dc9ff92b77157e4",
+      "frames": 153343,
+      "sample_rate": 48000,
+      "root_midi": 40,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 740400,
+      "normalization_gain": 0.49403735779538904,
+      "loop": [
+        48000,
+        124897,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-45-soft-0",
+      "path": "media/45-soft-0.wav",
+      "sha256": "c30d77ace5705a6ec97e5f8c3879e80588244315a9294ba88b8ea8b646ee0c62",
+      "frames": 153134,
+      "sample_rate": 48000,
+      "root_midi": 45,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 740450,
+      "normalization_gain": 0.37725662627412876,
+      "loop": [
+        48000,
+        123803,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-45-hard-0",
+      "path": "media/45-hard-0.wav",
+      "sha256": "381e5471a8a8505a6a48c0e9c479709cb0a06129b86f04cf0e5856e9c6af0844",
+      "frames": 153587,
+      "sample_rate": 48000,
+      "root_midi": 45,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 740450,
+      "normalization_gain": 0.37725662627412876,
+      "loop": [
+        48000,
+        125110,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-50-soft-0",
+      "path": "media/50-soft-0.wav",
+      "sha256": "ed7bc931f6ad8ea049896e57dd71e07d775229f488b908baa3c34ec97847b6fd",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 50,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 740500,
+      "normalization_gain": 0.4668639282991645,
+      "loop": [
+        48000,
+        123795,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-50-hard-0",
+      "path": "media/50-hard-0.wav",
+      "sha256": "0590a87a0cf41d6ba641c8d83bba77ff86574d73d7b287ee376054afb08b9858",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 50,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 740500,
+      "normalization_gain": 0.4668639282991645,
+      "loop": [
+        48000,
+        125756,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-55-soft-0",
+      "path": "media/55-soft-0.wav",
+      "sha256": "61cd485ae3ceed629c11535e7bf9b5b0494b1f15bd53b713425d7709b51b633e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 55,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 740550,
+      "normalization_gain": 0.44529235792565947,
+      "loop": [
+        48000,
+        125991,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-55-hard-0",
+      "path": "media/55-hard-0.wav",
+      "sha256": "2ba4c83e4d9da9ca7b3c205b661cbff1d03fd918870d391cb0d1e8c7c316d614",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 55,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 740550,
+      "normalization_gain": 0.44529235792565947,
+      "loop": [
+        48000,
+        125991,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-60-soft-0",
+      "path": "media/60-soft-0.wav",
+      "sha256": "fe42941a06180afe55ad06720e4a21505cb08cc0f41022e178027121cc8231b6",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 740600,
+      "normalization_gain": 0.46167736168150253,
+      "loop": [
+        48000,
+        124005,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-60-hard-0",
+      "path": "media/60-hard-0.wav",
+      "sha256": "a6af8d651eb7a682abaabc984a8b983693c3a205877e56dfe002622ee294782b",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 740600,
+      "normalization_gain": 0.46167736168150253,
+      "loop": [
+        48000,
+        125838,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-65-soft-0",
+      "path": "media/65-soft-0.wav",
+      "sha256": "9d248f72e736d932929e6d605210607f45690869af5d24e809ad3d4df6a9f027",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 65,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 740650,
+      "normalization_gain": 0.4449761380699271,
+      "loop": [
+        48000,
+        123734,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-65-hard-0",
+      "path": "media/65-hard-0.wav",
+      "sha256": "9e8f2e142da045190ac861a1e93fda7ab2882308e1b05ca47ae7fee69c77baf1",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 65,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 740650,
+      "normalization_gain": 0.4449761380699271,
+      "loop": [
+        48000,
+        125933,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-70-soft-0",
+      "path": "media/70-soft-0.wav",
+      "sha256": "278433b120a2565e5fc24604f770d50112069545d7cb3faa9e3aeed6fb334953",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 70,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 740700,
+      "normalization_gain": 0.42543131142548624,
+      "loop": [
+        48000,
+        125972,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-70-hard-0",
+      "path": "media/70-hard-0.wav",
+      "sha256": "5656a8e1a1c466a82dcb6ff67523b2eda4c4ceff0e02fb2582733162d43a54a0",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 70,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 740700,
+      "normalization_gain": 0.42543131142548624,
+      "loop": [
+        48000,
+        123600,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-75-soft-0",
+      "path": "media/75-soft-0.wav",
+      "sha256": "744b353e7dccffc79ff3820156e439ca1680f8154ed8e11a17f69ba084b8611a",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 75,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 740750,
+      "normalization_gain": 0.40680121447384787,
+      "loop": [
+        48000,
+        123629,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-trombone-75-hard-0",
+      "path": "media/75-hard-0.wav",
+      "sha256": "2d504f5f7e411839546b9db334febee172837d24e34d3dbab624ce3fbfd2c7cb",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 75,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 740750,
+      "normalization_gain": 0.40680121447384787,
+      "loop": [
+        48000,
+        125944,
+        8160
+      ]
+    }
+  ]
+}

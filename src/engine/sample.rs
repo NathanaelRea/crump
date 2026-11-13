@@ -2,9 +2,10 @@
 //!
 //! Compilation happens while a Project revision is built, never from the audio
 //! callback. Playback and rendering can consequently share the same bounded,
-//! random-access stereo frame representation.
+//! random-access frame representation. Mono sources stay mono in memory and are
+//! read as two identical channels.
 
-use std::{collections::BTreeSet, io::Cursor, sync::Arc};
+use std::{borrow::Cow, collections::BTreeSet, io::Cursor, sync::Arc};
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -15,6 +16,9 @@ use crate::{
 };
 
 /// Maximum decoded stereo storage admitted for one compiled source.
+///
+/// Decoding passes through stereo frames, so this bound applies before mono
+/// sources are reduced to one channel.
 pub const MAX_COMPILED_SAMPLE_BYTES: u64 = 256 * 1_048_576;
 /// Versioned exact-byte sample decode and project-rate conversion identity.
 pub const SAMPLE_COMPILE_ALGORITHM: &str = "crump-sample-windowed-sinc-v1";
@@ -106,9 +110,7 @@ impl CompiledSampleLibrary {
                 .saturating_add((asset.id().len() as u64).saturating_mul(2))
                 .saturating_add((asset.sha256().len() as u64).saturating_mul(2))
                 .saturating_add((2 * std::mem::size_of::<usize>()) as u64)
-                .saturating_add(
-                    (output_frames as u64).saturating_mul(std::mem::size_of::<[f32; 2]>() as u64),
-                );
+                .saturating_add(stored_frame_bytes(output_frames, metadata.channels));
         }
         Ok(bytes)
     }
@@ -212,7 +214,24 @@ pub struct CompiledSampleSource {
     sample_rate: u32,
     frame_count: usize,
     estimated_storage_bytes: u64,
-    frames: Arc<[[f32; 2]]>,
+    frames: SampleFrames,
+}
+
+/// Compiled frames in their source channel layout.
+#[derive(Debug, Clone)]
+enum SampleFrames {
+    Mono(Arc<[f32]>),
+    Stereo(Arc<[[f32; 2]]>),
+}
+
+/// Bytes retained for `frames` compiled frames of a source with `channels`.
+fn stored_frame_bytes(frames: usize, channels: u16) -> u64 {
+    let width = if channels == 1 {
+        std::mem::size_of::<f32>()
+    } else {
+        std::mem::size_of::<[f32; 2]>()
+    };
+    (frames as u64).saturating_mul(width as u64)
 }
 
 impl CompiledSampleSource {
@@ -235,8 +254,12 @@ impl CompiledSampleSource {
             resample(&decoded, metadata.sample_rate, sample_rate, output_frames)
         };
         let frame_count = frames.len();
-        let estimated_storage_bytes =
-            (frame_count as u64).saturating_mul(std::mem::size_of::<[f32; 2]>() as u64);
+        let estimated_storage_bytes = stored_frame_bytes(frame_count, metadata.channels);
+        let frames = if metadata.channels == 1 {
+            SampleFrames::Mono(frames.iter().map(|frame| frame[0]).collect())
+        } else {
+            SampleFrames::Stereo(Arc::from(frames))
+        };
         Ok(Self {
             asset_id: asset.id().to_owned(),
             source_sha256: asset.sha256().to_owned(),
@@ -246,7 +269,7 @@ impl CompiledSampleSource {
             sample_rate,
             frame_count,
             estimated_storage_bytes,
-            frames: Arc::from(frames),
+            frames,
         })
     }
 
@@ -270,7 +293,7 @@ impl CompiledSampleSource {
             frame_count,
             estimated_storage_bytes: (frame_count as u64)
                 .saturating_mul(std::mem::size_of::<[f32; 2]>() as u64),
-            frames: Arc::from([]),
+            frames: SampleFrames::Stereo(Arc::from([])),
         })
     }
 
@@ -323,13 +346,45 @@ impl CompiledSampleSource {
     /// Returns one stereo frame. Mono WAVs are duplicated without gain change.
     #[must_use]
     pub fn frame(&self, index: usize) -> Option<[f32; 2]> {
-        self.frames.get(index).copied()
+        match &self.frames {
+            SampleFrames::Mono(samples) => samples.get(index).map(|&sample| [sample, sample]),
+            SampleFrames::Stereo(frames) => frames.get(index).copied(),
+        }
     }
 
-    /// Immutable contiguous frames shared by realtime and offline adapters.
+    /// Wraps already-compiled stereo frames for unit tests.
+    #[cfg(test)]
+    pub(crate) fn from_test_frames(frames: Vec<[f32; 2]>) -> Self {
+        Self {
+            asset_id: "test".to_owned(),
+            source_sha256: String::new(),
+            cache_identity: [0; 32],
+            source_channels: 2,
+            source_sample_rate: 48_000,
+            sample_rate: 48_000,
+            frame_count: frames.len(),
+            estimated_storage_bytes: stored_frame_bytes(frames.len(), 2),
+            frames: SampleFrames::Stereo(Arc::from(frames)),
+        }
+    }
+
+    /// Number of frames actually stored. Validation placeholders store none.
     #[must_use]
-    pub fn frames(&self) -> &[[f32; 2]] {
-        &self.frames
+    pub(crate) fn stored_len(&self) -> usize {
+        match &self.frames {
+            SampleFrames::Mono(samples) => samples.len(),
+            SampleFrames::Stereo(frames) => frames.len(),
+        }
+    }
+
+    /// Contiguous stereo frames for offline analysis and transforms. Mono sources
+    /// allocate a duplicated copy, so realtime code reads through [`Self::frame`].
+    #[must_use]
+    pub fn stereo_frames(&self) -> Cow<'_, [[f32; 2]]> {
+        match &self.frames {
+            SampleFrames::Mono(samples) => samples.iter().map(|&sample| [sample, sample]).collect(),
+            SampleFrames::Stereo(frames) => Cow::Borrowed(frames),
+        }
     }
 
     pub(crate) fn allocation_bytes(&self) -> u64 {
@@ -592,20 +647,28 @@ mod tests {
         cursor.into_inner()
     }
 
+    /// Allocation bytes that are not frame storage.
+    fn stereo_overhead(source: &CompiledSampleSource) -> u64 {
+        source.allocation_bytes() - source.estimated_storage_bytes
+    }
+
     #[test]
     fn decode_preserves_stereo_and_duplicates_mono() {
         let mono =
             CompiledSampleSource::compile(&asset(int_wav(48_000, 1, &[16_384, -16_384])), 48_000)
                 .expect("compile mono");
         assert_eq!(mono.source_channels(), 1);
-        assert_eq!(mono.frames(), &[[0.5, 0.5], [-0.5, -0.5]]);
+        assert_eq!(&*mono.stereo_frames(), &[[0.5, 0.5], [-0.5, -0.5]]);
+        assert_eq!(mono.frame(1), Some([-0.5, -0.5]));
+        assert_eq!(mono.allocation_bytes() - stereo_overhead(&mono), 8);
 
         let stereo = CompiledSampleSource::compile(
             &asset(int_wav(48_000, 2, &[16_384, -16_384, 8_192, -8_192])),
             48_000,
         )
         .expect("compile stereo");
-        assert_eq!(stereo.frames(), &[[0.5, -0.5], [0.25, -0.25]]);
+        assert_eq!(&*stereo.stereo_frames(), &[[0.5, -0.5], [0.25, -0.25]]);
+        assert_eq!(stereo.allocation_bytes() - stereo_overhead(&stereo), 16);
     }
 
     #[test]
@@ -626,10 +689,10 @@ mod tests {
         let first = CompiledSampleSource::compile(&source, 48_000).expect("first");
         let second = CompiledSampleSource::compile(&source, 48_000).expect("second");
         assert_eq!(first.len(), 480);
-        assert_eq!(first.frames(), second.frames());
+        assert_eq!(first.stereo_frames(), second.stereo_frames());
         assert!(
             first
-                .frames()
+                .stereo_frames()
                 .iter()
                 .all(|frame| (frame[0] - 0.25).abs() < 1.0e-6)
         );
@@ -670,7 +733,7 @@ mod tests {
             .collect::<Vec<_>>();
         let compiled = CompiledSampleSource::compile(&asset(int_wav(48_000, 1, &samples)), 24_000)
             .expect("compile");
-        let rms = (compiled.frames()[100..]
+        let rms = (compiled.stereo_frames()[100..]
             .iter()
             .map(|frame| f64::from(frame[0]).powi(2))
             .sum::<f64>()

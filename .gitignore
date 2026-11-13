@@ -18,4 +18,4 @@ plan-*.md
 
 /.scratch/
 __pycache__/
-!examples/instruments/**/*.wav
+# Example instrument media is generated: uv run tools/instrument_assets/build.py --setup

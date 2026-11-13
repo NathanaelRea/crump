@@ -384,9 +384,9 @@ fn alpha_contract_inventory_and_decision_dispositions_are_recorded() {
         limits.resident_publication_runtimes,
         MAX_RESIDENT_PUBLICATION_RUNTIMES
     );
-    assert_eq!(MAX_MEDIA_ASSETS, 256);
+    assert_eq!(MAX_MEDIA_ASSETS, 1_024);
     assert_eq!(MAX_MEDIA_ASSET_BYTES, 64 * 1_048_576);
-    assert_eq!(MAX_PROJECT_MEDIA_BYTES, 256 * 1_048_576);
+    assert_eq!(MAX_PROJECT_MEDIA_BYTES, 1_024 * 1_048_576);
 }
 
 #[test]

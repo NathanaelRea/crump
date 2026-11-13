@@ -1,0 +1,92 @@
+crump-module 2
+instrument concert-flute "Concert Flute" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.2s 0.2s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z60-soft-0 asset concert-flute-60-soft-0 keys B3 D4 velocity 0 0.65 root C4 loop 48000 125868 crossfade 8160
+      zone z60-hard-0 asset concert-flute-60-hard-0 keys B3 D4 velocity 0.65 1 root C4 loop 48000 125867 crossfade 8160
+      zone z65-soft-0 asset concert-flute-65-soft-0 keys D#4 G4 velocity 0 0.65 root F4 loop 48000 123667 crossfade 8160
+      zone z65-hard-0 asset concert-flute-65-hard-0 keys D#4 G4 velocity 0.65 1 root F4 loop 48000 123667 crossfade 8160
+      zone z70-soft-0 asset concert-flute-70-soft-0 keys G#4 C5 velocity 0 0.65 root A#4 loop 48000 125937 crossfade 8160
+      zone z70-hard-0 asset concert-flute-70-hard-0 keys G#4 C5 velocity 0.65 1 root A#4 loop 48000 125937 crossfade 8160
+      zone z75-soft-0 asset concert-flute-75-soft-0 keys C#5 F5 velocity 0 0.65 root D#5 loop 48000 123603 crossfade 8160
+      zone z75-hard-0 asset concert-flute-75-hard-0 keys C#5 F5 velocity 0.65 1 root D#5 loop 48000 123603 crossfade 8160
+      zone z80-soft-0 asset concert-flute-80-soft-0 keys F#5 B5 velocity 0 0.65 root G#5 loop 48000 123631 crossfade 8160
+      zone z80-hard-0 asset concert-flute-80-hard-0 keys F#5 B5 velocity 0.65 1 root G#5 loop 48000 123628 crossfade 8160
+      zone z86-soft-0 asset concert-flute-86-soft-0 keys C6 F6 velocity 0 0.65 root D6 loop 48000 124313 crossfade 8160
+      zone z86-hard-0 asset concert-flute-86-hard-0 keys C6 F6 velocity 0.65 1 root D6 loop 48000 124231 crossfade 8160
+      zone z92-soft-0 asset concert-flute-92-soft-0 keys F#6 D7 velocity 0 0.65 root G#6 loop 48000 125996 crossfade 8160
+      zone z92-hard-0 asset concert-flute-92-hard-0 keys F#6 D7 velocity 0.65 1 root G#6 loop 48000 125967 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset concert-flute-60-soft-0 "Concert Flute" wav "media/60-soft-0.wav" sha256 "b663d2755e10333122c370df26b372f9d20ce97e4e6728d707863a132aab4620" {
+  usage multisample
+}
+asset concert-flute-60-hard-0 "Concert Flute" wav "media/60-hard-0.wav" sha256 "e7e5fc4f8f7bf731086928494a69a0f98dfe6d105c79e96111199f57ea575257" {
+  usage multisample
+}
+asset concert-flute-65-soft-0 "Concert Flute" wav "media/65-soft-0.wav" sha256 "9e7e7fcadc815a10dc0abafa7e594796eea176f7d665718c3c8d448dfb16417a" {
+  usage multisample
+}
+asset concert-flute-65-hard-0 "Concert Flute" wav "media/65-hard-0.wav" sha256 "38d8f7a2cdac16958ca1147c6f2d9bb5f093b6bd533e1c5bffb76dc4b6a6d58c" {
+  usage multisample
+}
+asset concert-flute-70-soft-0 "Concert Flute" wav "media/70-soft-0.wav" sha256 "b1541b7a17a7b98b0652f5a4e9213720c99340a5d91fb6cb05ae90743629c8ee" {
+  usage multisample
+}
+asset concert-flute-70-hard-0 "Concert Flute" wav "media/70-hard-0.wav" sha256 "9a95a7a10aa6fa736a88e92085749f4cecd31d4c18ea82e932d5cf8d4705101d" {
+  usage multisample
+}
+asset concert-flute-75-soft-0 "Concert Flute" wav "media/75-soft-0.wav" sha256 "7138b689c247a40a32891b508c8821603275bf8c05ff44012d9c91c7a29ee0ab" {
+  usage multisample
+}
+asset concert-flute-75-hard-0 "Concert Flute" wav "media/75-hard-0.wav" sha256 "13b1351bf6e95508ee676c6a4c29bb47c63b38486097f6d5294671e6b3195bd8" {
+  usage multisample
+}
+asset concert-flute-80-soft-0 "Concert Flute" wav "media/80-soft-0.wav" sha256 "b0d93f7be8f679729c70e1d0e500031614fc27d26aa698ab1c41c19815ab6efd" {
+  usage multisample
+}
+asset concert-flute-80-hard-0 "Concert Flute" wav "media/80-hard-0.wav" sha256 "0682855b2dad24988234958d009ee9cf77568ecb875edd0bb1988090df5e9c38" {
+  usage multisample
+}
+asset concert-flute-86-soft-0 "Concert Flute" wav "media/86-soft-0.wav" sha256 "8d56db7f2a38d02d381351342f578d52f841311b969c06ee9167dde2d11c4f98" {
+  usage multisample
+}
+asset concert-flute-86-hard-0 "Concert Flute" wav "media/86-hard-0.wav" sha256 "96254c2482432a5e6e64b7c73e3d10b7d7042453ec73a7fd9bc5bb822c78d09d" {
+  usage multisample
+}
+asset concert-flute-92-soft-0 "Concert Flute" wav "media/92-soft-0.wav" sha256 "0d9baea2150a004bff58c1c44c7d60e3ef6162832fdc9bfcb414251039289198" {
+  usage multisample
+}
+asset concert-flute-92-hard-0 "Concert Flute" wav "media/92-hard-0.wav" sha256 "67e6ee80ddf39f23684be2d4ff53c76dbbf76a02859c4b60e4b842d17d6a63eb" {
+  usage multisample
+}

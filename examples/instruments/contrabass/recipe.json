@@ -1,0 +1,45 @@
+{
+  "extends": "bowed",
+  "model": "bowed",
+  "params": {
+    "attack": [
+      0.2,
+      0.08
+    ],
+    "vibrato": [
+      4.9,
+      3,
+      5,
+      0.35,
+      0.5
+    ],
+    "vibrato_wander": 0.25,
+    "body_seed": 41,
+    "body_range": [
+      50,
+      5000
+    ],
+    "eq": "contrabass",
+    "bow_noise": 0.15,
+    "bow_noise_low": 800
+  },
+  "id": "contrabass",
+  "seed_base": 630000,
+  "roots": [
+    28,
+    33,
+    38,
+    43,
+    48,
+    53,
+    59,
+    64
+  ],
+  "range": [
+    26,
+    67
+  ],
+  "release": 0.5,
+  "audition": 36,
+  "highpass": 20
+}

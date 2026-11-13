@@ -1,0 +1,93 @@
+crump-module 2
+instrument celesta "Celesta" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z60-soft-0 asset celesta-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
+      zone z60-hard-0 asset celesta-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
+      zone z66-soft-0 asset celesta-66-soft-0 keys E4 A4 velocity 0 0.65 root F#4
+      zone z66-hard-0 asset celesta-66-hard-0 keys E4 A4 velocity 0.65 1 root F#4
+      zone z72-soft-0 asset celesta-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
+      zone z72-hard-0 asset celesta-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
+      zone z78-soft-0 asset celesta-78-soft-0 keys E5 A5 velocity 0 0.65 root F#5
+      zone z78-hard-0 asset celesta-78-hard-0 keys E5 A5 velocity 0.65 1 root F#5
+      zone z84-soft-0 asset celesta-84-soft-0 keys A#5 D#6 velocity 0 0.65 root C6
+      zone z84-hard-0 asset celesta-84-hard-0 keys A#5 D#6 velocity 0.65 1 root C6
+      zone z90-soft-0 asset celesta-90-soft-0 keys E6 A6 velocity 0 0.65 root F#6
+      zone z90-hard-0 asset celesta-90-hard-0 keys E6 A6 velocity 0.65 1 root F#6
+      zone z96-soft-0 asset celesta-96-soft-0 keys A#6 D#7 velocity 0 0.65 root C7
+      zone z96-hard-0 asset celesta-96-hard-0 keys A#6 D#7 velocity 0.65 1 root C7
+      zone z102-soft-0 asset celesta-102-soft-0 keys E7 C8 velocity 0 0.65 root F#7
+      zone z102-hard-0 asset celesta-102-hard-0 keys E7 C8 velocity 0.65 1 root F#7
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset celesta-60-soft-0 "Celesta" wav "media/60-soft-0.wav" sha256 "7331050fc4b8e723de71a711e9de02a696105a00f123d2d13adad8ef6192ff07" {
+  usage multisample
+}
+asset celesta-60-hard-0 "Celesta" wav "media/60-hard-0.wav" sha256 "4015f4dd002d0760af7f0859ba560e01cbf3bdbd5e0d90461c10b78253fd3b7f" {
+  usage multisample
+}
+asset celesta-66-soft-0 "Celesta" wav "media/66-soft-0.wav" sha256 "b9befdb0eaa135cfc8b47c1479f5847c14003fd77b5a1ed9eea75a4cfa3379e4" {
+  usage multisample
+}
+asset celesta-66-hard-0 "Celesta" wav "media/66-hard-0.wav" sha256 "79b1d1a8ca1315a294e6b9ad1841b74e4f2eadd4603806312225721a2a80c8b9" {
+  usage multisample
+}
+asset celesta-72-soft-0 "Celesta" wav "media/72-soft-0.wav" sha256 "e27fdede2476154dbb30b0a3a58ceeab12b6035970bfd090e6a32bb966dfea83" {
+  usage multisample
+}
+asset celesta-72-hard-0 "Celesta" wav "media/72-hard-0.wav" sha256 "cbb610731f5f959db81fcf12d5d97e58a04ae026e643f2af8f5ed35ad6402175" {
+  usage multisample
+}
+asset celesta-78-soft-0 "Celesta" wav "media/78-soft-0.wav" sha256 "2899bc765dfb67ac59313c236264523d6c126d507682712a982274f683f5212b" {
+  usage multisample
+}
+asset celesta-78-hard-0 "Celesta" wav "media/78-hard-0.wav" sha256 "f7473761e1220e24cf0cf0bfe2b48b0d518d8995c4d4dd30a53d5a5290b524d4" {
+  usage multisample
+}
+asset celesta-84-soft-0 "Celesta" wav "media/84-soft-0.wav" sha256 "8ab8096dbd2360b0cfcd588666411deea6767fa19b817667bf2d7580bf587294" {
+  usage multisample
+}
+asset celesta-84-hard-0 "Celesta" wav "media/84-hard-0.wav" sha256 "9cd2a18669b9ea5d091b0641810eb2f7e33d3ef208ea00f04117cff260c85836" {
+  usage multisample
+}
+asset celesta-90-soft-0 "Celesta" wav "media/90-soft-0.wav" sha256 "3f6f98eb6d3e1e2fb7e2bb2efa1da41323ee83556a049b81c445912652e58c6a" {
+  usage multisample
+}
+asset celesta-90-hard-0 "Celesta" wav "media/90-hard-0.wav" sha256 "753f3d5963fa81409216e0e1d59a6d521c3cf54c2d7551d231733f7f5c4f67df" {
+  usage multisample
+}
+asset celesta-96-soft-0 "Celesta" wav "media/96-soft-0.wav" sha256 "a4b491e285c263da6045493bca7f03450e12fc4fcde857752dbf2e50ce76de31" {
+  usage multisample
+}
+asset celesta-96-hard-0 "Celesta" wav "media/96-hard-0.wav" sha256 "7f1ffe5e5e5a85171d557981ac6fa3aedea960c84dd934e4e8cd1df4f92fc2c5" {
+  usage multisample
+}
+asset celesta-102-soft-0 "Celesta" wav "media/102-soft-0.wav" sha256 "6ba192578bb579531ebf0ff7179e63679ee096005c1e1ea5339a5c6fad52dd73" {
+  usage multisample
+}
+asset celesta-102-hard-0 "Celesta" wav "media/102-hard-0.wav" sha256 "0ca4ea6da5ea8c988b0372c5feb842fb481193a0d7f99a00b7fd31b8ef8f3503" {
+  usage multisample
+}

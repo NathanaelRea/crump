@@ -1,0 +1,89 @@
+{
+  "model": "sustained",
+  "params": {
+    "slope": [
+      0.7,
+      0.45
+    ],
+    "gamma": 0.12,
+    "attack": [
+      0.045,
+      0.025
+    ],
+    "vibrato": [
+      5.3,
+      7,
+      10,
+      0.25,
+      0.35
+    ],
+    "drift": 2,
+    "formants": [
+      [
+        1150,
+        3.5,
+        1.0
+      ],
+      [
+        2900,
+        4,
+        0.45
+      ],
+      [
+        4300,
+        5,
+        0.15
+      ]
+    ],
+    "floor": 0.06,
+    "rolloff": [
+      4800,
+      3
+    ],
+    "shimmer": 0.03,
+    "shimmer_rate": 7,
+    "swell": 0.03,
+    "noise": [
+      0.012,
+      0.25,
+      0.015
+    ],
+    "noise_band": [
+      400,
+      10000
+    ],
+    "noise_comb": 0.6,
+    "taper": 0.5,
+    "jitter": 2.5,
+    "vibrato_wander": 0.25,
+    "motions": 12,
+    "motion_tilt": 0.4,
+    "pulse": 0.5,
+    "low_cut": 650
+  },
+  "pitched": true,
+  "category": "Woodwinds",
+  "id": "oboe",
+  "seed_base": 690000,
+  "seconds": 3.2,
+  "loop": [
+    1.0,
+    2.6,
+    0.17
+  ],
+  "roots": [
+    58,
+    63,
+    68,
+    73,
+    78,
+    84,
+    90
+  ],
+  "range": [
+    57,
+    94
+  ],
+  "release": 0.15,
+  "audition": 69
+}
