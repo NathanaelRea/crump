@@ -1419,6 +1419,15 @@ fn validate_primitive_inputs(
     for node in &graph.nodes {
         match node.kind {
             NodeKind::DelayLine => {
+                if matches!(node.setting("max_time"), Some(SettingValue::Parameter(_))) {
+                    error(
+                        node,
+                        format!(
+                            "delay_line `{}` max_time must be a literal buffer size; Parameters cannot resize its allocation",
+                            node.id
+                        ),
+                    );
+                }
                 let pitch_mode = text(node, "mode", "time") == "pitch";
                 if pitch_mode && !connected(node, "pitch") {
                     error(
@@ -3642,10 +3651,13 @@ const fn node_kind_name(kind: NodeKind) -> &'static str {
 /// Returns one same-frame dependency cycle, starting and ending at its smallest Node ID.
 fn find_cycle<'a>(adjacency: &BTreeMap<&'a str, Vec<&'a str>>) -> Option<Vec<&'a str>> {
     let mut indegree: BTreeMap<&str, usize> = adjacency.keys().map(|node| (*node, 0)).collect();
-    for destinations in adjacency.values() {
+    let mut predecessors: BTreeMap<&str, Vec<&str>> =
+        adjacency.keys().map(|node| (*node, Vec::new())).collect();
+    for (source, destinations) in adjacency {
         for destination in destinations {
             if let Some(count) = indegree.get_mut(destination) {
                 *count += 1;
+                predecessors.get_mut(destination)?.push(source);
             }
         }
     }
@@ -3666,13 +3678,13 @@ fn find_cycle<'a>(adjacency: &BTreeMap<&'a str, Vec<&'a str>>) -> Option<Vec<&'a
             }
         }
     }
-    // Every remaining Node lies on or downstream of a cycle; walking remaining successors
-    // from any of them must revisit a Node.
+    // Every remaining Node has a remaining predecessor, including downstream sinks.
+    // Walking backwards must therefore revisit a Node on a cycle.
     let start = *indegree.keys().next()?;
     let mut path = vec![start];
     let mut node = start;
     loop {
-        let next = adjacency
+        let next = predecessors
             .get(node)?
             .iter()
             .copied()
@@ -3680,6 +3692,7 @@ fn find_cycle<'a>(adjacency: &BTreeMap<&'a str, Vec<&'a str>>) -> Option<Vec<&'a
             .min()?;
         if let Some(position) = path.iter().position(|seen| *seen == next) {
             let mut cycle = path.split_off(position);
+            cycle.reverse();
             let smallest = cycle
                 .iter()
                 .enumerate()

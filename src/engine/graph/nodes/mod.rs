@@ -500,6 +500,14 @@ pub(super) enum Signal {
 }
 
 impl Signal {
+    pub(super) fn is_finite(self) -> bool {
+        match self {
+            Self::None => true,
+            Self::Mono(value) | Self::Control(value) => value.is_finite(),
+            Self::Stereo(values) => values.into_iter().all(f32::is_finite),
+        }
+    }
+
     pub(super) const fn mono(self) -> f32 {
         match self {
             Self::Mono(value) => value,

@@ -1057,6 +1057,11 @@ impl CompiledGraph {
         controls: &[f64],
         context: VoiceNodeContext,
     ) -> f32 {
+        // Check every produced signal, including inputs sanitized by downstream Nodes.
+        // Returning NaN makes the caller mute and reset this runtime.
+        if signals.iter().any(|signal| !signal.is_finite()) {
+            return f32::NAN;
+        }
         // Read every input before publishing any output, so a delay feeding another delay
         // observes this frame's value rather than the next one.
         for (slot, &index) in self.latency_nodes.iter().enumerate() {
@@ -1191,6 +1196,7 @@ impl GraphVoice {
         }
         // Feedback Nodes publish next-frame outputs; a new note must not hear the last one.
         self.signals.fill(Signal::None);
+        self.guard.loud_frames = 0;
     }
 
     /// Returns and clears how many times the feedback guard muted this voice.

@@ -615,3 +615,230 @@ instrument chorus "Chorus" graph {
     assert!(output.iter().any(|frame| frame[0].abs() > 0.05));
     assert_eq!(output, render(&compiled, 48_000, 64));
 }
+
+#[test]
+fn cycles_are_named_even_with_downstream_sinks_and_unused_instruments() {
+    let source = module(&format!(
+        "{PLUCK}
+    node mix math operation add
+    node shaped shaper
+    node scaled math operation scale amount 0.5
+    node stereo mono_to_stereo
+    node aout output
+    bus excite pluck.audio -> mix.a
+    bus shape mix.audio -> shaped.audio
+    bus loop shaped.audio -> scaled.a
+    bus back scaled.audio -> mix.b
+    bus tap mix.audio -> stereo.audio
+    bus output stereo.audio -> aout.audio"
+    ));
+    for instrument in ["probe", "tone"] {
+        let bundle = project_with(
+            &[("probe.crump", &source), ("tone.crump", TONE)],
+            &[("voice", instrument)],
+            "      note 0beat C4 1beat 0.8",
+            48_000,
+        );
+        let diagnostics = codes(&bundle);
+        assert!(
+            diagnostics.iter().any(|(code, message)| code == "CRV048"
+                && message.contains("mix -> shaped -> scaled -> mix")),
+            "{instrument}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn delay_line_capacity_requires_a_literal_allocation_bound() {
+    let source = module(&format!(
+        "{PLUCK}
+    node echo delay_line time 50ms max_time $capacity interpolation linear
+    node stereo mono_to_stereo
+    node out output
+    bus into pluck.audio -> echo.audio
+    bus tap echo.audio -> stereo.audio
+    bus output stereo.audio -> out.audio"
+    ))
+    .replace(
+        "  faceplate {",
+        "  parameter capacity \"Capacity\" seconds 1ms 100ms 10ms 10ms\n  faceplate {",
+    );
+    let bundle = project_with(
+        &[("instrument.crump", &source)],
+        &[("probe", "probe")],
+        "      note 0beat C4 1beat 0.8",
+        48_000,
+    );
+    assert!(
+        codes(&bundle).iter().any(|(code, message)| code == "CRV220"
+            && message.contains("max_time")
+            && message.contains("literal")),
+        "{:?}",
+        codes(&bundle)
+    );
+    let literal = source.replace("max_time $capacity", "max_time 100ms");
+    let compiled = compile(&project_with(
+        &[("instrument.crump", &literal)],
+        &[("probe", "probe")],
+        "      note 0beat C4 1beat 0.8",
+        48_000,
+    ));
+    let output = render(&compiled, 4_800, 64);
+    assert!(output[..2_400].iter().flatten().all(|value| *value == 0.0));
+    assert!(
+        output[2_400..]
+            .iter()
+            .flatten()
+            .any(|value| value.abs() > 0.01)
+    );
+}
+
+#[test]
+fn converted_audio_drives_parameter_modulation_on_the_same_frame() {
+    let source = module(
+        "    node input to_audio
+    node converted to_control
+    node gain math operation scale amount $level
+    node stereo mono_to_stereo
+    node out output
+    bus velocity note.velocity -> input.control
+    bus convert input.audio -> converted.audio
+    bus input input.audio -> gain.a
+    bus tap gain.audio -> stereo.audio
+    bus output stereo.audio -> out.audio",
+    )
+    .replace("0.5 0.5\n", "0.5 0.5 modulatable\n")
+    .replace("  graph voice", "  modulation {\n    source signal port converted.control per_voice bipolar\n    route gain source signal target level depth 0.25 map bipolar curve linear order 0 bypass false\n  }\n  graph voice");
+    let bundle = |source: &str| {
+        project_with(
+            &[("instrument.crump", source)],
+            &[("probe", "probe")],
+            "      note 0beat C4 1beat 0.8",
+            48_000,
+        )
+    };
+    let compiled = compile(&bundle(&source));
+    let output = render(&compiled, 256, 64);
+    // Effective gain = 0.5 + 0.8 * 0.25 = 0.7, without a one-frame cache.
+    assert!((output[0][0] - 0.56).abs() < 1.0e-6, "{:?}", output[0]);
+    assert_eq!(output, render(&compiled, 256, 128));
+    let wrong_polarity = source.replace("per_voice bipolar", "per_voice unipolar");
+    assert!(
+        codes(&bundle(&wrong_polarity))
+            .iter()
+            .any(|(code, _)| code == "CRV191")
+    );
+    let same_frame_cycle = source.replace(
+        "input.audio -> converted.audio",
+        "gain.audio -> converted.audio",
+    );
+    assert!(
+        codes(&bundle(&same_frame_cycle))
+            .iter()
+            .any(|(code, _)| code == "CRV048")
+    );
+}
+
+#[test]
+fn converted_audio_can_modulate_the_delay_that_breaks_its_feedback_cycle() {
+    let source = module(&format!(
+        "{PLUCK}
+    node held delay_line time $delay-time max_time 10ms interpolation linear
+    node converted to_control
+    node stereo mono_to_stereo
+    node out output
+    bus excite pluck.audio -> held.audio
+    bus convert held.audio -> converted.audio
+    bus tap held.audio -> stereo.audio
+    bus output stereo.audio -> out.audio"
+    ))
+    .replace("  faceplate {", "  parameter delay-time \"Time\" seconds 1ms 5ms 2ms 2ms modulatable\n  faceplate {")
+    .replace("  graph voice", "  modulation {\n    source signal port converted.control per_voice bipolar\n    route time source signal target delay-time depth 0.5ms map bipolar curve linear order 0 bypass false\n  }\n  graph voice");
+    let compiled = compile(&project_with(
+        &[("instrument.crump", &source)],
+        &[("probe", "probe")],
+        "      note 0beat C4 1beat 0.8",
+        48_000,
+    ));
+    let output = render(&compiled, 4_800, 64);
+    assert!(output.iter().flatten().any(|value| value.abs() > 0.01));
+    assert_eq!(output, render(&compiled, 4_800, 128));
+}
+
+#[test]
+fn reused_voice_gets_a_fresh_feedback_guard_interval() {
+    let source = module(
+        "    node input to_audio
+    node gain math operation scale amount $level
+    node held delay_line time 0.01ms interpolation linear max_time 1ms
+    node stereo mono_to_stereo
+    node out output
+    bus velocity note.velocity -> input.control
+    bus gain input.audio -> gain.a
+    bus delay gain.audio -> held.audio
+    bus tap held.audio -> stereo.audio
+    bus output stereo.audio -> out.audio",
+    )
+    .replace("polyphony 2", "polyphony 1")
+    .replace("ratio 0 1 0.5 0.5", "ratio 0 64 32 32");
+    let compiled = compile(&project_with(
+        &[("instrument.crump", &source)],
+        &[("probe", "probe")],
+        "      note 0beat C4 1beat 0.8\n      note 1/25beat C4 3beat 0\n      note 2beat C4 1beat 0.8",
+        48_000,
+    ));
+    let mut runtime = compiled.runtime();
+    let mut output = vec![[0.0; 2]; 50_399];
+    runtime
+        .process_block(&mut output, ProcessingMode::Offline)
+        .unwrap();
+    assert_eq!(runtime.telemetry().feedback_mutes, 0);
+    assert!(output[49_500][0] > 15.0, "fresh note was prematurely muted");
+    let mut tail = [[0.0; 2]; 64];
+    runtime
+        .process_block(&mut tail, ProcessingMode::Offline)
+        .unwrap();
+    assert_eq!(runtime.telemetry().feedback_mutes, 1);
+    assert_eq!(tail.last(), Some(&[0.0, 0.0]));
+}
+
+#[test]
+fn non_finite_loop_samples_are_reported_before_delay_sanitization() {
+    let mut graph = format!(
+        "{PLUCK}
+    node mix math operation add
+    node large math operation offset amount 64
+    node poison dc_block
+    node previous delay_line time 1ms interpolation linear max_time 2ms
+    node stereo mono_to_stereo
+    node out output
+    bus excite pluck.audio -> mix.a
+    bus back previous.audio -> mix.b
+    bus large-input mix.audio -> large.a\n"
+    );
+    let mut previous = "large".to_owned();
+    for index in 0..6 {
+        graph.push_str(&format!("    node square{index} math operation multiply\n    bus square{index}a {previous}.audio -> square{index}.a\n    bus square{index}b {previous}.audio -> square{index}.b\n"));
+        previous = format!("square{index}");
+    }
+    graph.push_str(&format!(
+        "    bus poison {previous}.audio -> poison.audio
+    bus into poison.audio -> previous.audio
+    bus tap previous.audio -> stereo.audio
+    bus output stereo.audio -> out.audio"
+    ));
+    let source = module(&graph);
+    let compiled = compile(&project_with(
+        &[("instrument.crump", &source)],
+        &[("probe", "probe")],
+        "      note 0beat C4 1beat 0.8\n      note 1beat C4 1beat 0.8",
+        48_000,
+    ));
+    let mut runtime = compiled.runtime();
+    let mut output = vec![[0.0; 2]; 48_000];
+    runtime
+        .process_block(&mut output, ProcessingMode::Offline)
+        .unwrap();
+    assert_eq!(runtime.telemetry().feedback_mutes, 2);
+    assert!(output.iter().flatten().all(|value| *value == 0.0));
+}
