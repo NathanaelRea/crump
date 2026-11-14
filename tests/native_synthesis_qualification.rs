@@ -68,9 +68,9 @@ fn maximum_profile_is_admitted_deterministic_grouping_independent_and_rebuildabl
         57_458
     );
     let expected_runtime_bytes = if cfg!(feature = "pipewire") {
-        1_726_288
+        1_727_008
     } else {
-        1_726_248
+        1_726_968
     };
     assert_eq!(resources.runtime_bytes, expected_runtime_bytes);
     assert_eq!(

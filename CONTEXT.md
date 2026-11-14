@@ -262,6 +262,10 @@ A typed channel-tap Modulation source that maps linked peak/RMS Audio through at
 
 A project-language definition that connects sound and control nodes into reusable instruments or effects through an explicit typed interface. Definitions remain hierarchical authored units even if compilation flattens them.
 
+### Feedback Loop
+
+A cycle in a Composable DSP Graph that is closed through a delay line, whose output depends only on earlier frames. Loops use ordinary typed Buses and have exactly their authored delay. A cycle without a delay line is invalid, and a runaway loop is muted and reported rather than corrected.
+
 ### Graph Validation
 
 Machine enforcement of a Composable DSP Graph's topology, types, units, Parameter mappings, declared resource bounds, deterministic contract, and finite authored values before publication. Loud but finite real-time output is contained separately by the non-authoritative monitoring safety stage; neither mechanism scores sound quality, useful note range, playability, or musical value.

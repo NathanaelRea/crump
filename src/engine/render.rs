@@ -185,6 +185,13 @@ pub struct RenderManifest {
     /// Selected aligned Track/Group stem artifacts.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stems: Vec<RenderStemManifest>,
+    /// Feedback graph voices or shared runtimes muted for non-finite or runaway output.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub feedback_mutes: u64,
+}
+
+const fn is_zero(value: &u64) -> bool {
+    *value == 0
 }
 
 /// Published render artifact paths and manifest.
@@ -572,6 +579,7 @@ fn render_staging(
             }
         }
     }
+    let feedback_mutes = runtime.telemetry().feedback_mutes;
     writer.finalize()?;
     File::open(&wav_path)?.sync_all()?;
     for mut spool in stem_spools {
@@ -650,6 +658,7 @@ fn render_staging(
         analysis,
         wav_sha256,
         stems,
+        feedback_mutes,
     };
     let mut manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
     manifest_bytes.push(b'\n');

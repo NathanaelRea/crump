@@ -632,7 +632,10 @@ fn validate_instrument_modulation(
                     .as_ref()
                     .and_then(|graph| graph.nodes.iter().find(|candidate| candidate.id == *node));
                 if !graph_node.is_some_and(|node| {
-                    matches!(node.kind, NodeKind::Envelope | NodeKind::Lfo) && port == "control"
+                    matches!(
+                        node.kind,
+                        NodeKind::Envelope | NodeKind::Lfo | NodeKind::ToControl
+                    ) && port == "control"
                 }) {
                     located_error(
                         diagnostics,
@@ -645,7 +648,7 @@ fn validate_instrument_modulation(
                 } else if let Some(graph_node) = graph_node {
                     let native_polarity = match graph_node.kind {
                         NodeKind::Envelope => ControlPolarity::Unipolar,
-                        NodeKind::Lfo => ControlPolarity::Bipolar,
+                        NodeKind::Lfo | NodeKind::ToControl => ControlPolarity::Bipolar,
                         _ => unreachable!("Port-kind guard above limits graph Control sources"),
                     };
                     if source.polarity != native_polarity {
@@ -779,8 +782,16 @@ fn validate_instrument_modulation(
         BTreeMap::<String, Vec<(InstrumentModulationScope, String)>>::new();
     let graph_adjacency = instrument.graph.as_ref().map(|graph| {
         let mut adjacency = BTreeMap::<String, Vec<String>>::new();
+        let latency_nodes = graph
+            .nodes
+            .iter()
+            .filter(|node| node.kind.breaks_feedback())
+            .map(|node| node.id.as_str())
+            .collect::<BTreeSet<_>>();
         for connection in &graph.connections {
-            if connection.from.node != "note" {
+            if connection.from.node != "note"
+                && !latency_nodes.contains(connection.to.node.as_str())
+            {
                 adjacency
                     .entry(connection.from.node.clone())
                     .or_default()
@@ -960,9 +971,8 @@ fn validate_instrument_modulation(
         if let (Some(graph), Some(adjacency)) = (&instrument.graph, &graph_adjacency) {
             for node in graph_source_nodes {
                 for consumer in graph.nodes.iter().filter(|candidate| {
-                    candidate.settings.iter().any(|setting| {
-                        matches!(&setting.value, SettingValue::Parameter(parameter) if parameter == &route.target)
-                    })
+                    !candidate.kind.breaks_feedback()
+                        && candidate.references_parameter(&route.target)
                 }) {
                     if reaches(adjacency, &consumer.id, node) || consumer.id == *node {
                         located_error(

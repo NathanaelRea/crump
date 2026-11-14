@@ -29,6 +29,12 @@ use super::nodes::{
 };
 
 const QUIET_SECONDS: f64 = 0.1;
+/// A feedback graph whose loop state or output stays above +24 dBFS this long is muted.
+const FEEDBACK_GUARD_SECONDS: f64 = 0.05;
+/// Linear amplitude of +24 dBFS.
+const FEEDBACK_GUARD_CEILING: f32 = 15.848_932;
+/// Linear amplitude of +60 dBFS, beyond which a feedback graph is muted at once.
+const FEEDBACK_GUARD_LIMIT: f32 = 1_000.0;
 
 /// Computes bounded node-equivalent callback work for one voice of an authored graph.
 pub(crate) fn authored_graph_work_units(instrument: &Instrument, project: &Project) -> u64 {
@@ -169,9 +175,18 @@ fn authored_graph_state_bytes(
     control_arrays: u64,
 ) -> u64 {
     let node_count = graph.nodes.len() as u64;
+    let latency_count = graph
+        .nodes
+        .iter()
+        .filter(|node| node.kind.breaks_feedback())
+        .count() as u64;
     let fixed_and_vectors = fixed_bytes
         .saturating_add(node_count.saturating_mul(std::mem::size_of::<NodeState>() as u64))
-        .saturating_add(node_count.saturating_mul(std::mem::size_of::<Signal>() as u64))
+        .saturating_add(
+            node_count
+                .saturating_add(latency_count)
+                .saturating_mul(std::mem::size_of::<Signal>() as u64),
+        )
         .saturating_add(
             (control_targets as u64)
                 .saturating_mul(control_arrays)
@@ -221,6 +236,8 @@ impl GraphProcessIdentity {
 pub(crate) struct SharedGraphRuntime {
     states: Vec<NodeState>,
     signals: Vec<Signal>,
+    pending: Box<[Signal]>,
+    guard: FeedbackGuard,
     effective_controls: Vec<f64>,
     route_controls: Vec<f64>,
     previous_controls: Vec<f64>,
@@ -235,6 +252,8 @@ pub(crate) struct SharedGraphRuntime {
 #[derive(Debug, Clone)]
 pub(crate) struct CompiledGraph {
     nodes: Vec<CompiledNode>,
+    /// Feedback-breaking Nodes, committed in this order after every other Node of a frame.
+    latency_nodes: Vec<usize>,
     output_index: usize,
     sample_rate: f64,
     has_envelope: bool,
@@ -487,6 +506,7 @@ impl CompiledGraph {
                 has_phase_modulation: inputs.contains_key("pm"),
                 has_sync: inputs.contains_key("sync"),
                 has_amplitude_modulation: inputs.contains_key("am"),
+                has_time_modulation: inputs.contains_key("time_mod"),
                 inputs,
                 program,
             });
@@ -513,6 +533,11 @@ impl CompiledGraph {
                     .and_then(|route| controls.global_instrument_route_index(route))
             })
             .collect::<Vec<_>>();
+        let latency_nodes = nodes
+            .iter()
+            .enumerate()
+            .filter_map(|(index, node)| node.program.breaks_feedback().then_some(index))
+            .collect::<Vec<_>>();
         let operations = compile_voice_operations(
             graph,
             &ordered_indexes,
@@ -520,9 +545,11 @@ impl CompiledGraph {
             &route_graph_sources,
             instrument,
             controls,
+            &latency_nodes,
         )?;
         Ok(Self {
             nodes,
+            latency_nodes,
             output_index: output_index
                 .ok_or_else(|| EngineError::Compile("graph has no output".to_owned()))?,
             sample_rate: f64::from(sample_rate),
@@ -552,6 +579,7 @@ impl CompiledGraph {
         self.control_count == replacement.control_count
             && self.sample_rate.to_bits() == replacement.sample_rate.to_bits()
             && self.operations == replacement.operations
+            && self.latency_nodes == replacement.latency_nodes
             && self.nodes.len() == replacement.nodes.len()
             && self
                 .nodes
@@ -663,6 +691,10 @@ impl CompiledGraph {
                 .saturating_add(
                     (self.operations.capacity() as u64)
                         .saturating_mul(std::mem::size_of::<VoiceOperation>() as u64),
+                )
+                .saturating_add(
+                    (self.latency_nodes.capacity() as u64)
+                        .saturating_mul(std::mem::size_of::<usize>() as u64),
                 );
         (std::mem::size_of::<Self>() as u64)
             .saturating_add(word.saturating_mul(2))
@@ -676,6 +708,8 @@ impl CompiledGraph {
         GraphVoice {
             states,
             signals: vec![Signal::None; self.nodes.len()],
+            pending: vec![Signal::None; self.latency_nodes.len()].into_boxed_slice(),
+            guard: FeedbackGuard::default(),
             effective_controls: vec![0.0; self.control_count],
             route_controls: vec![0.0; self.control_count],
             instrument_controls: vec![0.0; self.control_count],
@@ -706,6 +740,8 @@ impl CompiledGraph {
         SharedGraphRuntime {
             states: self.create_node_states(track_seed),
             signals: vec![Signal::None; self.nodes.len()],
+            pending: vec![Signal::None; self.latency_nodes.len()].into_boxed_slice(),
+            guard: FeedbackGuard::default(),
             effective_controls: vec![0.0; self.control_count],
             route_controls: vec![0.0; self.control_count],
             previous_controls: vec![0.0; self.control_count],
@@ -837,9 +873,34 @@ impl CompiledGraph {
                 },
             );
         }
+        let mut output = voice.signals[self.output_index].stereo();
+        if !self.latency_nodes.is_empty() {
+            let context = VoiceNodeContext {
+                song_frame: identity.song_frame,
+                pitch_hz: voice.pitch_hz,
+                gate: voice.gate,
+                velocity: voice.velocity,
+                voice_sum: [0.0, 0.0],
+            };
+            let loudest = self.commit_latency_nodes(
+                &mut voice.states,
+                &mut voice.signals,
+                &mut voice.pending,
+                &voice.effective_controls,
+                context,
+            );
+            if voice.guard.trips(loudest, output, self.sample_rate) {
+                // Contain the failure to this voice: silence it and discard its loop state.
+                for state in &mut voice.states {
+                    state.reset(voice.seed);
+                }
+                voice.signals.fill(Signal::None);
+                voice.stop();
+                return [0.0, 0.0];
+            }
+        }
         voice.age_frames = voice.age_frames.saturating_add(1);
         voice.modulation_age_frames = voice.modulation_age_frames.saturating_add(1);
-        let mut output = voice.signals[self.output_index].stereo();
         if voice.releasing {
             let amplitude = output[0].abs().max(output[1].abs());
             if amplitude < 0.000_01 {
@@ -960,7 +1021,108 @@ impl CompiledGraph {
             }
         }
         runtime.frames_processed = runtime.frames_processed.saturating_add(1);
-        runtime.signals[self.output_index].stereo()
+        let output = runtime.signals[self.output_index].stereo();
+        if !self.latency_nodes.is_empty() {
+            let loudest = self.commit_latency_nodes(
+                &mut runtime.states,
+                &mut runtime.signals,
+                &mut runtime.pending,
+                &runtime.effective_controls,
+                VoiceNodeContext {
+                    song_frame: identity.song_frame,
+                    pitch_hz: 440.0,
+                    gate: false,
+                    velocity: 0.0,
+                    voice_sum: identity.voice_sum,
+                },
+            );
+            if runtime.guard.trips(loudest, output, self.sample_rate) {
+                for state in &mut runtime.states {
+                    state.reset(identity.instrument_identity);
+                }
+                runtime.signals.fill(Signal::None);
+                return [0.0, 0.0];
+            }
+        }
+        output
+    }
+
+    /// Commits every feedback-breaking Node from this frame's signals and publishes their
+    /// outputs for the next frame. Returns the largest committed magnitude, or NaN.
+    fn commit_latency_nodes(
+        &self,
+        states: &mut [NodeState],
+        signals: &mut [Signal],
+        pending: &mut [Signal],
+        controls: &[f64],
+        context: VoiceNodeContext,
+    ) -> f32 {
+        // Check every produced signal, including inputs sanitized by downstream Nodes.
+        // Returning NaN makes the caller mute and reset this runtime.
+        if signals.iter().any(|signal| !signal.is_finite()) {
+            return f32::NAN;
+        }
+        // Read every input before publishing any output, so a delay feeding another delay
+        // observes this frame's value rather than the next one.
+        for (slot, &index) in self.latency_nodes.iter().enumerate() {
+            pending[slot] = evaluate_compiled_node(
+                &self.nodes[index],
+                index,
+                states,
+                signals,
+                controls,
+                self.sample_rate,
+                context,
+            );
+        }
+        let mut loudest = 0.0_f32;
+        for (slot, &index) in self.latency_nodes.iter().enumerate() {
+            let value = pending[slot].mono();
+            loudest = if value.is_finite() {
+                loudest.max(value.abs())
+            } else {
+                f32::NAN
+            };
+            if loudest.is_nan() {
+                return loudest;
+            }
+            signals[index] = pending[slot];
+        }
+        loudest
+    }
+}
+
+/// Per-runtime watchdog for graphs that can feed back.
+#[derive(Debug, Clone, Copy, Default)]
+struct FeedbackGuard {
+    loud_frames: u32,
+    mutes: u32,
+}
+
+impl FeedbackGuard {
+    /// Records one frame and reports whether the runtime must be muted and reset.
+    fn trips(&mut self, loop_peak: f32, output: [f32; 2], sample_rate: f64) -> bool {
+        let peak = loop_peak.max(output[0].abs()).max(output[1].abs());
+        let finite = loop_peak.is_finite() && output.into_iter().all(f32::is_finite);
+        if finite && peak <= FEEDBACK_GUARD_CEILING {
+            self.loud_frames = 0;
+            return false;
+        }
+        self.loud_frames = self.loud_frames.saturating_add(1);
+        if finite
+            && peak <= FEEDBACK_GUARD_LIMIT
+            && self.loud_frames < (sample_rate * FEEDBACK_GUARD_SECONDS) as u32
+        {
+            return false;
+        }
+        self.loud_frames = 0;
+        self.mutes = self.mutes.saturating_add(1);
+        true
+    }
+
+    /// Returns and clears the mutes recorded since the previous call.
+    fn take_mutes(&mut self) -> u64 {
+        u64::from(std::mem::take(&mut self.mutes))
     }
 }
 
@@ -969,6 +1131,8 @@ impl CompiledGraph {
 pub(crate) struct GraphVoice {
     states: Vec<NodeState>,
     signals: Vec<Signal>,
+    pending: Box<[Signal]>,
+    guard: FeedbackGuard,
     effective_controls: Vec<f64>,
     route_controls: Vec<f64>,
     instrument_controls: Vec<f64>,
@@ -999,7 +1163,8 @@ impl GraphVoice {
     pub(crate) fn allocation_bytes(&self) -> u64 {
         let fixed = std::mem::size_of::<Self>() as u64
             + self.states.capacity() as u64 * std::mem::size_of::<NodeState>() as u64
-            + self.signals.capacity() as u64 * std::mem::size_of::<Signal>() as u64
+            + (self.signals.capacity() + self.pending.len()) as u64
+                * std::mem::size_of::<Signal>() as u64
             + (self.effective_controls.capacity()
                 + self.route_controls.capacity()
                 + self.instrument_controls.capacity()
@@ -1029,6 +1194,14 @@ impl GraphVoice {
         for state in &mut self.states {
             state.retrigger(seed);
         }
+        // Feedback Nodes publish next-frame outputs; a new note must not hear the last one.
+        self.signals.fill(Signal::None);
+        self.guard.loud_frames = 0;
+    }
+
+    /// Returns and clears how many times the feedback guard muted this voice.
+    pub(crate) fn take_feedback_mutes(&mut self) -> u64 {
+        self.guard.take_mutes()
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1201,11 +1374,18 @@ impl GraphVoice {
 }
 
 impl SharedGraphRuntime {
+    /// Returns and clears how many times the feedback guard muted this runtime.
+    pub(crate) fn take_feedback_mutes(&mut self) -> u64 {
+        self.guard.take_mutes()
+    }
+
     pub(crate) fn reset(&mut self, seed: u64) {
         for state in &mut self.states {
             state.reset(seed);
         }
         self.signals.fill(Signal::None);
+        self.pending.fill(Signal::None);
+        self.guard.loud_frames = 0;
         self.effective_controls.fill(0.0);
         self.route_controls.fill(0.0);
         self.previous_controls.fill(0.0);
@@ -1228,7 +1408,8 @@ impl SharedGraphRuntime {
     #[cfg(test)]
     pub(crate) fn allocation_bytes(&self) -> u64 {
         let fixed = self.states.capacity() as u64 * std::mem::size_of::<NodeState>() as u64
-            + self.signals.capacity() as u64 * std::mem::size_of::<Signal>() as u64
+            + (self.signals.capacity() + self.pending.len()) as u64
+                * std::mem::size_of::<Signal>() as u64
             + (self.effective_controls.capacity()
                 + self.route_controls.capacity()
                 + self.previous_controls.capacity()
@@ -1341,12 +1522,17 @@ fn compile_voice_operations(
     graph_sources: &[(Option<usize>, Option<usize>)],
     instrument: &Instrument,
     controls: &CompiledControlProgram,
+    latency_nodes: &[usize],
 ) -> Result<Vec<VoiceOperation>, EngineError> {
     let node_count = graph.nodes.len();
     let operation_count = node_count.saturating_add(routes.len());
     let mut outgoing = vec![Vec::<usize>::new(); operation_count];
     let mut incoming = vec![0_usize; operation_count];
+    // Feedback-breaking Nodes run after every operation, so nothing orders before them.
     let mut add_edge = |from: usize, to: usize| {
+        if latency_nodes.contains(&to) {
+            return;
+        }
         if !outgoing[from].contains(&to) {
             outgoing[from].push(to);
             incoming[to] += 1;
@@ -1442,6 +1628,9 @@ fn compile_voice_operations(
             "graph Control and Instrument Modulation dependencies contain a cycle".to_owned(),
         ));
     }
+    operations.retain(
+        |operation| !matches!(operation, VoiceOperation::Node(index) if latency_nodes.contains(index)),
+    );
     Ok(operations)
 }
 
@@ -1458,6 +1647,7 @@ struct CompiledNode {
     has_phase_modulation: bool,
     has_sync: bool,
     has_amplitude_modulation: bool,
+    has_time_modulation: bool,
 }
 
 impl CompiledNode {
@@ -1495,7 +1685,21 @@ fn process_compiled_node(
     sample_rate: f64,
     context: VoiceNodeContext,
 ) {
-    // A topological program guarantees every referenced signal was written before this Node.
+    signals[index] =
+        evaluate_compiled_node(node, index, states, signals, controls, sample_rate, context);
+}
+
+fn evaluate_compiled_node(
+    node: &CompiledNode,
+    index: usize,
+    states: &mut [NodeState],
+    signals: &[Signal],
+    controls: &[f64],
+    sample_rate: f64,
+    context: VoiceNodeContext,
+) -> Signal {
+    // A topological program guarantees every referenced signal was written before this Node;
+    // a feedback-breaking Node reads them after the whole frame.
     let input = |port| {
         resolve_input_values(
             node,
@@ -1522,6 +1726,8 @@ fn process_compiled_node(
         amplitude_modulation: input("am"),
         input_a: input("a"),
         input_b: input("b"),
+        time_modulation: input("time_mod"),
+        control: input("control"),
         summed_audio: resolve_summed_values(
             node,
             signals,
@@ -1538,10 +1744,10 @@ fn process_compiled_node(
         has_phase_modulation: node.has_phase_modulation,
         has_sync: node.has_sync,
         has_amplitude_modulation: node.has_amplitude_modulation,
+        has_time_modulation: node.has_time_modulation,
     };
-    signals[index] = node
-        .program
-        .process(&mut states[index], inputs, controls, sample_rate);
+    node.program
+        .process(&mut states[index], inputs, controls, sample_rate)
 }
 
 fn resolve_input_values(
@@ -1766,7 +1972,17 @@ fn runtime_node_output(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> 
             "audio",
         ) => Some(RuntimeSignalType::AudioStereo),
         (NodeKind::Envelope, "control") => Some(RuntimeSignalType::Unipolar),
-        (NodeKind::Lfo, "control") => Some(RuntimeSignalType::Control),
+        (NodeKind::Lfo | NodeKind::ToControl, "control") => Some(RuntimeSignalType::Control),
+        (
+            NodeKind::DelayLine
+            | NodeKind::Math
+            | NodeKind::Shaper
+            | NodeKind::ToAudio
+            | NodeKind::DcBlock
+            | NodeKind::LinearPhaseLowpass,
+            "audio",
+        ) => Some(RuntimeSignalType::AudioMono),
+        (NodeKind::StereoMath, "audio") => Some(RuntimeSignalType::AudioStereo),
         _ => None,
     }
 }
@@ -1832,6 +2048,19 @@ fn runtime_node_input(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> {
             Some(RuntimeSignalType::Unipolar)
         }
         (NodeKind::Amplifier, "gain") => Some(RuntimeSignalType::Unipolar),
+        (
+            NodeKind::DelayLine
+            | NodeKind::Shaper
+            | NodeKind::ToControl
+            | NodeKind::DcBlock
+            | NodeKind::LinearPhaseLowpass,
+            "audio",
+        )
+        | (NodeKind::DelayLine, "time_mod")
+        | (NodeKind::Math, "a" | "b") => Some(RuntimeSignalType::AudioMono),
+        (NodeKind::DelayLine, "pitch") => Some(RuntimeSignalType::Hertz),
+        (NodeKind::StereoMath, "a" | "b") => Some(RuntimeSignalType::AudioStereo),
+        (NodeKind::ToAudio, "control") => Some(RuntimeSignalType::Control),
         _ => None,
     }
 }
@@ -1861,6 +2090,13 @@ const fn runtime_required_inputs(kind: NodeKind) -> &'static [&'static str] {
         NodeKind::Delay | NodeKind::Reverb | NodeKind::Output | NodeKind::StereoFilter => {
             &["audio"]
         }
+        NodeKind::DelayLine
+        | NodeKind::Shaper
+        | NodeKind::ToControl
+        | NodeKind::DcBlock
+        | NodeKind::LinearPhaseLowpass => &["audio"],
+        NodeKind::Math | NodeKind::StereoMath => &["a"],
+        NodeKind::ToAudio => &["control"],
     }
 }
 
@@ -1883,8 +2119,16 @@ fn topological_order(graph: &Graph) -> Result<Vec<String>, EngineError> {
         .iter()
         .map(|node| (node.id.as_str(), Vec::new()))
         .collect();
+    let breaks_feedback = graph
+        .nodes
+        .iter()
+        .filter(|node| node.kind.breaks_feedback())
+        .map(|node| node.id.as_str())
+        .collect::<BTreeSet<_>>();
     for connection in &graph.connections {
-        if matches!(connection.from.node.as_str(), "note" | "voice_sum") {
+        if matches!(connection.from.node.as_str(), "note" | "voice_sum")
+            || breaks_feedback.contains(connection.to.node.as_str())
+        {
             continue;
         }
         *incoming
@@ -1919,7 +2163,9 @@ fn topological_order(graph: &Graph) -> Result<Vec<String>, EngineError> {
         }
     }
     if order.len() != graph.nodes.len() {
-        return Err(EngineError::Compile("graph contains a cycle".to_owned()));
+        return Err(EngineError::Compile(
+            "graph contains a cycle without a delay_line".to_owned(),
+        ));
     }
     Ok(order)
 }

@@ -401,6 +401,14 @@ const fn node_kind_has_runtime(kind: NodeKind) -> bool {
                 | NodeKind::Granular
                 | NodeKind::Spectral
                 | NodeKind::StereoFilter
+                | NodeKind::DelayLine
+                | NodeKind::Math
+                | NodeKind::StereoMath
+                | NodeKind::Shaper
+                | NodeKind::ToAudio
+                | NodeKind::ToControl
+                | NodeKind::DcBlock
+                | NodeKind::LinearPhaseLowpass
         )
 }
 
@@ -2585,7 +2593,12 @@ impl Parser<'_> {
                             && child
                                 .tokens
                                 .first()
-                                .is_some_and(|token| token.value == "zone"));
+                                .is_some_and(|token| token.value == "zone"))
+                        || (kind == NodeKind::Shaper
+                            && child
+                                .tokens
+                                .first()
+                                .is_some_and(|token| token.value == "point"));
                 if structured_directive {
                     directives.push(self.parse_node_directive(child));
                 } else if child.tokens.len() == 2 && child.children.is_empty() {
@@ -2593,7 +2606,7 @@ impl Parser<'_> {
                 } else {
                     self.error_at(
                         "CRP170",
-                        "runnable Node block settings use one non-nested `key value` directive per line; supported structured forms are oscillator warp/distortion, custom LFO point, sample slice, and multisample zone directives",
+                        "runnable Node block settings use one non-nested `key value` directive per line; supported structured forms are oscillator warp/distortion, custom LFO and shaper table point, sample slice, and multisample zone directives",
                         child,
                     );
                 }

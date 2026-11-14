@@ -1,0 +1,36 @@
+crump 2
+import "instrument.crump"
+project "Clarinet" {
+  id example-clarinet
+  seed 5011
+  sample_rate 48000
+  render_tail 3s
+  song {
+    tempo 100bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat E2 2beat 0.9
+      note 2beat A2 2beat 0.7
+      note 4beat D3 1beat 0.8
+      note 5beat G3 1beat 0.6
+      note 6beat B3 1beat 0.75
+      note 7beat E4 1beat 0.85
+      note 8beat C4 0.5beat 0.6
+      note 8.5beat E4 0.5beat 0.6
+      note 9beat G4 0.5beat 0.6
+      note 9.5beat C5 0.5beat 0.7
+      note 10beat E5 2beat 0.9
+      note 12beat A3 4beat 0.8
+      note 12beat C4 4beat 0.7
+      note 12beat E4 4beat 0.7
+      note 16beat A4 0.25beat 0.95
+      note 17beat A5 0.25beat 0.95
+      note 18beat E6 2beat 0.9
+      note 24beat E2 8beat 1
+    }
+    track clarinet "Clarinet" instrument clarinet level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}
