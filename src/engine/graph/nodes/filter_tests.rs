@@ -263,3 +263,96 @@ fn stereo_filter_dry_mix_and_pan_are_exact() {
     assert!(output[0].abs() < 1.0e-7);
     assert_eq!(output[1], -0.5);
 }
+
+#[test]
+fn ladder_below_full_resonance_never_self_oscillates_at_any_drive() {
+    for drive in [0.0, 0.1, 0.25, 0.5, 0.75, 1.0] {
+        for cutoff in [40.0, 200.0, 1_000.0, 4_000.0, 12_000.0, 20_000.0] {
+            for resonance in [0.5, 0.9, 0.99] {
+                let mut config = stereo_config(StereoFilterModel::LadderDrive);
+                config.drive = Scalar::constant(drive);
+                config.cutoff = Scalar::constant(cutoff);
+                config.resonance = Scalar::constant(resonance);
+                let mut state = StereoFilterState::default();
+                let mut process = |input: f32| {
+                    config.process(
+                        &mut state,
+                        [input, input],
+                        0.0,
+                        0.0,
+                        0.0,
+                        false,
+                        false,
+                        false,
+                        &[],
+                        48_000.0,
+                    )[0]
+                };
+                // A loud burst, then two seconds of silence: the ring must be dying away.
+                for frame in 0..2_400 {
+                    process(if frame % 40 < 20 { 0.9 } else { -0.9 });
+                }
+                let mut middle_peak = 0.0_f32;
+                let mut tail_peak = 0.0_f32;
+                for frame in 0..96_000 {
+                    let output = process(0.0);
+                    assert!(output.is_finite());
+                    if (38_400..48_000).contains(&frame) {
+                        middle_peak = middle_peak.max(output.abs());
+                    } else if frame >= 86_400 {
+                        tail_peak = tail_peak.max(output.abs());
+                    }
+                }
+                assert!(
+                    tail_peak < 1.0e-4 || tail_peak < middle_peak * 0.5,
+                    "drive {drive} cutoff {cutoff} resonance {resonance} rings at {tail_peak} after {middle_peak}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn ladder_resonance_peak_does_not_grow_with_drive() {
+    // Resonance means the same small-signal loop gain at every drive: the normalized ring
+    // after a tiny impulse has the same decay whatever the drive.
+    let ring = |drive: f64| {
+        let mut config = stereo_config(StereoFilterModel::LadderDrive);
+        config.drive = Scalar::constant(drive);
+        config.cutoff = Scalar::constant(1_000.0);
+        config.resonance = Scalar::constant(0.9);
+        let mut state = StereoFilterState::default();
+        let mut peak_late = 0.0_f32;
+        let mut peak_early = 0.0_f32;
+        for frame in 0..9_600 {
+            let input = if frame == 0 { 1.0e-4 } else { 0.0 };
+            let output = config.process(
+                &mut state,
+                [input, input],
+                0.0,
+                0.0,
+                0.0,
+                false,
+                false,
+                false,
+                &[],
+                48_000.0,
+            )[0]
+            .abs();
+            if frame < 480 {
+                peak_early = peak_early.max(output);
+            } else if frame >= 4_800 {
+                peak_late = peak_late.max(output);
+            }
+        }
+        peak_late / peak_early
+    };
+    let clean = ring(0.0);
+    for drive in [0.25, 0.5, 1.0] {
+        let driven = ring(drive);
+        assert!(
+            (driven / clean - 1.0).abs() < 0.05,
+            "drive {drive}: decay ratio {driven} vs {clean}"
+        );
+    }
+}

@@ -942,6 +942,10 @@ impl SongRuntime {
             );
             self.track_sources[index] = sample;
             active_voices += voices;
+            self.telemetry.feedback_mutes = self
+                .telemetry
+                .feedback_mutes
+                .saturating_add(track.take_feedback_mutes());
         }
         let routed = self.mix.process(
             &self.track_sources[..self.tracks.len()],
@@ -1745,6 +1749,8 @@ struct TrackRuntime {
     #[cfg(any(feature = "pipewire", test))]
     parameter_locks_handoff: bool,
     instrument: InstrumentRuntime,
+    /// Feedback-guard mutes not yet folded into Song telemetry.
+    feedback_mutes: u64,
 }
 
 impl TrackRuntime {
@@ -1797,7 +1803,13 @@ impl TrackRuntime {
             #[cfg(any(feature = "pipewire", test))]
             parameter_locks_handoff: false,
             instrument,
+            feedback_mutes: 0,
         }
+    }
+
+    /// Returns and clears the feedback-guard mutes recorded since the previous call.
+    fn take_feedback_mutes(&mut self) -> u64 {
+        std::mem::take(&mut self.feedback_mutes)
     }
 
     #[cfg(any(feature = "pipewire", test))]
@@ -1939,6 +1951,7 @@ impl TrackRuntime {
             instrument_route_values,
             song_frame,
             self.modulation_identity,
+            &mut self.feedback_mutes,
         )
     }
 }
@@ -2082,6 +2095,12 @@ impl GraphVoiceSlot {
 
     const fn age_frames(&self) -> u64 {
         self.voice.age_frames()
+    }
+
+    fn take_feedback_mutes(&mut self) -> u64 {
+        self.voice
+            .take_feedback_mutes()
+            .saturating_add(self.replacement_tail.take_feedback_mutes())
     }
 
     fn process(
@@ -2662,6 +2681,7 @@ impl InstrumentRuntime {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn process(
         &mut self,
         controls: &[f64],
@@ -2670,6 +2690,7 @@ impl InstrumentRuntime {
         instrument_route_values: &[control::RuntimeInstrumentRouteValue],
         song_frame: u64,
         instrument_identity: u64,
+        feedback_mutes: &mut u64,
     ) -> ([f32; 2], usize) {
         match self {
             Self::Graph {
@@ -2693,6 +2714,8 @@ impl InstrumentRuntime {
                         );
                         output[0] += sample[0];
                         output[1] += sample[1];
+                        *feedback_mutes =
+                            feedback_mutes.saturating_add(voice.take_feedback_mutes());
                     }
                 }
                 if let Some(shared) = shared {
@@ -2704,6 +2727,8 @@ impl InstrumentRuntime {
                         instrument_route_values,
                         GraphProcessIdentity::shared(song_frame, instrument_identity, output),
                     );
+                    *feedback_mutes =
+                        feedback_mutes.saturating_add(shared.runtime.take_feedback_mutes());
                 }
                 (output, active)
             }
@@ -2811,6 +2836,9 @@ pub struct RuntimeTelemetry {
     /// Fixed-capacity processor telemetry aligned to `CompiledProcessorInspection::index`.
     #[serde(with = "processor_meter_array_serde")]
     pub processor_activity: [ProcessorMeter; MAX_PROCESSOR_INSTANCES],
+    /// Graph voices and shared runtimes muted by the feedback guard since runtime creation.
+    #[serde(default)]
+    pub feedback_mutes: u64,
 }
 
 impl Default for RuntimeTelemetry {
@@ -2826,6 +2854,7 @@ impl Default for RuntimeTelemetry {
             follower_activity: [EnvelopeFollowerMeter::default(); MAX_ENVELOPE_FOLLOWERS],
             processor_count: 0,
             processor_activity: [ProcessorMeter::default(); MAX_PROCESSOR_INSTANCES],
+            feedback_mutes: 0,
         }
     }
 }

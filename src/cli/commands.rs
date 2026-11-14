@@ -788,12 +788,21 @@ fn command_render(cli: &Cli, args: &RenderArgs) -> Result<Success, Failure> {
         .map_err(|error| Failure::operational("render", "render_failed", error))?;
     Ok(Success {
         command: "render",
-        human: format!(
-            "Rendered {} frames to {}\nWAV SHA-256: {}",
-            result.manifest.frame_count,
-            result.wav.display(),
-            result.manifest.wav_sha256
-        ),
+        human: {
+            let mut human = format!(
+                "Rendered {} frames to {}\nWAV SHA-256: {}",
+                result.manifest.frame_count,
+                result.wav.display(),
+                result.manifest.wav_sha256
+            );
+            if result.manifest.feedback_mutes > 0 {
+                human.push_str(&format!(
+                    "\nwarning: the feedback guard muted {} runaway or non-finite graph voice(s); check delay_line loop gain",
+                    result.manifest.feedback_mutes
+                ));
+            }
+            human
+        },
         data: json!({
             "candidate_revision": candidate.revision,
             "rendered_active_revision": active.revision,
