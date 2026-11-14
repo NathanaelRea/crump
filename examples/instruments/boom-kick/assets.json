@@ -1,0 +1,152 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "45c04f4cca3e5383ae51f139f2c6f82d065c1bc1c88322ccba8b0468db674e33",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "boom-kick-26-soft-0",
+      "path": "media/26-soft-0.wav",
+      "sha256": "0de29be233d72fe0a1565b97d111305468965fa2ca2cc771f75f3e7490a17176",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 26,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1000260,
+      "normalization_gain": 0.651792281502794
+    },
+    {
+      "id": "boom-kick-26-hard-0",
+      "path": "media/26-hard-0.wav",
+      "sha256": "aff319e6782068bb927e985d196a05f14da513428aa7c0b0d79cfef7a25171bc",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 26,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1000260,
+      "normalization_gain": 0.651792281502794
+    },
+    {
+      "id": "boom-kick-31-soft-0",
+      "path": "media/31-soft-0.wav",
+      "sha256": "471bedad3eb5ec01ccc4102e0cacf743459290fbcdf6fd1f8377267fddce6aa8",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 31,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1000310,
+      "normalization_gain": 0.6608304905317577
+    },
+    {
+      "id": "boom-kick-31-hard-0",
+      "path": "media/31-hard-0.wav",
+      "sha256": "00802ef7f8d444062c5551e222cf8c7ac5dcec76a716469ce1235bce8b6b2d25",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 31,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1000310,
+      "normalization_gain": 0.6608304905317577
+    },
+    {
+      "id": "boom-kick-36-soft-0",
+      "path": "media/36-soft-0.wav",
+      "sha256": "4ee166cae820d346087b828433f198ae63f807ce59cda9aae6399a58cf0a2a2f",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 36,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1000360,
+      "normalization_gain": 0.6743279139430615
+    },
+    {
+      "id": "boom-kick-36-hard-0",
+      "path": "media/36-hard-0.wav",
+      "sha256": "b501d4e7c2f1f7e586f18c4d60a959040aa77fc8e1c37a4860bae81a74bd8c5a",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 36,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1000360,
+      "normalization_gain": 0.6743279139430615
+    },
+    {
+      "id": "boom-kick-41-soft-0",
+      "path": "media/41-soft-0.wav",
+      "sha256": "3aeb2439b0c50d3a96539a2f287887af7c9a96c0cc8abf9265a9f7230a96a097",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 41,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1000410,
+      "normalization_gain": 0.6879340140723089
+    },
+    {
+      "id": "boom-kick-41-hard-0",
+      "path": "media/41-hard-0.wav",
+      "sha256": "2890bac744664fe3af08c979705d3526d5513cb81a8ee1d2adff7dfe23fd6a5d",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 41,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1000410,
+      "normalization_gain": 0.6879340140723089
+    },
+    {
+      "id": "boom-kick-46-soft-0",
+      "path": "media/46-soft-0.wav",
+      "sha256": "3f14a85653885760cf423066ddc374040174348c8ea74c1ad805a5b7e98f3a64",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 46,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1000460,
+      "normalization_gain": 0.7008100946226425
+    },
+    {
+      "id": "boom-kick-46-hard-0",
+      "path": "media/46-hard-0.wav",
+      "sha256": "a81288432a95fbe3d5db25b8d66305288202f0dc082234322b2fff82365cc1c7",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 46,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1000460,
+      "normalization_gain": 0.7008100946226425
+    },
+    {
+      "id": "boom-kick-51-soft-0",
+      "path": "media/51-soft-0.wav",
+      "sha256": "b586f0b569d554b9198602818677d7bb0f3fcbde1543bba0c5a5542c22c8e2be",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 51,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1000510,
+      "normalization_gain": 0.713357147951236
+    },
+    {
+      "id": "boom-kick-51-hard-0",
+      "path": "media/51-hard-0.wav",
+      "sha256": "2d58ff0e37cc604196210c89aa1719af44251badfad5e9f19867106a20770b20",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 51,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1000510,
+      "normalization_gain": 0.713357147951236
+    }
+  ]
+}

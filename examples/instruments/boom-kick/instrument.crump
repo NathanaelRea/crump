@@ -1,0 +1,77 @@
+crump-module 2
+instrument boom-kick "Boom Kick" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z26-soft-0 asset boom-kick-26-soft-0 keys C1 E1 velocity 0 0.65 root D1
+      zone z26-hard-0 asset boom-kick-26-hard-0 keys C1 E1 velocity 0.65 1 root D1
+      zone z31-soft-0 asset boom-kick-31-soft-0 keys F1 A1 velocity 0 0.65 root G1
+      zone z31-hard-0 asset boom-kick-31-hard-0 keys F1 A1 velocity 0.65 1 root G1
+      zone z36-soft-0 asset boom-kick-36-soft-0 keys A#1 D2 velocity 0 0.65 root C2
+      zone z36-hard-0 asset boom-kick-36-hard-0 keys A#1 D2 velocity 0.65 1 root C2
+      zone z41-soft-0 asset boom-kick-41-soft-0 keys D#2 G2 velocity 0 0.65 root F2
+      zone z41-hard-0 asset boom-kick-41-hard-0 keys D#2 G2 velocity 0.65 1 root F2
+      zone z46-soft-0 asset boom-kick-46-soft-0 keys G#2 C3 velocity 0 0.65 root A#2
+      zone z46-hard-0 asset boom-kick-46-hard-0 keys G#2 C3 velocity 0.65 1 root A#2
+      zone z51-soft-0 asset boom-kick-51-soft-0 keys C#3 G3 velocity 0 0.65 root D#3
+      zone z51-hard-0 asset boom-kick-51-hard-0 keys C#3 G3 velocity 0.65 1 root D#3
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset boom-kick-26-soft-0 "Boom Kick" wav "media/26-soft-0.wav" sha256 "0de29be233d72fe0a1565b97d111305468965fa2ca2cc771f75f3e7490a17176" {
+  usage multisample
+}
+asset boom-kick-26-hard-0 "Boom Kick" wav "media/26-hard-0.wav" sha256 "aff319e6782068bb927e985d196a05f14da513428aa7c0b0d79cfef7a25171bc" {
+  usage multisample
+}
+asset boom-kick-31-soft-0 "Boom Kick" wav "media/31-soft-0.wav" sha256 "471bedad3eb5ec01ccc4102e0cacf743459290fbcdf6fd1f8377267fddce6aa8" {
+  usage multisample
+}
+asset boom-kick-31-hard-0 "Boom Kick" wav "media/31-hard-0.wav" sha256 "00802ef7f8d444062c5551e222cf8c7ac5dcec76a716469ce1235bce8b6b2d25" {
+  usage multisample
+}
+asset boom-kick-36-soft-0 "Boom Kick" wav "media/36-soft-0.wav" sha256 "4ee166cae820d346087b828433f198ae63f807ce59cda9aae6399a58cf0a2a2f" {
+  usage multisample
+}
+asset boom-kick-36-hard-0 "Boom Kick" wav "media/36-hard-0.wav" sha256 "b501d4e7c2f1f7e586f18c4d60a959040aa77fc8e1c37a4860bae81a74bd8c5a" {
+  usage multisample
+}
+asset boom-kick-41-soft-0 "Boom Kick" wav "media/41-soft-0.wav" sha256 "3aeb2439b0c50d3a96539a2f287887af7c9a96c0cc8abf9265a9f7230a96a097" {
+  usage multisample
+}
+asset boom-kick-41-hard-0 "Boom Kick" wav "media/41-hard-0.wav" sha256 "2890bac744664fe3af08c979705d3526d5513cb81a8ee1d2adff7dfe23fd6a5d" {
+  usage multisample
+}
+asset boom-kick-46-soft-0 "Boom Kick" wav "media/46-soft-0.wav" sha256 "3f14a85653885760cf423066ddc374040174348c8ea74c1ad805a5b7e98f3a64" {
+  usage multisample
+}
+asset boom-kick-46-hard-0 "Boom Kick" wav "media/46-hard-0.wav" sha256 "a81288432a95fbe3d5db25b8d66305288202f0dc082234322b2fff82365cc1c7" {
+  usage multisample
+}
+asset boom-kick-51-soft-0 "Boom Kick" wav "media/51-soft-0.wav" sha256 "b586f0b569d554b9198602818677d7bb0f3fcbde1543bba0c5a5542c22c8e2be" {
+  usage multisample
+}
+asset boom-kick-51-hard-0 "Boom Kick" wav "media/51-hard-0.wav" sha256 "2d58ff0e37cc604196210c89aa1719af44251badfad5e9f19867106a20770b20" {
+  usage multisample
+}

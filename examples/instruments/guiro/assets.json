@@ -1,0 +1,104 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "9411b11984cb0dd3952cdb5a7dc965dbab95daa40ffedc7f6e3ad6f90dbac989",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "guiro-long-60-soft-0",
+      "path": "media/long-60-soft-0.wav",
+      "sha256": "2150fde56bd03e78b171f9a7b51845c2fc70af0a1583aba77eaf1ae6e05b4db9",
+      "frames": 20218,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1191600,
+      "normalization_gain": 0.39865764444068574
+    },
+    {
+      "id": "guiro-long-60-hard-0",
+      "path": "media/long-60-hard-0.wav",
+      "sha256": "ac55c7b45d14171153c89952838ca0f2dedd7628c7037db539fd3814d5d6acb9",
+      "frames": 20285,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1191600,
+      "normalization_gain": 0.39865764444068574
+    },
+    {
+      "id": "guiro-long-60-soft-1",
+      "path": "media/long-60-soft-1.wav",
+      "sha256": "10513d66f15c20208a09415abd3a377125d4e7c9dacd74b39e4967fb31168cd6",
+      "frames": 20565,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1191601,
+      "normalization_gain": 0.3918358413266478
+    },
+    {
+      "id": "guiro-long-60-hard-1",
+      "path": "media/long-60-hard-1.wav",
+      "sha256": "7a6a282fc38a42df6474ce8c321d8064df5a7451ffa78a8ea029b472f271116a",
+      "frames": 20609,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1191601,
+      "normalization_gain": 0.3918358413266478
+    },
+    {
+      "id": "guiro-short-60-soft-0",
+      "path": "media/short-60-soft-0.wav",
+      "sha256": "db3705bfe3394f3a50b3b653a765176770d02c7cc57f5846a4c0597f14fdef25",
+      "frames": 8682,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1192600,
+      "normalization_gain": 0.3700842057101409
+    },
+    {
+      "id": "guiro-short-60-hard-0",
+      "path": "media/short-60-hard-0.wav",
+      "sha256": "817006da197ee91f2fb1d16cc17949104d85880f16114e81552bfc21871fa274",
+      "frames": 9151,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1192600,
+      "normalization_gain": 0.3700842057101409
+    },
+    {
+      "id": "guiro-short-60-soft-1",
+      "path": "media/short-60-soft-1.wav",
+      "sha256": "ea69b01c437aaaf6c093b66522e68749e484bb55a205547def6a451a152c0875",
+      "frames": 8582,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1192601,
+      "normalization_gain": 0.4338270234061997
+    },
+    {
+      "id": "guiro-short-60-hard-1",
+      "path": "media/short-60-hard-1.wav",
+      "sha256": "3ed236e50be1d6060d2cb87253ae953a26503e6a10aaaa7f77af8e5e28d61c7d",
+      "frames": 8635,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1192601,
+      "normalization_gain": 0.4338270234061997
+    }
+  ]
+}

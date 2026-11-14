@@ -1,0 +1,31 @@
+{
+  "model": "plucked",
+  "params": {
+    "decay": 2.6,
+    "bright": 3800,
+    "position": 0.1,
+    "fret": 0.004,
+    "body_mix": 0.02,
+    "lowpass": 5500
+  },
+  "pitched": true,
+  "category": "Guitar",
+  "seconds": 8,
+  "roots": [
+    40,
+    46,
+    52,
+    58,
+    64,
+    70,
+    76,
+    82
+  ],
+  "range": [
+    40,
+    86
+  ],
+  "audition": 64,
+  "id": "clean-electric",
+  "seed_base": 1360000
+}

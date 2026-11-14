@@ -1,0 +1,84 @@
+crump-module 2
+instrument bansuri "Bansuri" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z53-soft-0 asset bansuri-53-soft-0 keys E3 G#3 velocity 0 0.65 root F3 loop 48000 123778 crossfade 8160
+      zone z53-hard-0 asset bansuri-53-hard-0 keys E3 G#3 velocity 0.65 1 root F3 loop 48000 123776 crossfade 8160
+      zone z59-soft-0 asset bansuri-59-soft-0 keys A3 D4 velocity 0 0.65 root B3 loop 48000 124790 crossfade 8160
+      zone z59-hard-0 asset bansuri-59-hard-0 keys A3 D4 velocity 0.65 1 root B3 loop 48000 125178 crossfade 8160
+      zone z65-soft-0 asset bansuri-65-soft-0 keys D#4 G#4 velocity 0 0.65 root F4 loop 48000 123645 crossfade 8160
+      zone z65-hard-0 asset bansuri-65-hard-0 keys D#4 G#4 velocity 0.65 1 root F4 loop 48000 123647 crossfade 8160
+      zone z71-soft-0 asset bansuri-71-soft-0 keys A4 D5 velocity 0 0.65 root B4 loop 48000 123660 crossfade 8160
+      zone z71-hard-0 asset bansuri-71-hard-0 keys A4 D5 velocity 0.65 1 root B4 loop 48000 123660 crossfade 8160
+      zone z77-soft-0 asset bansuri-77-soft-0 keys D#5 G#5 velocity 0 0.65 root F5 loop 48000 125966 crossfade 8160
+      zone z77-hard-0 asset bansuri-77-hard-0 keys D#5 G#5 velocity 0.65 1 root F5 loop 48000 123662 crossfade 8160
+      zone z83-soft-0 asset bansuri-83-soft-0 keys A5 D6 velocity 0 0.65 root B5 loop 48000 125988 crossfade 8160
+      zone z83-hard-0 asset bansuri-83-hard-0 keys A5 D6 velocity 0.65 1 root B5 loop 48000 124749 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset bansuri-53-soft-0 "Bansuri" wav "media/53-soft-0.wav" sha256 "85a11ccc325c7914202d4feac0bbdfef23b7d40c1e03a21cdca701d0f03d8734" {
+  usage multisample
+}
+asset bansuri-53-hard-0 "Bansuri" wav "media/53-hard-0.wav" sha256 "ea5ddb64d10eaf7e684fc7c3a9a2eabed18ec9fb9fd3a8c0e93250e1dddf738a" {
+  usage multisample
+}
+asset bansuri-59-soft-0 "Bansuri" wav "media/59-soft-0.wav" sha256 "159f304d8fd028f67bee54060cecff50d0dc90bb6c340b92cdb4f9ca2fc73438" {
+  usage multisample
+}
+asset bansuri-59-hard-0 "Bansuri" wav "media/59-hard-0.wav" sha256 "775686682d8382e56ca0fbffcb4e3f938e4383f44631f27344a3ba7f4885d074" {
+  usage multisample
+}
+asset bansuri-65-soft-0 "Bansuri" wav "media/65-soft-0.wav" sha256 "a9d4000f6e7eadceacc17161c4932d35d9eb854698c8c7465b6145e969204286" {
+  usage multisample
+}
+asset bansuri-65-hard-0 "Bansuri" wav "media/65-hard-0.wav" sha256 "ab5b3eeed2a8b942ec8c4967f3593bd0f4a381eefcdddbb2e3c43e7f20f0fad2" {
+  usage multisample
+}
+asset bansuri-71-soft-0 "Bansuri" wav "media/71-soft-0.wav" sha256 "bb448e87d7dd9e15ba144d510ebf4bdca5299376d23d451b9823bec4f1b79cae" {
+  usage multisample
+}
+asset bansuri-71-hard-0 "Bansuri" wav "media/71-hard-0.wav" sha256 "943f173ce065b68af2191fe8516d811cb9d0084acca4ab9cf9f7efa1bb1c11d1" {
+  usage multisample
+}
+asset bansuri-77-soft-0 "Bansuri" wav "media/77-soft-0.wav" sha256 "38c9ba45dd53be7065e34379bfd11e0693a33078d08d6c8ddc58b572803de6b6" {
+  usage multisample
+}
+asset bansuri-77-hard-0 "Bansuri" wav "media/77-hard-0.wav" sha256 "eb51a3329540479f6e342a098252a130f28fbbac33c722f6bb33aed41d379aa9" {
+  usage multisample
+}
+asset bansuri-83-soft-0 "Bansuri" wav "media/83-soft-0.wav" sha256 "f7f68d97042585d162e27dc318a627fd6d4284f7820031ab1064a6dce95cc08c" {
+  usage multisample
+}
+asset bansuri-83-hard-0 "Bansuri" wav "media/83-hard-0.wav" sha256 "703daa661754f50d072a1a411c93022348c26d072069860a787d8ffa19f2430b" {
+  usage multisample
+}

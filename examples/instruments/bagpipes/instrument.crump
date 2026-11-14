@@ -1,0 +1,76 @@
+crump-module 2
+instrument bagpipes "Bagpipes" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z63-soft-0 asset bagpipes-63-soft-0 keys D4 F4 velocity 0 0.65 root D#4 loop 48000 125122 crossfade 8160
+      zone z63-hard-0 asset bagpipes-63-hard-0 keys D4 F4 velocity 0.65 1 root D#4 loop 48000 125122 crossfade 8160
+      zone z68-soft-0 asset bagpipes-68-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4 loop 48000 124682 crossfade 8160
+      zone z68-hard-0 asset bagpipes-68-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4 loop 48000 124682 crossfade 8160
+      zone z73-soft-0 asset bagpipes-73-soft-0 keys B4 D#5 velocity 0 0.65 root C#5 loop 48000 125970 crossfade 8160
+      zone z73-hard-0 asset bagpipes-73-hard-0 keys B4 D#5 velocity 0.65 1 root C#5 loop 48000 125970 crossfade 8160
+      zone z78-soft-0 asset bagpipes-78-soft-0 keys E5 G#5 velocity 0 0.65 root F#5 loop 48000 124676 crossfade 8160
+      zone z78-hard-0 asset bagpipes-78-hard-0 keys E5 G#5 velocity 0.65 1 root F#5 loop 48000 124676 crossfade 8160
+      zone z83-soft-0 asset bagpipes-83-soft-0 keys A5 C6 velocity 0 0.65 root B5 loop 48000 125768 crossfade 8160
+      zone z83-hard-0 asset bagpipes-83-hard-0 keys A5 C6 velocity 0.65 1 root B5 loop 48000 125768 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset bagpipes-63-soft-0 "Bagpipes" wav "media/63-soft-0.wav" sha256 "0c800264d0868e504ccf33016c498dfaf7c59866d8cf5b9802651c059e02540e" {
+  usage multisample
+}
+asset bagpipes-63-hard-0 "Bagpipes" wav "media/63-hard-0.wav" sha256 "d7f3a8f22a7675784cca61abaa9edfe6988faee3338dd99aed4419ca92bdab42" {
+  usage multisample
+}
+asset bagpipes-68-soft-0 "Bagpipes" wav "media/68-soft-0.wav" sha256 "8f97066b75bd12fc3d0acff5d81311b6a2f62cbad012e2d1a8e4ec903e184415" {
+  usage multisample
+}
+asset bagpipes-68-hard-0 "Bagpipes" wav "media/68-hard-0.wav" sha256 "25f52666aca7e6cd50dc53fcab91718d1563c451cd372c36a5c8b3d99c32be4f" {
+  usage multisample
+}
+asset bagpipes-73-soft-0 "Bagpipes" wav "media/73-soft-0.wav" sha256 "6de936bf5822f4f3526d78cffbe90308e1de684633ed0c67939d5a92419968be" {
+  usage multisample
+}
+asset bagpipes-73-hard-0 "Bagpipes" wav "media/73-hard-0.wav" sha256 "64c032cd4ab77f615f5b28789fd4a22addb960454e1cf188caf44ae17ffab6de" {
+  usage multisample
+}
+asset bagpipes-78-soft-0 "Bagpipes" wav "media/78-soft-0.wav" sha256 "aa0a622310bfce2ee6a677833402068346ce22779e0489b2081baeb3a585ba6d" {
+  usage multisample
+}
+asset bagpipes-78-hard-0 "Bagpipes" wav "media/78-hard-0.wav" sha256 "2e5b90dddc8c5b6ec4e424705cc34ecaee88ad69ab6124bcf7feb7fc826daa20" {
+  usage multisample
+}
+asset bagpipes-83-soft-0 "Bagpipes" wav "media/83-soft-0.wav" sha256 "d31a095473bc8fdabbf21a68c06b924e309158668c3bf9a6f9fac8be2dc81149" {
+  usage multisample
+}
+asset bagpipes-83-hard-0 "Bagpipes" wav "media/83-hard-0.wav" sha256 "a951c27d587cc0868638f0d9387d7f8a16ce34c34f4d567e5b1fe9df68b5c041" {
+  usage multisample
+}

@@ -1,0 +1,81 @@
+crump-module 2
+instrument machine-clap "Machine Clap" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z38-soft-0 asset machine-clap-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
+      zone z43-soft-0 asset machine-clap-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
+      zone z48-soft-0 asset machine-clap-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
+      zone z53-soft-0 asset machine-clap-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
+      zone z58-soft-0 asset machine-clap-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
+      zone z63-soft-0 asset machine-clap-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
+      zone z68-soft-0 asset machine-clap-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone z73-soft-0 asset machine-clap-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
+      zone z78-soft-0 asset machine-clap-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
+      zone z83-soft-0 asset machine-clap-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
+      zone z38-hard-0 asset machine-clap-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
+      zone z43-hard-0 asset machine-clap-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
+      zone z48-hard-0 asset machine-clap-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
+      zone z53-hard-0 asset machine-clap-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
+      zone z58-hard-0 asset machine-clap-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
+      zone z63-hard-0 asset machine-clap-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
+      zone z68-hard-0 asset machine-clap-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone z73-hard-0 asset machine-clap-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
+      zone z78-hard-0 asset machine-clap-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
+      zone z83-hard-0 asset machine-clap-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
+      zone z38-soft-1 asset machine-clap-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
+      zone z43-soft-1 asset machine-clap-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
+      zone z48-soft-1 asset machine-clap-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
+      zone z53-soft-1 asset machine-clap-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
+      zone z58-soft-1 asset machine-clap-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
+      zone z63-soft-1 asset machine-clap-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
+      zone z68-soft-1 asset machine-clap-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone z73-soft-1 asset machine-clap-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
+      zone z78-soft-1 asset machine-clap-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
+      zone z83-soft-1 asset machine-clap-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
+      zone z38-hard-1 asset machine-clap-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
+      zone z43-hard-1 asset machine-clap-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
+      zone z48-hard-1 asset machine-clap-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
+      zone z53-hard-1 asset machine-clap-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
+      zone z58-hard-1 asset machine-clap-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
+      zone z63-hard-1 asset machine-clap-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
+      zone z68-hard-1 asset machine-clap-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone z73-hard-1 asset machine-clap-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
+      zone z78-hard-1 asset machine-clap-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
+      zone z83-hard-1 asset machine-clap-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset machine-clap-60-soft-0 "Machine Clap" wav "media/60-soft-0.wav" sha256 "0961067ee4f7e8af42c77772620b8f5bba24597bc0405a4279d48b5659f3d939" {
+  usage multisample
+}
+asset machine-clap-60-hard-0 "Machine Clap" wav "media/60-hard-0.wav" sha256 "62c28fe97c3ed11dcf29f5e4bc84e3d5639777367ef827501d211a6384778f70" {
+  usage multisample
+}
+asset machine-clap-60-soft-1 "Machine Clap" wav "media/60-soft-1.wav" sha256 "a4d21c60661a08e87dd687865ec6626f675fa4fda31ed86f4f46974b20e901c3" {
+  usage multisample
+}
+asset machine-clap-60-hard-1 "Machine Clap" wav "media/60-hard-1.wav" sha256 "848c746b9512ec49a3cc84d674e8167b2c310bbec44a36f3d3f86f38b3218c6d" {
+  usage multisample
+}

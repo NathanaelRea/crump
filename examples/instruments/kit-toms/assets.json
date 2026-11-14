@@ -1,0 +1,128 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "d393e5ee1ed0f36dd0fa9694b7f5fddce75963e19f237493078174dbfe613988",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "kit-toms-38-soft-0",
+      "path": "media/38-soft-0.wav",
+      "sha256": "24aac35a8d7547d3ed8cb863a6287780101e81fa54e7798e5c1fe8bd370abc5d",
+      "frames": 100295,
+      "sample_rate": 48000,
+      "root_midi": 38,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1090380,
+      "normalization_gain": 0.522688967316651
+    },
+    {
+      "id": "kit-toms-38-hard-0",
+      "path": "media/38-hard-0.wav",
+      "sha256": "c8244a6aa476e2415788abbc3b3822c061ab652bf674cb724c71ee0bee53eec7",
+      "frames": 104871,
+      "sample_rate": 48000,
+      "root_midi": 38,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1090380,
+      "normalization_gain": 0.522688967316651
+    },
+    {
+      "id": "kit-toms-43-soft-0",
+      "path": "media/43-soft-0.wav",
+      "sha256": "41f4f6a99966a5b178294108cf8c87c7ac4bf42c5e655162267c33152c4d05f9",
+      "frames": 99638,
+      "sample_rate": 48000,
+      "root_midi": 43,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1090430,
+      "normalization_gain": 0.5273259652599991
+    },
+    {
+      "id": "kit-toms-43-hard-0",
+      "path": "media/43-hard-0.wav",
+      "sha256": "0be25b121dd2f8db3d1b1ffb73a4d8f28758b0deaf7406069fdd7fee3d61e3f3",
+      "frames": 104373,
+      "sample_rate": 48000,
+      "root_midi": 43,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1090430,
+      "normalization_gain": 0.5273259652599991
+    },
+    {
+      "id": "kit-toms-48-soft-0",
+      "path": "media/48-soft-0.wav",
+      "sha256": "45b53326d828596837073d81c926b422226cba359cc44a4d3c4ff9ed3e74af7d",
+      "frames": 99354,
+      "sample_rate": 48000,
+      "root_midi": 48,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1090480,
+      "normalization_gain": 0.5274272778845536
+    },
+    {
+      "id": "kit-toms-48-hard-0",
+      "path": "media/48-hard-0.wav",
+      "sha256": "afc9b39b6aeb882a23d0c370bb95f244cd336e99ba058b082d5482881078467e",
+      "frames": 104092,
+      "sample_rate": 48000,
+      "root_midi": 48,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1090480,
+      "normalization_gain": 0.5274272778845536
+    },
+    {
+      "id": "kit-toms-53-soft-0",
+      "path": "media/53-soft-0.wav",
+      "sha256": "acba75c910958208d723efac00a6481abdab739b3b9f926becc944ef5f52ee25",
+      "frames": 98919,
+      "sample_rate": 48000,
+      "root_midi": 53,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1090530,
+      "normalization_gain": 0.534845433430241
+    },
+    {
+      "id": "kit-toms-53-hard-0",
+      "path": "media/53-hard-0.wav",
+      "sha256": "4dc65083ac5c28e103449585362ba5ab6fb52440e815acb0131d5606fcbf5d76",
+      "frames": 103871,
+      "sample_rate": 48000,
+      "root_midi": 53,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1090530,
+      "normalization_gain": 0.534845433430241
+    },
+    {
+      "id": "kit-toms-58-soft-0",
+      "path": "media/58-soft-0.wav",
+      "sha256": "9ed400687de21b79dd0eca6bde902a069469df558cc862f86ebf84b3621cb59e",
+      "frames": 98612,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1090580,
+      "normalization_gain": 0.5820240383124556
+    },
+    {
+      "id": "kit-toms-58-hard-0",
+      "path": "media/58-hard-0.wav",
+      "sha256": "f011a3cf5423bc9494573f2e3496ecf0ad769746b09983f714b19ea264a6a9a0",
+      "frames": 104144,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1090580,
+      "normalization_gain": 0.5820240383124556
+    }
+  ]
+}

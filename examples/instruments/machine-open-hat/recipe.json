@@ -1,0 +1,38 @@
+{
+  "model": "machine",
+  "params": {
+    "squares": [
+      205.3,
+      304.4,
+      369.6,
+      522.7,
+      540,
+      800
+    ],
+    "square_band": [
+      7000,
+      14000
+    ],
+    "square_order": 4,
+    "square_decay": [
+      0.2,
+      0.45,
+      0.45
+    ],
+    "noise": 0.25,
+    "noise_band": [
+      8000,
+      16000
+    ],
+    "noise_decay": 0.3
+  },
+  "pitched": false,
+  "category": "Drum machines",
+  "seconds": 2.5,
+  "fixed_keys": [
+    36,
+    81
+  ],
+  "id": "machine-open-hat",
+  "seed_base": 1070000
+}

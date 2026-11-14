@@ -33,6 +33,17 @@ NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 ACOUSTIC_ROOTS = list(range(24, 103, 6))
 ACOUSTIC_VELOCITIES = [0.48, 0.92]
 SPACING_BEATS = 12  # 6 s at 120 BPM: enough for every acoustic body to decay.
+REFERENCES = REPO / "renders/instrument-references/report.json"
+# Native synths are rendered as held notes. Sustaining patches loop a slice of
+# the hold and fade on Note Off; the rest play their whole hold as one shot.
+SYNTH_HOLD, SYNTH_LOOP = 3.0, (1.6, 2.85, 0.1)
+SYNTH_PREVIEW = {
+    "noise-riser": (7.0, False),
+    "fm-bell": (5.0, False),
+    "fm-tines": (4.0, False),
+    "log-drum-bass": (2.0, False),
+    "rave-stab": (2.0, False),
+}
 
 
 def note_name(midi):
@@ -130,9 +141,21 @@ def multisample(entry, folder, source):
     return zones
 
 
+def seconds(value):
+    """A Parameter value such as `350ms` or `1.5s`, in seconds."""
+    number = float(re.sub(r"[a-z]+$", "", value))
+    return number / 1000 if value.endswith("ms") else number
+
+
 def render_acoustic(entry, binary):
     """Render isolated notes through Crump and slice them into a preview bank."""
     roots = ACOUSTIC_ROOTS if entry["pitched"] else [60, 60]
+    synth = "audition" in entry
+    hold, looped = SYNTH_PREVIEW.get(entry["id"], (SYNTH_HOLD, True)) if synth else (0.25, False)
+    spacing = SPACING_BEATS + 2 * round(hold) if synth else SPACING_BEATS
+    if synth:
+        low, high = entry["audition"]["range"]
+        roots = [r for r in ACOUSTIC_ROOTS if low - 6 < r < high + 6]
     notes = [(r, v) for r in roots for v in ACOUSTIC_VELOCITIES]
     work = OUTPUT / "work" / entry["id"]
     shutil.rmtree(work, ignore_errors=True)
@@ -140,9 +163,9 @@ def render_acoustic(entry, binary):
     shutil.copyfile(
         LIBRARY / entry["id"] / "instrument.crump", work / "instrument.crump"
     )
-    bars = len(notes) * SPACING_BEATS // 4
+    bars = len(notes) * spacing // 4
     events = "\n".join(
-        f"      note {k * SPACING_BEATS}beat {note_name(r)} 0.5beat {v:g}"
+        f"      note {k * spacing}beat {note_name(r)} {2 * hold:g}beat {v:g}"
         for k, (r, v) in enumerate(notes)
     )
     (work / "project.crump").write_text(f'''crump 2
@@ -179,7 +202,7 @@ project "{entry["name"]} preview" {{
         if result.returncode or not json.loads(result.stdout).get("ok"):
             raise RuntimeError(f"{entry['id']} {args[0]}: {result.stdout[:600]}")
     rate, audio = wavfile.read(work / "render/master.wav")
-    span = SPACING_BEATS * rate // 2
+    span = spacing * rate // 2
     slices = [
         audio[k * span : (k + 1) * span].astype(np.float64) for k in range(len(notes))
     ]
@@ -222,14 +245,35 @@ project "{entry["name"]} preview" {{
                 "render_velocity": velocity,
                 # Native percussion ignores key tracking; its bodies have one pitch.
                 "track": pitched,
+                "loop": [round(s * rate) for s in SYNTH_LOOP] if looped else None,
             }
         )
     shutil.rmtree(work)
     return zones
 
 
+def sustain(entry, values, source):
+    """Attack and release the player applies on Note Off, or None for one-shots.
+
+    A synth preview already contains its own attack, so only its Release applies.
+    A decaying synth preview with no Release control is a one-shot.
+    """
+    if "audition" in entry:
+        match = re.search(
+            r'^\s*parameter release "[^"]*" \S+ \S+ \S+ \S+ (\S+)', source, re.MULTILINE
+        )
+        # A decaying synth without a Release control rings out like a one-shot.
+        if not match and not SYNTH_PREVIEW.get(entry["id"], (0, True))[1]:
+            return None
+        return {"attack": 0.002, "release": seconds(match.group(1)) if match else 0.1}
+    if "attack" in values and "release" in values:
+        return {"attack": values["attack"], "release": values["release"]}
+    return None
+
+
 def build(binary, workers):
     entries = json.loads((LIBRARY / "catalog.json").read_text())
+    references = json.loads(REFERENCES.read_text()) if REFERENCES.exists() else {"instruments": {}}
     OUTPUT.mkdir(parents=True, exist_ok=True)
     acoustic = [e for e in entries if e["kind"] != "multisample"]
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -254,16 +298,19 @@ def build(binary, workers):
                 "name": entry["name"],
                 "category": entry["category"],
                 "pitched": entry["pitched"],
-                "source": "Procedural multisample" if sampled else "Acoustic graph",
+                "source": "Procedural multisample"
+                if sampled
+                else "Synth graph"
+                if "audition" in entry
+                else "Acoustic graph",
                 "model": recipe.get("model"),
                 "fixed": "fixed_keys" in recipe,
                 "level": values.get("level", 1) if sampled else 1,
                 "touch": values.get("touch", 0) if sampled else 0,
-                "sustain": (
-                    {"attack": values["attack"], "release": values["release"]}
-                    if "release" in values
-                    else None
-                ),
+                "sustain": sustain(entry, values, source),
+                "collection": entry.get("collection"),
+                "about": entry.get("about"),
+                "references": references["instruments"].get(entry["id"], {}).get("clips", []),
                 "zones": multisample(entry, folder, source)
                 if sampled
                 else rendered[entry["id"]],
@@ -272,7 +319,8 @@ def build(binary, workers):
         )
         print(entry["id"], len(instruments[-1]["zones"]), "zones", flush=True)
     (OUTPUT / "manifest.json").write_text(
-        json.dumps({"instruments": instruments}) + "\n"
+        json.dumps({"instruments": instruments, "bands": references.get("bands", [])})
+        + "\n"
     )
 
 

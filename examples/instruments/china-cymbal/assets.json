@@ -1,0 +1,56 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "f9f2c599612c2ca5341c6ac2408c1746d160f2e8a46f75ef756d234e92b4c37c",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "china-cymbal-60-soft-0",
+      "path": "media/60-soft-0.wav",
+      "sha256": "b7c454bfd4f05430a74a28b44795243a782644caebf8210e36ee89c2a88abcf8",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1100600,
+      "normalization_gain": 0.2199171324174775
+    },
+    {
+      "id": "china-cymbal-60-hard-0",
+      "path": "media/60-hard-0.wav",
+      "sha256": "e5e68063d160bf19eded246fda3443fc06da840bf2f4c09a7aac8a0a01b1eec3",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1100600,
+      "normalization_gain": 0.2199171324174775
+    },
+    {
+      "id": "china-cymbal-60-soft-1",
+      "path": "media/60-soft-1.wav",
+      "sha256": "15c5ca47ce508f7d24c2835a90cfb6f100424980bf1dd0f71fb4bf772b8cb39c",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1100601,
+      "normalization_gain": 0.28217348765579187
+    },
+    {
+      "id": "china-cymbal-60-hard-1",
+      "path": "media/60-hard-1.wav",
+      "sha256": "513415af0b75eea5c7e8f94d0884f70fc6d42eb28294e87baa948ca363969a29",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1100601,
+      "normalization_gain": 0.28217348765579187
+    }
+  ]
+}

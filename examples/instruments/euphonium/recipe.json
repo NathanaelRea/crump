@@ -1,0 +1,84 @@
+{
+  "model": "sustained",
+  "params": {
+    "drift": 1.5,
+    "shimmer": 0.012,
+    "shimmer_rate": 6,
+    "swell": 0.025,
+    "noise_band": [
+      300,
+      6000
+    ],
+    "noise_comb": 0.7,
+    "taper": 0.5,
+    "slope": [
+      1.0,
+      0.7
+    ],
+    "gamma": 0.4,
+    "attack": [
+      0.06,
+      0.028
+    ],
+    "vibrato": [
+      5.2,
+      4,
+      10,
+      0.35,
+      0.45
+    ],
+    "scoop": [
+      -20,
+      0.04
+    ],
+    "formants": [
+      [
+        500,
+        1.5,
+        1.0
+      ],
+      [
+        1200,
+        3,
+        0.25
+      ]
+    ],
+    "floor": 0.1,
+    "rolloff": [
+      2200,
+      2
+    ],
+    "noise": [
+      0.006,
+      0.12,
+      0.02
+    ],
+    "low_cut": 180
+  },
+  "pitched": true,
+  "category": "Brass",
+  "seconds": 3.2,
+  "loop": [
+    1.0,
+    2.6,
+    0.17
+  ],
+  "roots": [
+    34,
+    40,
+    46,
+    52,
+    58,
+    64,
+    70
+  ],
+  "range": [
+    34,
+    72
+  ],
+  "release": 0.15,
+  "audition": 50,
+  "highpass": 22,
+  "id": "euphonium",
+  "seed_base": 1650000
+}

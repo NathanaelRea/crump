@@ -1,0 +1,93 @@
+{
+  "model": "choir",
+  "params": {
+    "parts": [
+      {
+        "name": "soprano",
+        "center": 74,
+        "formants": [
+          [
+            800,
+            80
+          ],
+          [
+            1150,
+            90
+          ],
+          [
+            2900,
+            120
+          ],
+          [
+            3900,
+            130
+          ],
+          [
+            4950,
+            140
+          ]
+        ]
+      }
+    ],
+    "attack": [
+      0.15,
+      0.08
+    ],
+    "taper": 0.5,
+    "vibrato": [
+      5.8,
+      45,
+      70,
+      0.3,
+      0.4
+    ],
+    "vibrato_wander": 0.3,
+    "drift": 5,
+    "jitter": 5,
+    "scoop": [
+      -30,
+      0.08
+    ],
+    "open_quotient": [
+      0.72,
+      0.52
+    ],
+    "breath": [
+      0.15,
+      0.08
+    ],
+    "shimmer": 0.04,
+    "swell": 0.05,
+    "voices": 1,
+    "detune": 0,
+    "spread": 0,
+    "air": 0.012,
+    "formant_spread": 0,
+    "part_spread": 5
+  },
+  "pitched": true,
+  "category": "Voices",
+  "seconds": 3.2,
+  "loop": [
+    1.0,
+    2.6,
+    0.17
+  ],
+  "roots": [
+    60,
+    65,
+    70,
+    75,
+    80,
+    85,
+    90
+  ],
+  "range": [
+    60,
+    93
+  ],
+  "release": 0.35,
+  "audition": 72,
+  "id": "soprano-voice",
+  "seed_base": 1740000
+}

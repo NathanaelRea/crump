@@ -1,0 +1,82 @@
+{
+  "model": "sustained",
+  "params": {
+    "drift": 1.5,
+    "shimmer": 0.012,
+    "shimmer_rate": 6,
+    "swell": 0.025,
+    "noise_band": [
+      300,
+      6000
+    ],
+    "noise_comb": 0.7,
+    "taper": 0.5,
+    "slope": [
+      0.95,
+      0.7
+    ],
+    "gamma": 0.4,
+    "attack": [
+      0.05,
+      0.022
+    ],
+    "vibrato": [
+      5.4,
+      4,
+      9,
+      0.35,
+      0.45
+    ],
+    "scoop": [
+      -35,
+      0.03
+    ],
+    "formants": [
+      [
+        900,
+        1.4,
+        1.0
+      ],
+      [
+        2100,
+        3,
+        0.25
+      ]
+    ],
+    "floor": 0.1,
+    "rolloff": [
+      2600,
+      2
+    ],
+    "noise": [
+      0.006,
+      0.12,
+      0.02
+    ],
+    "low_cut": 350
+  },
+  "pitched": true,
+  "category": "Brass",
+  "seconds": 3.2,
+  "loop": [
+    1.0,
+    2.6,
+    0.17
+  ],
+  "roots": [
+    53,
+    58,
+    63,
+    68,
+    73,
+    78
+  ],
+  "range": [
+    52,
+    82
+  ],
+  "release": 0.15,
+  "audition": 65,
+  "id": "flugelhorn",
+  "seed_base": 1630000
+}

@@ -1,0 +1,246 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "810c6282a97c240606fed347fd2369cae107ae8cc12b572da2ee728a178007b0",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "euphonium-34-soft-0",
+      "path": "media/34-soft-0.wav",
+      "sha256": "01c456c5c939465f8b266cfe97b0967cb6a75fafa5258652afd9e24052085792",
+      "frames": 152987,
+      "sample_rate": 48000,
+      "root_midi": 34,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1650340,
+      "normalization_gain": 0.8820140106733022,
+      "loop": [
+        48000,
+        123646,
+        8160
+      ]
+    },
+    {
+      "id": "euphonium-34-hard-0",
+      "path": "media/34-hard-0.wav",
+      "sha256": "1ae5e34e6fbdc8a0f4e0a9ab2c9f452eafa8a0cc1f1471e2c1f0548f6b7a5f50",
+      "frames": 153426,
+      "sample_rate": 48000,
+      "root_midi": 34,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1650340,
+      "normalization_gain": 0.8820140106733022,
+      "loop": [
+        48000,
+        123646,
+        8160
+      ]
+    },
+    {
+      "id": "euphonium-40-soft-0",
+      "path": "media/40-soft-0.wav",
+      "sha256": "79252225df3f717a603c9e77261d279cedea7cc63b686200ed1436e8149da90a",
+      "frames": 153328,
+      "sample_rate": 48000,
+      "root_midi": 40,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1650400,
+      "normalization_gain": 0.7920190203936827,
+      "loop": [
+        48000,
+        125486,
+        8160
+      ]
+    },
+    {
+      "id": "euphonium-40-hard-0",
+      "path": "media/40-hard-0.wav",
+      "sha256": "152586a9a3cb8438b3f57ffc925d80cb5bd9ee23864ea81f7b2c341fcc1a8f9e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 40,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1650400,
+      "normalization_gain": 0.7920190203936827,
+      "loop": [
+        48000,
+        125478,
+        8160
+      ]
+    },
+    {
+      "id": "euphonium-46-soft-0",
+      "path": "media/46-soft-0.wav",
+      "sha256": "006b85769c67b1ffb77550b885387bcc46ea49d1296a7717a14547fc981f55c6",
+      "frames": 153528,
+      "sample_rate": 48000,
+      "root_midi": 46,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1650460,
+      "normalization_gain": 0.5961491492128956,
+      "loop": [
+        48000,
+        125820,
+        8160
+      ]
+    },
+    {
+      "id": "euphonium-46-hard-0",
+      "path": "media/46-hard-0.wav",
+      "sha256": "326a9d819ea9dfb79a977eedadf75a121feb5ab6f1a6a3b7abe96d8020584147",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 46,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1650460,
+      "normalization_gain": 0.5961491492128956,
+      "loop": [
+        48000,
+        125819,
+        8160
+      ]
+    },
+    {
+      "id": "euphonium-52-soft-0",
+      "path": "media/52-soft-0.wav",
+      "sha256": "d32edca1b7c596760f92f0d3b1c3d0fdf8ee76d332044fd268dde199246249e8",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1650520,
+      "normalization_gain": 0.7612828369290274,
+      "loop": [
+        48000,
+        125754,
+        8160
+      ]
+    },
+    {
+      "id": "euphonium-52-hard-0",
+      "path": "media/52-hard-0.wav",
+      "sha256": "2190afab079509dc1d7e4db9807eb63a5fc77adfd68b279687d270d37541ca71",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1650520,
+      "normalization_gain": 0.7612828369290274,
+      "loop": [
+        48000,
+        125462,
+        8160
+      ]
+    },
+    {
+      "id": "euphonium-58-soft-0",
+      "path": "media/58-soft-0.wav",
+      "sha256": "633be949773d19e6f4bdc84f7efc9ccd7688b9ef6b7ae49dc1a4388d7ee5e719",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1650580,
+      "normalization_gain": 0.6675360223850046,
+      "loop": [
+        48000,
+        125919,
+        8160
+      ]
+    },
+    {
+      "id": "euphonium-58-hard-0",
+      "path": "media/58-hard-0.wav",
+      "sha256": "374bd64800de8e83c2a43cb6366d36cb3beb2601a82807ea59edefee544d75a3",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1650580,
+      "normalization_gain": 0.6675360223850046,
+      "loop": [
+        48000,
+        125918,
+        8160
+      ]
+    },
+    {
+      "id": "euphonium-64-soft-0",
+      "path": "media/64-soft-0.wav",
+      "sha256": "3aa6596ea619814e60f582645dbd58ad77d1bfcadc4df6c6448c297c163ed6bf",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1650640,
+      "normalization_gain": 0.5776844055013503,
+      "loop": [
+        48000,
+        124033,
+        8160
+      ]
+    },
+    {
+      "id": "euphonium-64-hard-0",
+      "path": "media/64-hard-0.wav",
+      "sha256": "f5802628a9013e4951c845f24a3fc89a6d5ef9a209351b2c851ab9889bb36457",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1650640,
+      "normalization_gain": 0.5776844055013503,
+      "loop": [
+        48000,
+        124469,
+        8160
+      ]
+    },
+    {
+      "id": "euphonium-70-soft-0",
+      "path": "media/70-soft-0.wav",
+      "sha256": "8e4eef6a32dd088d63c7395752d32a07d2bdecd4291dee770f8f371d44e13855",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 70,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1650700,
+      "normalization_gain": 0.5511282902471221,
+      "loop": [
+        48000,
+        125950,
+        8160
+      ]
+    },
+    {
+      "id": "euphonium-70-hard-0",
+      "path": "media/70-hard-0.wav",
+      "sha256": "0376da518b4fb124fa8a2f4e1f7a0e48571dcaff13a22cfc5bee5ad7072149a8",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 70,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1650700,
+      "normalization_gain": 0.5511282902471221,
+      "loop": [
+        48000,
+        125948,
+        8160
+      ]
+    }
+  ]
+}

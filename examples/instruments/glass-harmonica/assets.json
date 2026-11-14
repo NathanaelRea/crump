@@ -1,0 +1,246 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "ed5153f4609d2502862283504df1ddefa86fa50bff070dd2c7d25a20f1b76498",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "glass-harmonica-55-soft-0",
+      "path": "media/55-soft-0.wav",
+      "sha256": "9aad12149be119c774cfe9aca457e82c094be9623dae4701010c9a2ff267dd5c",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 55,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1700550,
+      "normalization_gain": 0.4738515704253384,
+      "loop": [
+        48000,
+        123707,
+        8160
+      ]
+    },
+    {
+      "id": "glass-harmonica-55-hard-0",
+      "path": "media/55-hard-0.wav",
+      "sha256": "b722f8b30c069a8acda6ac7bff9573799e776996be3fc3d0944bfeb8bc19af27",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 55,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1700550,
+      "normalization_gain": 0.4738515704253384,
+      "loop": [
+        48000,
+        123706,
+        8160
+      ]
+    },
+    {
+      "id": "glass-harmonica-61-soft-0",
+      "path": "media/61-soft-0.wav",
+      "sha256": "7195956e4eeeab6f9c57053818fbee74cf2c54c2d4e4f28a02ba03b68fec3126",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 61,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1700610,
+      "normalization_gain": 0.3899883761650371,
+      "loop": [
+        48000,
+        125914,
+        8160
+      ]
+    },
+    {
+      "id": "glass-harmonica-61-hard-0",
+      "path": "media/61-hard-0.wav",
+      "sha256": "5661a9529d7a15d357d1d446d3d824b5a888a0f718b935e9e660e1d35cb4489a",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 61,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1700610,
+      "normalization_gain": 0.3899883761650371,
+      "loop": [
+        48000,
+        125916,
+        8160
+      ]
+    },
+    {
+      "id": "glass-harmonica-67-soft-0",
+      "path": "media/67-soft-0.wav",
+      "sha256": "9a8fde96389f5c582a8b9d611fb395a912a935f4bba7c5286f5be7d492f20a89",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1700670,
+      "normalization_gain": 0.3680650708430054,
+      "loop": [
+        48000,
+        125993,
+        8160
+      ]
+    },
+    {
+      "id": "glass-harmonica-67-hard-0",
+      "path": "media/67-hard-0.wav",
+      "sha256": "2c1c49ec338d58ec296aa2124baa08351e35407f3f68d1d71c66bd217939b4b4",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1700670,
+      "normalization_gain": 0.3680650708430054,
+      "loop": [
+        48000,
+        125993,
+        8160
+      ]
+    },
+    {
+      "id": "glass-harmonica-73-soft-0",
+      "path": "media/73-soft-0.wav",
+      "sha256": "7c041f28afe8a3937f7acdca1a3643ab0609f784be510501dae70d0b1fc30e96",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 73,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1700730,
+      "normalization_gain": 0.3571617470133695,
+      "loop": [
+        48000,
+        123612,
+        8160
+      ]
+    },
+    {
+      "id": "glass-harmonica-73-hard-0",
+      "path": "media/73-hard-0.wav",
+      "sha256": "75b7a6e141257733d917ebcb06c698d7484af889aa8204b439381d70180c6d56",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 73,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1700730,
+      "normalization_gain": 0.3571617470133695,
+      "loop": [
+        48000,
+        123600,
+        8160
+      ]
+    },
+    {
+      "id": "glass-harmonica-79-soft-0",
+      "path": "media/79-soft-0.wav",
+      "sha256": "dc15aa8d1e1c4bdf5b08925698df6c079459f4e5432149987c836582db59b934",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 79,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1700790,
+      "normalization_gain": 0.41927986675228923,
+      "loop": [
+        48000,
+        125915,
+        8160
+      ]
+    },
+    {
+      "id": "glass-harmonica-79-hard-0",
+      "path": "media/79-hard-0.wav",
+      "sha256": "97ca86d97fcbae36885fd4ea2ac30fce0a1802d1c65d57a20b5c63db4c48ee21",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 79,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1700790,
+      "normalization_gain": 0.41927986675228923,
+      "loop": [
+        48000,
+        125976,
+        8160
+      ]
+    },
+    {
+      "id": "glass-harmonica-85-soft-0",
+      "path": "media/85-soft-0.wav",
+      "sha256": "b076c8731b12991d9683845dbbec61aaa1bba4963814c4f88424a947eb441b7d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 85,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1700850,
+      "normalization_gain": 0.30670200594266855,
+      "loop": [
+        48000,
+        125968,
+        8160
+      ]
+    },
+    {
+      "id": "glass-harmonica-85-hard-0",
+      "path": "media/85-hard-0.wav",
+      "sha256": "cb111b1b486791df7ff50b48e6bfb9261f287705192259de645ee1e5862b9f3f",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 85,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1700850,
+      "normalization_gain": 0.30670200594266855,
+      "loop": [
+        48000,
+        125968,
+        8160
+      ]
+    },
+    {
+      "id": "glass-harmonica-91-soft-0",
+      "path": "media/91-soft-0.wav",
+      "sha256": "8623742fc0f25c2889df144951d61c0b2723255585e88aaeae9bff03beb2c686",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 91,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1700910,
+      "normalization_gain": 0.4249023737223289,
+      "loop": [
+        48000,
+        125998,
+        8160
+      ]
+    },
+    {
+      "id": "glass-harmonica-91-hard-0",
+      "path": "media/91-hard-0.wav",
+      "sha256": "33be77ba326b4d3b70af2cba2e8ab7ea075043aa77500a4d743e82ccb4cdace2",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 91,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1700910,
+      "normalization_gain": 0.4249023737223289,
+      "loop": [
+        48000,
+        125998,
+        8160
+      ]
+    }
+  ]
+}

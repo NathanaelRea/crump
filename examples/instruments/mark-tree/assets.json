@@ -1,0 +1,104 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "878f12bd47f425d460c5c294cedc5e933533db7a146644a618d9f1a436aa9dac",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "mark-tree-up-60-soft-0",
+      "path": "media/up-60-soft-0.wav",
+      "sha256": "706fe4f1ab89c2d430c7bba333fd449c026b83a8263080f9879b9ea298704913",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1251600,
+      "normalization_gain": 0.06950026724548834
+    },
+    {
+      "id": "mark-tree-up-60-hard-0",
+      "path": "media/up-60-hard-0.wav",
+      "sha256": "eb43a168f848e0c99dd7b80daa1d278c5b2785bba02fd015ef65ab0a750bb395",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1251600,
+      "normalization_gain": 0.06950026724548834
+    },
+    {
+      "id": "mark-tree-up-60-soft-1",
+      "path": "media/up-60-soft-1.wav",
+      "sha256": "0c54cea6bed10035e7ebecea411131d47b3c28ddd3a76de55004177f0450687d",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1251601,
+      "normalization_gain": 0.0645695970514157
+    },
+    {
+      "id": "mark-tree-up-60-hard-1",
+      "path": "media/up-60-hard-1.wav",
+      "sha256": "6974627ad6c0dd08537e56fb2f1bef496117ed8f105084a13db5c12c7086e3f8",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1251601,
+      "normalization_gain": 0.0645695970514157
+    },
+    {
+      "id": "mark-tree-down-60-soft-0",
+      "path": "media/down-60-soft-0.wav",
+      "sha256": "d321794c110341d5870d8baccb500e65cfbeeb44f8ee8f2d2f7bb989a0ae2da0",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1252600,
+      "normalization_gain": 0.06451579702476638
+    },
+    {
+      "id": "mark-tree-down-60-hard-0",
+      "path": "media/down-60-hard-0.wav",
+      "sha256": "d6d05d014e64a80aae98d7143a088d76c640d151e312e221ff5cc08350509784",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1252600,
+      "normalization_gain": 0.06451579702476638
+    },
+    {
+      "id": "mark-tree-down-60-soft-1",
+      "path": "media/down-60-soft-1.wav",
+      "sha256": "692fce7dec04b1d0727645f4e60030069b72f6419d6180a38beb0d02714a1e8f",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1252601,
+      "normalization_gain": 0.06522178608036819
+    },
+    {
+      "id": "mark-tree-down-60-hard-1",
+      "path": "media/down-60-hard-1.wav",
+      "sha256": "750aa75d36c461118aacac9bffd88338801dea679174cfe38999db4ab0a2f12c",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1252601,
+      "normalization_gain": 0.06522178608036819
+    }
+  ]
+}

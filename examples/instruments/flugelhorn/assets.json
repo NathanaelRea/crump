@@ -1,0 +1,212 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "9e091c15b5b52764badba603189120454cc047e63243940cc04268d63bef3431",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "flugelhorn-53-soft-0",
+      "path": "media/53-soft-0.wav",
+      "sha256": "6c907deb6e4eb4005b2227b8ec043d9d75afa19f6de40d64824d6e1e3295f363",
+      "frames": 153455,
+      "sample_rate": 48000,
+      "root_midi": 53,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1630530,
+      "normalization_gain": 0.7952625471079228,
+      "loop": [
+        48000,
+        123778,
+        8160
+      ]
+    },
+    {
+      "id": "flugelhorn-53-hard-0",
+      "path": "media/53-hard-0.wav",
+      "sha256": "808dad0ded2e7ed2b2a47953d3fec586350dec4e89b6203b48602c7b9c9cc214",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 53,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1630530,
+      "normalization_gain": 0.7952625471079228,
+      "loop": [
+        48000,
+        123777,
+        8160
+      ]
+    },
+    {
+      "id": "flugelhorn-58-soft-0",
+      "path": "media/58-soft-0.wav",
+      "sha256": "97740fea91833049536b1e07a584dc4fdbf1e50fc11f8efa072846e726bda37e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1630580,
+      "normalization_gain": 0.8392221390155964,
+      "loop": [
+        48000,
+        125980,
+        8160
+      ]
+    },
+    {
+      "id": "flugelhorn-58-hard-0",
+      "path": "media/58-hard-0.wav",
+      "sha256": "ddd4d649ebaa71ca47f0cfaef353b98ce5e638e89d6577ce308d6d8c260b1f58",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1630580,
+      "normalization_gain": 0.8392221390155964,
+      "loop": [
+        48000,
+        125979,
+        8160
+      ]
+    },
+    {
+      "id": "flugelhorn-63-soft-0",
+      "path": "media/63-soft-0.wav",
+      "sha256": "18ccd9709cd7cc19bab8e2c2c341d461e9f1930e7113d5d5b9809de6064b591c",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 63,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1630630,
+      "normalization_gain": 0.6695152072589046,
+      "loop": [
+        48000,
+        123602,
+        8160
+      ]
+    },
+    {
+      "id": "flugelhorn-63-hard-0",
+      "path": "media/63-hard-0.wav",
+      "sha256": "5c683ba236ad380791424aa84fb93d1dbd47bda0bb47ebe2ad9972c9c81db9e6",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 63,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1630630,
+      "normalization_gain": 0.6695152072589046,
+      "loop": [
+        48000,
+        123600,
+        8160
+      ]
+    },
+    {
+      "id": "flugelhorn-68-soft-0",
+      "path": "media/68-soft-0.wav",
+      "sha256": "f52ec24a0bef37c79051802981ca42aad478715a05bec963b219a866ae2fd378",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 68,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1630680,
+      "normalization_gain": 0.5341262002457253,
+      "loop": [
+        48000,
+        125955,
+        8160
+      ]
+    },
+    {
+      "id": "flugelhorn-68-hard-0",
+      "path": "media/68-hard-0.wav",
+      "sha256": "502b3237d1c19121ecac32183ed121fbb9a5ad7464ed44dba085c6c2d7db7163",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 68,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1630680,
+      "normalization_gain": 0.5341262002457253,
+      "loop": [
+        48000,
+        125954,
+        8160
+      ]
+    },
+    {
+      "id": "flugelhorn-73-soft-0",
+      "path": "media/73-soft-0.wav",
+      "sha256": "525093f3439c7fb0ce94d51217cab748dfb8d3c6316713fd07361252add24456",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 73,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1630730,
+      "normalization_gain": 0.7556114932346364,
+      "loop": [
+        48000,
+        125862,
+        8160
+      ]
+    },
+    {
+      "id": "flugelhorn-73-hard-0",
+      "path": "media/73-hard-0.wav",
+      "sha256": "42fe26de17a1aa4a359ed17c71c92309d6e4946ed5176cb4c0f37024b9f6fe46",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 73,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1630730,
+      "normalization_gain": 0.7556114932346364,
+      "loop": [
+        48000,
+        125688,
+        8160
+      ]
+    },
+    {
+      "id": "flugelhorn-78-soft-0",
+      "path": "media/78-soft-0.wav",
+      "sha256": "79f22b260ce9277caaad451dfa941725fe422a9d8a626aced58855464dc6c573",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 78,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1630780,
+      "normalization_gain": 0.521273898209862,
+      "loop": [
+        48000,
+        123644,
+        8160
+      ]
+    },
+    {
+      "id": "flugelhorn-78-hard-0",
+      "path": "media/78-hard-0.wav",
+      "sha256": "39c7cfae2e34ff39a64e3ce178b410af839a526abf4dadf15ab8f8302734ac82",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 78,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1630780,
+      "normalization_gain": 0.521273898209862,
+      "loop": [
+        48000,
+        123636,
+        8160
+      ]
+    }
+  ]
+}

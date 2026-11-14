@@ -1,0 +1,212 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "0bd78831f9c5434c63bec3143f2744ddbaf660da25160fb2f9ce4442ce5d66f7",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "pan-flute-57-soft-0",
+      "path": "media/57-soft-0.wav",
+      "sha256": "dd3d1fdabd62bd1b0ddda38c54c9e210a34c8dea4bab5033181853eb4c571906",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1540570,
+      "normalization_gain": 0.5148219394573424,
+      "loop": [
+        48000,
+        125788,
+        8160
+      ]
+    },
+    {
+      "id": "pan-flute-57-hard-0",
+      "path": "media/57-hard-0.wav",
+      "sha256": "29213fd1bc957901c525ad07fae1a6745ae3525ed4b9e8654c4761466354dc5a",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1540570,
+      "normalization_gain": 0.5148219394573424,
+      "loop": [
+        48000,
+        123607,
+        8160
+      ]
+    },
+    {
+      "id": "pan-flute-63-soft-0",
+      "path": "media/63-soft-0.wav",
+      "sha256": "1ad62c556d7b6a71a2a78e35257a0cb74c1df60f9ff6866f6c5e8478056cda75",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 63,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1540630,
+      "normalization_gain": 0.40516748324203167,
+      "loop": [
+        48000,
+        123634,
+        8160
+      ]
+    },
+    {
+      "id": "pan-flute-63-hard-0",
+      "path": "media/63-hard-0.wav",
+      "sha256": "bb1f314b8f3ef13c1d469374b5cee20b0d607d6e2f328a3c4ecc93d3ad153497",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 63,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1540630,
+      "normalization_gain": 0.40516748324203167,
+      "loop": [
+        48000,
+        123634,
+        8160
+      ]
+    },
+    {
+      "id": "pan-flute-69-soft-0",
+      "path": "media/69-soft-0.wav",
+      "sha256": "6ff0fb5065a8d3bae504ec1ea207d90b23a58017e1df869469eb93bccf503250",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 69,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1540690,
+      "normalization_gain": 0.42689675438964964,
+      "loop": [
+        48000,
+        125932,
+        8160
+      ]
+    },
+    {
+      "id": "pan-flute-69-hard-0",
+      "path": "media/69-hard-0.wav",
+      "sha256": "a11d7a2fc55370a7e24595afe89ee47a300aa018e241fde53cc9021ef08c707e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 69,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1540690,
+      "normalization_gain": 0.42689675438964964,
+      "loop": [
+        48000,
+        125931,
+        8160
+      ]
+    },
+    {
+      "id": "pan-flute-75-soft-0",
+      "path": "media/75-soft-0.wav",
+      "sha256": "dbf3c3e18e4008624e9d4a69a59c8271b6d0061d396650df7f73863493db8e2f",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 75,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1540750,
+      "normalization_gain": 0.4503312761709321,
+      "loop": [
+        48000,
+        125928,
+        8160
+      ]
+    },
+    {
+      "id": "pan-flute-75-hard-0",
+      "path": "media/75-hard-0.wav",
+      "sha256": "172936aa433080a7895980bb49cfe29ba6b5dff19b4e0dab3b472cdf68f0cba6",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 75,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1540750,
+      "normalization_gain": 0.4503312761709321,
+      "loop": [
+        48000,
+        125927,
+        8160
+      ]
+    },
+    {
+      "id": "pan-flute-81-soft-0",
+      "path": "media/81-soft-0.wav",
+      "sha256": "040305bf2ee70ac5a62890e932f79839f3a80aa730cfa1eb9674b5c40a8076ed",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 81,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1540810,
+      "normalization_gain": 0.5008081859984785,
+      "loop": [
+        48000,
+        125988,
+        8160
+      ]
+    },
+    {
+      "id": "pan-flute-81-hard-0",
+      "path": "media/81-hard-0.wav",
+      "sha256": "ca7c45258883427d7532afee916715f777b2b346ad445d9d39a810deed288971",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 81,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1540810,
+      "normalization_gain": 0.5008081859984785,
+      "loop": [
+        48000,
+        123636,
+        8160
+      ]
+    },
+    {
+      "id": "pan-flute-87-soft-0",
+      "path": "media/87-soft-0.wav",
+      "sha256": "83e4463f6126e37cad30d3d3d917e5c2dd447f28b8adafa5671f9fbca897d805",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 87,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1540870,
+      "normalization_gain": 0.5096053521536249,
+      "loop": [
+        48000,
+        124260,
+        8160
+      ]
+    },
+    {
+      "id": "pan-flute-87-hard-0",
+      "path": "media/87-hard-0.wav",
+      "sha256": "4da833967c54d28e1af47466ccd8fb8994e8f17276562a2f207b1202e840e3b0",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 87,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1540870,
+      "normalization_gain": 0.5096053521536249,
+      "loop": [
+        48000,
+        123604,
+        8160
+      ]
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+crump-module 2
+instrument darbuka "Darbuka" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone zdoum-38-soft-0 asset darbuka-doum-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
+      zone zdoum-43-soft-0 asset darbuka-doum-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
+      zone zdoum-48-soft-0 asset darbuka-doum-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
+      zone zdoum-53-soft-0 asset darbuka-doum-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
+      zone zdoum-58-soft-0 asset darbuka-doum-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
+      zone zdoum-38-hard-0 asset darbuka-doum-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
+      zone zdoum-43-hard-0 asset darbuka-doum-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
+      zone zdoum-48-hard-0 asset darbuka-doum-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
+      zone zdoum-53-hard-0 asset darbuka-doum-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
+      zone zdoum-58-hard-0 asset darbuka-doum-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
+      zone zdoum-38-soft-1 asset darbuka-doum-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
+      zone zdoum-43-soft-1 asset darbuka-doum-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
+      zone zdoum-48-soft-1 asset darbuka-doum-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
+      zone zdoum-53-soft-1 asset darbuka-doum-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
+      zone zdoum-58-soft-1 asset darbuka-doum-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
+      zone zdoum-38-hard-1 asset darbuka-doum-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
+      zone zdoum-43-hard-1 asset darbuka-doum-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
+      zone zdoum-48-hard-1 asset darbuka-doum-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
+      zone zdoum-53-hard-1 asset darbuka-doum-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
+      zone zdoum-58-hard-1 asset darbuka-doum-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
+      zone ztek-63-soft-0 asset darbuka-tek-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
+      zone ztek-68-soft-0 asset darbuka-tek-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone ztek-73-soft-0 asset darbuka-tek-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
+      zone ztek-78-soft-0 asset darbuka-tek-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
+      zone ztek-83-soft-0 asset darbuka-tek-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
+      zone ztek-63-hard-0 asset darbuka-tek-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
+      zone ztek-68-hard-0 asset darbuka-tek-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone ztek-73-hard-0 asset darbuka-tek-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
+      zone ztek-78-hard-0 asset darbuka-tek-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
+      zone ztek-83-hard-0 asset darbuka-tek-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
+      zone ztek-63-soft-1 asset darbuka-tek-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
+      zone ztek-68-soft-1 asset darbuka-tek-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone ztek-73-soft-1 asset darbuka-tek-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
+      zone ztek-78-soft-1 asset darbuka-tek-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
+      zone ztek-83-soft-1 asset darbuka-tek-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
+      zone ztek-63-hard-1 asset darbuka-tek-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
+      zone ztek-68-hard-1 asset darbuka-tek-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone ztek-73-hard-1 asset darbuka-tek-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
+      zone ztek-78-hard-1 asset darbuka-tek-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
+      zone ztek-83-hard-1 asset darbuka-tek-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset darbuka-doum-60-soft-0 "Darbuka" wav "media/doum-60-soft-0.wav" sha256 "b43cad0fdf35e915b8957d94d3ac217996e26761dd76c6be93db31f18dd6c841" {
+  usage multisample
+}
+asset darbuka-doum-60-hard-0 "Darbuka" wav "media/doum-60-hard-0.wav" sha256 "8b4f73a48c1d69cb8ef4da5f5c6bb9457e7b20e59365a8bb2ba1aead59420760" {
+  usage multisample
+}
+asset darbuka-doum-60-soft-1 "Darbuka" wav "media/doum-60-soft-1.wav" sha256 "8964e0e8081e41cfc20ddd18f7a2a01333d0ef4ae9d185ce011a94b3175b4e72" {
+  usage multisample
+}
+asset darbuka-doum-60-hard-1 "Darbuka" wav "media/doum-60-hard-1.wav" sha256 "7404ac53d05f58135d02e31e646af34491966a53f9f4b17194ec91505c980457" {
+  usage multisample
+}
+asset darbuka-tek-60-soft-0 "Darbuka" wav "media/tek-60-soft-0.wav" sha256 "2e07bf256997618bc28ae7a3694fb8ac3e4c2a493c3f3d8ebbb7c42c38d3642f" {
+  usage multisample
+}
+asset darbuka-tek-60-hard-0 "Darbuka" wav "media/tek-60-hard-0.wav" sha256 "1bddf447ca4c032def6012de5046f2aa4b51662f4b3cb3d06f0c7bc7bc0014d4" {
+  usage multisample
+}
+asset darbuka-tek-60-soft-1 "Darbuka" wav "media/tek-60-soft-1.wav" sha256 "4410d070e36305334cdc2ebd5a4e7343ed15f820388360ed36d5fdf3581256bc" {
+  usage multisample
+}
+asset darbuka-tek-60-hard-1 "Darbuka" wav "media/tek-60-hard-1.wav" sha256 "b9be506e14872eec2694d3d382c61637acfdaaa9ef1771b06cea936e53b12a5d" {
+  usage multisample
+}

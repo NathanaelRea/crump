@@ -1,0 +1,152 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "ca2ef737820fa61c1def58ce16e91470383f5506e53037cabe5b1f220e4846f1",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "machine-tom-40-soft-0",
+      "path": "media/40-soft-0.wav",
+      "sha256": "010078cf02e922f9f1971ffe1fe7c78821598d9128245c2c13321904913b42cb",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 40,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1080400,
+      "normalization_gain": 0.6965300257841638
+    },
+    {
+      "id": "machine-tom-40-hard-0",
+      "path": "media/40-hard-0.wav",
+      "sha256": "4e08585c4f6d42d95632e22c4f47f47ab62f40de86f5f564035c735f5b14511e",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 40,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1080400,
+      "normalization_gain": 0.6965300257841638
+    },
+    {
+      "id": "machine-tom-46-soft-0",
+      "path": "media/46-soft-0.wav",
+      "sha256": "2a9dee404d9caecebdf036b528e7ba9dea1d99d6abb2b0494ecbae703725e78d",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 46,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1080460,
+      "normalization_gain": 0.6947594756115743
+    },
+    {
+      "id": "machine-tom-46-hard-0",
+      "path": "media/46-hard-0.wav",
+      "sha256": "ad460c6468635958f22e4f85038bc6d6a8476caa0b9e0200cde89fd1a8a318d1",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 46,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1080460,
+      "normalization_gain": 0.6947594756115743
+    },
+    {
+      "id": "machine-tom-52-soft-0",
+      "path": "media/52-soft-0.wav",
+      "sha256": "bee3ceff22248ba56d3c821ab10b357f22be9d6b22406b95cabb66f56045f0f9",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1080520,
+      "normalization_gain": 0.6784837892372937
+    },
+    {
+      "id": "machine-tom-52-hard-0",
+      "path": "media/52-hard-0.wav",
+      "sha256": "edb390de474accdcf60d5b0caabd7421d2c510f85946fae9b5a6548146f561c1",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1080520,
+      "normalization_gain": 0.6784837892372937
+    },
+    {
+      "id": "machine-tom-58-soft-0",
+      "path": "media/58-soft-0.wav",
+      "sha256": "1948e5ba408f2b1d0884879238c6eed312ab621a4df26133a645239015ff5934",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1080580,
+      "normalization_gain": 0.6824764915050956
+    },
+    {
+      "id": "machine-tom-58-hard-0",
+      "path": "media/58-hard-0.wav",
+      "sha256": "1327143bb7605c1460b1039b1c0a198052f1d23ceea2a54a37ca3512623540c1",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1080580,
+      "normalization_gain": 0.6824764915050956
+    },
+    {
+      "id": "machine-tom-64-soft-0",
+      "path": "media/64-soft-0.wav",
+      "sha256": "27899920b94f7cf551254146edbb7c242a7f8b1d1f231b260b061dbe66b05b07",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1080640,
+      "normalization_gain": 0.7010963494586353
+    },
+    {
+      "id": "machine-tom-64-hard-0",
+      "path": "media/64-hard-0.wav",
+      "sha256": "2ad7479228daf31cb4f511819de6c022a42b44a3e9fca96bfe4ff56516efabca",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1080640,
+      "normalization_gain": 0.7010963494586353
+    },
+    {
+      "id": "machine-tom-70-soft-0",
+      "path": "media/70-soft-0.wav",
+      "sha256": "b8e71b014cdff108d000def3da966ff8443a4ff403e41570531ec02fb3453ae9",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 70,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1080700,
+      "normalization_gain": 0.7218154588305475
+    },
+    {
+      "id": "machine-tom-70-hard-0",
+      "path": "media/70-hard-0.wav",
+      "sha256": "3ecc828792549f7fbeecd4b972ee6c32de2c8936870e8d6130b7ff4abd5d6198",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 70,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1080700,
+      "normalization_gain": 0.7218154588305475
+    }
+  ]
+}

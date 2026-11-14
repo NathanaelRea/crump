@@ -1,0 +1,42 @@
+{
+  "model": "modes_tuned",
+  "params": {
+    "ratios": [
+      1,
+      2.45,
+      4.1
+    ],
+    "gains": [
+      1,
+      0.25,
+      0.08
+    ],
+    "decays": [
+      0.09,
+      0.04,
+      0.02
+    ],
+    "contact": 0.0005,
+    "tick": 0.25,
+    "tick_band": [
+      1500,
+      8000
+    ]
+  },
+  "pitched": true,
+  "category": "World percussion",
+  "seconds": 1,
+  "roots": [
+    62,
+    68,
+    74,
+    80
+  ],
+  "range": [
+    60,
+    84
+  ],
+  "audition": 72,
+  "id": "temple-blocks",
+  "seed_base": 1220000
+}

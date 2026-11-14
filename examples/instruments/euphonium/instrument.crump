@@ -1,0 +1,92 @@
+crump-module 2
+instrument euphonium "Euphonium" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z34-soft-0 asset euphonium-34-soft-0 keys A#1 C#2 velocity 0 0.65 root A#1 loop 48000 123646 crossfade 8160
+      zone z34-hard-0 asset euphonium-34-hard-0 keys A#1 C#2 velocity 0.65 1 root A#1 loop 48000 123646 crossfade 8160
+      zone z40-soft-0 asset euphonium-40-soft-0 keys D2 G2 velocity 0 0.65 root E2 loop 48000 125486 crossfade 8160
+      zone z40-hard-0 asset euphonium-40-hard-0 keys D2 G2 velocity 0.65 1 root E2 loop 48000 125478 crossfade 8160
+      zone z46-soft-0 asset euphonium-46-soft-0 keys G#2 C#3 velocity 0 0.65 root A#2 loop 48000 125820 crossfade 8160
+      zone z46-hard-0 asset euphonium-46-hard-0 keys G#2 C#3 velocity 0.65 1 root A#2 loop 48000 125819 crossfade 8160
+      zone z52-soft-0 asset euphonium-52-soft-0 keys D3 G3 velocity 0 0.65 root E3 loop 48000 125754 crossfade 8160
+      zone z52-hard-0 asset euphonium-52-hard-0 keys D3 G3 velocity 0.65 1 root E3 loop 48000 125462 crossfade 8160
+      zone z58-soft-0 asset euphonium-58-soft-0 keys G#3 C#4 velocity 0 0.65 root A#3 loop 48000 125919 crossfade 8160
+      zone z58-hard-0 asset euphonium-58-hard-0 keys G#3 C#4 velocity 0.65 1 root A#3 loop 48000 125918 crossfade 8160
+      zone z64-soft-0 asset euphonium-64-soft-0 keys D4 G4 velocity 0 0.65 root E4 loop 48000 124033 crossfade 8160
+      zone z64-hard-0 asset euphonium-64-hard-0 keys D4 G4 velocity 0.65 1 root E4 loop 48000 124469 crossfade 8160
+      zone z70-soft-0 asset euphonium-70-soft-0 keys G#4 C5 velocity 0 0.65 root A#4 loop 48000 125950 crossfade 8160
+      zone z70-hard-0 asset euphonium-70-hard-0 keys G#4 C5 velocity 0.65 1 root A#4 loop 48000 125948 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset euphonium-34-soft-0 "Euphonium" wav "media/34-soft-0.wav" sha256 "01c456c5c939465f8b266cfe97b0967cb6a75fafa5258652afd9e24052085792" {
+  usage multisample
+}
+asset euphonium-34-hard-0 "Euphonium" wav "media/34-hard-0.wav" sha256 "1ae5e34e6fbdc8a0f4e0a9ab2c9f452eafa8a0cc1f1471e2c1f0548f6b7a5f50" {
+  usage multisample
+}
+asset euphonium-40-soft-0 "Euphonium" wav "media/40-soft-0.wav" sha256 "79252225df3f717a603c9e77261d279cedea7cc63b686200ed1436e8149da90a" {
+  usage multisample
+}
+asset euphonium-40-hard-0 "Euphonium" wav "media/40-hard-0.wav" sha256 "152586a9a3cb8438b3f57ffc925d80cb5bd9ee23864ea81f7b2c341fcc1a8f9e" {
+  usage multisample
+}
+asset euphonium-46-soft-0 "Euphonium" wav "media/46-soft-0.wav" sha256 "006b85769c67b1ffb77550b885387bcc46ea49d1296a7717a14547fc981f55c6" {
+  usage multisample
+}
+asset euphonium-46-hard-0 "Euphonium" wav "media/46-hard-0.wav" sha256 "326a9d819ea9dfb79a977eedadf75a121feb5ab6f1a6a3b7abe96d8020584147" {
+  usage multisample
+}
+asset euphonium-52-soft-0 "Euphonium" wav "media/52-soft-0.wav" sha256 "d32edca1b7c596760f92f0d3b1c3d0fdf8ee76d332044fd268dde199246249e8" {
+  usage multisample
+}
+asset euphonium-52-hard-0 "Euphonium" wav "media/52-hard-0.wav" sha256 "2190afab079509dc1d7e4db9807eb63a5fc77adfd68b279687d270d37541ca71" {
+  usage multisample
+}
+asset euphonium-58-soft-0 "Euphonium" wav "media/58-soft-0.wav" sha256 "633be949773d19e6f4bdc84f7efc9ccd7688b9ef6b7ae49dc1a4388d7ee5e719" {
+  usage multisample
+}
+asset euphonium-58-hard-0 "Euphonium" wav "media/58-hard-0.wav" sha256 "374bd64800de8e83c2a43cb6366d36cb3beb2601a82807ea59edefee544d75a3" {
+  usage multisample
+}
+asset euphonium-64-soft-0 "Euphonium" wav "media/64-soft-0.wav" sha256 "3aa6596ea619814e60f582645dbd58ad77d1bfcadc4df6c6448c297c163ed6bf" {
+  usage multisample
+}
+asset euphonium-64-hard-0 "Euphonium" wav "media/64-hard-0.wav" sha256 "f5802628a9013e4951c845f24a3fc89a6d5ef9a209351b2c851ab9889bb36457" {
+  usage multisample
+}
+asset euphonium-70-soft-0 "Euphonium" wav "media/70-soft-0.wav" sha256 "8e4eef6a32dd088d63c7395752d32a07d2bdecd4291dee770f8f371d44e13855" {
+  usage multisample
+}
+asset euphonium-70-hard-0 "Euphonium" wav "media/70-hard-0.wav" sha256 "0376da518b4fb124fa8a2f4e1f7a0e48571dcaff13a22cfc5bee5ad7072149a8" {
+  usage multisample
+}

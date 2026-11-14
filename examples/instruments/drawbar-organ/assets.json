@@ -1,0 +1,314 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "0b6f9a1559e0eaf4b06e41a85358aa78df3c1530a00ac06134013aeea45e9bf3",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "drawbar-organ-36-soft-0",
+      "path": "media/36-soft-0.wav",
+      "sha256": "1c72b60b824fe1c1cc4bec2f98129e2ce4438401ef731a6ca3e61dd55d1c1ffe",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 36,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1670360,
+      "normalization_gain": 0.1817057169246844,
+      "loop": [
+        48000,
+        125154,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-36-hard-0",
+      "path": "media/36-hard-0.wav",
+      "sha256": "fe4c1d2d03f7d69a37f4752d2b31e7cac1ac02697a1186069845a5124bc4a8ea",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 36,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1670360,
+      "normalization_gain": 0.1817057169246844,
+      "loop": [
+        48000,
+        125154,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-43-soft-0",
+      "path": "media/43-soft-0.wav",
+      "sha256": "b319038530d305f7812f6ec066ed679ceac3240b3746f78a5f0f24e83acf6f96",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 43,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1670430,
+      "normalization_gain": 0.18451194981940683,
+      "loop": [
+        48000,
+        124746,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-43-hard-0",
+      "path": "media/43-hard-0.wav",
+      "sha256": "ac328c623db91c1feeb4347275df7382bd453e9cbe0f5a0b22d394f7fb3c1bc3",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 43,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1670430,
+      "normalization_gain": 0.18451194981940683,
+      "loop": [
+        48000,
+        124746,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-50-soft-0",
+      "path": "media/50-soft-0.wav",
+      "sha256": "a8186a80d7625dafc2e1ee256dc3db77bf7af070b0c87481ca98c5740b0cdafb",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 50,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1670500,
+      "normalization_gain": 0.18276825287721302,
+      "loop": [
+        48000,
+        125497,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-50-hard-0",
+      "path": "media/50-hard-0.wav",
+      "sha256": "4ab4c3045fb87c8447143b882b309d714d0e2062559e266eaa6f8b154b675454",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 50,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1670500,
+      "normalization_gain": 0.18276825287721302,
+      "loop": [
+        48000,
+        125497,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-57-soft-0",
+      "path": "media/57-soft-0.wav",
+      "sha256": "3ac1d2106445725dd46b1232229971cacc97bc8c2107920b375f20a650f06333",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1670570,
+      "normalization_gain": 0.17541259746140409,
+      "loop": [
+        48000,
+        125089,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-57-hard-0",
+      "path": "media/57-hard-0.wav",
+      "sha256": "baa568d6a8e724e30ab51d7873932d2e6ad4fa294a58dfaa36ee9cecee31aaf7",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1670570,
+      "normalization_gain": 0.17541259746140409,
+      "loop": [
+        48000,
+        125089,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-64-soft-0",
+      "path": "media/64-soft-0.wav",
+      "sha256": "9f40e353385f2af2c49cc125f584d87203600dd79954fefa7712b6609e429c35",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1670640,
+      "normalization_gain": 0.16857934750007048,
+      "loop": [
+        48000,
+        125421,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-64-hard-0",
+      "path": "media/64-hard-0.wav",
+      "sha256": "29aa1a6bd0394ae8fdc3f9c9d1fa1695881c651a97a4ac01d99370a5d8dde48f",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1670640,
+      "normalization_gain": 0.16857934750007048,
+      "loop": [
+        48000,
+        125421,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-71-soft-0",
+      "path": "media/71-soft-0.wav",
+      "sha256": "55f868b0955046abfaf1d5f91f01b105f49d77272d97783239ee37b5dcc3b953",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 71,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1670710,
+      "normalization_gain": 0.1757158851015371,
+      "loop": [
+        48000,
+        124825,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-71-hard-0",
+      "path": "media/71-hard-0.wav",
+      "sha256": "f8f14e0f4b140569a4d661bfb795055a3088c5f839ddc4b5e13756764a033f4d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 71,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1670710,
+      "normalization_gain": 0.1757158851015371,
+      "loop": [
+        48000,
+        124825,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-78-soft-0",
+      "path": "media/78-soft-0.wav",
+      "sha256": "f4c2359adeb36f3dc62e1315632f65489775e49c6bcf8622f252605fdd2d8b6e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 78,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1670780,
+      "normalization_gain": 0.17960547286400355,
+      "loop": [
+        48000,
+        125300,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-78-hard-0",
+      "path": "media/78-hard-0.wav",
+      "sha256": "82eb13ef1c1b183fa3a3d0517f3708c0b24e176f51af4b54fe7d0be4d24d3b1d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 78,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1670780,
+      "normalization_gain": 0.17960547286400355,
+      "loop": [
+        48000,
+        125300,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-85-soft-0",
+      "path": "media/85-soft-0.wav",
+      "sha256": "4513d0c239521247a82114e0a76c4e0e4174e4a2b078e8eb3f5423678ad294d3",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 85,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1670850,
+      "normalization_gain": 0.1519136019783228,
+      "loop": [
+        48000,
+        125262,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-85-hard-0",
+      "path": "media/85-hard-0.wav",
+      "sha256": "b6df1d5ebc9ebafe0532a03fb5bae396923f614d6f44a0c16fda76f5e4d3b33d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 85,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1670850,
+      "normalization_gain": 0.1519136019783228,
+      "loop": [
+        48000,
+        125262,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-92-soft-0",
+      "path": "media/92-soft-0.wav",
+      "sha256": "49530df528d41f8d2274705f88a0e3544008863ebfce962dfd5a921d55da9232",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 92,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1670920,
+      "normalization_gain": 0.15924851805138876,
+      "loop": [
+        48000,
+        125262,
+        8160
+      ]
+    },
+    {
+      "id": "drawbar-organ-92-hard-0",
+      "path": "media/92-hard-0.wav",
+      "sha256": "05319081626e36f73cf809e4aa4e7544f7b3751d2cfe5d4388989118873286c3",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 92,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1670920,
+      "normalization_gain": 0.15924851805138876,
+      "loop": [
+        48000,
+        125262,
+        8160
+      ]
+    }
+  ]
+}

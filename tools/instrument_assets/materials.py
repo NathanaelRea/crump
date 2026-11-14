@@ -27,6 +27,15 @@ PITCHED = (
     "bowed",
     "choir",
     "pizzicato",
+    "machine_tuned",
+    "tuned_drum",
+    "modes_tuned",
+    "layered_tuned",
+    "plucked",
+    "tonewheel",
+    "prepared",
+    "drone",
+    "hurdy",
 )
 
 
@@ -288,6 +297,10 @@ def make(recipe, note=60, velocity=0.9, seed=1, seconds=None):
         x = globals()[model](p, n, rng, velocity, f)
     else:
         x = globals()[model](p, n, rng, velocity)
+    if recipe.get("reference_eq"):
+        # A smooth correction fitted against reference recordings
+        # (references.py --fit); level-neutral and capped.
+        x = equalize(x, recipe["reference_eq"])
     x = filtered(
         x,
         recipe.get("highpass", 25 if recipe["category"] == "Bass" else 32),
@@ -333,6 +346,30 @@ def treatment(x, name):
         return x * (0.78 + 0.22 * np.cos(2 * np.pi * 4.1 * t))
     if name == "room":
         return x + 0.18 * shift(x, 1104) - 0.13 * shift(x, 1776) + 0.1 * shift(x, 2736)
+    if name == "leslie":
+        # Rotary speaker: a horn's Doppler shift and level sweep at 6.25 Hz, ten
+        # turns per sustain loop, under the slower bass drum.
+        t = np.arange(len(x)) / RATE
+        horn = 2 * np.pi * 6.25 * t
+        drum = 2 * np.pi * 1.25 * t
+        delay = RATE * (0.00045 * (1 + np.sin(horn)))
+        moved = np.interp(np.arange(len(x)) - delay, np.arange(len(x)), x, left=0)
+        upper = filtered(moved, 800, "highpass") * (1 + 0.3 * np.cos(horn))
+        lower = filtered(x, 800) * (1 + 0.12 * np.cos(drum))
+        # The level sweep must not push the normalized bank past full scale.
+        out = upper + lower
+        return out * np.max(np.abs(x)) / max(np.max(np.abs(out)), 1e-12)
+    if name == "tape":
+        # Tape replay: wow, flutter and a narrow, slightly saturated playback head.
+        rng = np.random.Generator(np.random.PCG64(len(x)))
+        t = np.arange(len(x)) / RATE
+        cents = 5 * np.sin(2 * np.pi * 0.55 * t) + 2.5 * np.sin(2 * np.pi * 7.3 * t)
+        cents += 2 * wander(len(x), rng, 3)
+        x = glide(x, cents)
+        x = filtered(filtered(x, 6500, order=4), 90, "highpass")
+        peak = max(np.max(np.abs(x)), 1e-12)
+        x = np.tanh(1.6 * x / peak) / np.tanh(1.6) * peak
+        return x + peak * 0.0025 * filtered(rng.normal(0, 1, len(x)), [800, 8000], "bandpass")
     return x
 
 
@@ -704,6 +741,14 @@ def bowed_player(p, n, rng, velocity, frequency, seed, onset=0):
     # Players build pressure together with speed. Full pressure on a slow bow
     # drags the string into loud irregular slips: a crunch before the tone.
     slope = 5 - 4 * pressure * np.sqrt(envelope)
+    if p.get("tremolo"):
+        # Bowed tremolo: rapid strokes that reverse the bow. Each player keeps
+        # their own slightly unsteady stroke rate.
+        strokes = np.cumsum(
+            p["tremolo"] * rng.uniform(0.92, 1.08) * (1 + 0.1 * wander(n, rng, 1.5))
+        )
+        stroke = np.sin(np.pi * strokes / RATE + rng.uniform(0, np.pi))
+        bow = bow * np.sign(stroke) * np.abs(stroke) ** 0.6
 
     rate, soft_depth, hard_depth, delay, fade = p["vibrato"]
     depth = np.interp(velocity, [0.48, 0.92], [soft_depth, hard_depth])
@@ -753,6 +798,9 @@ def bowed_player(p, n, rng, velocity, frequency, seed, onset=0):
     # The string settles into Helmholtz motion during the first few periods;
     # a short fade keeps that settling from reading as a click.
     settle = (1 - np.exp(-t / (0.4 * attack))) ** 2 * (np.arange(n) >= onset)
+    if p.get("tremolo"):
+        # Each bow reversal thumps below the note; the body does not radiate it.
+        x = filtered(x, 0.7 * frequency, "highpass")
     return taper * settle * x
 
 
@@ -1067,3 +1115,305 @@ def clack(p, n, rng, velocity):
         * np.exp(-t / 0.0012)
     )
     return filtered(x, p.get("hipass", 700), "highpass")
+
+
+# Expansion models: drum machines, world and band instruments, vintage keys.
+# Each is new; the models above keep their exact output.
+
+
+def contour(n, points):
+    """Piecewise-linear curve through `[seconds, value]` points, held past the ends."""
+    times, values = np.asarray(points, dtype=float).T
+    return np.interp(np.arange(n) / RATE, times, values)
+
+
+def glide(x, cents):
+    """Repitch a rendered tone along a curve in cents by moving its read position."""
+    read = np.cumsum(2 ** (cents / 1200)) - 2 ** (cents[0] / 1200)
+    return np.interp(read, np.arange(x.shape[-1]), x, right=0)
+
+
+def normalized(x):
+    return x / max(np.max(np.abs(x)), 1e-12)
+
+
+def square_wave(n, frequency, rng):
+    """Band-limited square: odd harmonics below 20 kHz, random starting phase."""
+    t = np.arange(n) / RATE
+    phase = rng.uniform(0, 2 * np.pi)
+    x = np.zeros(n)
+    k = 1
+    while k * frequency < 20000:
+        x += np.sin(k * (2 * np.pi * frequency * t + phase)) / k
+        k += 2
+    return x
+
+
+def machine(p, n, rng, velocity, frequency=None):
+    """Analog drum-machine voice: a swept sine, extra tones, click, filtered
+    noise and clusters of square oscillators, each with its own decay."""
+    t = np.arange(n) / RATE
+    base = frequency or p.get("freq", 50)
+    x = np.zeros(n)
+    if p.get("tone", 0):
+        sweep = p.get("sweep", 0) * (0.6 + 0.4 * velocity)
+        f = base * (1 + sweep * np.exp(-t / p.get("sweep_time", 0.03)))
+        phase = 2 * np.pi * np.cumsum(f) / RATE
+        hold, decay = p.get("hold", 0), p.get("decay", 0.4)
+        envelope = np.exp(-np.maximum(t - hold, 0) / decay)
+        tone = np.sin(phase) * envelope
+        if p.get("tone_drive"):
+            tone = np.tanh(tone * p["tone_drive"]) / np.tanh(p["tone_drive"])
+        x += p["tone"] * tone
+        for ratio, gain, partial_decay in p.get("partials", []):
+            x += gain * np.sin(ratio * phase) * np.exp(-t / partial_decay)
+    if p.get("squares"):
+        cluster = sum(square_wave(n, f, rng) for f in p["squares"])
+        cluster = filtered(cluster, p["square_band"], "bandpass", order=p.get("square_order", 2))
+        fast, slow, mix = p.get("square_decay", [0.05, 0.3, 0.3])
+        envelope = (1 - mix) * np.exp(-t / fast) + mix * np.exp(-t / slow)
+        x += p.get("square_level", 1) * normalized(cluster) * envelope
+    if p.get("noise", 0):
+        noise = filtered(rng.normal(0, 1, n), p.get("noise_band", [1000, 10000]), "bandpass")
+        envelope = (1 - np.exp(-t / 0.0005)) * np.exp(-t / p.get("noise_decay", 0.15))
+        x += p["noise"] * (0.6 + 0.4 * velocity) * normalized(noise) * envelope
+    if p.get("click", 0):
+        click = filtered(rng.normal(0, 1, n), p.get("click_band", [1500, 12000]), "bandpass")
+        x += p["click"] * velocity * normalized(click) * np.exp(-t / p.get("click_decay", 0.0012))
+    return x
+
+
+def machine_tuned(p, n, rng, velocity, frequency):
+    return machine(p, n, rng, velocity, frequency)
+
+
+def drum(p, n, rng, velocity, frequency=None):
+    """Membrane, tuned to the key when pitched, with an optional pitch contour
+    in cents (a talking drum squeezed after the stroke)."""
+    x = membrane(dict(p, freq=frequency or p["freq"]), n, rng, velocity)
+    if p.get("contour"):
+        x = glide(x, contour(n, p["contour"]) * (0.5 + 0.5 * velocity))
+    return x
+
+
+def tuned_drum(p, n, rng, velocity, frequency):
+    return drum(p, n, rng, velocity, frequency)
+
+
+def modes(p, n, rng, velocity, frequency=None):
+    """Struck modal body with explicit mode ratios: bars, bells, pans, wood.
+
+    `split` doubles each mode into a slowly beating pair. Low notes ring longer
+    by `decay_tracking`. A short `tick` adds the mallet or plectrum contact.
+    """
+    base = frequency or p["freq"]
+    ratios = np.asarray(p["ratios"], dtype=float)
+    gains = np.asarray(p["gains"], dtype=float)
+    gains = gains * velocity ** (np.arange(len(gains)) * p.get("velocity_tilt", 0.3))
+    if "decays" in p:
+        decays = np.asarray(p["decays"], dtype=float) * p.get("decay", 1)
+    else:
+        decays = p.get("decay", 1) / ratios ** p.get("damping", 0.75)
+    if frequency and p.get("decay_tracking"):
+        decays = decays * (261.63 / frequency) ** p["decay_tracking"]
+    freqs = base * ratios
+    if p.get("split"):
+        # Unequal halves beat without cancelling completely, as a real bowl does.
+        freqs = np.concatenate([freqs * (1 - p["split"]), freqs * (1 + p["split"])])
+        gains, decays = np.concatenate([gains * 0.65, gains * 0.35]), np.tile(decays, 2)
+    freqs = freqs * rng.uniform(1 - p.get("scatter", 0), 1 + p.get("scatter", 0), len(freqs))
+    contact_time = p.get("contact", 0.001) / (0.6 + 0.6 * velocity)
+    x = resonators(contact(n, contact_time, rng, p.get("hardness", velocity)), freqs, decays, gains)
+    t = np.arange(n) / RATE
+    if p.get("tick", 0):
+        tick = filtered(rng.normal(0, 1, n), p.get("tick_band", [2000, 12000]), "bandpass")
+        x += p["tick"] * velocity * np.max(np.abs(x)) * normalized(tick) * np.exp(-t / p.get("tick_decay", 0.002))
+    if p.get("contour"):
+        x = glide(x, contour(n, p["contour"]))
+    return x
+
+
+def modes_tuned(p, n, rng, velocity, frequency):
+    return modes(p, n, rng, velocity, frequency)
+
+
+def layered(p, n, rng, velocity, frequency=None):
+    """Sum of other models, each peak-normalized, scaled and optionally delayed.
+
+    A pitched layer follows the key times its `ratio`, plays a fixed MIDI
+    `note`, or plays its own `freq` in an unpitched instrument. A `contour`
+    bends the whole sum.
+    """
+    x = np.zeros(n)
+    for layer in p["layers"]:
+        model = globals()[layer["model"]]
+        if layer["model"] in PITCHED:
+            # `note` is a fixed pitch, such as a drone that ignores the key.
+            if "note" in layer:
+                pitch = hz(layer["note"])
+            else:
+                pitch = frequency * layer.get("ratio", 1) if frequency else layer["freq"]
+            y = model(layer["params"], n, rng, velocity, pitch)
+        else:
+            y = model(layer["params"], n, rng, velocity)
+        y = normalized(y) * layer.get("gain", 1)
+        x += shift(y, round(layer["delay"] * RATE)) if layer.get("delay") else y
+    if p.get("contour"):
+        x = glide(x, contour(n, p["contour"]))
+    return x
+
+
+def layered_tuned(p, n, rng, velocity, frequency):
+    return layered(p, n, rng, velocity, frequency)
+
+
+def buzz(x, p, n):
+    """Curved-bridge buzz (jawari, sawari): the string grazing its bridge folds
+    energy into a bright band that sinks while the string rings."""
+    t = np.arange(n) / RATE
+    envelope = np.sqrt(np.maximum(filtered(x * x, 30), 0)) + 1e-9 * np.max(np.abs(x))
+    clipped = np.clip(p.get("buzz_drive", 3) * x / (1.414 * envelope), -1, 1)
+    high, low = p.get("buzz_bands", [[2500, 9000], [900, 3500]])
+    sink = np.exp(-t / p.get("buzz_sink", 0.6))
+    band = filtered(clipped, high, "bandpass") * sink + filtered(clipped, low, "bandpass") * (1 - sink)
+    return band * envelope * 1.414
+
+
+def plucked(p, n, rng, velocity, frequency):
+    """Plucked strings: courses through the string loop, optional bridge buzz,
+    sympathetic strings, plectrum or skin thump, an amplifier and a pitch contour."""
+    x = np.zeros(n)
+    for cents, delay, gain in p.get("courses", [[0, 0, 1]]):
+        tone = string(p, n, rng, velocity, frequency * 2 ** (cents / 1200))
+        x += gain * (shift(tone, round(delay * RATE)) if delay else tone)
+    t = np.arange(n) / RATE
+    peak = np.max(np.abs(x))
+    if p.get("buzz", 0):
+        x += p["buzz"] * buzz(x, p, n)
+    if p.get("sympathetic", 0):
+        # Unplucked strings tuned to fixed pitches ring when a partial matches.
+        freqs = [hz(m) * k for m in p["sympathetic_notes"] for k in (1, 2, 3)]
+        ringing = resonators(x, freqs, [p.get("sympathetic_decay", 1.5)] * len(freqs), [1] * len(freqs))
+        x += p["sympathetic"] * peak * normalized(ringing)
+    if p.get("thump", 0):
+        thump = filtered(rng.normal(0, 1, n), p.get("thump_band", [150, 2500]), "bandpass")
+        x += p["thump"] * velocity * peak * normalized(thump) * np.exp(-t / p.get("thump_decay", 0.01))
+    if p.get("amp"):
+        # Overdriven amplifier, then the speaker cabinet's narrow band.
+        drive, cabinet = p["amp"]
+        x = np.tanh(drive * normalized(x))
+        x = filtered(filtered(x, cabinet, order=4), 90, "highpass")
+    if p.get("contour"):
+        x = glide(x, contour(n, p["contour"]))
+    return x
+
+
+def tonewheel(p, n, rng, velocity, frequency):
+    """Drawbar organ: near-sine ranks, a decaying percussion harmonic and key click."""
+    x = organ(p, n, rng, velocity, frequency)
+    t = np.arange(n) / RATE
+    level = np.std(x[n // 4 :]) * 1.414
+    ratio, gain, decay = p.get("percussion", [3, 0, 0.3])
+    if gain:
+        x += gain * level * np.sin(2 * np.pi * frequency * ratio * t) * np.exp(-t / decay)
+    if p.get("click", 0):
+        click = filtered(rng.normal(0, 1, n), [800, 9000], "bandpass")
+        x += p["click"] * level * normalized(click) * np.exp(-t / 0.004)
+    return x
+
+
+def prepared(p, n, rng, velocity, frequency):
+    """Prepared piano: a damped piano string with a bolt's inharmonic modes and
+    a rattle that buzzes while the string is loud."""
+    x = piano(p, n, rng, velocity, frequency)
+    t = np.arange(n) / RATE
+    peak = np.max(np.abs(x))
+    bolt_rng = np.random.Generator(np.random.PCG64(p["bolt_seed"] + round(frequency)))
+    ratios = np.asarray(p["bolt_ratios"]) * bolt_rng.uniform(0.97, 1.03, len(p["bolt_ratios"]))
+    force = contact(n, 0.0006, rng, 0.9)
+    bolt = resonators(force, frequency * ratios, [p["bolt_decay"]] * len(ratios), [1] * len(ratios))
+    x += p["bolt"] * peak * normalized(bolt)
+    envelope = np.sqrt(np.maximum(filtered(x * x, 20), 0))
+    rattle = filtered(rng.normal(0, 1, n), [1500, 7000], "bandpass") * (rng.random(n) < 0.3)
+    x += p["rattle"] * normalized(rattle) * envelope
+    return x
+
+
+def drone(p, n, rng, velocity, frequency):
+    """Lip-buzzed drone pipe (didgeridoo): a buzzy source whose vocal-tract
+    shape the player moves between two vowels."""
+    source = sustained_voice(p, n, rng, velocity, frequency, lambda f: np.ones_like(f))
+    spectrum = np.fft.rfft(source)
+    f = np.maximum(np.fft.rfftfreq(n, 1 / RATE), 1.0)
+    floor = p.get("floor", 0.05)
+    shapes = [
+        np.fft.irfft(spectrum * resonance_sum(f, p[name], floor), n)
+        for name in ("shape_a", "shape_b")
+    ]
+    t = np.arange(n) / RATE
+    # A whole number of vowel cycles per sustain loop keeps the loop seamless.
+    mix = 0.5 + 0.5 * np.sin(2 * np.pi * p.get("wah_rate", 1.25) * t + rng.uniform(0, 2 * np.pi))
+    mix = mix * smoothstep(t, 0.15, 0.6)
+    return shapes[0] * (1 - mix) + shapes[1] * mix
+
+
+def hurdy(p, n, rng, velocity, frequency):
+    """Hurdy-gurdy: a wheel-bowed melody string over drone strings at fixed
+    pitches `[[midi, gain], ...]`, and the buzzing trompette bridge."""
+    x = bowed(p, n, rng, velocity, frequency)
+    for drone_note, gain in p.get("drones", []):
+        x += gain * bowed(dict(p, vibrato=[5, 0, 0, 1, 1]), n, rng, velocity, hz(drone_note))
+    if p.get("buzz", 0):
+        x += p["buzz"] * buzz(x, p, n)
+    return x
+
+
+def friction(p, n, rng, velocity):
+    """Friction drum (cuíca): a rubbed stick drives the head; the squeak glides
+    with the thumb's pressure on the skin."""
+    t = np.arange(n) / RATE
+    cents = contour(n, p["contour"])
+    f = p["freq"] * 2 ** (cents / 1200)
+    phase = 2 * np.pi * np.cumsum(f) / RATE
+    envelope = contour(n, p["envelope"]) * (1 + 0.15 * wander(n, rng, 30))
+    x = sum(np.sin(k * phase) / k ** p.get("slope", 1.5) for k in range(1, 9) if k * f[0] < 16000)
+    x = resonators(x * envelope, p.get("skin", [450, 1100, 2300]), [0.004] * 3, [1, 0.6, 0.3]) + 0.4 * x * envelope
+    rub = filtered(rng.normal(0, 1, n), [600, 5000], "bandpass") * envelope
+    return x + p.get("rub", 0.1) * np.std(x) * normalized(rub) * 3
+
+
+def scrape(p, n, rng, velocity):
+    """Scraped gourd (guiro): a stick crossing ridges sends a train of impacts
+    into the hollow body. Each `[start, seconds, ridges per second]` is a stroke."""
+    force = np.zeros(n)
+    t = np.arange(n) / RATE
+    for start, seconds, rate in p["strokes"]:
+        times = start + np.cumsum(rng.uniform(0.85, 1.15, int(seconds * rate) + 1) / rate)
+        for at in times[times < start + seconds]:
+            index = int(at * RATE)
+            if index < n:
+                shape = np.sin(np.pi * min(1, (at - start) / seconds)) ** 0.5
+                force[index] += shape * rng.uniform(0.6, 1.0)
+    force = filtered(force, 9000)
+    x = resonators(force, p["body"], [p.get("ring", 0.006)] * len(p["body"]), [1] * len(p["body"]))
+    gesture = filtered(np.abs(force) > 0, 40)
+    x += p.get("rasp", 0.3) * np.max(np.abs(x)) * normalized(filtered(rng.normal(0, 1, n), [1500, 9000], "bandpass")) * gesture
+    return filtered(x, p.get("hipass", 300), "highpass")
+
+
+def chimes(p, n, rng, velocity):
+    """Mark tree: a hand sweeps a row of small rods, each a beating mode pair."""
+    count = p["count"]
+    freqs = np.geomspace(p["low"], p["high"], count)
+    if p.get("direction", "down") == "down":
+        freqs = freqs[::-1]
+    # The hand slows a little along the row.
+    onsets = p["sweep"] * (np.arange(count) / count) ** 1.25
+    x = np.zeros(n)
+    for f, at in zip(freqs, onsets):
+        force = np.zeros(n)
+        index = int((at + rng.uniform(0, 0.006)) * RATE)
+        force[index : index + 6] = np.hanning(6) * rng.uniform(0.6, 1) * (0.5 + 0.5 * velocity)
+        modes_hz = np.array([f * 0.998, f * 1.002, f * 2.76, f * 5.4])
+        x += resonators(force, modes_hz, p["decay"] * np.array([1, 1, 0.45, 0.2]), [0.5, 0.5, 0.2, 0.06])
+    return filtered(x, 1500, "highpass")

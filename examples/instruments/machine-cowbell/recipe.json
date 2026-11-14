@@ -1,0 +1,27 @@
+{
+  "model": "machine",
+  "params": {
+    "squares": [
+      540,
+      800
+    ],
+    "square_band": [
+      450,
+      5000
+    ],
+    "square_decay": [
+      0.025,
+      0.28,
+      0.35
+    ]
+  },
+  "pitched": false,
+  "category": "Drum machines",
+  "seconds": 1.5,
+  "fixed_keys": [
+    36,
+    81
+  ],
+  "id": "machine-cowbell",
+  "seed_base": 1050000
+}

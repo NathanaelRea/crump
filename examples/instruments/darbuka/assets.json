@@ -1,0 +1,104 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "0f53cd4f937135edb82bb9acfb9c0bd636b9b06121c672a471a1d17449979db4",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "darbuka-doum-60-soft-0",
+      "path": "media/doum-60-soft-0.wav",
+      "sha256": "b43cad0fdf35e915b8957d94d3ac217996e26761dd76c6be93db31f18dd6c841",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1131600,
+      "normalization_gain": 0.6546581434071688
+    },
+    {
+      "id": "darbuka-doum-60-hard-0",
+      "path": "media/doum-60-hard-0.wav",
+      "sha256": "8b4f73a48c1d69cb8ef4da5f5c6bb9457e7b20e59365a8bb2ba1aead59420760",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1131600,
+      "normalization_gain": 0.6546581434071688
+    },
+    {
+      "id": "darbuka-doum-60-soft-1",
+      "path": "media/doum-60-soft-1.wav",
+      "sha256": "8964e0e8081e41cfc20ddd18f7a2a01333d0ef4ae9d185ce011a94b3175b4e72",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1131601,
+      "normalization_gain": 0.6519984509351662
+    },
+    {
+      "id": "darbuka-doum-60-hard-1",
+      "path": "media/doum-60-hard-1.wav",
+      "sha256": "7404ac53d05f58135d02e31e646af34491966a53f9f4b17194ec91505c980457",
+      "frames": 120000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1131601,
+      "normalization_gain": 0.6519984509351662
+    },
+    {
+      "id": "darbuka-tek-60-soft-0",
+      "path": "media/tek-60-soft-0.wav",
+      "sha256": "2e07bf256997618bc28ae7a3694fb8ac3e4c2a493c3f3d8ebbb7c42c38d3642f",
+      "frames": 21532,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1132600,
+      "normalization_gain": 0.47174436078533716
+    },
+    {
+      "id": "darbuka-tek-60-hard-0",
+      "path": "media/tek-60-hard-0.wav",
+      "sha256": "1bddf447ca4c032def6012de5046f2aa4b51662f4b3cb3d06f0c7bc7bc0014d4",
+      "frames": 22557,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1132600,
+      "normalization_gain": 0.47174436078533716
+    },
+    {
+      "id": "darbuka-tek-60-soft-1",
+      "path": "media/tek-60-soft-1.wav",
+      "sha256": "4410d070e36305334cdc2ebd5a4e7343ed15f820388360ed36d5fdf3581256bc",
+      "frames": 21392,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1132601,
+      "normalization_gain": 0.4523581235932743
+    },
+    {
+      "id": "darbuka-tek-60-hard-1",
+      "path": "media/tek-60-hard-1.wav",
+      "sha256": "b9be506e14872eec2694d3d382c61637acfdaaa9ef1771b06cea936e53b12a5d",
+      "frames": 22491,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1132601,
+      "normalization_gain": 0.4523581235932743
+    }
+  ]
+}

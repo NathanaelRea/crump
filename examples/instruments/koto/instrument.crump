@@ -1,0 +1,77 @@
+crump-module 2
+instrument koto "Koto" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z52-soft-0 asset koto-52-soft-0 keys D3 G3 velocity 0 0.65 root E3
+      zone z52-hard-0 asset koto-52-hard-0 keys D3 G3 velocity 0.65 1 root E3
+      zone z58-soft-0 asset koto-58-soft-0 keys G#3 C#4 velocity 0 0.65 root A#3
+      zone z58-hard-0 asset koto-58-hard-0 keys G#3 C#4 velocity 0.65 1 root A#3
+      zone z64-soft-0 asset koto-64-soft-0 keys D4 G4 velocity 0 0.65 root E4
+      zone z64-hard-0 asset koto-64-hard-0 keys D4 G4 velocity 0.65 1 root E4
+      zone z70-soft-0 asset koto-70-soft-0 keys G#4 C#5 velocity 0 0.65 root A#4
+      zone z70-hard-0 asset koto-70-hard-0 keys G#4 C#5 velocity 0.65 1 root A#4
+      zone z76-soft-0 asset koto-76-soft-0 keys D5 G5 velocity 0 0.65 root E5
+      zone z76-hard-0 asset koto-76-hard-0 keys D5 G5 velocity 0.65 1 root E5
+      zone z82-soft-0 asset koto-82-soft-0 keys G#5 D6 velocity 0 0.65 root A#5
+      zone z82-hard-0 asset koto-82-hard-0 keys G#5 D6 velocity 0.65 1 root A#5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset koto-52-soft-0 "Koto" wav "media/52-soft-0.wav" sha256 "99bb88f87f51db84c212ce817c8d3ed6ef4347b54c631c1b48c4b9ddbd00545e" {
+  usage multisample
+}
+asset koto-52-hard-0 "Koto" wav "media/52-hard-0.wav" sha256 "b50e8d1ff6388916bef021e13c2b78fd062db4705e968a4ae4a81055f9a3dc46" {
+  usage multisample
+}
+asset koto-58-soft-0 "Koto" wav "media/58-soft-0.wav" sha256 "17a1217514601c1bd9750dce471cc3261e207c04ec8247557b4a1f8630e60d3e" {
+  usage multisample
+}
+asset koto-58-hard-0 "Koto" wav "media/58-hard-0.wav" sha256 "f72d2d319498569571d7206b285be9277d5cfa13d9f55c2e3b7c90805fe49354" {
+  usage multisample
+}
+asset koto-64-soft-0 "Koto" wav "media/64-soft-0.wav" sha256 "f5a8ae3ab67edb9da1bda34b45d0001d9f5582ff8997e28930dc68db2366ee78" {
+  usage multisample
+}
+asset koto-64-hard-0 "Koto" wav "media/64-hard-0.wav" sha256 "0c63895bd96ea6f559609df611e9987b0a69a420d8cb15c2eba23814267f5443" {
+  usage multisample
+}
+asset koto-70-soft-0 "Koto" wav "media/70-soft-0.wav" sha256 "be7a56ff2da668d7f0035adc956e3550e5f84cc963de3ca158e92c1a0ae50001" {
+  usage multisample
+}
+asset koto-70-hard-0 "Koto" wav "media/70-hard-0.wav" sha256 "c22ae2016c566e590468d8887dff52dc34132cc05c31dbfb54404f9cf7a72dde" {
+  usage multisample
+}
+asset koto-76-soft-0 "Koto" wav "media/76-soft-0.wav" sha256 "c72b40799533c41ac6dd8d6f470181c533bb16310057efc37db23b4362c5052c" {
+  usage multisample
+}
+asset koto-76-hard-0 "Koto" wav "media/76-hard-0.wav" sha256 "6305b85922edf62e1a6203bfcd51f0c4c3f99e9cbcbdaf43c3a22bda0c3fea25" {
+  usage multisample
+}
+asset koto-82-soft-0 "Koto" wav "media/82-soft-0.wav" sha256 "6c6b8328eb808ed2703cfa07dd46edf7b24ee6dbf2e003d216b207971247381f" {
+  usage multisample
+}
+asset koto-82-hard-0 "Koto" wav "media/82-hard-0.wav" sha256 "0dbcc275e35f7f7a0b2766ab17f52eb961fba295b51e45d1ac02c45f3618b4d8" {
+  usage multisample
+}

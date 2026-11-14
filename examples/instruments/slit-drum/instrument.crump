@@ -1,0 +1,69 @@
+crump-module 2
+instrument slit-drum "Slit Drum" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z42-soft-0 asset slit-drum-42-soft-0 keys E2 A2 velocity 0 0.65 root F#2
+      zone z42-hard-0 asset slit-drum-42-hard-0 keys E2 A2 velocity 0.65 1 root F#2
+      zone z48-soft-0 asset slit-drum-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
+      zone z48-hard-0 asset slit-drum-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
+      zone z54-soft-0 asset slit-drum-54-soft-0 keys E3 A3 velocity 0 0.65 root F#3
+      zone z54-hard-0 asset slit-drum-54-hard-0 keys E3 A3 velocity 0.65 1 root F#3
+      zone z60-soft-0 asset slit-drum-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
+      zone z60-hard-0 asset slit-drum-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
+      zone z66-soft-0 asset slit-drum-66-soft-0 keys E4 A4 velocity 0 0.65 root F#4
+      zone z66-hard-0 asset slit-drum-66-hard-0 keys E4 A4 velocity 0.65 1 root F#4
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset slit-drum-42-soft-0 "Slit Drum" wav "media/42-soft-0.wav" sha256 "7ddc349a1e738ddfd90b77df04a0d65240beba5b26bbac9924c770159c8e6dd0" {
+  usage multisample
+}
+asset slit-drum-42-hard-0 "Slit Drum" wav "media/42-hard-0.wav" sha256 "aab9f2bdcc7e9d1603e1b39e709956517a8a86d4edc5314b0a8dda8327677cc2" {
+  usage multisample
+}
+asset slit-drum-48-soft-0 "Slit Drum" wav "media/48-soft-0.wav" sha256 "f91878fe6ff6ec736b3f6a3d56a659098afa270ebc30310ca828c88bebfc0b33" {
+  usage multisample
+}
+asset slit-drum-48-hard-0 "Slit Drum" wav "media/48-hard-0.wav" sha256 "b56bf3fe8a2caed02fb012a0552319e49dccb8c415f051afd28c782cc668f332" {
+  usage multisample
+}
+asset slit-drum-54-soft-0 "Slit Drum" wav "media/54-soft-0.wav" sha256 "23f19e09877ed9c8abbb3a30327a8caf0b972b9dc53269ce84000ce570f3694b" {
+  usage multisample
+}
+asset slit-drum-54-hard-0 "Slit Drum" wav "media/54-hard-0.wav" sha256 "36cc8bb21a8010187009c90fe3911f241f6b6d9158dadd79a1ade6b3e97cce0d" {
+  usage multisample
+}
+asset slit-drum-60-soft-0 "Slit Drum" wav "media/60-soft-0.wav" sha256 "96c13e1bd7985877e3bab3766625f02e09b1fb7f1dd31244910d686304ff7e7f" {
+  usage multisample
+}
+asset slit-drum-60-hard-0 "Slit Drum" wav "media/60-hard-0.wav" sha256 "9688b92b34c613fa120fbb6259f5164e37dddfa5dbbf01b4ea0041faaf7fc712" {
+  usage multisample
+}
+asset slit-drum-66-soft-0 "Slit Drum" wav "media/66-soft-0.wav" sha256 "5ed53b297fae54aa9cbf07aaa79a6710c8b7fc9a4a896a67998d196d885c7f45" {
+  usage multisample
+}
+asset slit-drum-66-hard-0 "Slit Drum" wav "media/66-hard-0.wav" sha256 "24acfd73ca7f2c49d4ec6ac98a35d99bef4c6a9536d145160c7d7885032bec56" {
+  usage multisample
+}

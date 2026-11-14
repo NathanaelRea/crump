@@ -1,0 +1,65 @@
+{
+  "model": "layered",
+  "params": {
+    "layers": [
+      {
+        "model": "ring",
+        "params": {
+          "freqs": [
+            646,
+            1516,
+            1841,
+            2483,
+            2797,
+            3321,
+            3714
+          ],
+          "gains": [
+            0.3,
+            0.45,
+            0.5,
+            0.45,
+            1.0,
+            0.6,
+            0.3
+          ],
+          "decays": [
+            0.6,
+            1.7,
+            0.6,
+            0.5,
+            0.6,
+            0.3,
+            0.5
+          ],
+          "contact": 0.0002,
+          "split": 0.002,
+          "tick": 0.3,
+          "hipass": 400
+        },
+        "gain": 1
+      },
+      {
+        "model": "metal",
+        "params": {
+          "modes": 90,
+          "low": 1800,
+          "high": 14000,
+          "decay": 0.9,
+          "damping": 0.4,
+          "noise": 0.06
+        },
+        "gain": 0.3
+      }
+    ]
+  },
+  "pitched": false,
+  "category": "Drum kit",
+  "seconds": 6,
+  "fixed_keys": [
+    36,
+    81
+  ],
+  "id": "ride-bell",
+  "seed_base": 1110000
+}

@@ -1,0 +1,85 @@
+crump-module 2
+instrument fretless-bass "Fretless Bass" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z28-soft-0 asset fretless-bass-28-soft-0 keys E1 G1 velocity 0 0.65 root E1
+      zone z28-hard-0 asset fretless-bass-28-hard-0 keys E1 G1 velocity 0.65 1 root E1
+      zone z34-soft-0 asset fretless-bass-34-soft-0 keys G#1 C#2 velocity 0 0.65 root A#1
+      zone z34-hard-0 asset fretless-bass-34-hard-0 keys G#1 C#2 velocity 0.65 1 root A#1
+      zone z40-soft-0 asset fretless-bass-40-soft-0 keys D2 G2 velocity 0 0.65 root E2
+      zone z40-hard-0 asset fretless-bass-40-hard-0 keys D2 G2 velocity 0.65 1 root E2
+      zone z46-soft-0 asset fretless-bass-46-soft-0 keys G#2 C#3 velocity 0 0.65 root A#2
+      zone z46-hard-0 asset fretless-bass-46-hard-0 keys G#2 C#3 velocity 0.65 1 root A#2
+      zone z52-soft-0 asset fretless-bass-52-soft-0 keys D3 G3 velocity 0 0.65 root E3
+      zone z52-hard-0 asset fretless-bass-52-hard-0 keys D3 G3 velocity 0.65 1 root E3
+      zone z58-soft-0 asset fretless-bass-58-soft-0 keys G#3 C#4 velocity 0 0.65 root A#3
+      zone z58-hard-0 asset fretless-bass-58-hard-0 keys G#3 C#4 velocity 0.65 1 root A#3
+      zone z64-soft-0 asset fretless-bass-64-soft-0 keys D4 G4 velocity 0 0.65 root E4
+      zone z64-hard-0 asset fretless-bass-64-hard-0 keys D4 G4 velocity 0.65 1 root E4
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset fretless-bass-28-soft-0 "Fretless Bass" wav "media/28-soft-0.wav" sha256 "ed04e687dacdd033adca1870b97c08614485dec47e86e8bc84d0b6b843671486" {
+  usage multisample
+}
+asset fretless-bass-28-hard-0 "Fretless Bass" wav "media/28-hard-0.wav" sha256 "a00c3eebeab33fdfa26cba6c826891fc1c27a108b3026014e036eef8cfbeae40" {
+  usage multisample
+}
+asset fretless-bass-34-soft-0 "Fretless Bass" wav "media/34-soft-0.wav" sha256 "a8db8aa195a16eda43bbe72c9d3356a681d02c1e7cbe7fc9db8421bf8b068f2a" {
+  usage multisample
+}
+asset fretless-bass-34-hard-0 "Fretless Bass" wav "media/34-hard-0.wav" sha256 "0ddbf8d9869732bbbad38215d3942888171ba438053c68fdb5418c3e4504cbdf" {
+  usage multisample
+}
+asset fretless-bass-40-soft-0 "Fretless Bass" wav "media/40-soft-0.wav" sha256 "ec63ed30313ed6e6785d9a6418b45d58086df623b8eac451d55fa0720356c72e" {
+  usage multisample
+}
+asset fretless-bass-40-hard-0 "Fretless Bass" wav "media/40-hard-0.wav" sha256 "8da77cb1012b3fa7e77b88315f6e0120ed5d45db6943398b24cfe1169d7b34f6" {
+  usage multisample
+}
+asset fretless-bass-46-soft-0 "Fretless Bass" wav "media/46-soft-0.wav" sha256 "8859dcc8bd880b349db091974cdc24962034e60b28d6c18d9b20c54a53b2d034" {
+  usage multisample
+}
+asset fretless-bass-46-hard-0 "Fretless Bass" wav "media/46-hard-0.wav" sha256 "cb1b57ec34cf66c971cbc8ce45cb75501908a27506feda75eb7471c162fa2bc5" {
+  usage multisample
+}
+asset fretless-bass-52-soft-0 "Fretless Bass" wav "media/52-soft-0.wav" sha256 "9c30aff44bca13b8f2a88a55cdebcbf7aa69d638a1d67c79015308206bff40db" {
+  usage multisample
+}
+asset fretless-bass-52-hard-0 "Fretless Bass" wav "media/52-hard-0.wav" sha256 "963bf2107f7f42434f60eefb995ce022e5f2f54b38130b3241fe923484f3b71f" {
+  usage multisample
+}
+asset fretless-bass-58-soft-0 "Fretless Bass" wav "media/58-soft-0.wav" sha256 "7f39d51b2b6351e72519e7c18ee5bf1c47cbe3016aee51c8fd89e7a638b39fd1" {
+  usage multisample
+}
+asset fretless-bass-58-hard-0 "Fretless Bass" wav "media/58-hard-0.wav" sha256 "0f03ba81da6fe0e1a958536588f28cfe2f6c6c6c020b310c327240ca6db96782" {
+  usage multisample
+}
+asset fretless-bass-64-soft-0 "Fretless Bass" wav "media/64-soft-0.wav" sha256 "54d54d5a233d9e9471d4d3e456026c5bf500d7a04c6741c1a5591404792b5160" {
+  usage multisample
+}
+asset fretless-bass-64-hard-0 "Fretless Bass" wav "media/64-hard-0.wav" sha256 "b2a78891359af94faefe0a73968fb0a285f501458c29a695d127ce76e2e6bc92" {
+  usage multisample
+}

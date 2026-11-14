@@ -1,0 +1,84 @@
+crump-module 2
+instrument shakuhachi "Shakuhachi" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z52-soft-0 asset shakuhachi-52-soft-0 keys E3 G3 velocity 0 0.65 root E3 loop 48000 125463 crossfade 8160
+      zone z52-hard-0 asset shakuhachi-52-hard-0 keys E3 G3 velocity 0.65 1 root E3 loop 48000 124881 crossfade 8160
+      zone z58-soft-0 asset shakuhachi-58-soft-0 keys G#3 C#4 velocity 0 0.65 root A#3 loop 48000 123894 crossfade 8160
+      zone z58-hard-0 asset shakuhachi-58-hard-0 keys G#3 C#4 velocity 0.65 1 root A#3 loop 48000 124101 crossfade 8160
+      zone z64-soft-0 asset shakuhachi-64-soft-0 keys D4 G4 velocity 0 0.65 root E4 loop 48000 125914 crossfade 8160
+      zone z64-hard-0 asset shakuhachi-64-hard-0 keys D4 G4 velocity 0.65 1 root E4 loop 48000 125905 crossfade 8160
+      zone z70-soft-0 asset shakuhachi-70-soft-0 keys G#4 C#5 velocity 0 0.65 root A#4 loop 48000 123608 crossfade 8160
+      zone z70-hard-0 asset shakuhachi-70-hard-0 keys G#4 C#5 velocity 0.65 1 root A#4 loop 48000 123698 crossfade 8160
+      zone z76-soft-0 asset shakuhachi-76-soft-0 keys D5 G5 velocity 0 0.65 root E5 loop 48000 123822 crossfade 8160
+      zone z76-hard-0 asset shakuhachi-76-hard-0 keys D5 G5 velocity 0.65 1 root E5 loop 48000 123600 crossfade 8160
+      zone z82-soft-0 asset shakuhachi-82-soft-0 keys G#5 C6 velocity 0 0.65 root A#5 loop 48000 125972 crossfade 8160
+      zone z82-hard-0 asset shakuhachi-82-hard-0 keys G#5 C6 velocity 0.65 1 root A#5 loop 48000 125970 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset shakuhachi-52-soft-0 "Shakuhachi" wav "media/52-soft-0.wav" sha256 "831671995c655bf19282b82216b6f1cef16c5e38a685e2fa3ecf3212bf207d2d" {
+  usage multisample
+}
+asset shakuhachi-52-hard-0 "Shakuhachi" wav "media/52-hard-0.wav" sha256 "25e8d6dd6bfd66e62719a2c91c8c8e7075bfeddc22b71ec4e7cc539c7301e8f3" {
+  usage multisample
+}
+asset shakuhachi-58-soft-0 "Shakuhachi" wav "media/58-soft-0.wav" sha256 "4aa27e8717a189cb12b4e1ab64428b3379ae185683df2d4f5b2ec5e71c111efb" {
+  usage multisample
+}
+asset shakuhachi-58-hard-0 "Shakuhachi" wav "media/58-hard-0.wav" sha256 "7b75fafae4301918b8549ea1a0ff96875099f68e6577c4386620844fe91f6d16" {
+  usage multisample
+}
+asset shakuhachi-64-soft-0 "Shakuhachi" wav "media/64-soft-0.wav" sha256 "79130ee75ab393c9c8317c25fb74732a7da8494f199266ba1c027ec5e84ff661" {
+  usage multisample
+}
+asset shakuhachi-64-hard-0 "Shakuhachi" wav "media/64-hard-0.wav" sha256 "8517f89891377dd20e0fa9eb32b018431774d0cc49282f05b8890bd1bc7a3318" {
+  usage multisample
+}
+asset shakuhachi-70-soft-0 "Shakuhachi" wav "media/70-soft-0.wav" sha256 "a0956f31a8c9c0890a4dab0ad917595ef134ab67a3f34f8851e0f9fa91e492fd" {
+  usage multisample
+}
+asset shakuhachi-70-hard-0 "Shakuhachi" wav "media/70-hard-0.wav" sha256 "c66d6bb7b15bc49c802e2cc990c5ddb03399d94bb5c4e3cac9d083a0e3bd188d" {
+  usage multisample
+}
+asset shakuhachi-76-soft-0 "Shakuhachi" wav "media/76-soft-0.wav" sha256 "a1d6b2a7ee665d01f40c94347ae1f7987bf700b82ac57097d1a2e092b9d6bf16" {
+  usage multisample
+}
+asset shakuhachi-76-hard-0 "Shakuhachi" wav "media/76-hard-0.wav" sha256 "0630a1fb3ada9f925e55694c6c5fe2874191d063a48ea20f0e7fccd505c42860" {
+  usage multisample
+}
+asset shakuhachi-82-soft-0 "Shakuhachi" wav "media/82-soft-0.wav" sha256 "636b188220f0cceae701fd7eb00ea9f0de1eebfef2bf8690e4aa962a28020683" {
+  usage multisample
+}
+asset shakuhachi-82-hard-0 "Shakuhachi" wav "media/82-hard-0.wav" sha256 "247ab92b3445e70965856e4fc791abeeb3777ca98f1dadd0fbfbe6a7cc35d1af" {
+  usage multisample
+}

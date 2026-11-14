@@ -1,0 +1,56 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "816944a442d54c2d5ca79f250cadc9f357e532d9d590ad45ec7f8fb4171aea6f",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "opera-gong-60-soft-0",
+      "path": "media/60-soft-0.wav",
+      "sha256": "ce4b7a8884412e342b51dff2895d30e4a53568ec0c6b49ed9b979d8ca010315b",
+      "frames": 175194,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1320600,
+      "normalization_gain": 0.7446532999213608
+    },
+    {
+      "id": "opera-gong-60-hard-0",
+      "path": "media/60-hard-0.wav",
+      "sha256": "9890ec42b6987961144edc9c580d42ca12b4798c6c56484488efd91c290d0646",
+      "frames": 175499,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1320600,
+      "normalization_gain": 0.7446532999213608
+    },
+    {
+      "id": "opera-gong-60-soft-1",
+      "path": "media/60-soft-1.wav",
+      "sha256": "b21be3b655b7513672a90a674c50171177589caa7fc772d56c4dea4a99da5e6a",
+      "frames": 175511,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1320601,
+      "normalization_gain": 0.7669676837739205
+    },
+    {
+      "id": "opera-gong-60-hard-1",
+      "path": "media/60-hard-1.wav",
+      "sha256": "97e917703be04eb21ab14af09f0e36c796a81098287557aae1a0e5aa10bfb6ac",
+      "frames": 175563,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1320601,
+      "normalization_gain": 0.7669676837739205
+    }
+  ]
+}

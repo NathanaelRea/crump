@@ -1,0 +1,84 @@
+crump-module 2
+instrument tape-flute "Tape Flute" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z43-soft-0 asset tape-flute-43-soft-0 keys G2 A#2 velocity 0 0.65 root G2
+      zone z43-hard-0 asset tape-flute-43-hard-0 keys G2 A#2 velocity 0.65 1 root G2
+      zone z49-soft-0 asset tape-flute-49-soft-0 keys B2 E3 velocity 0 0.65 root C#3
+      zone z49-hard-0 asset tape-flute-49-hard-0 keys B2 E3 velocity 0.65 1 root C#3
+      zone z55-soft-0 asset tape-flute-55-soft-0 keys F3 A#3 velocity 0 0.65 root G3
+      zone z55-hard-0 asset tape-flute-55-hard-0 keys F3 A#3 velocity 0.65 1 root G3
+      zone z61-soft-0 asset tape-flute-61-soft-0 keys B3 E4 velocity 0 0.65 root C#4
+      zone z61-hard-0 asset tape-flute-61-hard-0 keys B3 E4 velocity 0.65 1 root C#4
+      zone z67-soft-0 asset tape-flute-67-soft-0 keys F4 A#4 velocity 0 0.65 root G4
+      zone z67-hard-0 asset tape-flute-67-hard-0 keys F4 A#4 velocity 0.65 1 root G4
+      zone z73-soft-0 asset tape-flute-73-soft-0 keys B4 F5 velocity 0 0.65 root C#5
+      zone z73-hard-0 asset tape-flute-73-hard-0 keys B4 F5 velocity 0.65 1 root C#5
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset tape-flute-43-soft-0 "Tape Flute" wav "media/43-soft-0.wav" sha256 "a237eef9eb571ac2380f55a5d28d2cd736d53b17d08123a819cf1b1da33b8f46" {
+  usage multisample
+}
+asset tape-flute-43-hard-0 "Tape Flute" wav "media/43-hard-0.wav" sha256 "9d89518acdacdd11d81a87b73156e0ed12e49e23add6cf0c373e15a7e040043d" {
+  usage multisample
+}
+asset tape-flute-49-soft-0 "Tape Flute" wav "media/49-soft-0.wav" sha256 "051ade6ef4b52e07bd54dca8594106808f2804e1d5e21147bd2e7b0476dd0856" {
+  usage multisample
+}
+asset tape-flute-49-hard-0 "Tape Flute" wav "media/49-hard-0.wav" sha256 "9dc9471480e9351b0ae0ba2c620e016a9e91610f444c9e83596b7ef6646ae933" {
+  usage multisample
+}
+asset tape-flute-55-soft-0 "Tape Flute" wav "media/55-soft-0.wav" sha256 "5ab3f5e284dd345fca9ec9ffa835d52d72ca91cbbee6eaf3863d91f5a6ef248c" {
+  usage multisample
+}
+asset tape-flute-55-hard-0 "Tape Flute" wav "media/55-hard-0.wav" sha256 "cba2ea9387bde4e43fabb69fc27d657410ed302daf3ba0ae5d377ca91ac04153" {
+  usage multisample
+}
+asset tape-flute-61-soft-0 "Tape Flute" wav "media/61-soft-0.wav" sha256 "3b8de052dff694bb288ca691db6997f4e28fded0468396df2b4e6c20ceb87a90" {
+  usage multisample
+}
+asset tape-flute-61-hard-0 "Tape Flute" wav "media/61-hard-0.wav" sha256 "17f30993f682d33c79aaa140a0835170f687055e289108a0739c7276835cdbc0" {
+  usage multisample
+}
+asset tape-flute-67-soft-0 "Tape Flute" wav "media/67-soft-0.wav" sha256 "9fee9e46672db634305ebc683fec26878249fb252279cb72f8940c70ef385229" {
+  usage multisample
+}
+asset tape-flute-67-hard-0 "Tape Flute" wav "media/67-hard-0.wav" sha256 "bed314a14efa135d281ea0e5e30e88593f6c8a51fe5dbe7fde3cd1d9248df1c3" {
+  usage multisample
+}
+asset tape-flute-73-soft-0 "Tape Flute" wav "media/73-soft-0.wav" sha256 "d13c76cdd425c5d8c5d67d425ee77ff4ff3bd7e1dd4b5d5b003376eb1a0555cb" {
+  usage multisample
+}
+asset tape-flute-73-hard-0 "Tape Flute" wav "media/73-hard-0.wav" sha256 "492c5eeff46d4990c730744bda7513be3018152913679c4c4416f56505f7810d" {
+  usage multisample
+}

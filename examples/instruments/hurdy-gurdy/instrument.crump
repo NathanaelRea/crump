@@ -1,0 +1,84 @@
+crump-module 2
+instrument hurdy-gurdy "Hurdy-Gurdy" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.25s 0.25s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z55-soft-0 asset hurdy-gurdy-55-soft-0 keys G3 A#3 velocity 0 0.65 root G3 loop 48000 125715 crossfade 8160
+      zone z55-hard-0 asset hurdy-gurdy-55-hard-0 keys G3 A#3 velocity 0.65 1 root G3 loop 48000 125716 crossfade 8160
+      zone z61-soft-0 asset hurdy-gurdy-61-soft-0 keys B3 E4 velocity 0 0.65 root C#4 loop 48000 124041 crossfade 8160
+      zone z61-hard-0 asset hurdy-gurdy-61-hard-0 keys B3 E4 velocity 0.65 1 root C#4 loop 48000 124039 crossfade 8160
+      zone z67-soft-0 asset hurdy-gurdy-67-soft-0 keys F4 A#4 velocity 0 0.65 root G4 loop 48000 125737 crossfade 8160
+      zone z67-hard-0 asset hurdy-gurdy-67-hard-0 keys F4 A#4 velocity 0.65 1 root G4 loop 48000 125740 crossfade 8160
+      zone z73-soft-0 asset hurdy-gurdy-73-soft-0 keys B4 E5 velocity 0 0.65 root C#5 loop 48000 123606 crossfade 8160
+      zone z73-hard-0 asset hurdy-gurdy-73-hard-0 keys B4 E5 velocity 0.65 1 root C#5 loop 48000 125514 crossfade 8160
+      zone z79-soft-0 asset hurdy-gurdy-79-soft-0 keys F5 A5 velocity 0 0.65 root G5 loop 48000 125309 crossfade 8160
+      zone z79-hard-0 asset hurdy-gurdy-79-hard-0 keys F5 A5 velocity 0.65 1 root G5 loop 48000 125310 crossfade 8160
+      zone z84-soft-0 asset hurdy-gurdy-84-soft-0 keys A#5 D6 velocity 0 0.65 root C6 loop 48000 123681 crossfade 8160
+      zone z84-hard-0 asset hurdy-gurdy-84-hard-0 keys A#5 D6 velocity 0.65 1 root C6 loop 48000 125971 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset hurdy-gurdy-55-soft-0 "Hurdy-Gurdy" wav "media/55-soft-0.wav" sha256 "9bbf3627082d4044c854a7d5bd91c7e1d9e45d4de69da0a9534ef983c18e23be" {
+  usage multisample
+}
+asset hurdy-gurdy-55-hard-0 "Hurdy-Gurdy" wav "media/55-hard-0.wav" sha256 "72abffbc98cbf64709650c66a1a333bfa6d9c70d4ddf8669b5d8bc23d5b8f462" {
+  usage multisample
+}
+asset hurdy-gurdy-61-soft-0 "Hurdy-Gurdy" wav "media/61-soft-0.wav" sha256 "e93703a9e729e3e9fd5d2d8f2668fad7103db3f4fc9193dcf356052cba4b217c" {
+  usage multisample
+}
+asset hurdy-gurdy-61-hard-0 "Hurdy-Gurdy" wav "media/61-hard-0.wav" sha256 "994a4720c86e6af470dbc3fbac786ee9addac08f2dcf37e658081e9142324def" {
+  usage multisample
+}
+asset hurdy-gurdy-67-soft-0 "Hurdy-Gurdy" wav "media/67-soft-0.wav" sha256 "99430e621431eced96f8fbc5f6555d039f48902cf51975626f5e1b0de7ac0c2c" {
+  usage multisample
+}
+asset hurdy-gurdy-67-hard-0 "Hurdy-Gurdy" wav "media/67-hard-0.wav" sha256 "3d0f6e751d993e6973c44c2ae6ddb71903838a9688ae37cd07853556732d98c4" {
+  usage multisample
+}
+asset hurdy-gurdy-73-soft-0 "Hurdy-Gurdy" wav "media/73-soft-0.wav" sha256 "1e856ac5a57d0a6b316040aa5eee27bcb18995b789abb72795702f6c339a9244" {
+  usage multisample
+}
+asset hurdy-gurdy-73-hard-0 "Hurdy-Gurdy" wav "media/73-hard-0.wav" sha256 "34975b3d5e4658b813b3c618540148585a3732f698c915a5e58dd67461cd3e89" {
+  usage multisample
+}
+asset hurdy-gurdy-79-soft-0 "Hurdy-Gurdy" wav "media/79-soft-0.wav" sha256 "116ed1ceecf3013de521dae1fa4695ae91852d4ae9351428c846179757950311" {
+  usage multisample
+}
+asset hurdy-gurdy-79-hard-0 "Hurdy-Gurdy" wav "media/79-hard-0.wav" sha256 "4926379a52606bed36e9a61e6e3b9edd04b9580885871b670b9006eaf2c77138" {
+  usage multisample
+}
+asset hurdy-gurdy-84-soft-0 "Hurdy-Gurdy" wav "media/84-soft-0.wav" sha256 "5be8dd793559ecb8448339c47c5efb4df2df223f7075a6b901f08d44a0869fc2" {
+  usage multisample
+}
+asset hurdy-gurdy-84-hard-0 "Hurdy-Gurdy" wav "media/84-hard-0.wav" sha256 "6de4d04f8e2e61d1f371fe2b29e7a76269cbc1e791a961d6fad97b3415038581" {
+  usage multisample
+}

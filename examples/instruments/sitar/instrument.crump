@@ -1,0 +1,69 @@
+crump-module 2
+instrument sitar "Sitar" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z50-soft-0 asset sitar-50-soft-0 keys C3 F3 velocity 0 0.65 root D3
+      zone z50-hard-0 asset sitar-50-hard-0 keys C3 F3 velocity 0.65 1 root D3
+      zone z56-soft-0 asset sitar-56-soft-0 keys F#3 B3 velocity 0 0.65 root G#3
+      zone z56-hard-0 asset sitar-56-hard-0 keys F#3 B3 velocity 0.65 1 root G#3
+      zone z62-soft-0 asset sitar-62-soft-0 keys C4 F4 velocity 0 0.65 root D4
+      zone z62-hard-0 asset sitar-62-hard-0 keys C4 F4 velocity 0.65 1 root D4
+      zone z68-soft-0 asset sitar-68-soft-0 keys F#4 B4 velocity 0 0.65 root G#4
+      zone z68-hard-0 asset sitar-68-hard-0 keys F#4 B4 velocity 0.65 1 root G#4
+      zone z74-soft-0 asset sitar-74-soft-0 keys C5 G5 velocity 0 0.65 root D5
+      zone z74-hard-0 asset sitar-74-hard-0 keys C5 G5 velocity 0.65 1 root D5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset sitar-50-soft-0 "Sitar" wav "media/50-soft-0.wav" sha256 "9765bf5fa25a69645dba52524eebb255683fcda37ce5d9033ff946726cdb589a" {
+  usage multisample
+}
+asset sitar-50-hard-0 "Sitar" wav "media/50-hard-0.wav" sha256 "652b620e1b0f158fcd9a24cb62ff85fd3b390771af51406f91a073495649e992" {
+  usage multisample
+}
+asset sitar-56-soft-0 "Sitar" wav "media/56-soft-0.wav" sha256 "93686d278093576fef8515241788963e5f5692ab135c39d8ee1accfc527a50ae" {
+  usage multisample
+}
+asset sitar-56-hard-0 "Sitar" wav "media/56-hard-0.wav" sha256 "26756a3016ab29956ffc720cf02dea399776614f636e88551f25a08bf5787d9d" {
+  usage multisample
+}
+asset sitar-62-soft-0 "Sitar" wav "media/62-soft-0.wav" sha256 "368419b790385860a36361dfcae13e6a63f50fe92f34bd1b59baebbee61d4de3" {
+  usage multisample
+}
+asset sitar-62-hard-0 "Sitar" wav "media/62-hard-0.wav" sha256 "dd780debb23ea0446bcb057b76c638d5288c201eaf5f0751586feff6b1d1a9b4" {
+  usage multisample
+}
+asset sitar-68-soft-0 "Sitar" wav "media/68-soft-0.wav" sha256 "873900558b5065f8ce468aefff43fa08d03fbaedf5ab1331b927d20838bdc5b5" {
+  usage multisample
+}
+asset sitar-68-hard-0 "Sitar" wav "media/68-hard-0.wav" sha256 "41a409ff43bea9a62d8bf2eb2ebd27e8d8cc1f7d617d143e245247210946fcc6" {
+  usage multisample
+}
+asset sitar-74-soft-0 "Sitar" wav "media/74-soft-0.wav" sha256 "6774e51f76bc58ac89eb0d7e719fce896f1a485c1f07a8000b4454ba2737f6ef" {
+  usage multisample
+}
+asset sitar-74-hard-0 "Sitar" wav "media/74-hard-0.wav" sha256 "d89d9b3a44e51a3b0852650ae9042126ea91944532a714c4e66b9aabee57c9f1" {
+  usage multisample
+}

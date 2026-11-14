@@ -1,0 +1,93 @@
+crump-module 2
+instrument guiro "Guiro" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone zlong-38-soft-0 asset guiro-long-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
+      zone zlong-43-soft-0 asset guiro-long-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
+      zone zlong-48-soft-0 asset guiro-long-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
+      zone zlong-53-soft-0 asset guiro-long-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
+      zone zlong-58-soft-0 asset guiro-long-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
+      zone zlong-38-hard-0 asset guiro-long-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
+      zone zlong-43-hard-0 asset guiro-long-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
+      zone zlong-48-hard-0 asset guiro-long-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
+      zone zlong-53-hard-0 asset guiro-long-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
+      zone zlong-58-hard-0 asset guiro-long-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
+      zone zlong-38-soft-1 asset guiro-long-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
+      zone zlong-43-soft-1 asset guiro-long-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
+      zone zlong-48-soft-1 asset guiro-long-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
+      zone zlong-53-soft-1 asset guiro-long-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
+      zone zlong-58-soft-1 asset guiro-long-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
+      zone zlong-38-hard-1 asset guiro-long-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
+      zone zlong-43-hard-1 asset guiro-long-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
+      zone zlong-48-hard-1 asset guiro-long-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
+      zone zlong-53-hard-1 asset guiro-long-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
+      zone zlong-58-hard-1 asset guiro-long-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
+      zone zshort-63-soft-0 asset guiro-short-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
+      zone zshort-68-soft-0 asset guiro-short-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone zshort-73-soft-0 asset guiro-short-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
+      zone zshort-78-soft-0 asset guiro-short-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
+      zone zshort-83-soft-0 asset guiro-short-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
+      zone zshort-63-hard-0 asset guiro-short-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
+      zone zshort-68-hard-0 asset guiro-short-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone zshort-73-hard-0 asset guiro-short-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
+      zone zshort-78-hard-0 asset guiro-short-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
+      zone zshort-83-hard-0 asset guiro-short-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
+      zone zshort-63-soft-1 asset guiro-short-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
+      zone zshort-68-soft-1 asset guiro-short-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone zshort-73-soft-1 asset guiro-short-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
+      zone zshort-78-soft-1 asset guiro-short-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
+      zone zshort-83-soft-1 asset guiro-short-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
+      zone zshort-63-hard-1 asset guiro-short-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
+      zone zshort-68-hard-1 asset guiro-short-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone zshort-73-hard-1 asset guiro-short-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
+      zone zshort-78-hard-1 asset guiro-short-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
+      zone zshort-83-hard-1 asset guiro-short-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset guiro-long-60-soft-0 "Guiro" wav "media/long-60-soft-0.wav" sha256 "2150fde56bd03e78b171f9a7b51845c2fc70af0a1583aba77eaf1ae6e05b4db9" {
+  usage multisample
+}
+asset guiro-long-60-hard-0 "Guiro" wav "media/long-60-hard-0.wav" sha256 "ac55c7b45d14171153c89952838ca0f2dedd7628c7037db539fd3814d5d6acb9" {
+  usage multisample
+}
+asset guiro-long-60-soft-1 "Guiro" wav "media/long-60-soft-1.wav" sha256 "10513d66f15c20208a09415abd3a377125d4e7c9dacd74b39e4967fb31168cd6" {
+  usage multisample
+}
+asset guiro-long-60-hard-1 "Guiro" wav "media/long-60-hard-1.wav" sha256 "7a6a282fc38a42df6474ce8c321d8064df5a7451ffa78a8ea029b472f271116a" {
+  usage multisample
+}
+asset guiro-short-60-soft-0 "Guiro" wav "media/short-60-soft-0.wav" sha256 "db3705bfe3394f3a50b3b653a765176770d02c7cc57f5846a4c0597f14fdef25" {
+  usage multisample
+}
+asset guiro-short-60-hard-0 "Guiro" wav "media/short-60-hard-0.wav" sha256 "817006da197ee91f2fb1d16cc17949104d85880f16114e81552bfc21871fa274" {
+  usage multisample
+}
+asset guiro-short-60-soft-1 "Guiro" wav "media/short-60-soft-1.wav" sha256 "ea69b01c437aaaf6c093b66522e68749e484bb55a205547def6a451a152c0875" {
+  usage multisample
+}
+asset guiro-short-60-hard-1 "Guiro" wav "media/short-60-hard-1.wav" sha256 "3ed236e50be1d6060d2cb87253ae953a26503e6a10aaaa7f77af8e5e28d61c7d" {
+  usage multisample
+}

@@ -139,83 +139,104 @@ def bank(entry, folder, setup=False):
         Path(__file__).read_bytes()
         + Path(__file__).with_name("materials.py").read_bytes()
     )
-    for k, root in enumerate(roots):
-        lower = low_key if k == 0 else (roots[k - 1] + root) // 2 + 1
-        upper = high_key if k == len(roots) - 1 else (root + roots[k + 1]) // 2
-        if not entry["pitched"]:
-            lower, upper = 0, 127
-        for rr in range(1 if entry["pitched"] else 2):
-            seed = recipe["seed_base"] + root * 10 + rr
-            hard = band_limit(make(recipe, root, 0.92, seed), root, upper, recipe)
-            scale = 0.76 / np.max(np.abs(hard))
-            for layer, velocity, low, high in [
-                ("soft", 0.48, 0, 0.65),
-                ("hard", 0.92, 0.65, 1),
-            ]:
-                dry = (
-                    hard
-                    if layer == "hard"
-                    else band_limit(
-                        make(recipe, root, velocity, seed), root, upper, recipe
+    # A pass renders one set of roots. Unpitched recipes with `strokes` render a
+    # pass per stroke, each with its own params and fixed key range.
+    passes = [(recipe, roots, "", fixed, 0)]
+    if recipe.get("strokes"):
+        passes = [
+            (
+                recipe | {"params": recipe["params"] | stroke.get("params", {})},
+                [60],
+                f"{stroke['name']}-",
+                stroke["keys"],
+                1000 * (index + 1),
+            )
+            for index, stroke in enumerate(recipe["strokes"])
+        ]
+    for variant, pass_roots, tag, keys, offset in passes:
+        for k, root in enumerate(pass_roots):
+            lower = low_key if k == 0 else (pass_roots[k - 1] + root) // 2 + 1
+            upper = (
+                high_key
+                if k == len(pass_roots) - 1
+                else (root + pass_roots[k + 1]) // 2
+            )
+            if not entry["pitched"]:
+                lower, upper = 0, 127
+            for rr in range(1 if entry["pitched"] else 2):
+                seed = recipe["seed_base"] + offset + root * 10 + rr
+                hard = band_limit(make(variant, root, 0.92, seed), root, upper, recipe)
+                scale = 0.76 / np.max(np.abs(hard))
+                for layer, velocity, low, high in [
+                    ("soft", 0.48, 0, 0.65),
+                    ("hard", 0.92, 0.65, 1),
+                ]:
+                    dry = (
+                        hard
+                        if layer == "hard"
+                        else band_limit(
+                            make(variant, root, velocity, seed), root, upper, recipe
+                        )
                     )
-                )
-                dry = dry * scale * (1 if layer == "hard" else 0.65)
-                audio = treatment(dry, recipe.get("treatment"))
-                if recipe.get("treatment") in ("dub", "room"):
-                    audio *= 0.7
-                if "loop" in recipe:
-                    audio = flatten_loop(audio, recipe)
-                loop = loop_points(audio, recipe) if "loop" in recipe else None
-                data, frames = encode(audio)
-                aid = f"{entry['id']}-{root}-{layer}-{rr}"
-                path = f"media/{root}-{layer}-{rr}.wav"
-                destination = folder / path
-                if setup and sha(data) != expected.get(path):
-                    raise ValueError(
-                        f"{destination} does not match assets.json; this platform does not reproduce the committed bank"
+                    dry = dry * scale * (1 if layer == "hard" else 0.65)
+                    audio = treatment(dry, recipe.get("treatment"))
+                    if recipe.get("treatment") in ("dub", "room"):
+                        audio *= 0.7
+                    # A loop that is periodic by construction (a rotary speaker,
+                    # a moving vowel) sets `loop_leveling` 0 to keep its motion.
+                    if "loop" in recipe and recipe.get("loop_leveling", 0.12):
+                        audio = flatten_loop(audio, recipe)
+                    loop = loop_points(audio, recipe) if "loop" in recipe else None
+                    data, frames = encode(audio)
+                    aid = f"{entry['id']}-{tag}{root}-{layer}-{rr}"
+                    path = f"media/{tag}{root}-{layer}-{rr}.wav"
+                    destination = folder / path
+                    if setup and sha(data) != expected.get(path):
+                        raise ValueError(
+                            f"{destination} does not match assets.json; this platform does not reproduce the committed bank"
+                        )
+                    # Setup replaces outdated media: assets.json is the authority.
+                    if (
+                        not setup
+                        and destination.exists()
+                        and destination.read_bytes() != data
+                    ):
+                        raise ValueError(
+                            f"Refusing to replace changed media: {destination}; generate to a new --output directory"
+                        )
+                    destination.write_bytes(data)
+                    assets.append(
+                        {
+                            "id": aid,
+                            "path": path,
+                            "sha256": sha(data),
+                            "frames": frames,
+                            "sample_rate": RATE,
+                            "root_midi": root,
+                            "velocity": velocity,
+                            "round_robin": rr,
+                            "seed": seed,
+                            "normalization_gain": float(scale),
+                        }
+                        | ({"loop": list(loop)} if loop else {})
                     )
-                # Setup replaces outdated media: assets.json is the authority.
-                if (
-                    not setup
-                    and destination.exists()
-                    and destination.read_bytes() != data
-                ):
-                    raise ValueError(
-                        f"Refusing to replace changed media: {destination}; generate to a new --output directory"
+                    if keys:
+                        # Five-key groups rooted at their centre: no key moves more
+                        # than two semitones from the recorded pitch. One zone per
+                        # key would exceed the engine's per-frame zone-scan budget.
+                        zones += [
+                            f"      zone z{tag}{key + 2}-{layer}-{rr} asset {aid} keys {note(key)} {note(key + 4)} velocity {low} {high} root {note(key + 2)}"
+                            for key in range(keys[0], keys[1] + 1, 5)
+                        ]
+                        continue
+                    suffix = (
+                        f" loop {loop[0]} {loop[1]} crossfade {loop[2]}" if loop else ""
                     )
-                destination.write_bytes(data)
-                assets.append(
-                    {
-                        "id": aid,
-                        "path": path,
-                        "sha256": sha(data),
-                        "frames": frames,
-                        "sample_rate": RATE,
-                        "root_midi": root,
-                        "velocity": velocity,
-                        "round_robin": rr,
-                        "seed": seed,
-                        "normalization_gain": float(scale),
-                    }
-                    | ({"loop": list(loop)} if loop else {})
-                )
-                if fixed:
-                    # Five-key groups rooted at their centre: no key moves more
-                    # than two semitones from the recorded pitch. One zone per
-                    # key would exceed the engine's per-frame zone-scan budget.
-                    zones += [
-                        f"      zone z{key + 2}-{layer}-{rr} asset {aid} keys {note(key)} {note(key + 4)} velocity {low} {high} root {note(key + 2)}"
-                        for key in range(fixed[0], fixed[1] + 1, 5)
-                    ]
-                    continue
-                suffix = (
-                    f" loop {loop[0]} {loop[1]} crossfade {loop[2]}" if loop else ""
-                )
-                # Each zone plays its whole sample. Zones sharing a key and
-                # velocity range are round-robin alternatives, chosen at random.
-                zones.append(
-                    f"      zone z{root}-{layer}-{rr} asset {aid} keys {note(lower)} {note(upper)} velocity {low} {high} root {note(root)}{suffix}"
-                )
+                    # Each zone plays its whole sample. Zones sharing a key and
+                    # velocity range are round-robin alternatives, chosen at random.
+                    zones.append(
+                        f"      zone z{root}-{layer}-{rr} asset {aid} keys {note(lower)} {note(upper)} velocity {low} {high} root {note(root)}{suffix}"
+                    )
     if setup:
         return assets
     manifest = {
@@ -324,6 +345,39 @@ def orchestral_events(recipe):
             (24 + i / 4, base + n, 0.2, 0.55 + 0.05 * (i % 3))
             for i, n in enumerate([0, 2, 4, 5, 7, 9, 11, 12])
         ]
+    elif phrase in ("bassline", "acid"):
+        # A sixteenth-note riff over i–i–VI–VII. Acid lines slide into every
+        # fourth step (the notes overlap, so a mono voice glides) and accent.
+        events = [(0, base, 2, 0.48), (2, base + 12, 2, 0.92)]
+        riff = [0, 0, 12, 0, 10, 0, 7, 12, 0, 3, 12, 0, 10, 7, 5, 3]
+        for bar, chord in enumerate([0, 0, -4, -2, 0, 0, -4, -2][1:]):
+            for step, offset in enumerate(riff):
+                if phrase == "bassline" and step % 4 == 1:
+                    continue
+                slide = phrase == "acid" and step % 4 == 3
+                accent = 0.95 if step % 4 == 0 else 0.62
+                events.append(
+                    (4 + bar * 4 + step / 4, base + chord + offset, 0.3 if slide else 0.18, accent)
+                )
+    elif phrase == "lead":
+        melody = [
+            (0, 0, 1), (1, 3, 1), (2, 7, 1.5), (3.5, 10, 0.5), (4, 12, 3),
+            (8, 15, 0.5), (8.5, 14, 0.5), (9, 12, 0.5), (9.5, 10, 0.5), (10, 12, 2),
+            (12, 7, 1), (13, 10, 1), (14, 3, 2),
+        ]
+        events = [(at, base + n, length, 0.75) for at, n, length in melody]
+        events += [(16 + i / 2, base + n, 0.35, 0.85) for i, n in enumerate([0, 3, 7, 10, 12, 10, 7, 3] * 2)]
+        events += [(24, base + 12, 6, 0.8)]
+    elif phrase == "stab":
+        # Off-beat stabs over the progression, then held hits to hear the tail.
+        events = [
+            (bar * 4 + beat + 0.5, base + chord, 0.25, 0.85 if beat == 0 else 0.68)
+            for bar, chord in enumerate([0, 0, -4, -2, 0, 0])
+            for beat in range(4)
+        ]
+        events += [(24, base, 2, 0.92), (28, base - 4, 2, 0.6)]
+    elif phrase == "riser":
+        events = [(0, base, 8, 0.92), (8, base, 4, 0.5), (12, base + 12, 4, 0.8), (16, base, 14, 0.85)]
     else:
         events = [
             (0, base, 2, 0.48),
@@ -347,11 +401,28 @@ def orchestral_events(recipe):
     return [e for e in events if low <= e[1] <= high]
 
 
+def stroke_events(recipe):
+    """Each stroke alone at two dynamics, then a groove between them."""
+    keys = [(stroke["keys"][0] + stroke["keys"][1]) // 2 for stroke in recipe["strokes"]]
+    events = []
+    for i, key in enumerate(keys):
+        events += [(i * 2, key, 0.25, 0.92), (i * 2 + 1, key, 0.25, 0.48)]
+    low, high = keys[0], keys[-1]
+    groove = [low, None, high, high, low, high, None, high]
+    for bar in range(len(keys) // 2 + 1, 8):
+        for step, key in enumerate(groove):
+            if key is not None:
+                events.append((bar * 4 + step / 2, key, 0.25, 0.9 if step % 4 == 0 else 0.6))
+    return events
+
+
 def project(entry, recipe=None):
     recipe = recipe or {}
     base = 36 if entry["category"] == "Bass" else 60
     events = [(0, base, 0.25, 0.92), (4, base, 2, 0.48)]
-    if "audition" in recipe:
+    if "strokes" in recipe:
+        events = stroke_events(recipe)
+    elif "audition" in recipe:
         events = orchestral_events(recipe)
     elif entry["pitched"]:
         events += [
@@ -403,6 +474,27 @@ def setup_bank(entry):
     return f"{entry['id']} {len(bank(entry, folder, setup=True))} samples generated"
 
 
+def rebuild(entry, output):
+    """Generate one instrument's bank, module and audition Project into `output`."""
+    folder = output / entry["id"]
+    folder.mkdir(parents=True, exist_ok=True)
+    origin = ROOT / entry["id"]
+    if folder.resolve() != origin.resolve():
+        for filename in ["recipe.json", "instrument.crump"]:
+            if (origin / filename).exists():
+                (folder / filename).write_bytes((origin / filename).read_bytes())
+    assets = bank(entry, folder) if entry["kind"] == "multisample" else []
+    recipe_path = folder / "recipe.json"
+    # Native modules without a recipe take their audition from the catalog.
+    recipe = (
+        load_recipe(recipe_path)[0]
+        if recipe_path.exists()
+        else entry.get("audition", {})
+    )
+    (folder / "project.crump").write_text(project(entry, recipe))
+    return f"{entry['id']} {len(assets)} assets"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--only", nargs="+", help="Instrument IDs to generate")
@@ -429,21 +521,10 @@ def main():
             for line in pool.map(setup_bank, selected):
                 print(line, flush=True)
         return
-    for entry in entries:
-        if args.only and entry["id"] not in args.only:
-            continue
-        folder = args.output / entry["id"]
-        folder.mkdir(parents=True, exist_ok=True)
-        origin = ROOT / entry["id"]
-        if folder.resolve() != origin.resolve():
-            for filename in ["recipe.json", "instrument.crump"]:
-                if (origin / filename).exists():
-                    (folder / filename).write_bytes((origin / filename).read_bytes())
-        assets = bank(entry, folder) if entry["kind"] == "multisample" else []
-        recipe_path = folder / "recipe.json"
-        recipe = load_recipe(recipe_path)[0] if recipe_path.exists() else {}
-        (folder / "project.crump").write_text(project(entry, recipe))
-        print(entry["id"], len(assets), "assets", flush=True)
+    selected = [e for e in entries if not args.only or e["id"] in args.only]
+    with ProcessPoolExecutor(max_workers=args.jobs) as pool:
+        for line in pool.map(rebuild, selected, [args.output] * len(selected)):
+            print(line, flush=True)
 
 
 if __name__ == "__main__":

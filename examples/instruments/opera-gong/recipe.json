@@ -1,0 +1,54 @@
+{
+  "model": "layered",
+  "params": {
+    "layers": [
+      {
+        "model": "plate",
+        "params": {
+          "modes": 180,
+          "low": 180,
+          "high": 6000,
+          "decay": 1.6,
+          "damping": 0.35,
+          "tilt": -0.5,
+          "contact": 0.006,
+          "mallet": 2500,
+          "strike_rise": 0.004,
+          "bloom": 0.25,
+          "bloom_rise": 0.05,
+          "bloom_decay": 0.6,
+          "bloom_low": 900
+        },
+        "gain": 1
+      }
+    ],
+    "contour": [
+      [
+        0,
+        0
+      ],
+      [
+        0.04,
+        0
+      ],
+      [
+        0.6,
+        180
+      ],
+      [
+        2,
+        220
+      ]
+    ]
+  },
+  "pitched": false,
+  "category": "World mallets",
+  "seconds": 4,
+  "fixed_keys": [
+    36,
+    81
+  ],
+  "highpass": 40,
+  "id": "opera-gong",
+  "seed_base": 1320000
+}

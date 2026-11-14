@@ -1,0 +1,128 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "02d5e8635206d12e506b4ae5af2b5cdb0cafea3b6405c6e4430d12bd83605bfc",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "singing-bowl-57-soft-0",
+      "path": "media/57-soft-0.wav",
+      "sha256": "cf03ee6844122740ed87c0b2759b88a27cc2f1d998854c8d9c6bad9509d0a1fa",
+      "frames": 672000,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1280570,
+      "normalization_gain": 0.5674908161067236
+    },
+    {
+      "id": "singing-bowl-57-hard-0",
+      "path": "media/57-hard-0.wav",
+      "sha256": "d743d51d5c95b7701d6a91609c679a30713f2c3a05e75360c4111e051453e657",
+      "frames": 672000,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1280570,
+      "normalization_gain": 0.5674908161067236
+    },
+    {
+      "id": "singing-bowl-63-soft-0",
+      "path": "media/63-soft-0.wav",
+      "sha256": "6e707edf232dc561491eee1d225d745ff2055caec58babb9fd4f08147dc79b64",
+      "frames": 672000,
+      "sample_rate": 48000,
+      "root_midi": 63,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1280630,
+      "normalization_gain": 0.7393897398990202
+    },
+    {
+      "id": "singing-bowl-63-hard-0",
+      "path": "media/63-hard-0.wav",
+      "sha256": "90da7596ebdb23fed8a498457b031514a1a2e1b638cbd5f0c255d88664743c76",
+      "frames": 672000,
+      "sample_rate": 48000,
+      "root_midi": 63,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1280630,
+      "normalization_gain": 0.7393897398990202
+    },
+    {
+      "id": "singing-bowl-69-soft-0",
+      "path": "media/69-soft-0.wav",
+      "sha256": "b4224f890ecee184d5b01092a1ee5e642976e0c26f81d53d160a74d3157d83f4",
+      "frames": 672000,
+      "sample_rate": 48000,
+      "root_midi": 69,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1280690,
+      "normalization_gain": 0.9636487291955075
+    },
+    {
+      "id": "singing-bowl-69-hard-0",
+      "path": "media/69-hard-0.wav",
+      "sha256": "12b4cb30d6f2a2ed7cc00b334eb48d80c66a12f41aa1d2fce277c673eb8ade4e",
+      "frames": 672000,
+      "sample_rate": 48000,
+      "root_midi": 69,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1280690,
+      "normalization_gain": 0.9636487291955075
+    },
+    {
+      "id": "singing-bowl-75-soft-0",
+      "path": "media/75-soft-0.wav",
+      "sha256": "eec8d9bad4279bed0550818bc2b9f91b2a66c14599d5565c237c37326024011c",
+      "frames": 672000,
+      "sample_rate": 48000,
+      "root_midi": 75,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1280750,
+      "normalization_gain": 1.4011345957264005
+    },
+    {
+      "id": "singing-bowl-75-hard-0",
+      "path": "media/75-hard-0.wav",
+      "sha256": "a5a25b6653d36e3ad19d0c1794644f37e618ebdf5db6b8b58b32c4455606a8f1",
+      "frames": 672000,
+      "sample_rate": 48000,
+      "root_midi": 75,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1280750,
+      "normalization_gain": 1.4011345957264005
+    },
+    {
+      "id": "singing-bowl-81-soft-0",
+      "path": "media/81-soft-0.wav",
+      "sha256": "e77a496dc1de361bdfbd52dca2ef17737888d38e358c6c6deb957308d053358d",
+      "frames": 672000,
+      "sample_rate": 48000,
+      "root_midi": 81,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1280810,
+      "normalization_gain": 1.992543822544086
+    },
+    {
+      "id": "singing-bowl-81-hard-0",
+      "path": "media/81-hard-0.wav",
+      "sha256": "0f4b16e80d52fdc73054d6357ca32d5f32de0ebb0b490f11845eb6c5bfe19d32",
+      "frames": 672000,
+      "sample_rate": 48000,
+      "root_midi": 81,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1280810,
+      "normalization_gain": 1.992543822544086
+    }
+  ]
+}

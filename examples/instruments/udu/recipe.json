@@ -1,0 +1,76 @@
+{
+  "model": "layered",
+  "params": {},
+  "pitched": false,
+  "category": "World percussion",
+  "seconds": 2,
+  "strokes": [
+    {
+      "name": "bass",
+      "keys": [
+        36,
+        60
+      ],
+      "params": {
+        "layers": [
+          {
+            "model": "machine",
+            "params": {
+              "freq": 110,
+              "tone": 1,
+              "sweep": -0.35,
+              "sweep_time": 0.06,
+              "decay": 0.2
+            },
+            "gain": 1
+          },
+          {
+            "model": "machine",
+            "params": {
+              "noise": 1,
+              "noise_band": [
+                150,
+                900
+              ],
+              "noise_decay": 0.05
+            },
+            "gain": 0.2
+          }
+        ]
+      }
+    },
+    {
+      "name": "tap",
+      "keys": [
+        61,
+        85
+      ],
+      "params": {
+        "layers": [
+          {
+            "model": "modes",
+            "params": {
+              "freq": 520,
+              "ratios": [
+                1,
+                2.3,
+                3.9
+              ],
+              "gains": [
+                1,
+                0.5,
+                0.2
+              ],
+              "decay": 0.06,
+              "contact": 0.0008,
+              "tick": 0.3
+            },
+            "gain": 1
+          }
+        ]
+      }
+    }
+  ],
+  "id": "udu",
+  "seed_base": 1160000
+}

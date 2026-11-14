@@ -1,0 +1,246 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "2eedd869fc070721b9a3e866fb605c8c5852ec1d29073e49793a2a2552100431",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "alto-sax-49-soft-0",
+      "path": "media/49-soft-0.wav",
+      "sha256": "504624ae427bec43cb28177adf24087194f3551bccb64db1b820bd9173fa7dc4",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 49,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1470490,
+      "normalization_gain": 1.0022247977671892,
+      "loop": [
+        48000,
+        124714,
+        8160
+      ]
+    },
+    {
+      "id": "alto-sax-49-hard-0",
+      "path": "media/49-hard-0.wav",
+      "sha256": "31e087ee5ff1774cf0591b21bc6d706876d46932277698830481c9993a8cf407",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 49,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1470490,
+      "normalization_gain": 1.0022247977671892,
+      "loop": [
+        48000,
+        124369,
+        8160
+      ]
+    },
+    {
+      "id": "alto-sax-54-soft-0",
+      "path": "media/54-soft-0.wav",
+      "sha256": "90d20f93eef2edd8894b763a3a743891fa790da06a17eaf3b98d69627a059b93",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 54,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1470540,
+      "normalization_gain": 0.9744435462080705,
+      "loop": [
+        48000,
+        125948,
+        8160
+      ]
+    },
+    {
+      "id": "alto-sax-54-hard-0",
+      "path": "media/54-hard-0.wav",
+      "sha256": "2c6ff3968ea7b908b6a2fcab563535de337dbbfc6de9670d58ab28d99824b924",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 54,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1470540,
+      "normalization_gain": 0.9744435462080705,
+      "loop": [
+        48000,
+        123605,
+        8160
+      ]
+    },
+    {
+      "id": "alto-sax-59-soft-0",
+      "path": "media/59-soft-0.wav",
+      "sha256": "81c90e3ef46d2c8dcd8ef8bc8d1b70dcef004721d7389adb2ebc4c4aac2ef953",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 59,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1470590,
+      "normalization_gain": 0.9168650699014178,
+      "loop": [
+        48000,
+        123770,
+        8160
+      ]
+    },
+    {
+      "id": "alto-sax-59-hard-0",
+      "path": "media/59-hard-0.wav",
+      "sha256": "e8effeab9a18a1a2a6ed63267bf49cd6bbaa1559c9b4d050625e0ac76d570232",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 59,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1470590,
+      "normalization_gain": 0.9168650699014178,
+      "loop": [
+        48000,
+        123767,
+        8160
+      ]
+    },
+    {
+      "id": "alto-sax-64-soft-0",
+      "path": "media/64-soft-0.wav",
+      "sha256": "427fb5f4019eee5b6d10a94065de1857a7355b50d58fb567abbc17b638c506fc",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1470640,
+      "normalization_gain": 0.9089089125494614,
+      "loop": [
+        48000,
+        125907,
+        8160
+      ]
+    },
+    {
+      "id": "alto-sax-64-hard-0",
+      "path": "media/64-hard-0.wav",
+      "sha256": "3c329b49d3f0dd038f5da4242dbc2fda334341d1957ca4cb084142c1b88bbe81",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1470640,
+      "normalization_gain": 0.9089089125494614,
+      "loop": [
+        48000,
+        125907,
+        8160
+      ]
+    },
+    {
+      "id": "alto-sax-69-soft-0",
+      "path": "media/69-soft-0.wav",
+      "sha256": "4426478dd7e123b85bf5d97b09cb8f65fd4c42de8337dc6aae32e198acfb3f0b",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 69,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1470690,
+      "normalization_gain": 0.8822355914885052,
+      "loop": [
+        48000,
+        123659,
+        8160
+      ]
+    },
+    {
+      "id": "alto-sax-69-hard-0",
+      "path": "media/69-hard-0.wav",
+      "sha256": "bde37520df75cbed4a4e2b75cbbe0a2f3a5221738ab13ab28afa2239fb098dfb",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 69,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1470690,
+      "normalization_gain": 0.8822355914885052,
+      "loop": [
+        48000,
+        123767,
+        8160
+      ]
+    },
+    {
+      "id": "alto-sax-74-soft-0",
+      "path": "media/74-soft-0.wav",
+      "sha256": "6b5257b05a464b6fbfb78e9bfeb8fa2f830b9a9b66116ddf02356055108e2ef0",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 74,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1470740,
+      "normalization_gain": 0.6588586989988979,
+      "loop": [
+        48000,
+        123698,
+        8160
+      ]
+    },
+    {
+      "id": "alto-sax-74-hard-0",
+      "path": "media/74-hard-0.wav",
+      "sha256": "173bc4f9d8a160ed9cd2449f2ab659ee4975836b6d41a8eeb316bf993055ebfd",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 74,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1470740,
+      "normalization_gain": 0.6588586989988979,
+      "loop": [
+        48000,
+        124024,
+        8160
+      ]
+    },
+    {
+      "id": "alto-sax-79-soft-0",
+      "path": "media/79-soft-0.wav",
+      "sha256": "9dc40f9f1c44ed150032a30fb918d34146eaff06117772ba8f7eb6755a887409",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 79,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1470790,
+      "normalization_gain": 1.0371143487813559,
+      "loop": [
+        48000,
+        125977,
+        8160
+      ]
+    },
+    {
+      "id": "alto-sax-79-hard-0",
+      "path": "media/79-hard-0.wav",
+      "sha256": "cc07ebb0b9ec1c98bb94af516161780637ab8ea1f10980a6f4758180c99506d9",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 79,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1470790,
+      "normalization_gain": 1.0371143487813559,
+      "loop": [
+        48000,
+        125984,
+        8160
+      ]
+    }
+  ]
+}

@@ -1,0 +1,212 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "5cba951a6c4ad1fc2f23dc7cea8dfdfaa716f8e0c036fb441480a35b186bce66",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "bansuri-53-soft-0",
+      "path": "media/53-soft-0.wav",
+      "sha256": "85a11ccc325c7914202d4feac0bbdfef23b7d40c1e03a21cdca701d0f03d8734",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 53,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1560530,
+      "normalization_gain": 0.39743123662202845,
+      "loop": [
+        48000,
+        123778,
+        8160
+      ]
+    },
+    {
+      "id": "bansuri-53-hard-0",
+      "path": "media/53-hard-0.wav",
+      "sha256": "ea5ddb64d10eaf7e684fc7c3a9a2eabed18ec9fb9fd3a8c0e93250e1dddf738a",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 53,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1560530,
+      "normalization_gain": 0.39743123662202845,
+      "loop": [
+        48000,
+        123776,
+        8160
+      ]
+    },
+    {
+      "id": "bansuri-59-soft-0",
+      "path": "media/59-soft-0.wav",
+      "sha256": "159f304d8fd028f67bee54060cecff50d0dc90bb6c340b92cdb4f9ca2fc73438",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 59,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1560590,
+      "normalization_gain": 0.47307082537983713,
+      "loop": [
+        48000,
+        124790,
+        8160
+      ]
+    },
+    {
+      "id": "bansuri-59-hard-0",
+      "path": "media/59-hard-0.wav",
+      "sha256": "775686682d8382e56ca0fbffcb4e3f938e4383f44631f27344a3ba7f4885d074",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 59,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1560590,
+      "normalization_gain": 0.47307082537983713,
+      "loop": [
+        48000,
+        125178,
+        8160
+      ]
+    },
+    {
+      "id": "bansuri-65-soft-0",
+      "path": "media/65-soft-0.wav",
+      "sha256": "a9d4000f6e7eadceacc17161c4932d35d9eb854698c8c7465b6145e969204286",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 65,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1560650,
+      "normalization_gain": 0.39006303376426765,
+      "loop": [
+        48000,
+        123645,
+        8160
+      ]
+    },
+    {
+      "id": "bansuri-65-hard-0",
+      "path": "media/65-hard-0.wav",
+      "sha256": "ab5b3eeed2a8b942ec8c4967f3593bd0f4a381eefcdddbb2e3c43e7f20f0fad2",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 65,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1560650,
+      "normalization_gain": 0.39006303376426765,
+      "loop": [
+        48000,
+        123647,
+        8160
+      ]
+    },
+    {
+      "id": "bansuri-71-soft-0",
+      "path": "media/71-soft-0.wav",
+      "sha256": "bb448e87d7dd9e15ba144d510ebf4bdca5299376d23d451b9823bec4f1b79cae",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 71,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1560710,
+      "normalization_gain": 0.46738491306821706,
+      "loop": [
+        48000,
+        123660,
+        8160
+      ]
+    },
+    {
+      "id": "bansuri-71-hard-0",
+      "path": "media/71-hard-0.wav",
+      "sha256": "943f173ce065b68af2191fe8516d811cb9d0084acca4ab9cf9f7efa1bb1c11d1",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 71,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1560710,
+      "normalization_gain": 0.46738491306821706,
+      "loop": [
+        48000,
+        123660,
+        8160
+      ]
+    },
+    {
+      "id": "bansuri-77-soft-0",
+      "path": "media/77-soft-0.wav",
+      "sha256": "38c9ba45dd53be7065e34379bfd11e0693a33078d08d6c8ddc58b572803de6b6",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 77,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1560770,
+      "normalization_gain": 0.5795763267964679,
+      "loop": [
+        48000,
+        125966,
+        8160
+      ]
+    },
+    {
+      "id": "bansuri-77-hard-0",
+      "path": "media/77-hard-0.wav",
+      "sha256": "eb51a3329540479f6e342a098252a130f28fbbac33c722f6bb33aed41d379aa9",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 77,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1560770,
+      "normalization_gain": 0.5795763267964679,
+      "loop": [
+        48000,
+        123662,
+        8160
+      ]
+    },
+    {
+      "id": "bansuri-83-soft-0",
+      "path": "media/83-soft-0.wav",
+      "sha256": "f7f68d97042585d162e27dc318a627fd6d4284f7820031ab1064a6dce95cc08c",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 83,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1560830,
+      "normalization_gain": 0.5259032066676161,
+      "loop": [
+        48000,
+        125988,
+        8160
+      ]
+    },
+    {
+      "id": "bansuri-83-hard-0",
+      "path": "media/83-hard-0.wav",
+      "sha256": "703daa661754f50d072a1a411c93022348c26d072069860a787d8ffa19f2430b",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 83,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1560830,
+      "normalization_gain": 0.5259032066676161,
+      "loop": [
+        48000,
+        124749,
+        8160
+      ]
+    }
+  ]
+}

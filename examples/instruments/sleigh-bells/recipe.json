@@ -1,0 +1,27 @@
+{
+  "model": "collisions",
+  "params": {
+    "density": 2600,
+    "decay": 0.16,
+    "rise": 0.01,
+    "ring": 0.035,
+    "freqs": [
+      2600,
+      6050,
+      6900,
+      10600
+    ],
+    "minimum_decay": 0.002,
+    "hipass": 2500,
+    "friction": 0.05
+  },
+  "pitched": false,
+  "category": "World percussion",
+  "seconds": 1.5,
+  "fixed_keys": [
+    36,
+    81
+  ],
+  "id": "sleigh-bells",
+  "seed_base": 1210000
+}

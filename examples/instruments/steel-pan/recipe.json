@@ -1,0 +1,46 @@
+{
+  "model": "modes_tuned",
+  "params": {
+    "ratios": [
+      1,
+      2,
+      3,
+      4.02
+    ],
+    "gains": [
+      1,
+      0.55,
+      0.3,
+      0.1
+    ],
+    "decays": [
+      1.2,
+      0.8,
+      0.45,
+      0.25
+    ],
+    "split": 0.0015,
+    "contact": 0.0015,
+    "hardness": 0.4,
+    "decay_tracking": 0.5,
+    "tick": 0.05
+  },
+  "pitched": true,
+  "category": "World mallets",
+  "seconds": 5,
+  "roots": [
+    62,
+    67,
+    72,
+    77,
+    82,
+    87
+  ],
+  "range": [
+    60,
+    89
+  ],
+  "audition": 72,
+  "id": "steel-pan",
+  "seed_base": 1260000
+}

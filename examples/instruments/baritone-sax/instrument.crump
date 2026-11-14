@@ -1,0 +1,92 @@
+crump-module 2
+instrument baritone-sax "Baritone Sax" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.12s 0.12s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z36-soft-0 asset baritone-sax-36-soft-0 keys C2 D2 velocity 0 0.65 root C2 loop 48000 125043 crossfade 8160
+      zone z36-hard-0 asset baritone-sax-36-hard-0 keys C2 D2 velocity 0.65 1 root C2 loop 48000 125774 crossfade 8160
+      zone z41-soft-0 asset baritone-sax-41-soft-0 keys D#2 G2 velocity 0 0.65 root F2 loop 48000 125945 crossfade 8160
+      zone z41-hard-0 asset baritone-sax-41-hard-0 keys D#2 G2 velocity 0.65 1 root F2 loop 48000 124294 crossfade 8160
+      zone z46-soft-0 asset baritone-sax-46-soft-0 keys G#2 C3 velocity 0 0.65 root A#2 loop 48000 124433 crossfade 8160
+      zone z46-hard-0 asset baritone-sax-46-hard-0 keys G#2 C3 velocity 0.65 1 root A#2 loop 48000 124841 crossfade 8160
+      zone z51-soft-0 asset baritone-sax-51-soft-0 keys C#3 F3 velocity 0 0.65 root D#3 loop 48000 125914 crossfade 8160
+      zone z51-hard-0 asset baritone-sax-51-hard-0 keys C#3 F3 velocity 0.65 1 root D#3 loop 48000 125905 crossfade 8160
+      zone z56-soft-0 asset baritone-sax-56-soft-0 keys F#3 A#3 velocity 0 0.65 root G#3 loop 48000 123678 crossfade 8160
+      zone z56-hard-0 asset baritone-sax-56-hard-0 keys F#3 A#3 velocity 0.65 1 root G#3 loop 48000 124835 crossfade 8160
+      zone z61-soft-0 asset baritone-sax-61-soft-0 keys B3 D#4 velocity 0 0.65 root C#4 loop 48000 123731 crossfade 8160
+      zone z61-hard-0 asset baritone-sax-61-hard-0 keys B3 D#4 velocity 0.65 1 root C#4 loop 48000 123728 crossfade 8160
+      zone z66-soft-0 asset baritone-sax-66-soft-0 keys E4 A4 velocity 0 0.65 root F#4 loop 48000 125940 crossfade 8160
+      zone z66-hard-0 asset baritone-sax-66-hard-0 keys E4 A4 velocity 0.65 1 root F#4 loop 48000 125938 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset baritone-sax-36-soft-0 "Baritone Sax" wav "media/36-soft-0.wav" sha256 "2c05721ba046b812fd0e88d3bdf9e77d3a10f5037145630b71e648168aef4d94" {
+  usage multisample
+}
+asset baritone-sax-36-hard-0 "Baritone Sax" wav "media/36-hard-0.wav" sha256 "0a157e53449612c8bf39f7b9aecb6f908d9129ba14ca028d70fb78c64e7f06a3" {
+  usage multisample
+}
+asset baritone-sax-41-soft-0 "Baritone Sax" wav "media/41-soft-0.wav" sha256 "48e70cd53c434d85ebd687fe06061e1b84d1e25bd148bf6aa82a1c6a0976061e" {
+  usage multisample
+}
+asset baritone-sax-41-hard-0 "Baritone Sax" wav "media/41-hard-0.wav" sha256 "070630dd93dd96a35cd6cc149dd4bee6f857d1934bbc3e96bdd26426c6013bbc" {
+  usage multisample
+}
+asset baritone-sax-46-soft-0 "Baritone Sax" wav "media/46-soft-0.wav" sha256 "0604867a2bd1ea76d6725a0c5151b5d009e5c92a7b1c9d050f246c0810bccc44" {
+  usage multisample
+}
+asset baritone-sax-46-hard-0 "Baritone Sax" wav "media/46-hard-0.wav" sha256 "ecb0e16373f595dd8ac90c8bd1b7d6dadaae61c1f35d0cff59952fbeab09eeca" {
+  usage multisample
+}
+asset baritone-sax-51-soft-0 "Baritone Sax" wav "media/51-soft-0.wav" sha256 "d02cc5e649741f28372df1d72429eb7440cb420d4ae118b60a2e760aa64ecadf" {
+  usage multisample
+}
+asset baritone-sax-51-hard-0 "Baritone Sax" wav "media/51-hard-0.wav" sha256 "b3fd887717932a676922a37b07a2f32ce1e7751269f271fe95c3bd7ca87434cb" {
+  usage multisample
+}
+asset baritone-sax-56-soft-0 "Baritone Sax" wav "media/56-soft-0.wav" sha256 "effe9c9d743f8afc5266bbf613daeee3c219c3fd51dd0539a9f55d7e0b5784aa" {
+  usage multisample
+}
+asset baritone-sax-56-hard-0 "Baritone Sax" wav "media/56-hard-0.wav" sha256 "4b67f51947a0c5ecfbeb2c4a9755bac97b353b12afa2ea3cb0b4776e65bf2596" {
+  usage multisample
+}
+asset baritone-sax-61-soft-0 "Baritone Sax" wav "media/61-soft-0.wav" sha256 "4b1596fa7a0a03eddf57c828bedec0dfec288aa23d77d6fa7fca680e22f04b2e" {
+  usage multisample
+}
+asset baritone-sax-61-hard-0 "Baritone Sax" wav "media/61-hard-0.wav" sha256 "9cf3c34ad970d7213bd08d0ad3fa04a0917ca227eaab4b39c1be91af2a1aa47d" {
+  usage multisample
+}
+asset baritone-sax-66-soft-0 "Baritone Sax" wav "media/66-soft-0.wav" sha256 "a04f38fb7bf265d19cfeebdbed6456bb7fab04837747417d26fc30d195528406" {
+  usage multisample
+}
+asset baritone-sax-66-hard-0 "Baritone Sax" wav "media/66-hard-0.wav" sha256 "045b07e61f5c52daebab86883dc2cf3383158cd0650df93b1b5314aaa48178ce" {
+  usage multisample
+}

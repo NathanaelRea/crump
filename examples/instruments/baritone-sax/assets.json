@@ -1,0 +1,246 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "673c8c4a4141720d934148689c4220749e970f3fc18173dd1436cb19653be595",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "baritone-sax-36-soft-0",
+      "path": "media/36-soft-0.wav",
+      "sha256": "2c05721ba046b812fd0e88d3bdf9e77d3a10f5037145630b71e648168aef4d94",
+      "frames": 153387,
+      "sample_rate": 48000,
+      "root_midi": 36,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1490360,
+      "normalization_gain": 0.5499852390404764,
+      "loop": [
+        48000,
+        125043,
+        8160
+      ]
+    },
+    {
+      "id": "baritone-sax-36-hard-0",
+      "path": "media/36-hard-0.wav",
+      "sha256": "0a157e53449612c8bf39f7b9aecb6f908d9129ba14ca028d70fb78c64e7f06a3",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 36,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1490360,
+      "normalization_gain": 0.5499852390404764,
+      "loop": [
+        48000,
+        125774,
+        8160
+      ]
+    },
+    {
+      "id": "baritone-sax-41-soft-0",
+      "path": "media/41-soft-0.wav",
+      "sha256": "48e70cd53c434d85ebd687fe06061e1b84d1e25bd148bf6aa82a1c6a0976061e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 41,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1490410,
+      "normalization_gain": 0.6630034069557948,
+      "loop": [
+        48000,
+        125945,
+        8160
+      ]
+    },
+    {
+      "id": "baritone-sax-41-hard-0",
+      "path": "media/41-hard-0.wav",
+      "sha256": "070630dd93dd96a35cd6cc149dd4bee6f857d1934bbc3e96bdd26426c6013bbc",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 41,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1490410,
+      "normalization_gain": 0.6630034069557948,
+      "loop": [
+        48000,
+        124294,
+        8160
+      ]
+    },
+    {
+      "id": "baritone-sax-46-soft-0",
+      "path": "media/46-soft-0.wav",
+      "sha256": "0604867a2bd1ea76d6725a0c5151b5d009e5c92a7b1c9d050f246c0810bccc44",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 46,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1490460,
+      "normalization_gain": 0.6053658895393362,
+      "loop": [
+        48000,
+        124433,
+        8160
+      ]
+    },
+    {
+      "id": "baritone-sax-46-hard-0",
+      "path": "media/46-hard-0.wav",
+      "sha256": "ecb0e16373f595dd8ac90c8bd1b7d6dadaae61c1f35d0cff59952fbeab09eeca",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 46,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1490460,
+      "normalization_gain": 0.6053658895393362,
+      "loop": [
+        48000,
+        124841,
+        8160
+      ]
+    },
+    {
+      "id": "baritone-sax-51-soft-0",
+      "path": "media/51-soft-0.wav",
+      "sha256": "d02cc5e649741f28372df1d72429eb7440cb420d4ae118b60a2e760aa64ecadf",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 51,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1490510,
+      "normalization_gain": 0.4631369606145729,
+      "loop": [
+        48000,
+        125914,
+        8160
+      ]
+    },
+    {
+      "id": "baritone-sax-51-hard-0",
+      "path": "media/51-hard-0.wav",
+      "sha256": "b3fd887717932a676922a37b07a2f32ce1e7751269f271fe95c3bd7ca87434cb",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 51,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1490510,
+      "normalization_gain": 0.4631369606145729,
+      "loop": [
+        48000,
+        125905,
+        8160
+      ]
+    },
+    {
+      "id": "baritone-sax-56-soft-0",
+      "path": "media/56-soft-0.wav",
+      "sha256": "effe9c9d743f8afc5266bbf613daeee3c219c3fd51dd0539a9f55d7e0b5784aa",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 56,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1490560,
+      "normalization_gain": 0.5436806321532491,
+      "loop": [
+        48000,
+        123678,
+        8160
+      ]
+    },
+    {
+      "id": "baritone-sax-56-hard-0",
+      "path": "media/56-hard-0.wav",
+      "sha256": "4b67f51947a0c5ecfbeb2c4a9755bac97b353b12afa2ea3cb0b4776e65bf2596",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 56,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1490560,
+      "normalization_gain": 0.5436806321532491,
+      "loop": [
+        48000,
+        124835,
+        8160
+      ]
+    },
+    {
+      "id": "baritone-sax-61-soft-0",
+      "path": "media/61-soft-0.wav",
+      "sha256": "4b1596fa7a0a03eddf57c828bedec0dfec288aa23d77d6fa7fca680e22f04b2e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 61,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1490610,
+      "normalization_gain": 0.44336784537378815,
+      "loop": [
+        48000,
+        123731,
+        8160
+      ]
+    },
+    {
+      "id": "baritone-sax-61-hard-0",
+      "path": "media/61-hard-0.wav",
+      "sha256": "9cf3c34ad970d7213bd08d0ad3fa04a0917ca227eaab4b39c1be91af2a1aa47d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 61,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1490610,
+      "normalization_gain": 0.44336784537378815,
+      "loop": [
+        48000,
+        123728,
+        8160
+      ]
+    },
+    {
+      "id": "baritone-sax-66-soft-0",
+      "path": "media/66-soft-0.wav",
+      "sha256": "a04f38fb7bf265d19cfeebdbed6456bb7fab04837747417d26fc30d195528406",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 66,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1490660,
+      "normalization_gain": 0.5110363374587497,
+      "loop": [
+        48000,
+        125940,
+        8160
+      ]
+    },
+    {
+      "id": "baritone-sax-66-hard-0",
+      "path": "media/66-hard-0.wav",
+      "sha256": "045b07e61f5c52daebab86883dc2cf3383158cd0650df93b1b5314aaa48178ce",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 66,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1490660,
+      "normalization_gain": 0.5110363374587497,
+      "loop": [
+        48000,
+        125938,
+        8160
+      ]
+    }
+  ]
+}

@@ -1,0 +1,516 @@
+{
+  "boom-kick": [
+    {
+      "start": 0.04,
+      "seconds": 0.36,
+      "commons": "808vstsample.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "punch-kick": [
+    {
+      "start": 0.35,
+      "seconds": 0.33,
+      "commons": "TR-909 sound example.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "machine-cowbell": [
+    {
+      "start": 0.5,
+      "seconds": 0.26,
+      "commons": "808cbtrig 01.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "machine-hat": [
+    {
+      "start": 0.9,
+      "seconds": 0.25,
+      "commons": "808patterns 01.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "kit-toms": [
+    {
+      "start": 0.55,
+      "seconds": 0.34,
+      "commons": "Tom 12 inch.ogg",
+      "license": "CC BY-SA 3.0"
+    },
+    {
+      "start": 0.07,
+      "seconds": 0.36,
+      "commons": "Floor tom.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "china-cymbal": [
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://theremin.music.uiowa.edu/sound files/MIS/Percussion/cymbals/suspended cymbals/stick/16chinese.stick.normal.mf.aif",
+      "page": "https://theremin.music.uiowa.edu/MIS.html",
+      "license": "University of Iowa MIS (free use)"
+    }
+  ],
+  "ride-bell": [
+    {
+      "start": 0,
+      "seconds": 6,
+      "url": "https://theremin.music.uiowa.edu/sound files/MIS/Percussion/cymbals/suspended cymbals/stick/21ride.stick.bell.mf.aif",
+      "page": "https://theremin.music.uiowa.edu/MIS.html",
+      "license": "University of Iowa MIS (free use)"
+    },
+    {
+      "start": 0.8,
+      "seconds": 0.45,
+      "commons": "Ride cymbal bell.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "cajon": [
+    {
+      "start": 20,
+      "seconds": 8,
+      "commons": "Base de compás por bulerías de Jerez (palmas y caja).ogg",
+      "license": "CC0"
+    }
+  ],
+  "darbuka": [
+    {
+      "start": 0,
+      "seconds": 6,
+      "commons": "Darbuka.ogg",
+      "license": "CC BY-SA 4.0"
+    }
+  ],
+  "frame-drum": [
+    {
+      "start": 0.52,
+      "seconds": 0.31,
+      "commons": "Bęben obręczowy uderzenia pojedyncze.flac",
+      "license": "CC0"
+    }
+  ],
+  "taiko": [
+    {
+      "start": 0.15,
+      "seconds": 0.35,
+      "commons": "02 Taiko2 (short).oga",
+      "license": "CC0"
+    }
+  ],
+  "udu": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "Udu Sound 99.wav",
+      "license": "CC BY 4.0"
+    }
+  ],
+  "talking-drum": [
+    {
+      "start": 0.28,
+      "seconds": 3,
+      "commons": "The sound of the talking drum when its been played.ogg",
+      "license": "CC BY-SA 4.0"
+    }
+  ],
+  "agogo": [
+    {
+      "start": 0.2,
+      "seconds": 3,
+      "commons": "Agogo.ogg",
+      "license": "Public domain",
+      "stroke": "high"
+    }
+  ],
+  "guiro": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/Percussion/Guiro-Slow_v1_Sum.wav",
+      "page": "https://github.com/sgossner/VSCO-2-CE",
+      "license": "CC0"
+    },
+    {
+      "start": 0,
+      "seconds": 20,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/Percussion/Guiro-Hit_v1_rr1_Sum.wav",
+      "page": "https://github.com/sgossner/VSCO-2-CE",
+      "license": "CC0"
+    }
+  ],
+  "cuica": [
+    {
+      "start": 0.1,
+      "seconds": 3,
+      "commons": "Cuica01.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "sleigh-bells": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/Percussion/Sleighbells_Hit_v1_rr1_Mid.wav",
+      "page": "https://github.com/sgossner/VSCO-2-CE",
+      "license": "CC0"
+    }
+  ],
+  "slit-drum": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/Percussion/LogDrumLo_MedM_v2_rr1_Sum.wav",
+      "page": "https://github.com/sgossner/VSCO-2-CE",
+      "license": "CC0"
+    },
+    {
+      "start": 0,
+      "seconds": 20,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/Percussion/LogDrumHi_MedM_v2_rr1_Sum.wav",
+      "page": "https://github.com/sgossner/VSCO-2-CE",
+      "license": "CC0"
+    }
+  ],
+  "vibraslap": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "Vibraslap01.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "mark-tree": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/Percussion/BellTree_Stroke1_v1_Sum.wav",
+      "page": "https://github.com/sgossner/VSCO-2-CE",
+      "license": "CC0"
+    },
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "Windchimes.ogg",
+      "license": "Public domain"
+    }
+  ],
+  "handpan": [
+    {
+      "start": 1.8,
+      "seconds": 4,
+      "commons": "Hang 2007 vertical.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "singing-bowl": [
+    {
+      "start": 0,
+      "seconds": 12,
+      "commons": "Tibetan Singing Bowl hit 4.5inch.flac",
+      "license": "CC BY-SA 4.0",
+      "hz": 361
+    }
+  ],
+  "gamelan-saron": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "Saron SBSL3 (Casa da Musica's Javanese gamelan).ogg",
+      "license": "Artistic 2.0"
+    }
+  ],
+  "gamelan-bonang": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "Bonang BPPL4h (Casa da Musica's Javanese gamelan).ogg",
+      "license": "Artistic 2.0",
+      "hz": 1570
+    }
+  ],
+  "music-box": [
+    {
+      "start": 0.12,
+      "seconds": 1.5,
+      "commons": "Music box notes 1.ogg",
+      "license": "CC BY-SA 4.0"
+    }
+  ],
+  "opera-gong": [
+    {
+      "start": 0.25,
+      "seconds": 5.3,
+      "commons": "Gong or bell vibrant (short).ogg",
+      "license": "CC0"
+    }
+  ],
+  "mandolin": [
+    {
+      "start": 0,
+      "seconds": 10,
+      "commons": "MandolinenDemo.ogg",
+      "license": "CC0"
+    }
+  ],
+  "ukulele": [
+    {
+      "start": 0.3,
+      "seconds": 1.6,
+      "commons": "Ukulele GCEA cordes a vide.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "fretless-bass": [
+    {
+      "start": 0,
+      "seconds": 10,
+      "commons": "Fretless bass solo 1.ogg",
+      "license": "CC BY-SA 4.0"
+    }
+  ],
+  "sitar": [
+    {
+      "start": 0,
+      "seconds": 1.6,
+      "commons": "Sitar clipping.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "koto": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "AsianRiff koto.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "oud": [
+    {
+      "start": 0.24,
+      "seconds": 1.05,
+      "commons": "Oud open Strings.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "hammered-dulcimer": [
+    {
+      "start": 0,
+      "seconds": 10,
+      "commons": "Payvar-Dehlavi-Concertino for Santur.ogg",
+      "license": "Public domain"
+    }
+  ],
+  "erhu": [
+    {
+      "start": 10,
+      "seconds": 10,
+      "commons": "二泉映月.ogg",
+      "license": "CC BY-SA 4.0"
+    }
+  ],
+  "hurdy-gurdy": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "HurdySample.ogg",
+      "license": "Public domain"
+    }
+  ],
+  "tremolo-strings": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/Strings/Violin Section/Trem/VlnEns_Trem_C4_v1.wav",
+      "page": "https://github.com/sgossner/VSCO-2-CE",
+      "license": "CC0"
+    },
+    {
+      "start": 0,
+      "seconds": 20,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/Strings/Violin Section/Trem/VlnEns_Trem_G4_v2.wav",
+      "page": "https://github.com/sgossner/VSCO-2-CE",
+      "license": "CC0"
+    }
+  ],
+  "alto-sax": [
+    {
+      "start": 1.9,
+      "seconds": 2.5,
+      "url": "https://theremin.music.uiowa.edu/sound files/MIS/Woodwinds/altosaxophone/AltoSax.Vib.mf.C4B4.aiff",
+      "page": "https://theremin.music.uiowa.edu/MIS.html",
+      "license": "University of Iowa MIS (free use)"
+    }
+  ],
+  "tenor-sax": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "Lick Tenor Sax.wav",
+      "license": "CC BY-SA 4.0"
+    }
+  ],
+  "baritone-sax": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "Bariton Saxophone independently performing a base line in 5 voice sax sectional harmony.oga",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "bass-clarinet": [
+    {
+      "start": 1.3,
+      "seconds": 2.5,
+      "url": "https://theremin.music.uiowa.edu/sound files/MIS/Woodwinds/bassclarinet/BassClarinet.mf.B2Bb3.aiff",
+      "page": "https://theremin.music.uiowa.edu/MIS.html",
+      "license": "University of Iowa MIS (free use)"
+    }
+  ],
+  "contrabassoon": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "Contra2.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "recorder": [
+    {
+      "start": 0,
+      "seconds": 10,
+      "commons": "Hans P Keuning - 12 difficult studies (treble recorder) - Moderato.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "shakuhachi": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "Shakuhachi-flute-440Hz.ogg",
+      "license": "CC0"
+    }
+  ],
+  "bansuri": [
+    {
+      "start": 0,
+      "seconds": 10,
+      "commons": "Bansuri sample E bass.ogg",
+      "license": "Public domain"
+    }
+  ],
+  "ocarina": [
+    {
+      "start": 0,
+      "seconds": 2,
+      "commons": "Tortuga Ocarina 4.ogg",
+      "license": "CC BY-SA 4.0"
+    }
+  ],
+  "duduk": [
+    {
+      "start": 0,
+      "seconds": 10,
+      "commons": "Sound of Armenian Duduk.ogg",
+      "license": "CC BY-SA 4.0"
+    }
+  ],
+  "harmonica": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "Harmonica 05.ogg",
+      "license": "Public domain"
+    }
+  ],
+  "accordion": [
+    {
+      "start": 0,
+      "seconds": 10,
+      "commons": "Accordion registers.ogg",
+      "license": "Public domain"
+    }
+  ],
+  "bagpipes": [
+    {
+      "start": 0,
+      "seconds": 10,
+      "commons": "Skye Boat Song.ogg",
+      "license": "CC BY-SA 2.0"
+    }
+  ],
+  "didgeridoo": [
+    {
+      "start": 0,
+      "seconds": 10,
+      "commons": "Didgeridoo sound.ogg",
+      "license": "CC BY-SA 4.0"
+    }
+  ],
+  "flugelhorn": [
+    {
+      "start": 0,
+      "seconds": 10,
+      "commons": "Short flugelhorn excerpt.ogg",
+      "license": "CC BY-SA 4.0"
+    }
+  ],
+  "muted-trumpet": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "Harmon with stem in trumpet demo.ogg",
+      "license": "CC BY-SA 4.0"
+    }
+  ],
+  "bass-trombone": [
+    {
+      "start": 0.1,
+      "seconds": 4.5,
+      "url": "https://theremin.music.uiowa.edu/sound files/MIS/Brass/basstrombone/BassTrombone.mf.C2B2.aiff",
+      "page": "https://theremin.music.uiowa.edu/MIS.html",
+      "license": "University of Iowa MIS (free use)"
+    }
+  ],
+  "drawbar-organ": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "Drawbar C Chord.ogg",
+      "license": "Public domain"
+    },
+    {
+      "start": 0,
+      "seconds": 10,
+      "commons": "LeslieCabinetSlowFastSlow.ogg",
+      "license": "Public domain"
+    }
+  ],
+  "tape-flute": [
+    {
+      "start": 0,
+      "seconds": 20,
+      "commons": "NS2 Tron.ogg",
+      "license": "CC BY-SA 3.0"
+    }
+  ],
+  "glass-harmonica": [
+    {
+      "start": 0,
+      "seconds": 10,
+      "commons": "Stars-GlassArmonica.ogg",
+      "license": "CC BY-SA 2.5"
+    }
+  ],
+  "prepared-piano": [
+    {
+      "start": 0,
+      "seconds": 10,
+      "commons": "Happy music for children (prepared piano).wav",
+      "license": "CC BY-SA 4.0"
+    }
+  ]
+}

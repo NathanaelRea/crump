@@ -1,0 +1,178 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "53dfcc96862760c7b37d8d2d773c0264564efe126d637b0e46eaa27d2e6e605b",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "duduk-55-soft-0",
+      "path": "media/55-soft-0.wav",
+      "sha256": "db008076e7d8fc5e33d41ddcfc8629399ae449ef66bab644034a5bf532e00307",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 55,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1580550,
+      "normalization_gain": 0.7982810005311052,
+      "loop": [
+        48000,
+        124492,
+        8160
+      ]
+    },
+    {
+      "id": "duduk-55-hard-0",
+      "path": "media/55-hard-0.wav",
+      "sha256": "2aa84c6f2a8b9c19b9f1df36fe977f5b19cac8e64e816879802332c1e3b033ad",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 55,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1580550,
+      "normalization_gain": 0.7982810005311052,
+      "loop": [
+        48000,
+        124247,
+        8160
+      ]
+    },
+    {
+      "id": "duduk-61-soft-0",
+      "path": "media/61-soft-0.wav",
+      "sha256": "da1aae5855b32209b0145effba413cf75358bb590f971e761f153e8e6d727f17",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 61,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1580610,
+      "normalization_gain": 0.8926415837097706,
+      "loop": [
+        48000,
+        123685,
+        8160
+      ]
+    },
+    {
+      "id": "duduk-61-hard-0",
+      "path": "media/61-hard-0.wav",
+      "sha256": "d9430abefbb1400a2287fe7d38ced389e47a50af36917a1b75421069a044c5fe",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 61,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1580610,
+      "normalization_gain": 0.8926415837097706,
+      "loop": [
+        48000,
+        125252,
+        8160
+      ]
+    },
+    {
+      "id": "duduk-67-soft-0",
+      "path": "media/67-soft-0.wav",
+      "sha256": "1708294b91ed1c887035622a4c24a4634f7ac875a8fe2aefe58067ce7a392d1f",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1580670,
+      "normalization_gain": 0.6848804009994433,
+      "loop": [
+        48000,
+        124480,
+        8160
+      ]
+    },
+    {
+      "id": "duduk-67-hard-0",
+      "path": "media/67-hard-0.wav",
+      "sha256": "f158f04ff1d8c16227df2bc6058daa8b90b7b0c0c08d1299abbc1f78a4ac42f6",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1580670,
+      "normalization_gain": 0.6848804009994433,
+      "loop": [
+        48000,
+        123622,
+        8160
+      ]
+    },
+    {
+      "id": "duduk-73-soft-0",
+      "path": "media/73-soft-0.wav",
+      "sha256": "69c5812f71cee025f0a402bf6f74e314edbd6a200574be3dc7347c48ea1792ba",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 73,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1580730,
+      "normalization_gain": 0.6588869170703417,
+      "loop": [
+        48000,
+        125993,
+        8160
+      ]
+    },
+    {
+      "id": "duduk-73-hard-0",
+      "path": "media/73-hard-0.wav",
+      "sha256": "af1e5f757b1adaa3199d96f95dbe19213fdb54c28492aa366b07a8b26645019d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 73,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1580730,
+      "normalization_gain": 0.6588869170703417,
+      "loop": [
+        48000,
+        125992,
+        8160
+      ]
+    },
+    {
+      "id": "duduk-79-soft-0",
+      "path": "media/79-soft-0.wav",
+      "sha256": "cddaeff9a5a27ec12cf3dccab6f5aaf408490d5bb7c3d7d117bd20c9880df4d7",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 79,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1580790,
+      "normalization_gain": 0.7977880037817678,
+      "loop": [
+        48000,
+        125998,
+        8160
+      ]
+    },
+    {
+      "id": "duduk-79-hard-0",
+      "path": "media/79-hard-0.wav",
+      "sha256": "df4b13f6c4cf8082caf8f07c958155a9465bbb103ee112aaf947b6bb2e7412da",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 79,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1580790,
+      "normalization_gain": 0.7977880037817678,
+      "loop": [
+        48000,
+        125998,
+        8160
+      ]
+    }
+  ]
+}

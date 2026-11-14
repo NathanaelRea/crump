@@ -1,0 +1,28 @@
+{
+  "model": "tuned_drum",
+  "params": {
+    "decay": 0.22,
+    "contact": 0.0024,
+    "bright": 0.5,
+    "slap": 0.05,
+    "slap_decay": 0.006,
+    "bend": 0.12
+  },
+  "pitched": true,
+  "category": "Drum kit",
+  "seconds": 3,
+  "roots": [
+    38,
+    43,
+    48,
+    53,
+    58
+  ],
+  "range": [
+    36,
+    62
+  ],
+  "audition": 48,
+  "id": "kit-toms",
+  "seed_base": 1090000
+}

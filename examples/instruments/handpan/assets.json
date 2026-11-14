@@ -1,0 +1,152 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "605da545ee96020ab0abeb79cb5e7519b5fdc4c4693ad165bbbe05b0be0aa9c5",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "handpan-52-soft-0",
+      "path": "media/52-soft-0.wav",
+      "sha256": "ca66920be869af64c61aa9678209666da3522127af0d6fdeb017cf72885fa1a3",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1270520,
+      "normalization_gain": 0.8517187257976682
+    },
+    {
+      "id": "handpan-52-hard-0",
+      "path": "media/52-hard-0.wav",
+      "sha256": "1ac0d70b8358480a5705d96ed83964da48807fdd44b1181bb50df21f62f33954",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1270520,
+      "normalization_gain": 0.8517187257976682
+    },
+    {
+      "id": "handpan-57-soft-0",
+      "path": "media/57-soft-0.wav",
+      "sha256": "c93899cf1ca1872f69127824be80b05d4548879c4ca7dd336ed3c1d6fcfa3d61",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1270570,
+      "normalization_gain": 0.9965754077788389
+    },
+    {
+      "id": "handpan-57-hard-0",
+      "path": "media/57-hard-0.wav",
+      "sha256": "c8db512aaef91949271c6dc40e0a2f2129fb921e0077594d34cbd4555735c1b8",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1270570,
+      "normalization_gain": 0.9965754077788389
+    },
+    {
+      "id": "handpan-62-soft-0",
+      "path": "media/62-soft-0.wav",
+      "sha256": "a058dcdf2124114af7bb9487547e412d6809904ac8f3261e301ec7683bdf6ba6",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1270620,
+      "normalization_gain": 1.422659682900825
+    },
+    {
+      "id": "handpan-62-hard-0",
+      "path": "media/62-hard-0.wav",
+      "sha256": "d4d4eb9ce3afc8930fe1de8c25e1ac40dc422597abce8c867ed993849e8ea6cf",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1270620,
+      "normalization_gain": 1.422659682900825
+    },
+    {
+      "id": "handpan-67-soft-0",
+      "path": "media/67-soft-0.wav",
+      "sha256": "79076ac61d78c7b0bc9c58f432d56246a7161d36fa64714b412ed3a6a32d63eb",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1270670,
+      "normalization_gain": 2.542739705240975
+    },
+    {
+      "id": "handpan-67-hard-0",
+      "path": "media/67-hard-0.wav",
+      "sha256": "17dd8c5a2acdd55efb0447d38697d5e987e4002a5bd14e595e75a26adeeffde2",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1270670,
+      "normalization_gain": 2.542739705240975
+    },
+    {
+      "id": "handpan-72-soft-0",
+      "path": "media/72-soft-0.wav",
+      "sha256": "6f8373c66680a14e8c319ca052377e75685b439b29ad22da1db9dc59bea0cdf8",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 72,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1270720,
+      "normalization_gain": 3.720031398257246
+    },
+    {
+      "id": "handpan-72-hard-0",
+      "path": "media/72-hard-0.wav",
+      "sha256": "3010b84bea56f45486fa92da2e864b4ba2fd9d0e05260b0b0ac032b65326514b",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 72,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1270720,
+      "normalization_gain": 3.720031398257246
+    },
+    {
+      "id": "handpan-77-soft-0",
+      "path": "media/77-soft-0.wav",
+      "sha256": "e39bf273fd1316ea7fe57bfed4d287cbfe8d05b72343bd7a63e908252a015bd8",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 77,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1270770,
+      "normalization_gain": 5.762319779416873
+    },
+    {
+      "id": "handpan-77-hard-0",
+      "path": "media/77-hard-0.wav",
+      "sha256": "0a515d1e3de9c419cf921ce026ccc307a30c4e0daeb08307dcaeb3ab30cf0db5",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 77,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1270770,
+      "normalization_gain": 5.762319779416873
+    }
+  ]
+}

@@ -1,0 +1,152 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "f0dcd0c3c69e6f95ddf947d990da577b235d44db6070f6b126e45cb9dd69ff0e",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "banjo-50-soft-0",
+      "path": "media/50-soft-0.wav",
+      "sha256": "8159f8a314f30b67dd0cd3ae8ce535ebfae3a9d170c79f75c695e351c0a54a87",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 50,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1330500,
+      "normalization_gain": 0.5049890098587234
+    },
+    {
+      "id": "banjo-50-hard-0",
+      "path": "media/50-hard-0.wav",
+      "sha256": "988158d8c351ff98ec93c59cc2655b11c4eb9c5a8357d9e53350c8953488d28d",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 50,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1330500,
+      "normalization_gain": 0.5049890098587234
+    },
+    {
+      "id": "banjo-56-soft-0",
+      "path": "media/56-soft-0.wav",
+      "sha256": "239e64064eaefab67e616c86b2c9e277caa44669492cabb47733a44cf5a1aa6d",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 56,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1330560,
+      "normalization_gain": 0.5345200655349887
+    },
+    {
+      "id": "banjo-56-hard-0",
+      "path": "media/56-hard-0.wav",
+      "sha256": "36c88d656f1e333de4f104adeca70ce3d7fbb210697c37a6b0ff8cd20faab0a3",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 56,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1330560,
+      "normalization_gain": 0.5345200655349887
+    },
+    {
+      "id": "banjo-62-soft-0",
+      "path": "media/62-soft-0.wav",
+      "sha256": "bab63675ce67027752fd06cc3a8d30752767d10019c5497e73d74e16b717eb42",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1330620,
+      "normalization_gain": 0.4891562755495646
+    },
+    {
+      "id": "banjo-62-hard-0",
+      "path": "media/62-hard-0.wav",
+      "sha256": "07f69dfc44ef8786f823ae8514d53fba172622ca249a27acdfc3c9354865dac5",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1330620,
+      "normalization_gain": 0.4891562755495646
+    },
+    {
+      "id": "banjo-68-soft-0",
+      "path": "media/68-soft-0.wav",
+      "sha256": "ad6acc7d6cbb452ed1459b6d3305c683ccdcdab4f3a707c25d4d38eae1b8a516",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 68,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1330680,
+      "normalization_gain": 0.4638636123708287
+    },
+    {
+      "id": "banjo-68-hard-0",
+      "path": "media/68-hard-0.wav",
+      "sha256": "afefb4df789446c9b0cbbdfd9366d0b2ac97938c59559da8512a7ad85db88aaf",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 68,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1330680,
+      "normalization_gain": 0.4638636123708287
+    },
+    {
+      "id": "banjo-74-soft-0",
+      "path": "media/74-soft-0.wav",
+      "sha256": "4430a0372bff83d7bbc8f3e6723823dde715edecf0db15636143e3598cb01a0a",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 74,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1330740,
+      "normalization_gain": 1.3602096528569716
+    },
+    {
+      "id": "banjo-74-hard-0",
+      "path": "media/74-hard-0.wav",
+      "sha256": "a540ca4ffbf44251facec43af0b65862affd28e7651918c1dccfb4e84d5adaa4",
+      "frames": 192000,
+      "sample_rate": 48000,
+      "root_midi": 74,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1330740,
+      "normalization_gain": 1.3602096528569716
+    },
+    {
+      "id": "banjo-80-soft-0",
+      "path": "media/80-soft-0.wav",
+      "sha256": "4c5210f208bba3f7678840765021bf1b93553adb1298de1cfc3c6d7dfd8c179b",
+      "frames": 179679,
+      "sample_rate": 48000,
+      "root_midi": 80,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1330800,
+      "normalization_gain": 1.2779655712166043
+    },
+    {
+      "id": "banjo-80-hard-0",
+      "path": "media/80-hard-0.wav",
+      "sha256": "1ad63020a65c5f3cfc03c05f3d1acb6e194dc8167d37d435863e8b14acc58369",
+      "frames": 188953,
+      "sample_rate": 48000,
+      "root_midi": 80,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1330800,
+      "normalization_gain": 1.2779655712166043
+    }
+  ]
+}

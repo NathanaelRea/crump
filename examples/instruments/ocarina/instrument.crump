@@ -1,0 +1,84 @@
+crump-module 2
+instrument ocarina "Ocarina" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z62-soft-0 asset ocarina-62-soft-0 keys C4 E4 velocity 0 0.65 root D4 loop 48000 123719 crossfade 8160
+      zone z62-hard-0 asset ocarina-62-hard-0 keys C4 E4 velocity 0.65 1 root D4 loop 48000 125842 crossfade 8160
+      zone z67-soft-0 asset ocarina-67-soft-0 keys F4 A4 velocity 0 0.65 root G4 loop 48000 125835 crossfade 8160
+      zone z67-hard-0 asset ocarina-67-hard-0 keys F4 A4 velocity 0.65 1 root G4 loop 48000 125590 crossfade 8160
+      zone z72-soft-0 asset ocarina-72-soft-0 keys A#4 D5 velocity 0 0.65 root C5 loop 48000 125968 crossfade 8160
+      zone z72-hard-0 asset ocarina-72-hard-0 keys A#4 D5 velocity 0.65 1 root C5 loop 48000 125967 crossfade 8160
+      zone z77-soft-0 asset ocarina-77-soft-0 keys D#5 G5 velocity 0 0.65 root F5 loop 48000 123628 crossfade 8160
+      zone z77-hard-0 asset ocarina-77-hard-0 keys D#5 G5 velocity 0.65 1 root F5 loop 48000 123627 crossfade 8160
+      zone z82-soft-0 asset ocarina-82-soft-0 keys G#5 C6 velocity 0 0.65 root A#5 loop 48000 123869 crossfade 8160
+      zone z82-hard-0 asset ocarina-82-hard-0 keys G#5 C6 velocity 0.65 1 root A#5 loop 48000 125980 crossfade 8160
+      zone z87-soft-0 asset ocarina-87-soft-0 keys C#6 F6 velocity 0 0.65 root D#6 loop 48000 125972 crossfade 8160
+      zone z87-hard-0 asset ocarina-87-hard-0 keys C#6 F6 velocity 0.65 1 root D#6 loop 48000 123625 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset ocarina-62-soft-0 "Ocarina" wav "media/62-soft-0.wav" sha256 "34d9606fabbecace383aca686480a051064382b6850443c4a5609e2ee560cd98" {
+  usage multisample
+}
+asset ocarina-62-hard-0 "Ocarina" wav "media/62-hard-0.wav" sha256 "40d8d87e1e8fe0f0aab212f5f91ee0aae8484af86e7f558cc7aca79f017a353a" {
+  usage multisample
+}
+asset ocarina-67-soft-0 "Ocarina" wav "media/67-soft-0.wav" sha256 "c1a1527179afaad9faabd5ac265c38fb5a79e4076582979358bd3b139665091e" {
+  usage multisample
+}
+asset ocarina-67-hard-0 "Ocarina" wav "media/67-hard-0.wav" sha256 "1cb9ddff8c278ed150586305822e3bc7acef08674795ff5646acced34190e624" {
+  usage multisample
+}
+asset ocarina-72-soft-0 "Ocarina" wav "media/72-soft-0.wav" sha256 "295e9063f6101dd05c12d235606a1fca0de5f2a5d9d2cf9d85994b0ece0bd88f" {
+  usage multisample
+}
+asset ocarina-72-hard-0 "Ocarina" wav "media/72-hard-0.wav" sha256 "36bf4755c56d0da9b47ebd2fb073b6ed5b425d0b02292dc74cff19384bc4644e" {
+  usage multisample
+}
+asset ocarina-77-soft-0 "Ocarina" wav "media/77-soft-0.wav" sha256 "8c26c1c0df32e3253bb0104c49d77ee80e09efd22df10a93447cd305dc7a949f" {
+  usage multisample
+}
+asset ocarina-77-hard-0 "Ocarina" wav "media/77-hard-0.wav" sha256 "5755f56d48aea805e311fecad6d8d450cb4050ceb0bf28fa4278afb7a7e0059f" {
+  usage multisample
+}
+asset ocarina-82-soft-0 "Ocarina" wav "media/82-soft-0.wav" sha256 "788256c6052bc4919eaeb8c51b23d2ee2b75a2f7dc3801d00f730a5255c598d3" {
+  usage multisample
+}
+asset ocarina-82-hard-0 "Ocarina" wav "media/82-hard-0.wav" sha256 "b6371888c918fb66d54704d23c9b1efa493ab71c71eb0ee953e6df9365b1869d" {
+  usage multisample
+}
+asset ocarina-87-soft-0 "Ocarina" wav "media/87-soft-0.wav" sha256 "7fac5a00eee9f9f0b304061ec64c52b7dbe1f9604b3d16a34181f2f130c3dfe1" {
+  usage multisample
+}
+asset ocarina-87-hard-0 "Ocarina" wav "media/87-hard-0.wav" sha256 "d79751aae7e2bce599bd8022fe2fcaa2b1c3b6e2c1d80f43af9cf473888bd952" {
+  usage multisample
+}

@@ -1,0 +1,47 @@
+{
+  "model": "modes_tuned",
+  "params": {
+    "ratios": [
+      1,
+      2.77,
+      5.17,
+      7.99,
+      11.34
+    ],
+    "gains": [
+      1,
+      0.8,
+      1.0,
+      0.6,
+      0.45
+    ],
+    "decays": [
+      5,
+      4,
+      3.5,
+      2.2,
+      1.5
+    ],
+    "split": 0.0035,
+    "contact": 0.002,
+    "hardness": 0.4,
+    "decay_tracking": 0.3
+  },
+  "pitched": true,
+  "category": "World mallets",
+  "seconds": 14,
+  "roots": [
+    57,
+    63,
+    69,
+    75,
+    81
+  ],
+  "range": [
+    55,
+    84
+  ],
+  "audition": 69,
+  "id": "singing-bowl",
+  "seed_base": 1280000
+}

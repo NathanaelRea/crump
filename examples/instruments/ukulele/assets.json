@@ -1,0 +1,128 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "14aba7b4532d18ee98dc289cf70a8271be13a838ec29b58002997bffa9c86f11",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "ukulele-57-soft-0",
+      "path": "media/57-soft-0.wav",
+      "sha256": "01f4f009e7f878a58aec27108a23638f64f27a8293a140f17fb0f33b555c7937",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1350570,
+      "normalization_gain": 1.8610081305256496
+    },
+    {
+      "id": "ukulele-57-hard-0",
+      "path": "media/57-hard-0.wav",
+      "sha256": "4f23f91dc2232cbed639c4f74b6725eddf7fbbd98af70b27e559b48e23cb54af",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1350570,
+      "normalization_gain": 1.8610081305256496
+    },
+    {
+      "id": "ukulele-63-soft-0",
+      "path": "media/63-soft-0.wav",
+      "sha256": "fba4034277aa1bf7703e01d826f8eb3dca8c23ab7ad00474618c535f2df9b321",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 63,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1350630,
+      "normalization_gain": 2.4046870355454253
+    },
+    {
+      "id": "ukulele-63-hard-0",
+      "path": "media/63-hard-0.wav",
+      "sha256": "1d4e553040ad71a183014ed06a56640b9a7a50bfff8c161743da606727ee7d4f",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 63,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1350630,
+      "normalization_gain": 2.4046870355454253
+    },
+    {
+      "id": "ukulele-69-soft-0",
+      "path": "media/69-soft-0.wav",
+      "sha256": "24877b12aa731c176c00b729f2b27a094f86027336b40bdfeb968948275b5770",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 69,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1350690,
+      "normalization_gain": 1.6907398839726384
+    },
+    {
+      "id": "ukulele-69-hard-0",
+      "path": "media/69-hard-0.wav",
+      "sha256": "59dd125354747879e90f6f0647aae483a094caf3693f5d320f6c634c249fa36d",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 69,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1350690,
+      "normalization_gain": 1.6907398839726384
+    },
+    {
+      "id": "ukulele-75-soft-0",
+      "path": "media/75-soft-0.wav",
+      "sha256": "be5d9176b7002b0265527678937d1c50be0e2d0859c1cff3dda8e2997b6473dd",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 75,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1350750,
+      "normalization_gain": 3.9237307508286534
+    },
+    {
+      "id": "ukulele-75-hard-0",
+      "path": "media/75-hard-0.wav",
+      "sha256": "b444458c52ed4355d99ab0075703b9a8f4f9972053f649d3b24c4b975f061cd6",
+      "frames": 240000,
+      "sample_rate": 48000,
+      "root_midi": 75,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1350750,
+      "normalization_gain": 3.9237307508286534
+    },
+    {
+      "id": "ukulele-81-soft-0",
+      "path": "media/81-soft-0.wav",
+      "sha256": "38b6eb97b68782f117a2a988e7d7c1e0590c0bf4f9795217d43b3cb09eb8a8cd",
+      "frames": 143452,
+      "sample_rate": 48000,
+      "root_midi": 81,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1350810,
+      "normalization_gain": 3.1341391198753055
+    },
+    {
+      "id": "ukulele-81-hard-0",
+      "path": "media/81-hard-0.wav",
+      "sha256": "aad497aa9ff8f4eac7b1396479d5a075ba10536043d960f467347888ab0e9396",
+      "frames": 154057,
+      "sample_rate": 48000,
+      "root_midi": 81,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1350810,
+      "normalization_gain": 3.1341391198753055
+    }
+  ]
+}

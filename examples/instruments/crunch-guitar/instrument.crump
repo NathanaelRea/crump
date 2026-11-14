@@ -1,0 +1,93 @@
+crump-module 2
+instrument crunch-guitar "Crunch Guitar" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z40-soft-0 asset crunch-guitar-40-soft-0 keys E2 G2 velocity 0 0.65 root E2
+      zone z40-hard-0 asset crunch-guitar-40-hard-0 keys E2 G2 velocity 0.65 1 root E2
+      zone z46-soft-0 asset crunch-guitar-46-soft-0 keys G#2 C#3 velocity 0 0.65 root A#2
+      zone z46-hard-0 asset crunch-guitar-46-hard-0 keys G#2 C#3 velocity 0.65 1 root A#2
+      zone z52-soft-0 asset crunch-guitar-52-soft-0 keys D3 G3 velocity 0 0.65 root E3
+      zone z52-hard-0 asset crunch-guitar-52-hard-0 keys D3 G3 velocity 0.65 1 root E3
+      zone z58-soft-0 asset crunch-guitar-58-soft-0 keys G#3 C#4 velocity 0 0.65 root A#3
+      zone z58-hard-0 asset crunch-guitar-58-hard-0 keys G#3 C#4 velocity 0.65 1 root A#3
+      zone z64-soft-0 asset crunch-guitar-64-soft-0 keys D4 G4 velocity 0 0.65 root E4
+      zone z64-hard-0 asset crunch-guitar-64-hard-0 keys D4 G4 velocity 0.65 1 root E4
+      zone z70-soft-0 asset crunch-guitar-70-soft-0 keys G#4 C#5 velocity 0 0.65 root A#4
+      zone z70-hard-0 asset crunch-guitar-70-hard-0 keys G#4 C#5 velocity 0.65 1 root A#4
+      zone z76-soft-0 asset crunch-guitar-76-soft-0 keys D5 G5 velocity 0 0.65 root E5
+      zone z76-hard-0 asset crunch-guitar-76-hard-0 keys D5 G5 velocity 0.65 1 root E5
+      zone z82-soft-0 asset crunch-guitar-82-soft-0 keys G#5 D6 velocity 0 0.65 root A#5
+      zone z82-hard-0 asset crunch-guitar-82-hard-0 keys G#5 D6 velocity 0.65 1 root A#5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset crunch-guitar-40-soft-0 "Crunch Guitar" wav "media/40-soft-0.wav" sha256 "9b50ad9ac9bb422db7d25d697e33ccf5258eef31d0972d332e65fb94ad5728fd" {
+  usage multisample
+}
+asset crunch-guitar-40-hard-0 "Crunch Guitar" wav "media/40-hard-0.wav" sha256 "889c12ee83ba157396f5f8c088829a88d4eeee451d0020232dcd1904d25973ed" {
+  usage multisample
+}
+asset crunch-guitar-46-soft-0 "Crunch Guitar" wav "media/46-soft-0.wav" sha256 "8ab69c829b2bd9b5a358927410d7036b4b3cde253edab8487896b4d16f8032cb" {
+  usage multisample
+}
+asset crunch-guitar-46-hard-0 "Crunch Guitar" wav "media/46-hard-0.wav" sha256 "30ffb3ba698f8a83dcffbe1ebbd759b6c73e8e5396f632d8669b219c8df8d103" {
+  usage multisample
+}
+asset crunch-guitar-52-soft-0 "Crunch Guitar" wav "media/52-soft-0.wav" sha256 "bd1da13cea4892f5a3fb7c37fab3e19bb861dfb4afc923f606fd828536d10d81" {
+  usage multisample
+}
+asset crunch-guitar-52-hard-0 "Crunch Guitar" wav "media/52-hard-0.wav" sha256 "e35c48adafdac617e1c6877879f1feb0d8c53707efc753ad3da55a77779b3350" {
+  usage multisample
+}
+asset crunch-guitar-58-soft-0 "Crunch Guitar" wav "media/58-soft-0.wav" sha256 "ce76ee42f1cf44d5360b7f521ea330eb7e812b0eee654207d202d0d123db7b38" {
+  usage multisample
+}
+asset crunch-guitar-58-hard-0 "Crunch Guitar" wav "media/58-hard-0.wav" sha256 "f7b2d32d32fcaa0ca23c06b7259771c9ec2441fb9d43529b2a5ed9b5c30b4259" {
+  usage multisample
+}
+asset crunch-guitar-64-soft-0 "Crunch Guitar" wav "media/64-soft-0.wav" sha256 "3ca5c96f8573a9113d867d7c4dcfccaab94b33a28701244b40ab48d10e86152a" {
+  usage multisample
+}
+asset crunch-guitar-64-hard-0 "Crunch Guitar" wav "media/64-hard-0.wav" sha256 "2e54f51e2aea30fddd468a25116dabbd363a28d51206bfa3df16685a55759e4d" {
+  usage multisample
+}
+asset crunch-guitar-70-soft-0 "Crunch Guitar" wav "media/70-soft-0.wav" sha256 "3f2b95a8f496e2ad6c191f40c51ea446a50a3ef8e1f024bf1027843d0800e488" {
+  usage multisample
+}
+asset crunch-guitar-70-hard-0 "Crunch Guitar" wav "media/70-hard-0.wav" sha256 "1acbb71588ede0f28e7389a267ddc561bac7827fe91650885bd2dabb4af26e48" {
+  usage multisample
+}
+asset crunch-guitar-76-soft-0 "Crunch Guitar" wav "media/76-soft-0.wav" sha256 "7c6a5e5c36e98a3c53469963ce9170befb3aeb9f685b5a7b2f7fe39d1421612b" {
+  usage multisample
+}
+asset crunch-guitar-76-hard-0 "Crunch Guitar" wav "media/76-hard-0.wav" sha256 "c7145bf0c14dc2a07ca40d8d2fea9b25316ad09ed6651419bad5b852cbbde7ed" {
+  usage multisample
+}
+asset crunch-guitar-82-soft-0 "Crunch Guitar" wav "media/82-soft-0.wav" sha256 "579c71e7947dcb1020d5522ba5d1f72aafbae28dac6f611376b473ae10fb5d05" {
+  usage multisample
+}
+asset crunch-guitar-82-hard-0 "Crunch Guitar" wav "media/82-hard-0.wav" sha256 "f26fbf4be69348c2c8fc3ce5792d51e0031254f856d8e46ae40b679a6081df23" {
+  usage multisample
+}

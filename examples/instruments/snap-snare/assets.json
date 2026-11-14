@@ -1,0 +1,56 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "6be0fa289f808e6b8ae6d471e33c656e6ebe6f0c7fa5bd00bd46bfca672592a7",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "snap-snare-60-soft-0",
+      "path": "media/60-soft-0.wav",
+      "sha256": "c26ad3c5734369efea3add294d702451b2ad668fb8d94bd03df3232807680aa7",
+      "frames": 72000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1030600,
+      "normalization_gain": 0.6150862349448715
+    },
+    {
+      "id": "snap-snare-60-hard-0",
+      "path": "media/60-hard-0.wav",
+      "sha256": "f1ad7a8202e4a8dc55b59dd2201039469b2d34f646d5a73b6c94bcc8b5c7ddcd",
+      "frames": 72000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1030600,
+      "normalization_gain": 0.6150862349448715
+    },
+    {
+      "id": "snap-snare-60-soft-1",
+      "path": "media/60-soft-1.wav",
+      "sha256": "965ac9a00a971e99fddad7bd2a6315ab2084d29ac670ea9e325c06041f567468",
+      "frames": 72000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1030601,
+      "normalization_gain": 0.5907139928397332
+    },
+    {
+      "id": "snap-snare-60-hard-1",
+      "path": "media/60-hard-1.wav",
+      "sha256": "0281ea4f7677b36cbd4ffc1685a1895f7d5953b729f812f101aa2d5dc399e2de",
+      "frames": 72000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1030601,
+      "normalization_gain": 0.5907139928397332
+    }
+  ]
+}

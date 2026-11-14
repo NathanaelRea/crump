@@ -1,0 +1,69 @@
+crump-module 2
+instrument singing-bowl "Singing Bowl" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z57-soft-0 asset singing-bowl-57-soft-0 keys G3 C4 velocity 0 0.65 root A3
+      zone z57-hard-0 asset singing-bowl-57-hard-0 keys G3 C4 velocity 0.65 1 root A3
+      zone z63-soft-0 asset singing-bowl-63-soft-0 keys C#4 F#4 velocity 0 0.65 root D#4
+      zone z63-hard-0 asset singing-bowl-63-hard-0 keys C#4 F#4 velocity 0.65 1 root D#4
+      zone z69-soft-0 asset singing-bowl-69-soft-0 keys G4 C5 velocity 0 0.65 root A4
+      zone z69-hard-0 asset singing-bowl-69-hard-0 keys G4 C5 velocity 0.65 1 root A4
+      zone z75-soft-0 asset singing-bowl-75-soft-0 keys C#5 F#5 velocity 0 0.65 root D#5
+      zone z75-hard-0 asset singing-bowl-75-hard-0 keys C#5 F#5 velocity 0.65 1 root D#5
+      zone z81-soft-0 asset singing-bowl-81-soft-0 keys G5 C6 velocity 0 0.65 root A5
+      zone z81-hard-0 asset singing-bowl-81-hard-0 keys G5 C6 velocity 0.65 1 root A5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset singing-bowl-57-soft-0 "Singing Bowl" wav "media/57-soft-0.wav" sha256 "cf03ee6844122740ed87c0b2759b88a27cc2f1d998854c8d9c6bad9509d0a1fa" {
+  usage multisample
+}
+asset singing-bowl-57-hard-0 "Singing Bowl" wav "media/57-hard-0.wav" sha256 "d743d51d5c95b7701d6a91609c679a30713f2c3a05e75360c4111e051453e657" {
+  usage multisample
+}
+asset singing-bowl-63-soft-0 "Singing Bowl" wav "media/63-soft-0.wav" sha256 "6e707edf232dc561491eee1d225d745ff2055caec58babb9fd4f08147dc79b64" {
+  usage multisample
+}
+asset singing-bowl-63-hard-0 "Singing Bowl" wav "media/63-hard-0.wav" sha256 "90da7596ebdb23fed8a498457b031514a1a2e1b638cbd5f0c255d88664743c76" {
+  usage multisample
+}
+asset singing-bowl-69-soft-0 "Singing Bowl" wav "media/69-soft-0.wav" sha256 "b4224f890ecee184d5b01092a1ee5e642976e0c26f81d53d160a74d3157d83f4" {
+  usage multisample
+}
+asset singing-bowl-69-hard-0 "Singing Bowl" wav "media/69-hard-0.wav" sha256 "12b4cb30d6f2a2ed7cc00b334eb48d80c66a12f41aa1d2fce277c673eb8ade4e" {
+  usage multisample
+}
+asset singing-bowl-75-soft-0 "Singing Bowl" wav "media/75-soft-0.wav" sha256 "eec8d9bad4279bed0550818bc2b9f91b2a66c14599d5565c237c37326024011c" {
+  usage multisample
+}
+asset singing-bowl-75-hard-0 "Singing Bowl" wav "media/75-hard-0.wav" sha256 "a5a25b6653d36e3ad19d0c1794644f37e618ebdf5db6b8b58b32c4455606a8f1" {
+  usage multisample
+}
+asset singing-bowl-81-soft-0 "Singing Bowl" wav "media/81-soft-0.wav" sha256 "e77a496dc1de361bdfbd52dca2ef17737888d38e358c6c6deb957308d053358d" {
+  usage multisample
+}
+asset singing-bowl-81-hard-0 "Singing Bowl" wav "media/81-hard-0.wav" sha256 "0f4b16e80d52fdc73054d6357ca32d5f32de0ebb0b490f11845eb6c5bfe19d32" {
+  usage multisample
+}

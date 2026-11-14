@@ -1,0 +1,43 @@
+{
+  "model": "tuned_drum",
+  "params": {
+    "decay": 0.28,
+    "contact": 0.0025,
+    "bright": 0.55,
+    "slap": 0.05,
+    "contour": [
+      [
+        0,
+        -150
+      ],
+      [
+        0.04,
+        -150
+      ],
+      [
+        0.22,
+        250
+      ],
+      [
+        0.5,
+        200
+      ]
+    ]
+  },
+  "pitched": true,
+  "category": "World percussion",
+  "seconds": 2.5,
+  "roots": [
+    50,
+    56,
+    62,
+    68
+  ],
+  "range": [
+    48,
+    72
+  ],
+  "audition": 57,
+  "id": "talking-drum",
+  "seed_base": 1170000
+}

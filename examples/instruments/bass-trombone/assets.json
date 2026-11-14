@@ -1,0 +1,246 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "0210b34c7b87508e7927508331a70a1f88dcd78fba7252a548937b1ba9176b6d",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "bass-trombone-28-soft-0",
+      "path": "media/28-soft-0.wav",
+      "sha256": "10a50f2712498aaac1edc22ed26fa3842027945de63c2ebb1573f90c8078c0b2",
+      "frames": 152929,
+      "sample_rate": 48000,
+      "root_midi": 28,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1660280,
+      "normalization_gain": 0.6164959395908111,
+      "loop": [
+        48000,
+        124918,
+        8160
+      ]
+    },
+    {
+      "id": "bass-trombone-28-hard-0",
+      "path": "media/28-hard-0.wav",
+      "sha256": "afa659b8c53811fb4bc00e4bc7188347e03192f9a138a1ed6d4d8745d4c41f87",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 28,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1660280,
+      "normalization_gain": 0.6164959395908111,
+      "loop": [
+        48000,
+        123752,
+        8160
+      ]
+    },
+    {
+      "id": "bass-trombone-34-soft-0",
+      "path": "media/34-soft-0.wav",
+      "sha256": "3e3c8240bccf6e99d860aaf514c6d8f2ececd44ce5ddeef92ec79dc2182e57ea",
+      "frames": 153133,
+      "sample_rate": 48000,
+      "root_midi": 34,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1660340,
+      "normalization_gain": 0.42760529311536577,
+      "loop": [
+        48000,
+        123697,
+        8160
+      ]
+    },
+    {
+      "id": "bass-trombone-34-hard-0",
+      "path": "media/34-hard-0.wav",
+      "sha256": "9606b87c210af6a3411f00d5c0122a19b74218059b1049347a325970054ccc6c",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 34,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1660340,
+      "normalization_gain": 0.42760529311536577,
+      "loop": [
+        48000,
+        125344,
+        8160
+      ]
+    },
+    {
+      "id": "bass-trombone-40-soft-0",
+      "path": "media/40-soft-0.wav",
+      "sha256": "53d16efa0c8340f55b0f4d2ef52de5b1cf9e012eb14d5c62421cbbd6f5d6100f",
+      "frames": 153486,
+      "sample_rate": 48000,
+      "root_midi": 40,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1660400,
+      "normalization_gain": 0.42547131555609086,
+      "loop": [
+        48000,
+        123765,
+        8160
+      ]
+    },
+    {
+      "id": "bass-trombone-40-hard-0",
+      "path": "media/40-hard-0.wav",
+      "sha256": "e2ba3a9428daf635d2d9efd7b7f81991a316ed08c95bb1e722916ccfa202ee77",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 40,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1660400,
+      "normalization_gain": 0.42547131555609086,
+      "loop": [
+        48000,
+        125509,
+        8160
+      ]
+    },
+    {
+      "id": "bass-trombone-46-soft-0",
+      "path": "media/46-soft-0.wav",
+      "sha256": "c6247beef7b1376c07f1037c8f903f0a9ed011cad0bd9947dfa21a680be0d1ff",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 46,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1660460,
+      "normalization_gain": 0.39623533082389445,
+      "loop": [
+        48000,
+        123733,
+        8160
+      ]
+    },
+    {
+      "id": "bass-trombone-46-hard-0",
+      "path": "media/46-hard-0.wav",
+      "sha256": "4a71e0189486e3ff6a65b6d469da57e1c60e18c999572e297f406a2f8e511095",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 46,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1660460,
+      "normalization_gain": 0.39623533082389445,
+      "loop": [
+        48000,
+        123734,
+        8160
+      ]
+    },
+    {
+      "id": "bass-trombone-52-soft-0",
+      "path": "media/52-soft-0.wav",
+      "sha256": "e53c789b5c5f46b237c7ddb2e93d0a114c6bc44f8afb9cd151b2eb4c2ac86b76",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1660520,
+      "normalization_gain": 0.3007009171855254,
+      "loop": [
+        48000,
+        123706,
+        8160
+      ]
+    },
+    {
+      "id": "bass-trombone-52-hard-0",
+      "path": "media/52-hard-0.wav",
+      "sha256": "e5270fd150e28268fd92edb817117e543397173468069d643e26354aec705071",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1660520,
+      "normalization_gain": 0.3007009171855254,
+      "loop": [
+        48000,
+        125745,
+        8160
+      ]
+    },
+    {
+      "id": "bass-trombone-58-soft-0",
+      "path": "media/58-soft-0.wav",
+      "sha256": "90b887bc9f7cadc4e6f675c5b8b55f7c3b85d5ad9fb7d52b3d1cb296a2eac29e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1660580,
+      "normalization_gain": 0.3644546668273466,
+      "loop": [
+        48000,
+        125943,
+        8160
+      ]
+    },
+    {
+      "id": "bass-trombone-58-hard-0",
+      "path": "media/58-hard-0.wav",
+      "sha256": "e6857d57ddb0edf8171453b38c89d023d83bfe96bd5b818d089ebf82f4558d0c",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1660580,
+      "normalization_gain": 0.3644546668273466,
+      "loop": [
+        48000,
+        123680,
+        8160
+      ]
+    },
+    {
+      "id": "bass-trombone-64-soft-0",
+      "path": "media/64-soft-0.wav",
+      "sha256": "5e0afdd02cb31d81a6934306aec3c2fd215a45fe77931cf7a771e9e975cc3066",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1660640,
+      "normalization_gain": 0.3758676894826616,
+      "loop": [
+        48000,
+        123739,
+        8160
+      ]
+    },
+    {
+      "id": "bass-trombone-64-hard-0",
+      "path": "media/64-hard-0.wav",
+      "sha256": "637d2ce36ef1d25a2b4e3fb3082004a94fba70da3494be608ad8e3ba323f6e9b",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1660640,
+      "normalization_gain": 0.3758676894826616,
+      "loop": [
+        48000,
+        123739,
+        8160
+      ]
+    }
+  ]
+}

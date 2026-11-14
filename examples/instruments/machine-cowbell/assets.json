@@ -1,0 +1,56 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "00d188ef60b36e39f274893ba7ead13affc05cb9b4dd5938ab46ea5950c43082",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "machine-cowbell-60-soft-0",
+      "path": "media/60-soft-0.wav",
+      "sha256": "b8e6bcd1fa0553811c5d16b1b6b2ca87f84610a36f9fe81a61bee2f957350594",
+      "frames": 72000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1050600,
+      "normalization_gain": 0.9961813939118874
+    },
+    {
+      "id": "machine-cowbell-60-hard-0",
+      "path": "media/60-hard-0.wav",
+      "sha256": "dc02b7373fcd39fef5299a030dc2fd5d7189ff68e5986304cb511dd7ac8abb34",
+      "frames": 72000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1050600,
+      "normalization_gain": 0.9961813939118874
+    },
+    {
+      "id": "machine-cowbell-60-soft-1",
+      "path": "media/60-soft-1.wav",
+      "sha256": "feac82d20e347f5e1208556a4ca2ea81e6cf43aee941c2c253b97100721482ab",
+      "frames": 72000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1050601,
+      "normalization_gain": 1.0555245094911263
+    },
+    {
+      "id": "machine-cowbell-60-hard-1",
+      "path": "media/60-hard-1.wav",
+      "sha256": "08692fa9e6317b4de2c5dce49458944d99b7a1cbb5f0e7a54be99ccd86cf9c92",
+      "frames": 72000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1050601,
+      "normalization_gain": 1.0555245094911263
+    }
+  ]
+}

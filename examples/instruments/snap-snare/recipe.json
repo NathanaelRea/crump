@@ -1,0 +1,33 @@
+{
+  "model": "machine",
+  "params": {
+    "freq": 195,
+    "tone": 0.6,
+    "sweep": 0.6,
+    "sweep_time": 0.006,
+    "decay": 0.08,
+    "partials": [
+      [
+        1.4,
+        0.35,
+        0.05
+      ]
+    ],
+    "noise": 1.0,
+    "noise_band": [
+      2500,
+      14000
+    ],
+    "noise_decay": 0.2,
+    "click": 0.3
+  },
+  "pitched": false,
+  "category": "Drum machines",
+  "seconds": 1.5,
+  "fixed_keys": [
+    36,
+    81
+  ],
+  "id": "snap-snare",
+  "seed_base": 1030000
+}

@@ -1,0 +1,152 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "f5ca2832667a98e3efc5c1ab5912c79cf822207295c23a71ee9ca80cb2c7e903",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "koto-52-soft-0",
+      "path": "media/52-soft-0.wav",
+      "sha256": "99bb88f87f51db84c212ce817c8d3ed6ef4347b54c631c1b48c4b9ddbd00545e",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1400520,
+      "normalization_gain": 0.9087673892757884
+    },
+    {
+      "id": "koto-52-hard-0",
+      "path": "media/52-hard-0.wav",
+      "sha256": "b50e8d1ff6388916bef021e13c2b78fd062db4705e968a4ae4a81055f9a3dc46",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1400520,
+      "normalization_gain": 0.9087673892757884
+    },
+    {
+      "id": "koto-58-soft-0",
+      "path": "media/58-soft-0.wav",
+      "sha256": "17a1217514601c1bd9750dce471cc3261e207c04ec8247557b4a1f8630e60d3e",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1400580,
+      "normalization_gain": 1.0811601387500207
+    },
+    {
+      "id": "koto-58-hard-0",
+      "path": "media/58-hard-0.wav",
+      "sha256": "f72d2d319498569571d7206b285be9277d5cfa13d9f55c2e3b7c90805fe49354",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 58,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1400580,
+      "normalization_gain": 1.0811601387500207
+    },
+    {
+      "id": "koto-64-soft-0",
+      "path": "media/64-soft-0.wav",
+      "sha256": "f5a8ae3ab67edb9da1bda34b45d0001d9f5582ff8997e28930dc68db2366ee78",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1400640,
+      "normalization_gain": 1.1243133606697504
+    },
+    {
+      "id": "koto-64-hard-0",
+      "path": "media/64-hard-0.wav",
+      "sha256": "0c63895bd96ea6f559609df611e9987b0a69a420d8cb15c2eba23814267f5443",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1400640,
+      "normalization_gain": 1.1243133606697504
+    },
+    {
+      "id": "koto-70-soft-0",
+      "path": "media/70-soft-0.wav",
+      "sha256": "be7a56ff2da668d7f0035adc956e3550e5f84cc963de3ca158e92c1a0ae50001",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 70,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1400700,
+      "normalization_gain": 1.006362113596101
+    },
+    {
+      "id": "koto-70-hard-0",
+      "path": "media/70-hard-0.wav",
+      "sha256": "c22ae2016c566e590468d8887dff52dc34132cc05c31dbfb54404f9cf7a72dde",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 70,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1400700,
+      "normalization_gain": 1.006362113596101
+    },
+    {
+      "id": "koto-76-soft-0",
+      "path": "media/76-soft-0.wav",
+      "sha256": "c72b40799533c41ac6dd8d6f470181c533bb16310057efc37db23b4362c5052c",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 76,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1400760,
+      "normalization_gain": 1.164931197343905
+    },
+    {
+      "id": "koto-76-hard-0",
+      "path": "media/76-hard-0.wav",
+      "sha256": "6305b85922edf62e1a6203bfcd51f0c4c3f99e9cbcbdaf43c3a22bda0c3fea25",
+      "frames": 288000,
+      "sample_rate": 48000,
+      "root_midi": 76,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1400760,
+      "normalization_gain": 1.164931197343905
+    },
+    {
+      "id": "koto-82-soft-0",
+      "path": "media/82-soft-0.wav",
+      "sha256": "6c6b8328eb808ed2703cfa07dd46edf7b24ee6dbf2e003d216b207971247381f",
+      "frames": 181237,
+      "sample_rate": 48000,
+      "root_midi": 82,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1400820,
+      "normalization_gain": 3.1194180053110734
+    },
+    {
+      "id": "koto-82-hard-0",
+      "path": "media/82-hard-0.wav",
+      "sha256": "0dbcc275e35f7f7a0b2766ab17f52eb961fba295b51e45d1ac02c45f3618b4d8",
+      "frames": 191069,
+      "sample_rate": 48000,
+      "root_midi": 82,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1400820,
+      "normalization_gain": 3.1194180053110734
+    }
+  ]
+}

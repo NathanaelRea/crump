@@ -1,0 +1,56 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "d340c00f0ed8c0a01b6c82322957132ef7b56a8b24336e55a09a5b5d2c0238af",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "sleigh-bells-60-soft-0",
+      "path": "media/60-soft-0.wav",
+      "sha256": "986729e8a9cfb51a04e5b442f547cfd2b2e111366c45a75e0db772186909c1a9",
+      "frames": 58608,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1210600,
+      "normalization_gain": 0.10469775459797641
+    },
+    {
+      "id": "sleigh-bells-60-hard-0",
+      "path": "media/60-hard-0.wav",
+      "sha256": "5f8584df78cf3bd43357afd51b266ee44f67d88dc6708bf239b1ec760982650e",
+      "frames": 59502,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1210600,
+      "normalization_gain": 0.10469775459797641
+    },
+    {
+      "id": "sleigh-bells-60-soft-1",
+      "path": "media/60-soft-1.wav",
+      "sha256": "3eec89cb46c67198ac93d9262b866b8967a1372f63a20fb28c2c2ad2e2e62be4",
+      "frames": 58985,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1210601,
+      "normalization_gain": 0.0788268476116399
+    },
+    {
+      "id": "sleigh-bells-60-hard-1",
+      "path": "media/60-hard-1.wav",
+      "sha256": "0baade34614e90dd4aad02eeaf8eb73f6d0e43c33ca6311fbf552d86cb3e7167",
+      "frames": 59429,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1210601,
+      "normalization_gain": 0.0788268476116399
+    }
+  ]
+}

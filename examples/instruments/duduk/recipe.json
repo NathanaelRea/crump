@@ -1,0 +1,91 @@
+{
+  "model": "sustained",
+  "params": {
+    "drift": 2,
+    "shimmer": 0.03,
+    "shimmer_rate": 7,
+    "swell": 0.03,
+    "noise_band": [
+      400,
+      10000
+    ],
+    "noise_comb": 0.6,
+    "taper": 0.5,
+    "jitter": 2.5,
+    "vibrato_wander": 0.25,
+    "motions": 12,
+    "motion_tilt": 0.4,
+    "pulse": 0.5,
+    "slope": [
+      1.05,
+      0.8
+    ],
+    "gamma": 0.15,
+    "attack": [
+      0.06,
+      0.035
+    ],
+    "vibrato": [
+      5,
+      6,
+      12,
+      0.4,
+      0.5
+    ],
+    "scoop": [
+      -25,
+      0.05
+    ],
+    "formants": [
+      [
+        520,
+        2,
+        1.0
+      ],
+      [
+        1250,
+        3,
+        0.35
+      ],
+      [
+        2400,
+        4,
+        0.06
+      ]
+    ],
+    "floor": 0.08,
+    "rolloff": [
+      1900,
+      2.5
+    ],
+    "noise": [
+      0.025,
+      0.2,
+      0.02
+    ],
+    "low_cut": 300
+  },
+  "pitched": true,
+  "category": "World winds",
+  "seconds": 3.2,
+  "loop": [
+    1.0,
+    2.6,
+    0.17
+  ],
+  "roots": [
+    55,
+    61,
+    67,
+    73,
+    79
+  ],
+  "range": [
+    55,
+    81
+  ],
+  "release": 0.15,
+  "audition": 64,
+  "id": "duduk",
+  "seed_base": 1580000
+}

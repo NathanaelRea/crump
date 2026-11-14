@@ -1,0 +1,69 @@
+crump-module 2
+instrument kit-toms "Kit Toms" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z38-soft-0 asset kit-toms-38-soft-0 keys C2 E2 velocity 0 0.65 root D2
+      zone z38-hard-0 asset kit-toms-38-hard-0 keys C2 E2 velocity 0.65 1 root D2
+      zone z43-soft-0 asset kit-toms-43-soft-0 keys F2 A2 velocity 0 0.65 root G2
+      zone z43-hard-0 asset kit-toms-43-hard-0 keys F2 A2 velocity 0.65 1 root G2
+      zone z48-soft-0 asset kit-toms-48-soft-0 keys A#2 D3 velocity 0 0.65 root C3
+      zone z48-hard-0 asset kit-toms-48-hard-0 keys A#2 D3 velocity 0.65 1 root C3
+      zone z53-soft-0 asset kit-toms-53-soft-0 keys D#3 G3 velocity 0 0.65 root F3
+      zone z53-hard-0 asset kit-toms-53-hard-0 keys D#3 G3 velocity 0.65 1 root F3
+      zone z58-soft-0 asset kit-toms-58-soft-0 keys G#3 D4 velocity 0 0.65 root A#3
+      zone z58-hard-0 asset kit-toms-58-hard-0 keys G#3 D4 velocity 0.65 1 root A#3
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset kit-toms-38-soft-0 "Kit Toms" wav "media/38-soft-0.wav" sha256 "24aac35a8d7547d3ed8cb863a6287780101e81fa54e7798e5c1fe8bd370abc5d" {
+  usage multisample
+}
+asset kit-toms-38-hard-0 "Kit Toms" wav "media/38-hard-0.wav" sha256 "c8244a6aa476e2415788abbc3b3822c061ab652bf674cb724c71ee0bee53eec7" {
+  usage multisample
+}
+asset kit-toms-43-soft-0 "Kit Toms" wav "media/43-soft-0.wav" sha256 "41f4f6a99966a5b178294108cf8c87c7ac4bf42c5e655162267c33152c4d05f9" {
+  usage multisample
+}
+asset kit-toms-43-hard-0 "Kit Toms" wav "media/43-hard-0.wav" sha256 "0be25b121dd2f8db3d1b1ffb73a4d8f28758b0deaf7406069fdd7fee3d61e3f3" {
+  usage multisample
+}
+asset kit-toms-48-soft-0 "Kit Toms" wav "media/48-soft-0.wav" sha256 "45b53326d828596837073d81c926b422226cba359cc44a4d3c4ff9ed3e74af7d" {
+  usage multisample
+}
+asset kit-toms-48-hard-0 "Kit Toms" wav "media/48-hard-0.wav" sha256 "afc9b39b6aeb882a23d0c370bb95f244cd336e99ba058b082d5482881078467e" {
+  usage multisample
+}
+asset kit-toms-53-soft-0 "Kit Toms" wav "media/53-soft-0.wav" sha256 "acba75c910958208d723efac00a6481abdab739b3b9f926becc944ef5f52ee25" {
+  usage multisample
+}
+asset kit-toms-53-hard-0 "Kit Toms" wav "media/53-hard-0.wav" sha256 "4dc65083ac5c28e103449585362ba5ab6fb52440e815acb0131d5606fcbf5d76" {
+  usage multisample
+}
+asset kit-toms-58-soft-0 "Kit Toms" wav "media/58-soft-0.wav" sha256 "9ed400687de21b79dd0eca6bde902a069469df558cc862f86ebf84b3621cb59e" {
+  usage multisample
+}
+asset kit-toms-58-hard-0 "Kit Toms" wav "media/58-hard-0.wav" sha256 "f011a3cf5423bc9494573f2e3496ecf0ad769746b09983f714b19ea264a6a9a0" {
+  usage multisample
+}

@@ -1,0 +1,42 @@
+{
+  "model": "modes_tuned",
+  "params": {
+    "ratios": [
+      1,
+      2,
+      3
+    ],
+    "gains": [
+      1,
+      0.32,
+      0.25
+    ],
+    "decays": [
+      3.5,
+      2.2,
+      1.2
+    ],
+    "split": 0.001,
+    "contact": 0.004,
+    "hardness": 0.2,
+    "decay_tracking": 0.3
+  },
+  "pitched": true,
+  "category": "World mallets",
+  "seconds": 8,
+  "roots": [
+    52,
+    57,
+    62,
+    67,
+    72,
+    77
+  ],
+  "range": [
+    50,
+    79
+  ],
+  "audition": 62,
+  "id": "handpan",
+  "seed_base": 1270000
+}

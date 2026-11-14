@@ -1,0 +1,128 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "204d509935fe2c7443c28c91c83cf327d40b1790057ad7bc971c6399248288b2",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "sitar-50-soft-0",
+      "path": "media/50-soft-0.wav",
+      "sha256": "9765bf5fa25a69645dba52524eebb255683fcda37ce5d9033ff946726cdb589a",
+      "frames": 480000,
+      "sample_rate": 48000,
+      "root_midi": 50,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1390500,
+      "normalization_gain": 0.557836345933672
+    },
+    {
+      "id": "sitar-50-hard-0",
+      "path": "media/50-hard-0.wav",
+      "sha256": "652b620e1b0f158fcd9a24cb62ff85fd3b390771af51406f91a073495649e992",
+      "frames": 480000,
+      "sample_rate": 48000,
+      "root_midi": 50,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1390500,
+      "normalization_gain": 0.557836345933672
+    },
+    {
+      "id": "sitar-56-soft-0",
+      "path": "media/56-soft-0.wav",
+      "sha256": "93686d278093576fef8515241788963e5f5692ab135c39d8ee1accfc527a50ae",
+      "frames": 480000,
+      "sample_rate": 48000,
+      "root_midi": 56,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1390560,
+      "normalization_gain": 0.4425218338944994
+    },
+    {
+      "id": "sitar-56-hard-0",
+      "path": "media/56-hard-0.wav",
+      "sha256": "26756a3016ab29956ffc720cf02dea399776614f636e88551f25a08bf5787d9d",
+      "frames": 480000,
+      "sample_rate": 48000,
+      "root_midi": 56,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1390560,
+      "normalization_gain": 0.4425218338944994
+    },
+    {
+      "id": "sitar-62-soft-0",
+      "path": "media/62-soft-0.wav",
+      "sha256": "368419b790385860a36361dfcae13e6a63f50fe92f34bd1b59baebbee61d4de3",
+      "frames": 480000,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1390620,
+      "normalization_gain": 0.580285640955433
+    },
+    {
+      "id": "sitar-62-hard-0",
+      "path": "media/62-hard-0.wav",
+      "sha256": "dd780debb23ea0446bcb057b76c638d5288c201eaf5f0751586feff6b1d1a9b4",
+      "frames": 480000,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1390620,
+      "normalization_gain": 0.580285640955433
+    },
+    {
+      "id": "sitar-68-soft-0",
+      "path": "media/68-soft-0.wav",
+      "sha256": "873900558b5065f8ce468aefff43fa08d03fbaedf5ab1331b927d20838bdc5b5",
+      "frames": 480000,
+      "sample_rate": 48000,
+      "root_midi": 68,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1390680,
+      "normalization_gain": 0.9650477174270542
+    },
+    {
+      "id": "sitar-68-hard-0",
+      "path": "media/68-hard-0.wav",
+      "sha256": "41a409ff43bea9a62d8bf2eb2ebd27e8d8cc1f7d617d143e245247210946fcc6",
+      "frames": 480000,
+      "sample_rate": 48000,
+      "root_midi": 68,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1390680,
+      "normalization_gain": 0.9650477174270542
+    },
+    {
+      "id": "sitar-74-soft-0",
+      "path": "media/74-soft-0.wav",
+      "sha256": "6774e51f76bc58ac89eb0d7e719fce896f1a485c1f07a8000b4454ba2737f6ef",
+      "frames": 480000,
+      "sample_rate": 48000,
+      "root_midi": 74,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1390740,
+      "normalization_gain": 0.8285596540572058
+    },
+    {
+      "id": "sitar-74-hard-0",
+      "path": "media/74-hard-0.wav",
+      "sha256": "d89d9b3a44e51a3b0852650ae9042126ea91944532a714c4e66b9aabee57c9f1",
+      "frames": 480000,
+      "sample_rate": 48000,
+      "root_midi": 74,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1390740,
+      "normalization_gain": 0.8285596540572058
+    }
+  ]
+}

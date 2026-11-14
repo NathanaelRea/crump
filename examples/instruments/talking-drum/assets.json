@@ -1,0 +1,104 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "d4571912557a156cbede1268aa1fd8b9744931b963777426c0d1a0cade850e84",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "talking-drum-50-soft-0",
+      "path": "media/50-soft-0.wav",
+      "sha256": "7a4faefa0ef3a1bbd5b2f319dcb6a3aea436699ead0196c437fff6c27c38b6d8",
+      "frames": 113137,
+      "sample_rate": 48000,
+      "root_midi": 50,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1170500,
+      "normalization_gain": 0.5234022163674262
+    },
+    {
+      "id": "talking-drum-50-hard-0",
+      "path": "media/50-hard-0.wav",
+      "sha256": "6397c6d0cfc1bc3856ccaf01a09cbed10738a351807fc6f6cc56437db872e7a0",
+      "frames": 110627,
+      "sample_rate": 48000,
+      "root_midi": 50,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1170500,
+      "normalization_gain": 0.5234022163674262
+    },
+    {
+      "id": "talking-drum-56-soft-0",
+      "path": "media/56-soft-0.wav",
+      "sha256": "c947e18bd7a38abde6b4547a0d1c51053b4d0b13ebd6302e88c21a4cb69f317b",
+      "frames": 113199,
+      "sample_rate": 48000,
+      "root_midi": 56,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1170560,
+      "normalization_gain": 0.5646516841070952
+    },
+    {
+      "id": "talking-drum-56-hard-0",
+      "path": "media/56-hard-0.wav",
+      "sha256": "5ebdbbd62f37ccd47e72f12a4954ec98a13254cebbecd6b59b5f3ae30ff268d8",
+      "frames": 110627,
+      "sample_rate": 48000,
+      "root_midi": 56,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1170560,
+      "normalization_gain": 0.5646516841070952
+    },
+    {
+      "id": "talking-drum-62-soft-0",
+      "path": "media/62-soft-0.wav",
+      "sha256": "0bf2c43555f8fe45156dda9e2cf7714e6c941598dc7ed39c8d399aea6662dabc",
+      "frames": 113216,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1170620,
+      "normalization_gain": 0.665123170790612
+    },
+    {
+      "id": "talking-drum-62-hard-0",
+      "path": "media/62-hard-0.wav",
+      "sha256": "ca4ec8406ad3ffb6be6d87c9c37175a818d89a5c021bb21babbd962c7e7e089e",
+      "frames": 110627,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1170620,
+      "normalization_gain": 0.665123170790612
+    },
+    {
+      "id": "talking-drum-68-soft-0",
+      "path": "media/68-soft-0.wav",
+      "sha256": "61645419c041c3412f76b4e456f200f5800c832b04ce14d4873379346de58fca",
+      "frames": 113191,
+      "sample_rate": 48000,
+      "root_midi": 68,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1170680,
+      "normalization_gain": 0.9452206149674329
+    },
+    {
+      "id": "talking-drum-68-hard-0",
+      "path": "media/68-hard-0.wav",
+      "sha256": "b8c7d6e370e72178cbf40eec7d6994c3811819b5b79664b5885da197d5b3f034",
+      "frames": 110628,
+      "sample_rate": 48000,
+      "root_midi": 68,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1170680,
+      "normalization_gain": 0.9452206149674329
+    }
+  ]
+}

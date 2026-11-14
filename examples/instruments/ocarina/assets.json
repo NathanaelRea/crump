@@ -1,0 +1,212 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "b4402cd693f781a2cfb96f31963fddf552dd5c39a8a6dd276abf16d9e154abf6",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "ocarina-62-soft-0",
+      "path": "media/62-soft-0.wav",
+      "sha256": "34d9606fabbecace383aca686480a051064382b6850443c4a5609e2ee560cd98",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1570620,
+      "normalization_gain": 0.5511924008298118,
+      "loop": [
+        48000,
+        123719,
+        8160
+      ]
+    },
+    {
+      "id": "ocarina-62-hard-0",
+      "path": "media/62-hard-0.wav",
+      "sha256": "40d8d87e1e8fe0f0aab212f5f91ee0aae8484af86e7f558cc7aca79f017a353a",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1570620,
+      "normalization_gain": 0.5511924008298118,
+      "loop": [
+        48000,
+        125842,
+        8160
+      ]
+    },
+    {
+      "id": "ocarina-67-soft-0",
+      "path": "media/67-soft-0.wav",
+      "sha256": "c1a1527179afaad9faabd5ac265c38fb5a79e4076582979358bd3b139665091e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1570670,
+      "normalization_gain": 0.5356763225640117,
+      "loop": [
+        48000,
+        125835,
+        8160
+      ]
+    },
+    {
+      "id": "ocarina-67-hard-0",
+      "path": "media/67-hard-0.wav",
+      "sha256": "1cb9ddff8c278ed150586305822e3bc7acef08674795ff5646acced34190e624",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1570670,
+      "normalization_gain": 0.5356763225640117,
+      "loop": [
+        48000,
+        125590,
+        8160
+      ]
+    },
+    {
+      "id": "ocarina-72-soft-0",
+      "path": "media/72-soft-0.wav",
+      "sha256": "295e9063f6101dd05c12d235606a1fca0de5f2a5d9d2cf9d85994b0ece0bd88f",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 72,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1570720,
+      "normalization_gain": 0.5413603615738167,
+      "loop": [
+        48000,
+        125968,
+        8160
+      ]
+    },
+    {
+      "id": "ocarina-72-hard-0",
+      "path": "media/72-hard-0.wav",
+      "sha256": "36bf4755c56d0da9b47ebd2fb073b6ed5b425d0b02292dc74cff19384bc4644e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 72,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1570720,
+      "normalization_gain": 0.5413603615738167,
+      "loop": [
+        48000,
+        125967,
+        8160
+      ]
+    },
+    {
+      "id": "ocarina-77-soft-0",
+      "path": "media/77-soft-0.wav",
+      "sha256": "8c26c1c0df32e3253bb0104c49d77ee80e09efd22df10a93447cd305dc7a949f",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 77,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1570770,
+      "normalization_gain": 0.564084648564094,
+      "loop": [
+        48000,
+        123628,
+        8160
+      ]
+    },
+    {
+      "id": "ocarina-77-hard-0",
+      "path": "media/77-hard-0.wav",
+      "sha256": "5755f56d48aea805e311fecad6d8d450cb4050ceb0bf28fa4278afb7a7e0059f",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 77,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1570770,
+      "normalization_gain": 0.564084648564094,
+      "loop": [
+        48000,
+        123627,
+        8160
+      ]
+    },
+    {
+      "id": "ocarina-82-soft-0",
+      "path": "media/82-soft-0.wav",
+      "sha256": "788256c6052bc4919eaeb8c51b23d2ee2b75a2f7dc3801d00f730a5255c598d3",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 82,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1570820,
+      "normalization_gain": 0.616201834517054,
+      "loop": [
+        48000,
+        123869,
+        8160
+      ]
+    },
+    {
+      "id": "ocarina-82-hard-0",
+      "path": "media/82-hard-0.wav",
+      "sha256": "b6371888c918fb66d54704d23c9b1efa493ab71c71eb0ee953e6df9365b1869d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 82,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1570820,
+      "normalization_gain": 0.616201834517054,
+      "loop": [
+        48000,
+        125980,
+        8160
+      ]
+    },
+    {
+      "id": "ocarina-87-soft-0",
+      "path": "media/87-soft-0.wav",
+      "sha256": "7fac5a00eee9f9f0b304061ec64c52b7dbe1f9604b3d16a34181f2f130c3dfe1",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 87,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1570870,
+      "normalization_gain": 0.6220621270295243,
+      "loop": [
+        48000,
+        125972,
+        8160
+      ]
+    },
+    {
+      "id": "ocarina-87-hard-0",
+      "path": "media/87-hard-0.wav",
+      "sha256": "d79751aae7e2bce599bd8022fe2fcaa2b1c3b6e2c1d80f43af9cf473888bd952",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 87,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1570870,
+      "normalization_gain": 0.6220621270295243,
+      "loop": [
+        48000,
+        123625,
+        8160
+      ]
+    }
+  ]
+}

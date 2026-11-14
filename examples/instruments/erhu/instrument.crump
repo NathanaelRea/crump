@@ -1,0 +1,92 @@
+crump-module 2
+instrument erhu "Erhu" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.3s 0.3s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z62-soft-0 asset erhu-62-soft-0 keys D4 E4 velocity 0 0.65 root D4 loop 48000 125969 crossfade 8160
+      zone z62-hard-0 asset erhu-62-hard-0 keys D4 E4 velocity 0.65 1 root D4 loop 48000 125965 crossfade 8160
+      zone z67-soft-0 asset erhu-67-soft-0 keys F4 A4 velocity 0 0.65 root G4 loop 48000 125988 crossfade 8160
+      zone z67-hard-0 asset erhu-67-hard-0 keys F4 A4 velocity 0.65 1 root G4 loop 48000 125981 crossfade 8160
+      zone z72-soft-0 asset erhu-72-soft-0 keys A#4 D5 velocity 0 0.65 root C5 loop 48000 125608 crossfade 8160
+      zone z72-hard-0 asset erhu-72-hard-0 keys A#4 D5 velocity 0.65 1 root C5 loop 48000 125605 crossfade 8160
+      zone z77-soft-0 asset erhu-77-soft-0 keys D#5 G5 velocity 0 0.65 root F5 loop 48000 124255 crossfade 8160
+      zone z77-hard-0 asset erhu-77-hard-0 keys D#5 G5 velocity 0.65 1 root F5 loop 48000 124323 crossfade 8160
+      zone z82-soft-0 asset erhu-82-soft-0 keys G#5 C6 velocity 0 0.65 root A#5 loop 48000 125982 crossfade 8160
+      zone z82-hard-0 asset erhu-82-hard-0 keys G#5 C6 velocity 0.65 1 root A#5 loop 48000 123951 crossfade 8160
+      zone z87-soft-0 asset erhu-87-soft-0 keys C#6 F6 velocity 0 0.65 root D#6 loop 48000 124086 crossfade 8160
+      zone z87-hard-0 asset erhu-87-hard-0 keys C#6 F6 velocity 0.65 1 root D#6 loop 48000 124050 crossfade 8160
+      zone z92-soft-0 asset erhu-92-soft-0 keys F#6 A6 velocity 0 0.65 root G#6 loop 48000 124776 crossfade 8160
+      zone z92-hard-0 asset erhu-92-hard-0 keys F#6 A6 velocity 0.65 1 root G#6 loop 48000 124961 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset erhu-62-soft-0 "Erhu" wav "media/62-soft-0.wav" sha256 "ad49e1cace6ed1b0f6e82450f8325731b2306b1b31eefa9e378b0946bc330a78" {
+  usage multisample
+}
+asset erhu-62-hard-0 "Erhu" wav "media/62-hard-0.wav" sha256 "0b8acbbd0f12f9e1259481065f9e8f482f0359339fad199e51f8710a0a4c1dc5" {
+  usage multisample
+}
+asset erhu-67-soft-0 "Erhu" wav "media/67-soft-0.wav" sha256 "6e38f43523ae1c2159c3516ddca17bb857380ebc9c5d65b25b7a72f4419b1a63" {
+  usage multisample
+}
+asset erhu-67-hard-0 "Erhu" wav "media/67-hard-0.wav" sha256 "2f9cf58c78ecf442bb04aeaa3a06013abdfaba242b434dd7bb771d449461bde5" {
+  usage multisample
+}
+asset erhu-72-soft-0 "Erhu" wav "media/72-soft-0.wav" sha256 "2406d961b3bc537de33f04922925ba7ffbd614359e87e1e6dbf1a4358530dc2c" {
+  usage multisample
+}
+asset erhu-72-hard-0 "Erhu" wav "media/72-hard-0.wav" sha256 "2dc40e30a8eca7a24e509478ce2995cfc3df08d7342d6e36957b0c59fdcb016c" {
+  usage multisample
+}
+asset erhu-77-soft-0 "Erhu" wav "media/77-soft-0.wav" sha256 "0551916f61876416f2f7249b5541b5f2d14640bce7fb104e99da0011023b41e9" {
+  usage multisample
+}
+asset erhu-77-hard-0 "Erhu" wav "media/77-hard-0.wav" sha256 "7fe250174ad4bb837df8ae3bba071d92e154eba1eb0264cdc480118e36b52c98" {
+  usage multisample
+}
+asset erhu-82-soft-0 "Erhu" wav "media/82-soft-0.wav" sha256 "2fb5db267fd163a23d3d09285e46c2ce3d87aa189c5f4cb45ba1fb851887b235" {
+  usage multisample
+}
+asset erhu-82-hard-0 "Erhu" wav "media/82-hard-0.wav" sha256 "0ea9977324de126990449646e756ed7139e32b5f28c4cd7805a22a4d4763f21c" {
+  usage multisample
+}
+asset erhu-87-soft-0 "Erhu" wav "media/87-soft-0.wav" sha256 "77f063adca5c4a88479139c932d4f275b836252543d5a1e76a24351905c0570c" {
+  usage multisample
+}
+asset erhu-87-hard-0 "Erhu" wav "media/87-hard-0.wav" sha256 "cd339697772e42c87e4d24a096a92388b9ba7f7b2aec80e312eee05e655132b6" {
+  usage multisample
+}
+asset erhu-92-soft-0 "Erhu" wav "media/92-soft-0.wav" sha256 "de9e9273796279bcec827ab0ea95edd0ab1c37b3d64fd253c86164bd8de02c04" {
+  usage multisample
+}
+asset erhu-92-hard-0 "Erhu" wav "media/92-hard-0.wav" sha256 "621c5855456af67690971c99aaef97764ddc471796a845fbface06ca8e0ab5e6" {
+  usage multisample
+}

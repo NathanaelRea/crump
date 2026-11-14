@@ -1,0 +1,94 @@
+{
+  "model": "sustained",
+  "params": {
+    "drift": 3,
+    "shimmer": 0.04,
+    "shimmer_rate": 8,
+    "swell": 0.035,
+    "noise_band": [
+      500,
+      9000
+    ],
+    "noise_comb": 0.5,
+    "taper": 0.5,
+    "jitter": 3,
+    "vibrato_wander": 0.3,
+    "motions": 12,
+    "motion_tilt": 0.4,
+    "pulse": 0.5,
+    "slope": [
+      1.2,
+      0.85
+    ],
+    "gamma": 0.3,
+    "attack": [
+      0.04,
+      0.02
+    ],
+    "vibrato": [
+      5.2,
+      6,
+      14,
+      0.35,
+      0.45
+    ],
+    "scoop": [
+      -30,
+      0.04
+    ],
+    "formants": [
+      [
+        300,
+        2,
+        1.0
+      ],
+      [
+        900,
+        2.5,
+        0.55
+      ],
+      [
+        2000,
+        3.5,
+        0.2
+      ]
+    ],
+    "floor": 0.12,
+    "rolloff": [
+      4500,
+      2
+    ],
+    "noise": [
+      0.04,
+      0.25,
+      0.02
+    ],
+    "low_cut": 110
+  },
+  "pitched": true,
+  "category": "Saxophones",
+  "seconds": 3.2,
+  "loop": [
+    1.0,
+    2.6,
+    0.17
+  ],
+  "roots": [
+    36,
+    41,
+    46,
+    51,
+    56,
+    61,
+    66
+  ],
+  "range": [
+    36,
+    69
+  ],
+  "release": 0.12,
+  "audition": 48,
+  "highpass": 24,
+  "id": "baritone-sax",
+  "seed_base": 1490000
+}

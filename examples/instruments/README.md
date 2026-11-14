@@ -1,6 +1,6 @@
 # Example instruments
 
-92 instruments, each with a readable Instrument Module and an audition Project: 60 house instruments and a 32-piece orchestra. Acoustic instruments generate sound in the native graph. Multisample instruments include key/velocity mappings and the recipes that generate their original procedural PCM banks. No downloaded reference recordings are included.
+184 instruments, each with a readable Instrument Module and an audition Project: 60 house instruments, a 32-piece orchestra, and 92 synths, drum machines and world and band instruments ([why these](../../docs/research/instrument-library-expansion.md)). Acoustic and synth instruments generate sound in the native graph. Multisample instruments include key/velocity mappings and the recipes that generate their original procedural PCM banks. No downloaded reference recordings are included.
 
 ## Setup
 
@@ -10,7 +10,7 @@ The multisample WAVs are generated rather than committed. From the repository ro
 uv run tools/instrument_assets/build.py --setup
 ```
 
-It needs [uv](https://docs.astral.sh/uv/), which installs the pinned NumPy and SciPy, and checks every sample against the hash in its `assets.json`. Acoustic instruments need no media.
+It needs [uv](https://docs.astral.sh/uv/), which installs the pinned NumPy and SciPy, and checks every sample against the hash in its `assets.json`. Acoustic and synth instruments need no media.
 
 ## Audition
 
@@ -39,6 +39,8 @@ Acoustic modules embed their profiles and require no media. They can also be exp
 ## Playing and editing
 
 Start with the default Faceplate settings and a Track at 0 dB. House pitched multisamples cover MIDI 24–91 with eight roots and two velocity layers. Orchestral multisamples cover each instrument's playable range at sounding pitch with five to ten roots and two velocity layers. House percussion banks map all keys, use two velocity layers and two round robins; C4 plays their original pitch. Orchestral percussion instead stays within two semitones of its original pitch on every key from C2 to C#6. Native percussion ignores key tracking, while native keys and mallets track pitch.
+
+Synth patches are native graphs with no media. Their Faceplates expose the few controls that define each patch; the deeper settings are in the module. The mono basses (Acid Line, Sub Sine, Reese Bass, Wobble Bass) glide between overlapping notes. Unpitched drum-machine voices and expansion percussion stay within two semitones of their original pitch, as the orchestral percussion does. Two-stroke hand drums and effects (Cajón, Darbuka, Frame Drum, Taiko, Udu, Agogô, Guiro, Cuíca, Mark Tree) play one stroke from C2 to C4 and the other from C#4 to C#6; each catalog entry's `about` names them. The hurdy-gurdy and bagpipes drone on fixed pitches (C and G; A) under every note.
 
 Bowed, blown, sung and organ instruments loop their sustain for as long as a note is held, then play a natural release; their zones use multisample `loop` regions. Note Off also starts an amplitude envelope whose Attack and Release are on their Faceplates. Other one-shot banks retain their natural decay after Note Off. Native bodies also ring independently of the gate. Voice stealing, the 30-second release ceiling and the Project's render range still bound tails. Raise polyphony only within resource admission. Dense chords or extreme control settings may need a lower Level.
 
@@ -140,3 +142,95 @@ The [acoustic model reference](../../docs/native-acoustics.md) explains the nati
 | [Pipe Organ](pipe-organ/instrument.crump) | Orchestral keys | Procedural multisample |
 | [Harpsichord](harpsichord/instrument.crump) | Orchestral keys | Procedural multisample |
 | [Choir Aahs](choir-aahs/instrument.crump) | Voices | Procedural multisample |
+| [Acid Line](acid-line/instrument.crump) | Synth bass | Native synth graph |
+| [Sub Sine](sub-sine/instrument.crump) | Synth bass | Native synth graph |
+| [Reese Bass](reese-bass/instrument.crump) | Synth bass | Native synth graph |
+| [Wobble Bass](wobble-bass/instrument.crump) | Synth bass | Native synth graph |
+| [Log Drum Bass](log-drum-bass/instrument.crump) | Synth bass | Native synth graph |
+| [Supersaw Lead](supersaw-lead/instrument.crump) | Synth leads | Native synth graph |
+| [Chip Square](chip-square/instrument.crump) | Synth leads | Native synth graph |
+| [Sync Lead](sync-lead/instrument.crump) | Synth leads | Native synth graph |
+| [Hoover](hoover/instrument.crump) | Synth leads | Native synth graph |
+| [Synth Brass](synth-brass/instrument.crump) | Synth pads and keys | Native synth graph |
+| [String Machine](string-machine/instrument.crump) | Synth pads and keys | Native synth graph |
+| [Analog Pad](analog-pad/instrument.crump) | Synth pads and keys | Native synth graph |
+| [FM Bell](fm-bell/instrument.crump) | Synth pads and keys | Native synth graph |
+| [FM Tines](fm-tines/instrument.crump) | Synth pads and keys | Native synth graph |
+| [Rave Stab](rave-stab/instrument.crump) | Synth pads and keys | Native synth graph |
+| [Noise Riser](noise-riser/instrument.crump) | Synth FX | Native synth graph |
+| [Boom Kick](boom-kick/instrument.crump) | Drum machines | Procedural multisample |
+| [Punch Kick](punch-kick/instrument.crump) | Drum machines | Procedural multisample |
+| [Machine Snare](machine-snare/instrument.crump) | Drum machines | Procedural multisample |
+| [Snap Snare](snap-snare/instrument.crump) | Drum machines | Procedural multisample |
+| [Machine Clap](machine-clap/instrument.crump) | Drum machines | Procedural multisample |
+| [Machine Cowbell](machine-cowbell/instrument.crump) | Drum machines | Procedural multisample |
+| [Machine Hat](machine-hat/instrument.crump) | Drum machines | Procedural multisample |
+| [Machine Open Hat](machine-open-hat/instrument.crump) | Drum machines | Procedural multisample |
+| [Machine Tom](machine-tom/instrument.crump) | Drum machines | Procedural multisample |
+| [Kit Toms](kit-toms/instrument.crump) | Drum kit | Procedural multisample |
+| [China Cymbal](china-cymbal/instrument.crump) | Drum kit | Procedural multisample |
+| [Ride Bell](ride-bell/instrument.crump) | Drum kit | Procedural multisample |
+| [Cajón](cajon/instrument.crump) | World percussion | Procedural multisample |
+| [Darbuka](darbuka/instrument.crump) | World percussion | Procedural multisample |
+| [Frame Drum](frame-drum/instrument.crump) | World percussion | Procedural multisample |
+| [Taiko](taiko/instrument.crump) | World percussion | Procedural multisample |
+| [Udu](udu/instrument.crump) | World percussion | Procedural multisample |
+| [Talking Drum](talking-drum/instrument.crump) | World percussion | Procedural multisample |
+| [Agogô](agogo/instrument.crump) | World percussion | Procedural multisample |
+| [Guiro](guiro/instrument.crump) | World percussion | Procedural multisample |
+| [Cuíca](cuica/instrument.crump) | World percussion | Procedural multisample |
+| [Sleigh Bells](sleigh-bells/instrument.crump) | World percussion | Procedural multisample |
+| [Temple Blocks](temple-blocks/instrument.crump) | World percussion | Procedural multisample |
+| [Slit Drum](slit-drum/instrument.crump) | World percussion | Procedural multisample |
+| [Vibraslap](vibraslap/instrument.crump) | World percussion | Procedural multisample |
+| [Mark Tree](mark-tree/instrument.crump) | World percussion | Procedural multisample |
+| [Steel Pan](steel-pan/instrument.crump) | World mallets | Procedural multisample |
+| [Handpan](handpan/instrument.crump) | World mallets | Procedural multisample |
+| [Singing Bowl](singing-bowl/instrument.crump) | World mallets | Procedural multisample |
+| [Gamelan Saron](gamelan-saron/instrument.crump) | World mallets | Procedural multisample |
+| [Gamelan Bonang](gamelan-bonang/instrument.crump) | World mallets | Procedural multisample |
+| [Music Box](music-box/instrument.crump) | World mallets | Procedural multisample |
+| [Opera Gong](opera-gong/instrument.crump) | World mallets | Procedural multisample |
+| [Banjo](banjo/instrument.crump) | Guitar | Procedural multisample |
+| [Mandolin](mandolin/instrument.crump) | Guitar | Procedural multisample |
+| [Ukulele](ukulele/instrument.crump) | Guitar | Procedural multisample |
+| [Clean Electric](clean-electric/instrument.crump) | Guitar | Procedural multisample |
+| [Crunch Guitar](crunch-guitar/instrument.crump) | Guitar | Procedural multisample |
+| [Fretless Bass](fretless-bass/instrument.crump) | Bass | Procedural multisample |
+| [Sitar](sitar/instrument.crump) | World strings | Procedural multisample |
+| [Koto](koto/instrument.crump) | World strings | Procedural multisample |
+| [Shamisen](shamisen/instrument.crump) | World strings | Procedural multisample |
+| [Oud](oud/instrument.crump) | World strings | Procedural multisample |
+| [Hammered Dulcimer](hammered-dulcimer/instrument.crump) | World strings | Procedural multisample |
+| [Erhu](erhu/instrument.crump) | World strings | Procedural multisample |
+| [Hurdy-Gurdy](hurdy-gurdy/instrument.crump) | World strings | Procedural multisample |
+| [Tremolo Strings](tremolo-strings/instrument.crump) | Strings | Procedural multisample |
+| [Alto Sax](alto-sax/instrument.crump) | Saxophones | Procedural multisample |
+| [Tenor Sax](tenor-sax/instrument.crump) | Saxophones | Procedural multisample |
+| [Baritone Sax](baritone-sax/instrument.crump) | Saxophones | Procedural multisample |
+| [English Horn](english-horn/instrument.crump) | Woodwinds | Procedural multisample |
+| [Bass Clarinet](bass-clarinet/instrument.crump) | Woodwinds | Procedural multisample |
+| [Contrabassoon](contrabassoon/instrument.crump) | Woodwinds | Procedural multisample |
+| [Recorder](recorder/instrument.crump) | World winds | Procedural multisample |
+| [Pan Flute](pan-flute/instrument.crump) | World winds | Procedural multisample |
+| [Shakuhachi](shakuhachi/instrument.crump) | World winds | Procedural multisample |
+| [Bansuri](bansuri/instrument.crump) | World winds | Procedural multisample |
+| [Ocarina](ocarina/instrument.crump) | World winds | Procedural multisample |
+| [Duduk](duduk/instrument.crump) | World winds | Procedural multisample |
+| [Harmonica](harmonica/instrument.crump) | World winds | Procedural multisample |
+| [Accordion](accordion/instrument.crump) | World winds | Procedural multisample |
+| [Bagpipes](bagpipes/instrument.crump) | World winds | Procedural multisample |
+| [Didgeridoo](didgeridoo/instrument.crump) | World winds | Procedural multisample |
+| [Flugelhorn](flugelhorn/instrument.crump) | Brass | Procedural multisample |
+| [Muted Trumpet](muted-trumpet/instrument.crump) | Brass | Procedural multisample |
+| [Euphonium](euphonium/instrument.crump) | Brass | Procedural multisample |
+| [Bass Trombone](bass-trombone/instrument.crump) | Brass | Procedural multisample |
+| [Drawbar Organ](drawbar-organ/instrument.crump) | Keys | Procedural multisample |
+| [Tape Flute](tape-flute/instrument.crump) | Keys | Procedural multisample |
+| [Tape Strings](tape-strings/instrument.crump) | Keys | Procedural multisample |
+| [Glass Harmonica](glass-harmonica/instrument.crump) | Keys | Procedural multisample |
+| [Honky-Tonk](honky-tonk/instrument.crump) | Keys | Procedural multisample |
+| [Prepared Piano](prepared-piano/instrument.crump) | Keys | Procedural multisample |
+| [Choir Oohs](choir-oohs/instrument.crump) | Voices | Procedural multisample |
+| [Soprano Voice](soprano-voice/instrument.crump) | Voices | Procedural multisample |
+| [Bass Voice](bass-voice/instrument.crump) | Voices | Procedural multisample |

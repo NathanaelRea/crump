@@ -14,9 +14,13 @@ Open the printed address, `http://127.0.0.1:8765/tools/instrument_player/` by de
 
 Multisample instruments play their exact example media. The page reads zones, sustain loops, round-robin groups, Level, Touch and the Attack/Release envelope from each Instrument Module. Loops use the engine's linear crossfade; a released looped note keeps looping under its release fade rather than playing the sample's own tail. It mirrors the engine's gain law, `Level × ((1 − Touch) + Touch × velocity)`. One-shot banks ignore Note Off, as in Crump.
 
-Native acoustic instruments have no media, so the build renders them through Crump. It plays isolated notes every half octave at two velocities, then slices the result into a preview bank. Between rendered velocities, level scales linearly.
+Native acoustic instruments and synths have no media, so the build renders them through Crump. It plays isolated notes every half octave at two velocities, then slices the result into a preview bank. Synths are rendered as held notes: sustaining patches loop part of the hold and fade with their Release on Note Off, and the mono basses play without glide. Between rendered velocities, level scales linearly.
 
 The browser repitches with its own resampler, not the engine's interpolator. The Room control is a player-only convolution hall, not part of any Project. The audition phrase button plays the notes from each example's `project.crump`.
+
+## New instruments and references
+
+The **New** list holds the 92 expansion instruments, each with a line on what it should sound like. If you have fetched and compared the [reference recordings](../instrument_assets/README.md#reference-recordings), instruments with a `ref` tag show them under the title. **▶ Ref** plays a recording, **▶ Model** plays this instrument at the note detected in it, and **A/B** plays one after the other. The chart overlays the two long-term spectra, each relative to its loudest band; below are the 20 dB decay and spectral centroid of both. Recordings carry their room and microphone, so treat the numbers as hints and trust your ears. Rate instruments and add notes as before, then **Copy feedback**.
 
 ## Controls
 
@@ -36,4 +40,4 @@ Click lower on a key to play harder. Shift-click instruments in the list to laye
 
 ## Output
 
-`build.py` writes `renders/instrument-player/manifest.json` and the acoustic preview WAVs, replacing earlier player output. It requires the release `crump` binary (`--crump PATH` overrides it) and NumPy/SciPy, which `uv run` installs from the script header.
+`build.py` writes `renders/instrument-player/manifest.json` and the native preview WAVs, replacing earlier player output. It includes `renders/instrument-references/report.json` when present. It requires the release `crump` binary (`--crump PATH` overrides it) and NumPy/SciPy, which `uv run` installs from the script header.

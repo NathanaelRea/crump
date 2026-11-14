@@ -1,0 +1,178 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "955dcf7d3d960e1ebf88d69702e00edec639b700cd3430667f602dd3f0d25782",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "bagpipes-63-soft-0",
+      "path": "media/63-soft-0.wav",
+      "sha256": "0c800264d0868e504ccf33016c498dfaf7c59866d8cf5b9802651c059e02540e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 63,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1610630,
+      "normalization_gain": 0.4791927080156417,
+      "loop": [
+        48000,
+        125122,
+        8160
+      ]
+    },
+    {
+      "id": "bagpipes-63-hard-0",
+      "path": "media/63-hard-0.wav",
+      "sha256": "d7f3a8f22a7675784cca61abaa9edfe6988faee3338dd99aed4419ca92bdab42",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 63,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1610630,
+      "normalization_gain": 0.4791927080156417,
+      "loop": [
+        48000,
+        125122,
+        8160
+      ]
+    },
+    {
+      "id": "bagpipes-68-soft-0",
+      "path": "media/68-soft-0.wav",
+      "sha256": "8f97066b75bd12fc3d0acff5d81311b6a2f62cbad012e2d1a8e4ec903e184415",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 68,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1610680,
+      "normalization_gain": 0.48652279876992166,
+      "loop": [
+        48000,
+        124682,
+        8160
+      ]
+    },
+    {
+      "id": "bagpipes-68-hard-0",
+      "path": "media/68-hard-0.wav",
+      "sha256": "25f52666aca7e6cd50dc53fcab91718d1563c451cd372c36a5c8b3d99c32be4f",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 68,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1610680,
+      "normalization_gain": 0.48652279876992166,
+      "loop": [
+        48000,
+        124682,
+        8160
+      ]
+    },
+    {
+      "id": "bagpipes-73-soft-0",
+      "path": "media/73-soft-0.wav",
+      "sha256": "6de936bf5822f4f3526d78cffbe90308e1de684633ed0c67939d5a92419968be",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 73,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1610730,
+      "normalization_gain": 0.5172500414872763,
+      "loop": [
+        48000,
+        125970,
+        8160
+      ]
+    },
+    {
+      "id": "bagpipes-73-hard-0",
+      "path": "media/73-hard-0.wav",
+      "sha256": "64c032cd4ab77f615f5b28789fd4a22addb960454e1cf188caf44ae17ffab6de",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 73,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1610730,
+      "normalization_gain": 0.5172500414872763,
+      "loop": [
+        48000,
+        125970,
+        8160
+      ]
+    },
+    {
+      "id": "bagpipes-78-soft-0",
+      "path": "media/78-soft-0.wav",
+      "sha256": "aa0a622310bfce2ee6a677833402068346ce22779e0489b2081baeb3a585ba6d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 78,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1610780,
+      "normalization_gain": 0.48051777505799076,
+      "loop": [
+        48000,
+        124676,
+        8160
+      ]
+    },
+    {
+      "id": "bagpipes-78-hard-0",
+      "path": "media/78-hard-0.wav",
+      "sha256": "2e5b90dddc8c5b6ec4e424705cc34ecaee88ad69ab6124bcf7feb7fc826daa20",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 78,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1610780,
+      "normalization_gain": 0.48051777505799076,
+      "loop": [
+        48000,
+        124676,
+        8160
+      ]
+    },
+    {
+      "id": "bagpipes-83-soft-0",
+      "path": "media/83-soft-0.wav",
+      "sha256": "d31a095473bc8fdabbf21a68c06b924e309158668c3bf9a6f9fac8be2dc81149",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 83,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1610830,
+      "normalization_gain": 0.4688174535096564,
+      "loop": [
+        48000,
+        125768,
+        8160
+      ]
+    },
+    {
+      "id": "bagpipes-83-hard-0",
+      "path": "media/83-hard-0.wav",
+      "sha256": "a951c27d587cc0868638f0d9387d7f8a16ce34c34f4d567e5b1fe9df68b5c041",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 83,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1610830,
+      "normalization_gain": 0.4688174535096564,
+      "loop": [
+        48000,
+        125768,
+        8160
+      ]
+    }
+  ]
+}

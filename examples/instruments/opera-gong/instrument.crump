@@ -1,0 +1,81 @@
+crump-module 2
+instrument opera-gong "Opera Gong" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z38-soft-0 asset opera-gong-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
+      zone z43-soft-0 asset opera-gong-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
+      zone z48-soft-0 asset opera-gong-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
+      zone z53-soft-0 asset opera-gong-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
+      zone z58-soft-0 asset opera-gong-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
+      zone z63-soft-0 asset opera-gong-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
+      zone z68-soft-0 asset opera-gong-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone z73-soft-0 asset opera-gong-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
+      zone z78-soft-0 asset opera-gong-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
+      zone z83-soft-0 asset opera-gong-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
+      zone z38-hard-0 asset opera-gong-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
+      zone z43-hard-0 asset opera-gong-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
+      zone z48-hard-0 asset opera-gong-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
+      zone z53-hard-0 asset opera-gong-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
+      zone z58-hard-0 asset opera-gong-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
+      zone z63-hard-0 asset opera-gong-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
+      zone z68-hard-0 asset opera-gong-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone z73-hard-0 asset opera-gong-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
+      zone z78-hard-0 asset opera-gong-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
+      zone z83-hard-0 asset opera-gong-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
+      zone z38-soft-1 asset opera-gong-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
+      zone z43-soft-1 asset opera-gong-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
+      zone z48-soft-1 asset opera-gong-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
+      zone z53-soft-1 asset opera-gong-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
+      zone z58-soft-1 asset opera-gong-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
+      zone z63-soft-1 asset opera-gong-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
+      zone z68-soft-1 asset opera-gong-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone z73-soft-1 asset opera-gong-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
+      zone z78-soft-1 asset opera-gong-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
+      zone z83-soft-1 asset opera-gong-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
+      zone z38-hard-1 asset opera-gong-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
+      zone z43-hard-1 asset opera-gong-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
+      zone z48-hard-1 asset opera-gong-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
+      zone z53-hard-1 asset opera-gong-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
+      zone z58-hard-1 asset opera-gong-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
+      zone z63-hard-1 asset opera-gong-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
+      zone z68-hard-1 asset opera-gong-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone z73-hard-1 asset opera-gong-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
+      zone z78-hard-1 asset opera-gong-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
+      zone z83-hard-1 asset opera-gong-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset opera-gong-60-soft-0 "Opera Gong" wav "media/60-soft-0.wav" sha256 "ce4b7a8884412e342b51dff2895d30e4a53568ec0c6b49ed9b979d8ca010315b" {
+  usage multisample
+}
+asset opera-gong-60-hard-0 "Opera Gong" wav "media/60-hard-0.wav" sha256 "9890ec42b6987961144edc9c580d42ca12b4798c6c56484488efd91c290d0646" {
+  usage multisample
+}
+asset opera-gong-60-soft-1 "Opera Gong" wav "media/60-soft-1.wav" sha256 "b21be3b655b7513672a90a674c50171177589caa7fc772d56c4dea4a99da5e6a" {
+  usage multisample
+}
+asset opera-gong-60-hard-1 "Opera Gong" wav "media/60-hard-1.wav" sha256 "97e917703be04eb21ab14af09f0e36c796a81098287557aae1a0e5aa10bfb6ac" {
+  usage multisample
+}

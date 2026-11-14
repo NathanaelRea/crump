@@ -1,0 +1,37 @@
+{
+  "model": "chimes",
+  "params": {
+    "count": 28,
+    "low": 2600,
+    "high": 9000,
+    "sweep": 1.1,
+    "decay": 1.6
+  },
+  "pitched": false,
+  "category": "World percussion",
+  "seconds": 5,
+  "strokes": [
+    {
+      "name": "up",
+      "keys": [
+        36,
+        60
+      ],
+      "params": {
+        "direction": "up"
+      }
+    },
+    {
+      "name": "down",
+      "keys": [
+        61,
+        85
+      ],
+      "params": {
+        "direction": "down"
+      }
+    }
+  ],
+  "id": "mark-tree",
+  "seed_base": 1250000
+}

@@ -1,0 +1,93 @@
+crump-module 2
+instrument cuica "Cuíca" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone zlow-38-soft-0 asset cuica-low-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
+      zone zlow-43-soft-0 asset cuica-low-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
+      zone zlow-48-soft-0 asset cuica-low-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
+      zone zlow-53-soft-0 asset cuica-low-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
+      zone zlow-58-soft-0 asset cuica-low-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
+      zone zlow-38-hard-0 asset cuica-low-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
+      zone zlow-43-hard-0 asset cuica-low-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
+      zone zlow-48-hard-0 asset cuica-low-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
+      zone zlow-53-hard-0 asset cuica-low-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
+      zone zlow-58-hard-0 asset cuica-low-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
+      zone zlow-38-soft-1 asset cuica-low-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
+      zone zlow-43-soft-1 asset cuica-low-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
+      zone zlow-48-soft-1 asset cuica-low-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
+      zone zlow-53-soft-1 asset cuica-low-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
+      zone zlow-58-soft-1 asset cuica-low-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
+      zone zlow-38-hard-1 asset cuica-low-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
+      zone zlow-43-hard-1 asset cuica-low-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
+      zone zlow-48-hard-1 asset cuica-low-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
+      zone zlow-53-hard-1 asset cuica-low-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
+      zone zlow-58-hard-1 asset cuica-low-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
+      zone zhigh-63-soft-0 asset cuica-high-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
+      zone zhigh-68-soft-0 asset cuica-high-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone zhigh-73-soft-0 asset cuica-high-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
+      zone zhigh-78-soft-0 asset cuica-high-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
+      zone zhigh-83-soft-0 asset cuica-high-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
+      zone zhigh-63-hard-0 asset cuica-high-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
+      zone zhigh-68-hard-0 asset cuica-high-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone zhigh-73-hard-0 asset cuica-high-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
+      zone zhigh-78-hard-0 asset cuica-high-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
+      zone zhigh-83-hard-0 asset cuica-high-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
+      zone zhigh-63-soft-1 asset cuica-high-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
+      zone zhigh-68-soft-1 asset cuica-high-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone zhigh-73-soft-1 asset cuica-high-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
+      zone zhigh-78-soft-1 asset cuica-high-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
+      zone zhigh-83-soft-1 asset cuica-high-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
+      zone zhigh-63-hard-1 asset cuica-high-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
+      zone zhigh-68-hard-1 asset cuica-high-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone zhigh-73-hard-1 asset cuica-high-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
+      zone zhigh-78-hard-1 asset cuica-high-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
+      zone zhigh-83-hard-1 asset cuica-high-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset cuica-low-60-soft-0 "Cuíca" wav "media/low-60-soft-0.wav" sha256 "56d9cc30213b9efc206b48b80435ca8aa37596e13a67c782ecca1bd1e6ee695e" {
+  usage multisample
+}
+asset cuica-low-60-hard-0 "Cuíca" wav "media/low-60-hard-0.wav" sha256 "454d0ce8a594bcc2f867f2b24406c613780a644aae4b962642e5ddedf5c6b37d" {
+  usage multisample
+}
+asset cuica-low-60-soft-1 "Cuíca" wav "media/low-60-soft-1.wav" sha256 "e76ca933b9115a767a03132bc1d68de48474781a4dc2968c92067ea58a7091a1" {
+  usage multisample
+}
+asset cuica-low-60-hard-1 "Cuíca" wav "media/low-60-hard-1.wav" sha256 "6d7aa7bdd536b5be93263cf41eb863c6d2228522227d1a13e4126007faea5326" {
+  usage multisample
+}
+asset cuica-high-60-soft-0 "Cuíca" wav "media/high-60-soft-0.wav" sha256 "b69cb1285183d478d89f56e9c5b3618179d0a202ef8fdf61fafc1f6e60be42a2" {
+  usage multisample
+}
+asset cuica-high-60-hard-0 "Cuíca" wav "media/high-60-hard-0.wav" sha256 "e289943cfaab3872f0ea1bb764641c2ea580e9fcf26ac8cf2c2a2159e0a70a79" {
+  usage multisample
+}
+asset cuica-high-60-soft-1 "Cuíca" wav "media/high-60-soft-1.wav" sha256 "cf69119b57ee2a9ab1c864febe1344396566bb45dc855d45a3b34f70c88359a3" {
+  usage multisample
+}
+asset cuica-high-60-hard-1 "Cuíca" wav "media/high-60-hard-1.wav" sha256 "2f29f4e6e688cbbf266d9518a02c8178e9c053c27cbef5bee9286889d5a7688a" {
+  usage multisample
+}

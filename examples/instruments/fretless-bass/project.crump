@@ -1,0 +1,104 @@
+crump 2
+import "instrument.crump"
+project "Fretless Bass" {
+  id example-fretless-bass
+  seed 1164093
+  sample_rate 48000
+  render_tail 2s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat E2 2beat 0.48
+      note 2beat E3 2beat 0.92
+      note 4beat E2 0.18beat 0.95
+      note 4.5beat E3 0.18beat 0.62
+      note 4.75beat E2 0.18beat 0.62
+      note 5beat D3 0.18beat 0.95
+      note 5.5beat B2 0.18beat 0.62
+      note 5.75beat E3 0.18beat 0.62
+      note 6beat E2 0.18beat 0.95
+      note 6.5beat E3 0.18beat 0.62
+      note 6.75beat E2 0.18beat 0.62
+      note 7beat D3 0.18beat 0.95
+      note 7.5beat A2 0.18beat 0.62
+      note 7.75beat G2 0.18beat 0.62
+      note 8beat C2 0.18beat 0.95
+      note 8.5beat C3 0.18beat 0.62
+      note 8.75beat C2 0.18beat 0.62
+      note 9beat A#2 0.18beat 0.95
+      note 9.5beat G2 0.18beat 0.62
+      note 9.75beat C3 0.18beat 0.62
+      note 10beat C2 0.18beat 0.95
+      note 10.5beat C3 0.18beat 0.62
+      note 10.75beat C2 0.18beat 0.62
+      note 11beat A#2 0.18beat 0.95
+      note 11.5beat F2 0.18beat 0.62
+      note 11.75beat D#2 0.18beat 0.62
+      note 12beat D2 0.18beat 0.95
+      note 12.5beat D3 0.18beat 0.62
+      note 12.75beat D2 0.18beat 0.62
+      note 13beat C3 0.18beat 0.95
+      note 13.5beat A2 0.18beat 0.62
+      note 13.75beat D3 0.18beat 0.62
+      note 14beat D2 0.18beat 0.95
+      note 14.5beat D3 0.18beat 0.62
+      note 14.75beat D2 0.18beat 0.62
+      note 15beat C3 0.18beat 0.95
+      note 15.5beat G2 0.18beat 0.62
+      note 15.75beat F2 0.18beat 0.62
+      note 16beat E2 0.18beat 0.95
+      note 16.5beat E3 0.18beat 0.62
+      note 16.75beat E2 0.18beat 0.62
+      note 17beat D3 0.18beat 0.95
+      note 17.5beat B2 0.18beat 0.62
+      note 17.75beat E3 0.18beat 0.62
+      note 18beat E2 0.18beat 0.95
+      note 18.5beat E3 0.18beat 0.62
+      note 18.75beat E2 0.18beat 0.62
+      note 19beat D3 0.18beat 0.95
+      note 19.5beat A2 0.18beat 0.62
+      note 19.75beat G2 0.18beat 0.62
+      note 20beat E2 0.18beat 0.95
+      note 20.5beat E3 0.18beat 0.62
+      note 20.75beat E2 0.18beat 0.62
+      note 21beat D3 0.18beat 0.95
+      note 21.5beat B2 0.18beat 0.62
+      note 21.75beat E3 0.18beat 0.62
+      note 22beat E2 0.18beat 0.95
+      note 22.5beat E3 0.18beat 0.62
+      note 22.75beat E2 0.18beat 0.62
+      note 23beat D3 0.18beat 0.95
+      note 23.5beat A2 0.18beat 0.62
+      note 23.75beat G2 0.18beat 0.62
+      note 24beat C2 0.18beat 0.95
+      note 24.5beat C3 0.18beat 0.62
+      note 24.75beat C2 0.18beat 0.62
+      note 25beat A#2 0.18beat 0.95
+      note 25.5beat G2 0.18beat 0.62
+      note 25.75beat C3 0.18beat 0.62
+      note 26beat C2 0.18beat 0.95
+      note 26.5beat C3 0.18beat 0.62
+      note 26.75beat C2 0.18beat 0.62
+      note 27beat A#2 0.18beat 0.95
+      note 27.5beat F2 0.18beat 0.62
+      note 27.75beat D#2 0.18beat 0.62
+      note 28beat D2 0.18beat 0.95
+      note 28.5beat D3 0.18beat 0.62
+      note 28.75beat D2 0.18beat 0.62
+      note 29beat C3 0.18beat 0.95
+      note 29.5beat A2 0.18beat 0.62
+      note 29.75beat D3 0.18beat 0.62
+      note 30beat D2 0.18beat 0.95
+      note 30.5beat D3 0.18beat 0.62
+      note 30.75beat D2 0.18beat 0.62
+      note 31beat C3 0.18beat 0.95
+      note 31.5beat G2 0.18beat 0.62
+      note 31.75beat F2 0.18beat 0.62
+    }
+    track instrument "Fretless Bass" instrument fretless-bass level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

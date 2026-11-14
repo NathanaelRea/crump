@@ -1,0 +1,116 @@
+crump-module 2
+instrument tremolo-strings "Tremolo Strings" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.4s 0.4s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z36-soft-0 asset tremolo-strings-36-soft-0 keys E1 D#2 velocity 0 0.65 root C2 loop 48000 124021 crossfade 8160
+      zone z36-hard-0 asset tremolo-strings-36-hard-0 keys E1 D#2 velocity 0.65 1 root C2 loop 48000 124028 crossfade 8160
+      zone z43-soft-0 asset tremolo-strings-43-soft-0 keys E2 A#2 velocity 0 0.65 root G2 loop 48000 125756 crossfade 8160
+      zone z43-hard-0 asset tremolo-strings-43-hard-0 keys E2 A#2 velocity 0.65 1 root G2 loop 48000 124006 crossfade 8160
+      zone z50-soft-0 asset tremolo-strings-50-soft-0 keys B2 F3 velocity 0 0.65 root D3 loop 48000 124731 crossfade 8160
+      zone z50-hard-0 asset tremolo-strings-50-hard-0 keys B2 F3 velocity 0.65 1 root D3 loop 48000 125598 crossfade 8160
+      zone z57-soft-0 asset tremolo-strings-57-soft-0 keys F#3 C4 velocity 0 0.65 root A3 loop 48000 125854 crossfade 8160
+      zone z57-hard-0 asset tremolo-strings-57-hard-0 keys F#3 C4 velocity 0.65 1 root A3 loop 48000 123710 crossfade 8160
+      zone z64-soft-0 asset tremolo-strings-64-soft-0 keys C#4 G4 velocity 0 0.65 root E4 loop 48000 125791 crossfade 8160
+      zone z64-hard-0 asset tremolo-strings-64-hard-0 keys C#4 G4 velocity 0.65 1 root E4 loop 48000 124367 crossfade 8160
+      zone z71-soft-0 asset tremolo-strings-71-soft-0 keys G#4 D5 velocity 0 0.65 root B4 loop 48000 123914 crossfade 8160
+      zone z71-hard-0 asset tremolo-strings-71-hard-0 keys G#4 D5 velocity 0.65 1 root B4 loop 48000 125920 crossfade 8160
+      zone z78-soft-0 asset tremolo-strings-78-soft-0 keys D#5 A5 velocity 0 0.65 root F#5 loop 48000 125580 crossfade 8160
+      zone z78-hard-0 asset tremolo-strings-78-hard-0 keys D#5 A5 velocity 0.65 1 root F#5 loop 48000 125996 crossfade 8160
+      zone z85-soft-0 asset tremolo-strings-85-soft-0 keys A#5 E6 velocity 0 0.65 root C#6 loop 48000 125243 crossfade 8160
+      zone z85-hard-0 asset tremolo-strings-85-hard-0 keys A#5 E6 velocity 0.65 1 root C#6 loop 48000 124239 crossfade 8160
+      zone z92-soft-0 asset tremolo-strings-92-soft-0 keys F6 B6 velocity 0 0.65 root G#6 loop 48000 123632 crossfade 8160
+      zone z92-hard-0 asset tremolo-strings-92-hard-0 keys F6 B6 velocity 0.65 1 root G#6 loop 48000 125015 crossfade 8160
+      zone z98-soft-0 asset tremolo-strings-98-soft-0 keys C7 D7 velocity 0 0.65 root D7 loop 48000 125170 crossfade 8160
+      zone z98-hard-0 asset tremolo-strings-98-hard-0 keys C7 D7 velocity 0.65 1 root D7 loop 48000 124416 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset tremolo-strings-36-soft-0 "Tremolo Strings" wav "media/36-soft-0.wav" sha256 "e1d96bfc5775eb41a5ad7d350b5e04ab706dde2054426f26115dcfe369553b7f" {
+  usage multisample
+}
+asset tremolo-strings-36-hard-0 "Tremolo Strings" wav "media/36-hard-0.wav" sha256 "ba66268645e39bd49690eee24f8baca3a1d3c7f46a97f79f02d7789c7abeff5e" {
+  usage multisample
+}
+asset tremolo-strings-43-soft-0 "Tremolo Strings" wav "media/43-soft-0.wav" sha256 "f44c1a0c4bb07eec150d97513f5aba45bbd5f1df2c7a45ae5061da3746773a30" {
+  usage multisample
+}
+asset tremolo-strings-43-hard-0 "Tremolo Strings" wav "media/43-hard-0.wav" sha256 "215772405ab2bfd67f583cd40f74895b2caa97011c1dd40e3ce86ded2b16ac67" {
+  usage multisample
+}
+asset tremolo-strings-50-soft-0 "Tremolo Strings" wav "media/50-soft-0.wav" sha256 "f007d9f3debef8e484e49693dc056911a2e275b2603969c3a19e5a1076941984" {
+  usage multisample
+}
+asset tremolo-strings-50-hard-0 "Tremolo Strings" wav "media/50-hard-0.wav" sha256 "fb64fb33777a1458cce44f5cf156ebe1391b38ff909eb6e774d4b324158311f7" {
+  usage multisample
+}
+asset tremolo-strings-57-soft-0 "Tremolo Strings" wav "media/57-soft-0.wav" sha256 "e2a7db63b6130881a8608fdc75838c2155b9103d7154a428da00cbf9c691a1a5" {
+  usage multisample
+}
+asset tremolo-strings-57-hard-0 "Tremolo Strings" wav "media/57-hard-0.wav" sha256 "ca66731baa432b182d40b3b18ef24015d4c6afe1af85dcd6b4545cf9c10ad6b9" {
+  usage multisample
+}
+asset tremolo-strings-64-soft-0 "Tremolo Strings" wav "media/64-soft-0.wav" sha256 "0cc37fd9995ba30a7c30078317c8a20043b690631a23a04b7b1aa07e2c8b942f" {
+  usage multisample
+}
+asset tremolo-strings-64-hard-0 "Tremolo Strings" wav "media/64-hard-0.wav" sha256 "c2787bc6dc9edc2c8d946ea2b1dab16058863c49b30320307ec3fb8bbd2a7b2b" {
+  usage multisample
+}
+asset tremolo-strings-71-soft-0 "Tremolo Strings" wav "media/71-soft-0.wav" sha256 "0780423d22dffbf082a0268bfba1ac166ac213613ebd5c97588d679deb72fc9f" {
+  usage multisample
+}
+asset tremolo-strings-71-hard-0 "Tremolo Strings" wav "media/71-hard-0.wav" sha256 "ecc56d1fd8938c2a3b7cd8d5d8596d54672304742da1a02555cc003bb449b0a2" {
+  usage multisample
+}
+asset tremolo-strings-78-soft-0 "Tremolo Strings" wav "media/78-soft-0.wav" sha256 "e67e86d4eb7cfdfecb91ed5c11bfb0e6f2e3fad86019020be8958858f91fd935" {
+  usage multisample
+}
+asset tremolo-strings-78-hard-0 "Tremolo Strings" wav "media/78-hard-0.wav" sha256 "7fe9faaea7d97eadeb9fa48537f53feea72b617ff020448332e97394c706330c" {
+  usage multisample
+}
+asset tremolo-strings-85-soft-0 "Tremolo Strings" wav "media/85-soft-0.wav" sha256 "c0f8a8c6bc3fcb5364b32e008904c6634d36ae2c59b4b3a5a13ba43a4c210907" {
+  usage multisample
+}
+asset tremolo-strings-85-hard-0 "Tremolo Strings" wav "media/85-hard-0.wav" sha256 "44fb121b74d00fdaf9b5b10973d2dcd7c4cc3e0dedfed3a52ad74b2bafaa55d9" {
+  usage multisample
+}
+asset tremolo-strings-92-soft-0 "Tremolo Strings" wav "media/92-soft-0.wav" sha256 "4e40d5b8d04d71209aa4ba20283af82fd4a2dc07ead093112555b68cb0120ff5" {
+  usage multisample
+}
+asset tremolo-strings-92-hard-0 "Tremolo Strings" wav "media/92-hard-0.wav" sha256 "b685aa324b389862f86561847195117e1391b38c42f9ba15b07cec8d6446b9e6" {
+  usage multisample
+}
+asset tremolo-strings-98-soft-0 "Tremolo Strings" wav "media/98-soft-0.wav" sha256 "15fd3b6c8b87481e1d52198b650a92c7de6c9fb8df90f82ff2cede7b98a5df2d" {
+  usage multisample
+}
+asset tremolo-strings-98-hard-0 "Tremolo Strings" wav "media/98-hard-0.wav" sha256 "71446b21148ef717b70bc1f78a0314323d4a750ec38770930e04c3814a8fbf30" {
+  usage multisample
+}

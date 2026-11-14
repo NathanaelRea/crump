@@ -1,0 +1,152 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "3e52f51f2ba83e442cdf05997d80d92bfcd2c56d072a992e885039d6ae60c727",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "tape-flute-43-soft-0",
+      "path": "media/43-soft-0.wav",
+      "sha256": "a237eef9eb571ac2380f55a5d28d2cd736d53b17d08123a819cf1b1da33b8f46",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 43,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1680430,
+      "normalization_gain": 0.420284471202959
+    },
+    {
+      "id": "tape-flute-43-hard-0",
+      "path": "media/43-hard-0.wav",
+      "sha256": "9d89518acdacdd11d81a87b73156e0ed12e49e23add6cf0c373e15a7e040043d",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 43,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1680430,
+      "normalization_gain": 0.420284471202959
+    },
+    {
+      "id": "tape-flute-49-soft-0",
+      "path": "media/49-soft-0.wav",
+      "sha256": "051ade6ef4b52e07bd54dca8594106808f2804e1d5e21147bd2e7b0476dd0856",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 49,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1680490,
+      "normalization_gain": 0.37383090633639826
+    },
+    {
+      "id": "tape-flute-49-hard-0",
+      "path": "media/49-hard-0.wav",
+      "sha256": "9dc9471480e9351b0ae0ba2c620e016a9e91610f444c9e83596b7ef6646ae933",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 49,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1680490,
+      "normalization_gain": 0.37383090633639826
+    },
+    {
+      "id": "tape-flute-55-soft-0",
+      "path": "media/55-soft-0.wav",
+      "sha256": "5ab3f5e284dd345fca9ec9ffa835d52d72ca91cbbee6eaf3863d91f5a6ef248c",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 55,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1680550,
+      "normalization_gain": 0.3702138515324894
+    },
+    {
+      "id": "tape-flute-55-hard-0",
+      "path": "media/55-hard-0.wav",
+      "sha256": "cba2ea9387bde4e43fabb69fc27d657410ed302daf3ba0ae5d377ca91ac04153",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 55,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1680550,
+      "normalization_gain": 0.3702138515324894
+    },
+    {
+      "id": "tape-flute-61-soft-0",
+      "path": "media/61-soft-0.wav",
+      "sha256": "3b8de052dff694bb288ca691db6997f4e28fded0468396df2b4e6c20ceb87a90",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 61,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1680610,
+      "normalization_gain": 0.4328245046616275
+    },
+    {
+      "id": "tape-flute-61-hard-0",
+      "path": "media/61-hard-0.wav",
+      "sha256": "17f30993f682d33c79aaa140a0835170f687055e289108a0739c7276835cdbc0",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 61,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1680610,
+      "normalization_gain": 0.4328245046616275
+    },
+    {
+      "id": "tape-flute-67-soft-0",
+      "path": "media/67-soft-0.wav",
+      "sha256": "9fee9e46672db634305ebc683fec26878249fb252279cb72f8940c70ef385229",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1680670,
+      "normalization_gain": 0.4560027340462029
+    },
+    {
+      "id": "tape-flute-67-hard-0",
+      "path": "media/67-hard-0.wav",
+      "sha256": "bed314a14efa135d281ea0e5e30e88593f6c8a51fe5dbe7fde3cd1d9248df1c3",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1680670,
+      "normalization_gain": 0.4560027340462029
+    },
+    {
+      "id": "tape-flute-73-soft-0",
+      "path": "media/73-soft-0.wav",
+      "sha256": "d13c76cdd425c5d8c5d67d425ee77ff4ff3bd7e1dd4b5d5b003376eb1a0555cb",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 73,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1680730,
+      "normalization_gain": 0.3920546785388885
+    },
+    {
+      "id": "tape-flute-73-hard-0",
+      "path": "media/73-hard-0.wav",
+      "sha256": "492c5eeff46d4990c730744bda7513be3018152913679c4c4416f56505f7810d",
+      "frames": 384000,
+      "sample_rate": 48000,
+      "root_midi": 73,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1680730,
+      "normalization_gain": 0.3920546785388885
+    }
+  ]
+}

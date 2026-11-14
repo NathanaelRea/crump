@@ -1,0 +1,246 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "ab8fe9dad78d60f645b60d303033334b59b294ebfa728e7815e307ca1ee0776b",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "tenor-sax-44-soft-0",
+      "path": "media/44-soft-0.wav",
+      "sha256": "07f64a7a1daf8de219b4a3f705c649d246a5c67108aced4452f4f3479e6e618d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 44,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1480440,
+      "normalization_gain": 0.7377123731542682,
+      "loop": [
+        48000,
+        123676,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-sax-44-hard-0",
+      "path": "media/44-hard-0.wav",
+      "sha256": "b3fc4efce55b65732271a390d1e3360ebbb6abaf21e06ff7d712b1898db8ffc1",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 44,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1480440,
+      "normalization_gain": 0.7377123731542682,
+      "loop": [
+        48000,
+        123676,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-sax-49-soft-0",
+      "path": "media/49-soft-0.wav",
+      "sha256": "d95e523715c440982cb065751fc6d0d34fc7d50b9c9351014f7529553b227139",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 49,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1480490,
+      "normalization_gain": 0.6317423650900051,
+      "loop": [
+        48000,
+        125733,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-sax-49-hard-0",
+      "path": "media/49-hard-0.wav",
+      "sha256": "60ffc06284fc56f891bdaa20ead407943bdd684ad39f765b9772a13d34d4804d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 49,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1480490,
+      "normalization_gain": 0.6317423650900051,
+      "loop": [
+        48000,
+        125733,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-sax-54-soft-0",
+      "path": "media/54-soft-0.wav",
+      "sha256": "d0b073a26ac4599d8a9f49e137ecc6267a041f449515116af73a3f63c04a81d4",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 54,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1480540,
+      "normalization_gain": 0.43849305072710154,
+      "loop": [
+        48000,
+        123650,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-sax-54-hard-0",
+      "path": "media/54-hard-0.wav",
+      "sha256": "6750b43fb53d4b236c362f8242304b276ebb8f6a9170a59d8b59d44792a18acb",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 54,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1480540,
+      "normalization_gain": 0.43849305072710154,
+      "loop": [
+        48000,
+        123637,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-sax-59-soft-0",
+      "path": "media/59-soft-0.wav",
+      "sha256": "8e4e82a766ff059ab9b74ec26861a86b98ab3f717f3a0fdd4cfb726ccba94e7a",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 59,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1480590,
+      "normalization_gain": 0.6171221435415234,
+      "loop": [
+        48000,
+        123717,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-sax-59-hard-0",
+      "path": "media/59-hard-0.wav",
+      "sha256": "a4eb9ea1a352ccc968386333b97bd05dd3de20a7150c3fa260599fd674c3bd13",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 59,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1480590,
+      "normalization_gain": 0.6171221435415234,
+      "loop": [
+        48000,
+        123732,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-sax-64-soft-0",
+      "path": "media/64-soft-0.wav",
+      "sha256": "e0c7a830acc493e45f92c2516a60201d713ea35e8ddfdaebddd90662f526f0ab",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1480640,
+      "normalization_gain": 0.5155276387169482,
+      "loop": [
+        48000,
+        124698,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-sax-64-hard-0",
+      "path": "media/64-hard-0.wav",
+      "sha256": "5cf29402e08f06ded04b97c26cdeaa81209c4ad6c74cd7d7a2ae74023d39bddb",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 64,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1480640,
+      "normalization_gain": 0.5155276387169482,
+      "loop": [
+        48000,
+        124987,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-sax-69-soft-0",
+      "path": "media/69-soft-0.wav",
+      "sha256": "c8210affb246684bfc6c155a78b0f0670240ca3163237329ef6ee06ab482d08e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 69,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1480690,
+      "normalization_gain": 0.4209931957509978,
+      "loop": [
+        48000,
+        123695,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-sax-69-hard-0",
+      "path": "media/69-hard-0.wav",
+      "sha256": "538e4348569fa6d7bfbefc3be93d26c1dd8afac133cc402534e570060e6365e6",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 69,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1480690,
+      "normalization_gain": 0.4209931957509978,
+      "loop": [
+        48000,
+        124459,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-sax-74-soft-0",
+      "path": "media/74-soft-0.wav",
+      "sha256": "eb6f04cc755be744270baeaba551823768a4799ab0b4e790cf4137631394d956",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 74,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1480740,
+      "normalization_gain": 0.5617358466676836,
+      "loop": [
+        48000,
+        123610,
+        8160
+      ]
+    },
+    {
+      "id": "tenor-sax-74-hard-0",
+      "path": "media/74-hard-0.wav",
+      "sha256": "c6bcaa27f91fab0eea1134b4c643b8ba03a1d3c18608201d9bbb03b516430a64",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 74,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1480740,
+      "normalization_gain": 0.5617358466676836,
+      "loop": [
+        48000,
+        123610,
+        8160
+      ]
+    }
+  ]
+}

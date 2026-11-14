@@ -1,0 +1,76 @@
+crump-module 2
+instrument analog-pad "Analog Pad" graph {
+  polyphony 8
+  voicing poly retrigger always glide 0ms glide_mode always note_priority last steal_priority release_oldest seed 30312
+  parameter level "Level" ratio 0 1 0.068 0.068
+  parameter attack "Attack" seconds 10ms 4s 900ms 900ms automatable
+  parameter release "Release" seconds 100ms 8s 1.5s 1.5s automatable
+  parameter cutoff "Cutoff" hz 200hz 10khz 1600hz 1600hz automatable modulatable
+  parameter space "Space" ratio 0 1 0.35 0.35 automatable
+  faceplate {
+    control attack "Attack" "Fade-in" maps attack
+    control release "Release" "Tail after Note Off" maps release
+    control cutoff "Cutoff" "Warmth; a slow LFO breathes around it" maps cutoff
+    control space "Space" "Echo and hall" maps space
+    control level "Level" "Output level" maps level
+  }
+  graph voice 10 {
+    node cloud analog_oscillator {
+      waveform saw
+      unison 5
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 1
+      detune 0.14st
+      blend 0.8
+      width 0.9
+      drift 0.03st
+      velocity_amount 0.25
+      level $level
+      pan 0
+    }
+    node hollow analog_oscillator {
+      waveform square
+      unison 2
+      coarse -12st
+      fine 0st
+      phase 0
+      random_phase 1
+      detune 0.08st
+      blend 0.7
+      width 0.5
+      level $level
+      pan 0
+      warp breath pulse_width amount 0.3
+    }
+    node sources stereo_mixer a_level 1 b_level 0.5
+    node breathing lfo waveform triangle rate 0.15hz depth 1
+    node amplitude envelope mode ahdsr attack $attack hold 0ms decay 1.5s sustain 0.85 release $release attack_curve 0.2 decay_curve 0 release_curve -0.2 retrigger always
+    node filter stereo_filter model ladder_drive mode lowpass cutoff $cutoff resonance 0.2 drive 0.1 mix 1 pan 0 mod_depth 700hz velocity_depth 600hz key_track 0.3 key_reference 261.625565hz
+    node dc-block stereo_filter model svf_clean mode highpass cutoff 35hz resonance 0 drive 0 mix 1 pan 0 mod_depth 0hz velocity_depth 0hz key_track 0 key_reference 261.625565hz
+    node out output
+    bus cloud-pitch note.pitch -> cloud.pitch
+    bus cloud-gain amplitude.control -> cloud.gain
+    bus cloud-velocity note.velocity -> cloud.velocity
+    bus hollow-pitch note.pitch -> hollow.pitch
+    bus hollow-gain amplitude.control -> hollow.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus mix-a cloud.audio -> sources.a
+    bus mix-b hollow.audio -> sources.b
+    bus filter-audio sources.audio -> filter.audio
+    bus filter-breath breathing.control -> filter.mod
+    bus filter-key note.pitch -> filter.key
+    bus filter-velocity note.velocity -> filter.velocity
+    bus dc-audio filter.audio -> dc-block.audio
+    bus output dc-block.audio -> out.audio
+  }
+  graph shared 8 {
+    node echo delay time 187.5ms feedback 0.3 mix $space
+    node hall reverb room 0.7 damping 0.5 mix $space
+    node shared-out output
+    bus voice-sum voice_sum.audio -> echo.audio
+    bus echo-hall echo.audio -> hall.audio
+    bus shared-output hall.audio -> shared-out.audio
+  }
+}

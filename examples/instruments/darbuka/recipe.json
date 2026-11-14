@@ -1,0 +1,41 @@
+{
+  "model": "membrane",
+  "params": {},
+  "pitched": false,
+  "category": "World percussion",
+  "seconds": 2.5,
+  "strokes": [
+    {
+      "name": "doum",
+      "keys": [
+        36,
+        60
+      ],
+      "params": {
+        "freq": 190,
+        "decay": 0.28,
+        "contact": 0.003,
+        "bright": 0.35,
+        "slap": 0.03
+      }
+    },
+    {
+      "name": "tek",
+      "keys": [
+        61,
+        85
+      ],
+      "params": {
+        "freq": 640,
+        "decay": 0.05,
+        "contact": 0.0006,
+        "bright": 0.95,
+        "slap": 0.18,
+        "slap_decay": 0.004,
+        "edge": true
+      }
+    }
+  ],
+  "id": "darbuka",
+  "seed_base": 1130000
+}

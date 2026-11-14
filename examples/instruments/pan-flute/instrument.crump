@@ -1,0 +1,84 @@
+crump-module 2
+instrument pan-flute "Pan Flute" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z57-soft-0 asset pan-flute-57-soft-0 keys G3 C4 velocity 0 0.65 root A3 loop 48000 125788 crossfade 8160
+      zone z57-hard-0 asset pan-flute-57-hard-0 keys G3 C4 velocity 0.65 1 root A3 loop 48000 123607 crossfade 8160
+      zone z63-soft-0 asset pan-flute-63-soft-0 keys C#4 F#4 velocity 0 0.65 root D#4 loop 48000 123634 crossfade 8160
+      zone z63-hard-0 asset pan-flute-63-hard-0 keys C#4 F#4 velocity 0.65 1 root D#4 loop 48000 123634 crossfade 8160
+      zone z69-soft-0 asset pan-flute-69-soft-0 keys G4 C5 velocity 0 0.65 root A4 loop 48000 125932 crossfade 8160
+      zone z69-hard-0 asset pan-flute-69-hard-0 keys G4 C5 velocity 0.65 1 root A4 loop 48000 125931 crossfade 8160
+      zone z75-soft-0 asset pan-flute-75-soft-0 keys C#5 F#5 velocity 0 0.65 root D#5 loop 48000 125928 crossfade 8160
+      zone z75-hard-0 asset pan-flute-75-hard-0 keys C#5 F#5 velocity 0.65 1 root D#5 loop 48000 125927 crossfade 8160
+      zone z81-soft-0 asset pan-flute-81-soft-0 keys G5 C6 velocity 0 0.65 root A5 loop 48000 125988 crossfade 8160
+      zone z81-hard-0 asset pan-flute-81-hard-0 keys G5 C6 velocity 0.65 1 root A5 loop 48000 123636 crossfade 8160
+      zone z87-soft-0 asset pan-flute-87-soft-0 keys C#6 G6 velocity 0 0.65 root D#6 loop 48000 124260 crossfade 8160
+      zone z87-hard-0 asset pan-flute-87-hard-0 keys C#6 G6 velocity 0.65 1 root D#6 loop 48000 123604 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset pan-flute-57-soft-0 "Pan Flute" wav "media/57-soft-0.wav" sha256 "dd3d1fdabd62bd1b0ddda38c54c9e210a34c8dea4bab5033181853eb4c571906" {
+  usage multisample
+}
+asset pan-flute-57-hard-0 "Pan Flute" wav "media/57-hard-0.wav" sha256 "29213fd1bc957901c525ad07fae1a6745ae3525ed4b9e8654c4761466354dc5a" {
+  usage multisample
+}
+asset pan-flute-63-soft-0 "Pan Flute" wav "media/63-soft-0.wav" sha256 "1ad62c556d7b6a71a2a78e35257a0cb74c1df60f9ff6866f6c5e8478056cda75" {
+  usage multisample
+}
+asset pan-flute-63-hard-0 "Pan Flute" wav "media/63-hard-0.wav" sha256 "bb1f314b8f3ef13c1d469374b5cee20b0d607d6e2f328a3c4ecc93d3ad153497" {
+  usage multisample
+}
+asset pan-flute-69-soft-0 "Pan Flute" wav "media/69-soft-0.wav" sha256 "6ff0fb5065a8d3bae504ec1ea207d90b23a58017e1df869469eb93bccf503250" {
+  usage multisample
+}
+asset pan-flute-69-hard-0 "Pan Flute" wav "media/69-hard-0.wav" sha256 "a11d7a2fc55370a7e24595afe89ee47a300aa018e241fde53cc9021ef08c707e" {
+  usage multisample
+}
+asset pan-flute-75-soft-0 "Pan Flute" wav "media/75-soft-0.wav" sha256 "dbf3c3e18e4008624e9d4a69a59c8271b6d0061d396650df7f73863493db8e2f" {
+  usage multisample
+}
+asset pan-flute-75-hard-0 "Pan Flute" wav "media/75-hard-0.wav" sha256 "172936aa433080a7895980bb49cfe29ba6b5dff19b4e0dab3b472cdf68f0cba6" {
+  usage multisample
+}
+asset pan-flute-81-soft-0 "Pan Flute" wav "media/81-soft-0.wav" sha256 "040305bf2ee70ac5a62890e932f79839f3a80aa730cfa1eb9674b5c40a8076ed" {
+  usage multisample
+}
+asset pan-flute-81-hard-0 "Pan Flute" wav "media/81-hard-0.wav" sha256 "ca7c45258883427d7532afee916715f777b2b346ad445d9d39a810deed288971" {
+  usage multisample
+}
+asset pan-flute-87-soft-0 "Pan Flute" wav "media/87-soft-0.wav" sha256 "83e4463f6126e37cad30d3d3d917e5c2dd447f28b8adafa5671f9fbca897d805" {
+  usage multisample
+}
+asset pan-flute-87-hard-0 "Pan Flute" wav "media/87-hard-0.wav" sha256 "4da833967c54d28e1af47466ccd8fb8994e8f17276562a2f207b1202e840e3b0" {
+  usage multisample
+}

@@ -1,6 +1,6 @@
 {
   "algorithm": "crump-instrument-materials-v1",
-  "generator_sha256": "75b9ad03d8fdf3ec9bed1c80ed9c7d273acc08e94761d8cb3dbdf959c13d4c5a",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
   "recipe_sha256": "423b2533d796e3f147d201cb28605eca6ee2a22ae481bbb4861825e09e1c8818",
   "format": "mono PCM16",
   "assets": [

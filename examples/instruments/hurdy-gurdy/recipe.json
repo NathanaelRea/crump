@@ -1,0 +1,109 @@
+{
+  "model": "hurdy",
+  "params": {
+    "beta": 0.09,
+    "bow_noise": 0.035,
+    "bow_noise_low": 2000,
+    "body_seed": 83,
+    "body_range": [
+      300,
+      9000
+    ],
+    "attack": [
+      0.06,
+      0.04
+    ],
+    "vibrato": [
+      5,
+      0,
+      0,
+      1,
+      1
+    ],
+    "bow_wander": 0.02,
+    "formants": [
+      [
+        700,
+        3,
+        0.5
+      ],
+      [
+        1900,
+        3,
+        0.6
+      ]
+    ],
+    "eq": [
+      [
+        100,
+        -10
+      ],
+      [
+        250,
+        -2
+      ],
+      [
+        700,
+        3
+      ],
+      [
+        1400,
+        5
+      ],
+      [
+        2600,
+        2
+      ],
+      [
+        5000,
+        -4
+      ],
+      [
+        9000,
+        -12
+      ]
+    ],
+    "drones": [
+      [
+        48,
+        0.45
+      ],
+      [
+        55,
+        0.35
+      ]
+    ],
+    "buzz": 0.25,
+    "buzz_bands": [
+      [
+        2000,
+        6000
+      ],
+      [
+        800,
+        2500
+      ]
+    ],
+    "buzz_sink": 0.8
+  },
+  "extends": "bowed",
+  "category": "World strings",
+  "roots": [
+    55,
+    61,
+    67,
+    73,
+    79,
+    84
+  ],
+  "range": [
+    55,
+    86
+  ],
+  "release": 0.25,
+  "audition": 67,
+  "phrase": "sustained",
+  "pitched": true,
+  "id": "hurdy-gurdy",
+  "seed_base": 1450000
+}

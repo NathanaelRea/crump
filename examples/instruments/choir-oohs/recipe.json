@@ -1,0 +1,174 @@
+{
+  "model": "choir",
+  "params": {
+    "parts": [
+      {
+        "name": "bass",
+        "center": 45,
+        "formants": [
+          [
+            350,
+            50
+          ],
+          [
+            600,
+            60
+          ],
+          [
+            2400,
+            110
+          ],
+          [
+            2675,
+            120
+          ],
+          [
+            2950,
+            130
+          ]
+        ]
+      },
+      {
+        "name": "tenor",
+        "center": 55,
+        "formants": [
+          [
+            350,
+            60
+          ],
+          [
+            600,
+            70
+          ],
+          [
+            2700,
+            120
+          ],
+          [
+            2900,
+            130
+          ],
+          [
+            3300,
+            140
+          ]
+        ]
+      },
+      {
+        "name": "alto",
+        "center": 64,
+        "formants": [
+          [
+            325,
+            60
+          ],
+          [
+            700,
+            70
+          ],
+          [
+            2530,
+            120
+          ],
+          [
+            3500,
+            130
+          ],
+          [
+            4950,
+            140
+          ]
+        ]
+      },
+      {
+        "name": "soprano",
+        "center": 74,
+        "formants": [
+          [
+            325,
+            60
+          ],
+          [
+            700,
+            70
+          ],
+          [
+            2700,
+            120
+          ],
+          [
+            3800,
+            130
+          ],
+          [
+            4950,
+            140
+          ]
+        ]
+      }
+    ],
+    "attack": [
+      0.25,
+      0.14
+    ],
+    "taper": 0.5,
+    "vibrato": [
+      5.4,
+      18,
+      30,
+      0.25,
+      0.45
+    ],
+    "vibrato_wander": 0.3,
+    "drift": 5,
+    "jitter": 5,
+    "scoop": [
+      -15,
+      0.06
+    ],
+    "open_quotient": [
+      0.78,
+      0.6
+    ],
+    "breath": [
+      0.18,
+      0.1
+    ],
+    "shimmer": 0.04,
+    "swell": 0.05,
+    "voices": 10,
+    "detune": 12,
+    "spread": 0.06,
+    "air": 0.012,
+    "formant_spread": 0.05,
+    "part_spread": 5
+  },
+  "pitched": true,
+  "category": "Voices",
+  "seconds": 3.2,
+  "loop": [
+    1.0,
+    2.6,
+    0.17
+  ],
+  "roots": [
+    41,
+    47,
+    53,
+    59,
+    65,
+    71,
+    77,
+    83
+  ],
+  "range": [
+    36,
+    86
+  ],
+  "release": 0.45,
+  "audition": 60,
+  "phrase": "ensemble",
+  "loop_leveling": 0.05,
+  "id": "choir-oohs",
+  "seed_base": 1730000
+}

@@ -1,0 +1,50 @@
+{
+  "model": "plucked",
+  "params": {
+    "decay": 0.7,
+    "bright": 5500,
+    "position": 0.1,
+    "body": [
+      350,
+      800,
+      1700
+    ],
+    "body_mix": 0.7,
+    "buzz": 0.5,
+    "buzz_bands": [
+      [
+        1800,
+        6000
+      ],
+      [
+        600,
+        2200
+      ]
+    ],
+    "buzz_sink": 0.4,
+    "thump": 0.35,
+    "thump_band": [
+      200,
+      4000
+    ],
+    "thump_decay": 0.012
+  },
+  "pitched": true,
+  "category": "World strings",
+  "seconds": 4,
+  "roots": [
+    50,
+    56,
+    62,
+    68,
+    74,
+    80
+  ],
+  "range": [
+    48,
+    81
+  ],
+  "audition": 62,
+  "id": "shamisen",
+  "seed_base": 1410000
+}

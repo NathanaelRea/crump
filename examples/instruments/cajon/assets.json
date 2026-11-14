@@ -1,0 +1,104 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "e373a6dd9834cd4b0cfba66a876603ba927382b94dfd1373d9ba24b0381e0232",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "cajon-bass-60-soft-0",
+      "path": "media/bass-60-soft-0.wav",
+      "sha256": "07b2a447c50a5ad72e2e9d7c5958ae530b1d2c84a89e1048c4621b9677040514",
+      "frames": 34536,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1121600,
+      "normalization_gain": 0.7406281286050505
+    },
+    {
+      "id": "cajon-bass-60-hard-0",
+      "path": "media/bass-60-hard-0.wav",
+      "sha256": "c45b84f01b0d209fdf4c0a57cae3e8bb5ca55d23dabe9ad411b887555ee89d66",
+      "frames": 35920,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1121600,
+      "normalization_gain": 0.7406281286050505
+    },
+    {
+      "id": "cajon-bass-60-soft-1",
+      "path": "media/bass-60-soft-1.wav",
+      "sha256": "2ac2e1b467c6b2c8e40c5b3d2047430a73363a84aadf7bc37a331c994da8ae04",
+      "frames": 34542,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1121601,
+      "normalization_gain": 0.748534244051339
+    },
+    {
+      "id": "cajon-bass-60-hard-1",
+      "path": "media/bass-60-hard-1.wav",
+      "sha256": "5626236ab6fd35698e3db448d5b09c44702ed432b6255421b0716668d52f5026",
+      "frames": 35982,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1121601,
+      "normalization_gain": 0.748534244051339
+    },
+    {
+      "id": "cajon-slap-60-soft-0",
+      "path": "media/slap-60-soft-0.wav",
+      "sha256": "57e37bdb05b69d64daa0ceca780aa01700a5c542a18d0dd8ad725d42ebc35170",
+      "frames": 32213,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1122600,
+      "normalization_gain": 0.4411711301135576
+    },
+    {
+      "id": "cajon-slap-60-hard-0",
+      "path": "media/slap-60-hard-0.wav",
+      "sha256": "b204c311668b9d50fe9d201dcd70fefb081c0933a1084bf8df9d0cbdc777b2c3",
+      "frames": 33042,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1122600,
+      "normalization_gain": 0.4411711301135576
+    },
+    {
+      "id": "cajon-slap-60-soft-1",
+      "path": "media/slap-60-soft-1.wav",
+      "sha256": "822098046f69e65aa3c75400c9d8821f764c123f5bad13bef1f139cf62ef9af2",
+      "frames": 32169,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1122601,
+      "normalization_gain": 0.41751699874074066
+    },
+    {
+      "id": "cajon-slap-60-hard-1",
+      "path": "media/slap-60-hard-1.wav",
+      "sha256": "48ad0ee7a41291fb2c9610411631e02344ca966cef1455be1f0b1d1390173dee",
+      "frames": 34199,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1122601,
+      "normalization_gain": 0.41751699874074066
+    }
+  ]
+}

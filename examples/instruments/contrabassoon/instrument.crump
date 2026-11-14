@@ -1,0 +1,84 @@
+crump-module 2
+instrument contrabassoon "Contrabassoon" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z22-soft-0 asset contrabassoon-22-soft-0 keys A#0 C1 velocity 0 0.65 root A#0 loop 48000 125345 crossfade 8160
+      zone z22-hard-0 asset contrabassoon-22-hard-0 keys A#0 C1 velocity 0.65 1 root A#0 loop 48000 123699 crossfade 8160
+      zone z27-soft-0 asset contrabassoon-27-soft-0 keys C#1 F#1 velocity 0 0.65 root D#1 loop 48000 125292 crossfade 8160
+      zone z27-hard-0 asset contrabassoon-27-hard-0 keys C#1 F#1 velocity 0.65 1 root D#1 loop 48000 124059 crossfade 8160
+      zone z33-soft-0 asset contrabassoon-33-soft-0 keys G1 C2 velocity 0 0.65 root A1 loop 48000 124233 crossfade 8160
+      zone z33-hard-0 asset contrabassoon-33-hard-0 keys G1 C2 velocity 0.65 1 root A1 loop 48000 124233 crossfade 8160
+      zone z39-soft-0 asset contrabassoon-39-soft-0 keys C#2 F#2 velocity 0 0.65 root D#2 loop 48000 125916 crossfade 8160
+      zone z39-hard-0 asset contrabassoon-39-hard-0 keys C#2 F#2 velocity 0.65 1 root D#2 loop 48000 124064 crossfade 8160
+      zone z45-soft-0 asset contrabassoon-45-soft-0 keys G2 C3 velocity 0 0.65 root A2 loop 48000 123806 crossfade 8160
+      zone z45-hard-0 asset contrabassoon-45-hard-0 keys G2 C3 velocity 0.65 1 root A2 loop 48000 123806 crossfade 8160
+      zone z51-soft-0 asset contrabassoon-51-soft-0 keys C#3 F3 velocity 0 0.65 root D#3 loop 48000 123754 crossfade 8160
+      zone z51-hard-0 asset contrabassoon-51-hard-0 keys C#3 F3 velocity 0.65 1 root D#3 loop 48000 123754 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset contrabassoon-22-soft-0 "Contrabassoon" wav "media/22-soft-0.wav" sha256 "4deb44c6655d67889157a1b11fc60df1279114af24f3b8dde35dd5c48b712747" {
+  usage multisample
+}
+asset contrabassoon-22-hard-0 "Contrabassoon" wav "media/22-hard-0.wav" sha256 "258adafc6c18086e8df5f96cdf4683d351ece23c34bd9c80065535962c4bfa75" {
+  usage multisample
+}
+asset contrabassoon-27-soft-0 "Contrabassoon" wav "media/27-soft-0.wav" sha256 "0d6ac568099a5692126baea277d124b5b84d4cb9bba83eef94b0928c33cd693d" {
+  usage multisample
+}
+asset contrabassoon-27-hard-0 "Contrabassoon" wav "media/27-hard-0.wav" sha256 "d2ca2f4cd481b34609e3a73c8096a8bd2efe1126ff3c429befdbd7748ef97a0c" {
+  usage multisample
+}
+asset contrabassoon-33-soft-0 "Contrabassoon" wav "media/33-soft-0.wav" sha256 "4baa7450e2093fe24ead6213c7fb52b6d83eff772e17c020e5d63c60ed052376" {
+  usage multisample
+}
+asset contrabassoon-33-hard-0 "Contrabassoon" wav "media/33-hard-0.wav" sha256 "da6a779c1d1019993963b9ab35286580ec25622ec3d9efaae54311984543c075" {
+  usage multisample
+}
+asset contrabassoon-39-soft-0 "Contrabassoon" wav "media/39-soft-0.wav" sha256 "51fcdf18254338be120cbb3ae73f965b6ec180d032068602965a2127f0a09a34" {
+  usage multisample
+}
+asset contrabassoon-39-hard-0 "Contrabassoon" wav "media/39-hard-0.wav" sha256 "a2483f20991ff2d24c4175429e5d51b8f2b99a1e0fd3ee98b0331947efa87e3a" {
+  usage multisample
+}
+asset contrabassoon-45-soft-0 "Contrabassoon" wav "media/45-soft-0.wav" sha256 "b427f45c3f8854278e91e6e2beff228108069d8b355c93f10ff6ff44e973ff93" {
+  usage multisample
+}
+asset contrabassoon-45-hard-0 "Contrabassoon" wav "media/45-hard-0.wav" sha256 "3a91fbbb9b8f8ef5c4db952d7a82ab64e841d0b7f762b0ce7b9a0930a473b90a" {
+  usage multisample
+}
+asset contrabassoon-51-soft-0 "Contrabassoon" wav "media/51-soft-0.wav" sha256 "2b99e185e47184469c8a4763dbb0371af1c370d09691942a5af4ca8fa43bbd98" {
+  usage multisample
+}
+asset contrabassoon-51-hard-0 "Contrabassoon" wav "media/51-hard-0.wav" sha256 "937b4d58e805b98f005a9d08b75f3d9a927885c362f2ae903f8ac0725fdd4dc7" {
+  usage multisample
+}

@@ -1,0 +1,56 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "33d9f37a06d0151a829edc302f03ee27f354b6b98a60efcd19ed33146fd73c8e",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "vibraslap-60-soft-0",
+      "path": "media/60-soft-0.wav",
+      "sha256": "c872492e4c917b4e68a96f93e1d54bb8184a5991a9fab3bccde617ee7fceee99",
+      "frames": 96000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1240600,
+      "normalization_gain": 0.3890208558005187
+    },
+    {
+      "id": "vibraslap-60-hard-0",
+      "path": "media/60-hard-0.wav",
+      "sha256": "3036b40ae6c03b2c61134b5c767c9bed366275069d9c475820117d05705b92c1",
+      "frames": 96000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1240600,
+      "normalization_gain": 0.3890208558005187
+    },
+    {
+      "id": "vibraslap-60-soft-1",
+      "path": "media/60-soft-1.wav",
+      "sha256": "054afec28d9a95b2da7f96e20257977b86872a7fef3a63249b795768d004eb29",
+      "frames": 96000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1240601,
+      "normalization_gain": 0.3117841371246288
+    },
+    {
+      "id": "vibraslap-60-hard-1",
+      "path": "media/60-hard-1.wav",
+      "sha256": "27f4c8a82b51f9f8d3d24494cd69e2fa52fd919281ac7d610e11bc4689e4573d",
+      "frames": 96000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1240601,
+      "normalization_gain": 0.3117841371246288
+    }
+  ]
+}

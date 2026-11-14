@@ -1,0 +1,104 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "b78cf0301d200db231978235ac5e30ea52d8d31189ac945582d0383f93fe65c6",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "udu-bass-60-soft-0",
+      "path": "media/bass-60-soft-0.wav",
+      "sha256": "10a7f22e6e632e41cc54ee22333baedb8286f275b2c048f34cc043e3ae3579fa",
+      "frames": 93614,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1161600,
+      "normalization_gain": 0.6237709666784141
+    },
+    {
+      "id": "udu-bass-60-hard-0",
+      "path": "media/bass-60-hard-0.wav",
+      "sha256": "55079f119b5b14daf35d1d0059ac64e77e54d42685cf374de123673c311f86ce",
+      "frames": 96000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1161600,
+      "normalization_gain": 0.6237709666784141
+    },
+    {
+      "id": "udu-bass-60-soft-1",
+      "path": "media/bass-60-soft-1.wav",
+      "sha256": "f7fe4d2c3ae8520782bd8ef0c0af0073fe681c52af1be3a98ec4b7f8066c87d2",
+      "frames": 94709,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1161601,
+      "normalization_gain": 0.7055471654398043
+    },
+    {
+      "id": "udu-bass-60-hard-1",
+      "path": "media/bass-60-hard-1.wav",
+      "sha256": "a6d227e4c0008ce913fe15527b2fba8fd056cb6e940137156715b627f7e20201",
+      "frames": 96000,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1161601,
+      "normalization_gain": 0.7055471654398043
+    },
+    {
+      "id": "udu-tap-60-soft-0",
+      "path": "media/tap-60-soft-0.wav",
+      "sha256": "ef066779603b20d80ee9630730bed3bcf9a3bac5b0eb2704e2a0043d1a64727c",
+      "frames": 29629,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1162600,
+      "normalization_gain": 0.7154470694637071
+    },
+    {
+      "id": "udu-tap-60-hard-0",
+      "path": "media/tap-60-hard-0.wav",
+      "sha256": "17c8e9408da6e305aec109305cd792b06e64479f6f003e67a2116a33b55847d2",
+      "frames": 30500,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1162600,
+      "normalization_gain": 0.7154470694637071
+    },
+    {
+      "id": "udu-tap-60-soft-1",
+      "path": "media/tap-60-soft-1.wav",
+      "sha256": "5a61033908da7d09d1ce0fc452e8d579a946b661c0358e171e974606151184c2",
+      "frames": 29537,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1162601,
+      "normalization_gain": 0.7094760649935009
+    },
+    {
+      "id": "udu-tap-60-hard-1",
+      "path": "media/tap-60-hard-1.wav",
+      "sha256": "a454f18e08a1193b0085cdb51672c64d0b3d29ef56004abcc2dfd8f3b82dbb0c",
+      "frames": 30363,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1162601,
+      "normalization_gain": 0.7094760649935009
+    }
+  ]
+}

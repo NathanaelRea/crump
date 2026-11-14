@@ -1,0 +1,69 @@
+crump-module 2
+instrument ukulele "Ukulele" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z57-soft-0 asset ukulele-57-soft-0 keys G3 C4 velocity 0 0.65 root A3
+      zone z57-hard-0 asset ukulele-57-hard-0 keys G3 C4 velocity 0.65 1 root A3
+      zone z63-soft-0 asset ukulele-63-soft-0 keys C#4 F#4 velocity 0 0.65 root D#4
+      zone z63-hard-0 asset ukulele-63-hard-0 keys C#4 F#4 velocity 0.65 1 root D#4
+      zone z69-soft-0 asset ukulele-69-soft-0 keys G4 C5 velocity 0 0.65 root A4
+      zone z69-hard-0 asset ukulele-69-hard-0 keys G4 C5 velocity 0.65 1 root A4
+      zone z75-soft-0 asset ukulele-75-soft-0 keys C#5 F#5 velocity 0 0.65 root D#5
+      zone z75-hard-0 asset ukulele-75-hard-0 keys C#5 F#5 velocity 0.65 1 root D#5
+      zone z81-soft-0 asset ukulele-81-soft-0 keys G5 C6 velocity 0 0.65 root A5
+      zone z81-hard-0 asset ukulele-81-hard-0 keys G5 C6 velocity 0.65 1 root A5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset ukulele-57-soft-0 "Ukulele" wav "media/57-soft-0.wav" sha256 "01f4f009e7f878a58aec27108a23638f64f27a8293a140f17fb0f33b555c7937" {
+  usage multisample
+}
+asset ukulele-57-hard-0 "Ukulele" wav "media/57-hard-0.wav" sha256 "4f23f91dc2232cbed639c4f74b6725eddf7fbbd98af70b27e559b48e23cb54af" {
+  usage multisample
+}
+asset ukulele-63-soft-0 "Ukulele" wav "media/63-soft-0.wav" sha256 "fba4034277aa1bf7703e01d826f8eb3dca8c23ab7ad00474618c535f2df9b321" {
+  usage multisample
+}
+asset ukulele-63-hard-0 "Ukulele" wav "media/63-hard-0.wav" sha256 "1d4e553040ad71a183014ed06a56640b9a7a50bfff8c161743da606727ee7d4f" {
+  usage multisample
+}
+asset ukulele-69-soft-0 "Ukulele" wav "media/69-soft-0.wav" sha256 "24877b12aa731c176c00b729f2b27a094f86027336b40bdfeb968948275b5770" {
+  usage multisample
+}
+asset ukulele-69-hard-0 "Ukulele" wav "media/69-hard-0.wav" sha256 "59dd125354747879e90f6f0647aae483a094caf3693f5d320f6c634c249fa36d" {
+  usage multisample
+}
+asset ukulele-75-soft-0 "Ukulele" wav "media/75-soft-0.wav" sha256 "be5d9176b7002b0265527678937d1c50be0e2d0859c1cff3dda8e2997b6473dd" {
+  usage multisample
+}
+asset ukulele-75-hard-0 "Ukulele" wav "media/75-hard-0.wav" sha256 "b444458c52ed4355d99ab0075703b9a8f4f9972053f649d3b24c4b975f061cd6" {
+  usage multisample
+}
+asset ukulele-81-soft-0 "Ukulele" wav "media/81-soft-0.wav" sha256 "38b6eb97b68782f117a2a988e7d7c1e0590c0bf4f9795217d43b3cb09eb8a8cd" {
+  usage multisample
+}
+asset ukulele-81-hard-0 "Ukulele" wav "media/81-hard-0.wav" sha256 "aad497aa9ff8f4eac7b1396479d5a075ba10536043d960f467347888ab0e9396" {
+  usage multisample
+}

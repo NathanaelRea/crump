@@ -1,0 +1,30 @@
+{
+  "model": "hammer",
+  "params": {
+    "contact": 0.0006,
+    "decay": 2.8,
+    "rolloff": 0.9,
+    "detune": 0.0018,
+    "stiffness": 8e-05,
+    "strike": 0.12
+  },
+  "pitched": true,
+  "category": "World strings",
+  "seconds": 8,
+  "roots": [
+    52,
+    58,
+    64,
+    70,
+    76,
+    82,
+    88
+  ],
+  "range": [
+    50,
+    88
+  ],
+  "audition": 64,
+  "id": "hammered-dulcimer",
+  "seed_base": 1430000
+}

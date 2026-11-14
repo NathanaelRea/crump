@@ -1,0 +1,81 @@
+crump-module 2
+instrument ride-bell "Ride Bell" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z38-soft-0 asset ride-bell-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
+      zone z43-soft-0 asset ride-bell-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
+      zone z48-soft-0 asset ride-bell-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
+      zone z53-soft-0 asset ride-bell-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
+      zone z58-soft-0 asset ride-bell-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
+      zone z63-soft-0 asset ride-bell-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
+      zone z68-soft-0 asset ride-bell-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone z73-soft-0 asset ride-bell-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
+      zone z78-soft-0 asset ride-bell-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
+      zone z83-soft-0 asset ride-bell-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
+      zone z38-hard-0 asset ride-bell-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
+      zone z43-hard-0 asset ride-bell-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
+      zone z48-hard-0 asset ride-bell-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
+      zone z53-hard-0 asset ride-bell-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
+      zone z58-hard-0 asset ride-bell-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
+      zone z63-hard-0 asset ride-bell-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
+      zone z68-hard-0 asset ride-bell-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone z73-hard-0 asset ride-bell-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
+      zone z78-hard-0 asset ride-bell-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
+      zone z83-hard-0 asset ride-bell-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
+      zone z38-soft-1 asset ride-bell-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
+      zone z43-soft-1 asset ride-bell-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
+      zone z48-soft-1 asset ride-bell-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
+      zone z53-soft-1 asset ride-bell-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
+      zone z58-soft-1 asset ride-bell-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
+      zone z63-soft-1 asset ride-bell-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
+      zone z68-soft-1 asset ride-bell-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone z73-soft-1 asset ride-bell-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
+      zone z78-soft-1 asset ride-bell-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
+      zone z83-soft-1 asset ride-bell-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
+      zone z38-hard-1 asset ride-bell-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
+      zone z43-hard-1 asset ride-bell-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
+      zone z48-hard-1 asset ride-bell-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
+      zone z53-hard-1 asset ride-bell-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
+      zone z58-hard-1 asset ride-bell-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
+      zone z63-hard-1 asset ride-bell-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
+      zone z68-hard-1 asset ride-bell-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone z73-hard-1 asset ride-bell-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
+      zone z78-hard-1 asset ride-bell-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
+      zone z83-hard-1 asset ride-bell-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset ride-bell-60-soft-0 "Ride Bell" wav "media/60-soft-0.wav" sha256 "d4587178be05517ebfa2c5d52e4be63790ad13dc76f338c6d9ec3306644a1026" {
+  usage multisample
+}
+asset ride-bell-60-hard-0 "Ride Bell" wav "media/60-hard-0.wav" sha256 "f500d0006d106155dedbb2e2fc38541ad7825fd4166d08edd96fe0bc5d729d27" {
+  usage multisample
+}
+asset ride-bell-60-soft-1 "Ride Bell" wav "media/60-soft-1.wav" sha256 "9e715eb7ed5a27b93d0dc5d9809716d196a4f5a5912bcf6062935a14e3a05fad" {
+  usage multisample
+}
+asset ride-bell-60-hard-1 "Ride Bell" wav "media/60-hard-1.wav" sha256 "fc913b8efd577f64c926ba04f0b4e434fc1905782af19c4af49eadd96f69b611" {
+  usage multisample
+}

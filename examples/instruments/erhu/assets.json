@@ -1,0 +1,249 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "64808e4309912af35226f270643d6af245261009262b2e062d74748a32a899d8",
+  "shared_sha256": {
+    "bowed.json": "8f30acf3c0156e15e724c6f152d5b15644c3a8451be3729f413b2b4a76da402a"
+  },
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "erhu-62-soft-0",
+      "path": "media/62-soft-0.wav",
+      "sha256": "ad49e1cace6ed1b0f6e82450f8325731b2306b1b31eefa9e378b0946bc330a78",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1440620,
+      "normalization_gain": 0.1667662803607428,
+      "loop": [
+        48000,
+        125969,
+        8160
+      ]
+    },
+    {
+      "id": "erhu-62-hard-0",
+      "path": "media/62-hard-0.wav",
+      "sha256": "0b8acbbd0f12f9e1259481065f9e8f482f0359339fad199e51f8710a0a4c1dc5",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1440620,
+      "normalization_gain": 0.1667662803607428,
+      "loop": [
+        48000,
+        125965,
+        8160
+      ]
+    },
+    {
+      "id": "erhu-67-soft-0",
+      "path": "media/67-soft-0.wav",
+      "sha256": "6e38f43523ae1c2159c3516ddca17bb857380ebc9c5d65b25b7a72f4419b1a63",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1440670,
+      "normalization_gain": 0.18564699401278945,
+      "loop": [
+        48000,
+        125988,
+        8160
+      ]
+    },
+    {
+      "id": "erhu-67-hard-0",
+      "path": "media/67-hard-0.wav",
+      "sha256": "2f9cf58c78ecf442bb04aeaa3a06013abdfaba242b434dd7bb771d449461bde5",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1440670,
+      "normalization_gain": 0.18564699401278945,
+      "loop": [
+        48000,
+        125981,
+        8160
+      ]
+    },
+    {
+      "id": "erhu-72-soft-0",
+      "path": "media/72-soft-0.wav",
+      "sha256": "2406d961b3bc537de33f04922925ba7ffbd614359e87e1e6dbf1a4358530dc2c",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 72,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1440720,
+      "normalization_gain": 0.20843624213399636,
+      "loop": [
+        48000,
+        125608,
+        8160
+      ]
+    },
+    {
+      "id": "erhu-72-hard-0",
+      "path": "media/72-hard-0.wav",
+      "sha256": "2dc40e30a8eca7a24e509478ce2995cfc3df08d7342d6e36957b0c59fdcb016c",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 72,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1440720,
+      "normalization_gain": 0.20843624213399636,
+      "loop": [
+        48000,
+        125605,
+        8160
+      ]
+    },
+    {
+      "id": "erhu-77-soft-0",
+      "path": "media/77-soft-0.wav",
+      "sha256": "0551916f61876416f2f7249b5541b5f2d14640bce7fb104e99da0011023b41e9",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 77,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1440770,
+      "normalization_gain": 0.19373882408979692,
+      "loop": [
+        48000,
+        124255,
+        8160
+      ]
+    },
+    {
+      "id": "erhu-77-hard-0",
+      "path": "media/77-hard-0.wav",
+      "sha256": "7fe250174ad4bb837df8ae3bba071d92e154eba1eb0264cdc480118e36b52c98",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 77,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1440770,
+      "normalization_gain": 0.19373882408979692,
+      "loop": [
+        48000,
+        124323,
+        8160
+      ]
+    },
+    {
+      "id": "erhu-82-soft-0",
+      "path": "media/82-soft-0.wav",
+      "sha256": "2fb5db267fd163a23d3d09285e46c2ce3d87aa189c5f4cb45ba1fb851887b235",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 82,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1440820,
+      "normalization_gain": 0.18919753771518397,
+      "loop": [
+        48000,
+        125982,
+        8160
+      ]
+    },
+    {
+      "id": "erhu-82-hard-0",
+      "path": "media/82-hard-0.wav",
+      "sha256": "0ea9977324de126990449646e756ed7139e32b5f28c4cd7805a22a4d4763f21c",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 82,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1440820,
+      "normalization_gain": 0.18919753771518397,
+      "loop": [
+        48000,
+        123951,
+        8160
+      ]
+    },
+    {
+      "id": "erhu-87-soft-0",
+      "path": "media/87-soft-0.wav",
+      "sha256": "77f063adca5c4a88479139c932d4f275b836252543d5a1e76a24351905c0570c",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 87,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1440870,
+      "normalization_gain": 0.22023955962549685,
+      "loop": [
+        48000,
+        124086,
+        8160
+      ]
+    },
+    {
+      "id": "erhu-87-hard-0",
+      "path": "media/87-hard-0.wav",
+      "sha256": "cd339697772e42c87e4d24a096a92388b9ba7f7b2aec80e312eee05e655132b6",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 87,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1440870,
+      "normalization_gain": 0.22023955962549685,
+      "loop": [
+        48000,
+        124050,
+        8160
+      ]
+    },
+    {
+      "id": "erhu-92-soft-0",
+      "path": "media/92-soft-0.wav",
+      "sha256": "de9e9273796279bcec827ab0ea95edd0ab1c37b3d64fd253c86164bd8de02c04",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 92,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1440920,
+      "normalization_gain": 0.25244531592999536,
+      "loop": [
+        48000,
+        124776,
+        8160
+      ]
+    },
+    {
+      "id": "erhu-92-hard-0",
+      "path": "media/92-hard-0.wav",
+      "sha256": "621c5855456af67690971c99aaef97764ddc471796a845fbface06ca8e0ab5e6",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 92,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1440920,
+      "normalization_gain": 0.25244531592999536,
+      "loop": [
+        48000,
+        124961,
+        8160
+      ]
+    }
+  ]
+}

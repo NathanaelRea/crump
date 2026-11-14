@@ -1,0 +1,88 @@
+{
+  "model": "sustained",
+  "params": {
+    "voices": 3,
+    "detune": 9,
+    "spread": 0.03,
+    "formant_spread": 0.04,
+    "slope": [
+      0.9,
+      0.7
+    ],
+    "gamma": 0.15,
+    "attack": [
+      0.12,
+      0.08
+    ],
+    "vibrato": [
+      5.5,
+      6,
+      9,
+      0.2,
+      0.3
+    ],
+    "drift": 2,
+    "formants": [
+      [
+        450,
+        2,
+        0.5
+      ],
+      [
+        1100,
+        2.5,
+        0.7
+      ],
+      [
+        2500,
+        3,
+        0.4
+      ]
+    ],
+    "body_modes": 18,
+    "body_seed": 77,
+    "body_range": [
+      200,
+      6000
+    ],
+    "floor": 0.2,
+    "rolloff": [
+      5000,
+      2
+    ],
+    "shimmer": 0.03,
+    "shimmer_rate": 7,
+    "swell": 0.03,
+    "noise": [
+      0.02,
+      0.1,
+      0.03
+    ],
+    "noise_band": [
+      1500,
+      8000
+    ],
+    "taper": 0.5
+  },
+  "pitched": true,
+  "category": "Keys",
+  "seconds": 8,
+  "treatment": "tape",
+  "roots": [
+    43,
+    49,
+    55,
+    61,
+    67,
+    73
+  ],
+  "range": [
+    43,
+    77
+  ],
+  "release": 0.2,
+  "audition": 60,
+  "phrase": "ensemble",
+  "id": "tape-strings",
+  "seed_base": 1690000
+}

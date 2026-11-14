@@ -1,0 +1,85 @@
+crump-module 2
+instrument oud "Oud" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z41-soft-0 asset oud-41-soft-0 keys E2 G#2 velocity 0 0.65 root F2
+      zone z41-hard-0 asset oud-41-hard-0 keys E2 G#2 velocity 0.65 1 root F2
+      zone z47-soft-0 asset oud-47-soft-0 keys A2 D3 velocity 0 0.65 root B2
+      zone z47-hard-0 asset oud-47-hard-0 keys A2 D3 velocity 0.65 1 root B2
+      zone z53-soft-0 asset oud-53-soft-0 keys D#3 G#3 velocity 0 0.65 root F3
+      zone z53-hard-0 asset oud-53-hard-0 keys D#3 G#3 velocity 0.65 1 root F3
+      zone z59-soft-0 asset oud-59-soft-0 keys A3 D4 velocity 0 0.65 root B3
+      zone z59-hard-0 asset oud-59-hard-0 keys A3 D4 velocity 0.65 1 root B3
+      zone z65-soft-0 asset oud-65-soft-0 keys D#4 G#4 velocity 0 0.65 root F4
+      zone z65-hard-0 asset oud-65-hard-0 keys D#4 G#4 velocity 0.65 1 root F4
+      zone z71-soft-0 asset oud-71-soft-0 keys A4 D5 velocity 0 0.65 root B4
+      zone z71-hard-0 asset oud-71-hard-0 keys A4 D5 velocity 0.65 1 root B4
+      zone z77-soft-0 asset oud-77-soft-0 keys D#5 F5 velocity 0 0.65 root F5
+      zone z77-hard-0 asset oud-77-hard-0 keys D#5 F5 velocity 0.65 1 root F5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset oud-41-soft-0 "Oud" wav "media/41-soft-0.wav" sha256 "0c2f0411bedd1c58be1fed3ee3666b83df52fd80b81f529ae0753df180a9ed2f" {
+  usage multisample
+}
+asset oud-41-hard-0 "Oud" wav "media/41-hard-0.wav" sha256 "9f7412eaf9782e3a71ce87ab531aa2925b9a2e9d527c8dda6214d57babc78d06" {
+  usage multisample
+}
+asset oud-47-soft-0 "Oud" wav "media/47-soft-0.wav" sha256 "9dff0da4d721a6eb0c38913cd43fdcf7cc96a236282ead137de2ef1d4523a45a" {
+  usage multisample
+}
+asset oud-47-hard-0 "Oud" wav "media/47-hard-0.wav" sha256 "e9b6b79a4f6f63b339dafc9318ec9e3da80c7194f43a4b56f6176b3f43a9e215" {
+  usage multisample
+}
+asset oud-53-soft-0 "Oud" wav "media/53-soft-0.wav" sha256 "63b8846eba8a7ca70ed905fa7fae394e5fe8bc09411886c6e2b6c4a4f47da8f3" {
+  usage multisample
+}
+asset oud-53-hard-0 "Oud" wav "media/53-hard-0.wav" sha256 "20640d99bbd2aaecdb40e3db1ed1bb59557672a5e4ff6b52acda22bed0720553" {
+  usage multisample
+}
+asset oud-59-soft-0 "Oud" wav "media/59-soft-0.wav" sha256 "20e2b1b93c5840ec408a81ea793d3cb15478644c750abf8e0382f2c24306480b" {
+  usage multisample
+}
+asset oud-59-hard-0 "Oud" wav "media/59-hard-0.wav" sha256 "90129b72ddb804dda0ff64c887772310569df21bef0a89ae025bd74829a135cb" {
+  usage multisample
+}
+asset oud-65-soft-0 "Oud" wav "media/65-soft-0.wav" sha256 "283c75ea6d33f940a2b3ba793fa603544f3b7cc952ba30f9283177e708c8ea9a" {
+  usage multisample
+}
+asset oud-65-hard-0 "Oud" wav "media/65-hard-0.wav" sha256 "9f784280b37a8a8643c2c05d2b6a09a94066171dd5875e9c377c8323ce0c3a11" {
+  usage multisample
+}
+asset oud-71-soft-0 "Oud" wav "media/71-soft-0.wav" sha256 "80f62202c6a2ccf4988651491a2208a8bebfd238156f7cfa1a7a2285727c3146" {
+  usage multisample
+}
+asset oud-71-hard-0 "Oud" wav "media/71-hard-0.wav" sha256 "2de17090a126bf6b3206c08b7556cb681c76ec03728e92a6e4e2fd59067ff6b1" {
+  usage multisample
+}
+asset oud-77-soft-0 "Oud" wav "media/77-soft-0.wav" sha256 "5bc93cb119777692c2030cc6ef2ec88e6dae52351f24f0e41d063f539231e187" {
+  usage multisample
+}
+asset oud-77-hard-0 "Oud" wav "media/77-hard-0.wav" sha256 "5868ed82954360b0e68f5a3ca1cad2f48bed8ea5cc0f2da397aea96c2dca834b" {
+  usage multisample
+}

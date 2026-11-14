@@ -734,5 +734,1059 @@
     "pitched": true,
     "kind": "multisample",
     "seed": 728548
+  },
+  {
+    "id": "acid-line",
+    "name": "Acid Line",
+    "category": "Synth bass",
+    "pitched": true,
+    "kind": "native",
+    "seed": 736467,
+    "collection": "expansion",
+    "audition": {
+      "audition": 36,
+      "range": [
+        24,
+        60
+      ],
+      "phrase": "acid"
+    },
+    "about": "Squelchy resonant saw bass in the style of a TB-303: overlapping notes slide, harder notes open the filter further."
+  },
+  {
+    "id": "sub-sine",
+    "name": "Sub Sine",
+    "category": "Synth bass",
+    "pitched": true,
+    "kind": "native",
+    "seed": 744386,
+    "collection": "expansion",
+    "audition": {
+      "audition": 33,
+      "range": [
+        21,
+        57
+      ],
+      "phrase": "bassline"
+    },
+    "about": "Pure sine sub-bass that sits under a kick; Drive adds harmonics so it reads on small speakers."
+  },
+  {
+    "id": "reese-bass",
+    "name": "Reese Bass",
+    "category": "Synth bass",
+    "pitched": true,
+    "kind": "native",
+    "seed": 752305,
+    "collection": "expansion",
+    "audition": {
+      "audition": 33,
+      "range": [
+        21,
+        57
+      ],
+      "phrase": "sustained",
+      "release": 0.2
+    },
+    "about": "Detuned saw stack with a slow phasing growl, dark and wide: drum and bass and deep house."
+  },
+  {
+    "id": "wobble-bass",
+    "name": "Wobble Bass",
+    "category": "Synth bass",
+    "pitched": true,
+    "kind": "native",
+    "seed": 760224,
+    "collection": "expansion",
+    "audition": {
+      "audition": 33,
+      "range": [
+        21,
+        57
+      ],
+      "phrase": "sustained",
+      "release": 0.2
+    },
+    "about": "Saw bass whose filter wobbles in eighth notes at the Project tempo."
+  },
+  {
+    "id": "log-drum-bass",
+    "name": "Log Drum Bass",
+    "category": "Synth bass",
+    "pitched": true,
+    "kind": "native",
+    "seed": 768143,
+    "collection": "expansion",
+    "audition": {
+      "audition": 41,
+      "range": [
+        28,
+        64
+      ],
+      "phrase": "bassline"
+    },
+    "about": "Amapiano log drum: a woody, pitched knock that drops into its note and decays quickly."
+  },
+  {
+    "id": "supersaw-lead",
+    "name": "Supersaw Lead",
+    "category": "Synth leads",
+    "pitched": true,
+    "kind": "native",
+    "seed": 776062,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        96
+      ],
+      "phrase": "lead"
+    },
+    "about": "Seven detuned saws: the bright, wide trance and big-room lead."
+  },
+  {
+    "id": "chip-square",
+    "name": "Chip Square",
+    "category": "Synth leads",
+    "pitched": true,
+    "kind": "native",
+    "seed": 783981,
+    "collection": "expansion",
+    "audition": {
+      "audition": 72,
+      "range": [
+        36,
+        108
+      ],
+      "phrase": "lead"
+    },
+    "about": "Bare square or pulse wave with no filter, like a game console sound chip."
+  },
+  {
+    "id": "sync-lead",
+    "name": "Sync Lead",
+    "category": "Synth leads",
+    "pitched": true,
+    "kind": "native",
+    "seed": 791900,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        96
+      ],
+      "phrase": "lead"
+    },
+    "about": "Hard-synced saw whose overtones sweep down at each note: a biting 80s lead."
+  },
+  {
+    "id": "hoover",
+    "name": "Hoover",
+    "category": "Synth leads",
+    "pitched": true,
+    "kind": "native",
+    "seed": 799819,
+    "collection": "expansion",
+    "audition": {
+      "audition": 48,
+      "range": [
+        24,
+        84
+      ],
+      "phrase": "stab"
+    },
+    "about": "Rave hoover: a detuned pulse-saw stack that scoops up into each note with a sub octave."
+  },
+  {
+    "id": "synth-brass",
+    "name": "Synth Brass",
+    "category": "Synth pads and keys",
+    "pitched": true,
+    "kind": "native",
+    "seed": 807738,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        96
+      ],
+      "phrase": "ensemble",
+      "release": 0.3
+    },
+    "about": "Polysynth brass stab: saw chords whose filter swells open, then settles."
+  },
+  {
+    "id": "string-machine",
+    "name": "String Machine",
+    "category": "Synth pads and keys",
+    "pitched": true,
+    "kind": "native",
+    "seed": 815657,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        96
+      ],
+      "phrase": "ensemble",
+      "release": 0.8
+    },
+    "about": "Ensemble string machine: chorused saws with a slow bowed attack and thin low end."
+  },
+  {
+    "id": "analog-pad",
+    "name": "Analog Pad",
+    "category": "Synth pads and keys",
+    "pitched": true,
+    "kind": "native",
+    "seed": 823576,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        96
+      ],
+      "phrase": "ensemble",
+      "release": 1.5
+    },
+    "about": "Warm, slow polysynth pad that breathes with a slow filter LFO."
+  },
+  {
+    "id": "fm-bell",
+    "name": "FM Bell",
+    "category": "Synth pads and keys",
+    "pitched": true,
+    "kind": "native",
+    "seed": 831495,
+    "collection": "expansion",
+    "audition": {
+      "audition": 72,
+      "range": [
+        48,
+        108
+      ],
+      "phrase": "struck"
+    },
+    "about": "Bright two-operator FM bell at a 3.5:1 ratio, clangy at the strike and ringing pure."
+  },
+  {
+    "id": "fm-tines",
+    "name": "FM Tines",
+    "category": "Synth pads and keys",
+    "pitched": true,
+    "kind": "native",
+    "seed": 839414,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        28,
+        103
+      ],
+      "phrase": "keys",
+      "release": 0.4
+    },
+    "about": "FM electric piano: a mellow body with a short metallic tine bark that grows with velocity."
+  },
+  {
+    "id": "rave-stab",
+    "name": "Rave Stab",
+    "category": "Synth pads and keys",
+    "pitched": true,
+    "kind": "native",
+    "seed": 847333,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        84
+      ],
+      "phrase": "stab"
+    },
+    "about": "Minor-seventh chord on every key: a snappy filtered rave and house stab."
+  },
+  {
+    "id": "noise-riser",
+    "name": "Noise Riser",
+    "category": "Synth FX",
+    "pitched": true,
+    "kind": "native",
+    "seed": 855252,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        84
+      ],
+      "phrase": "riser"
+    },
+    "about": "Filtered noise sweep that rises while the key is held: a build-up effect."
+  },
+  {
+    "id": "boom-kick",
+    "name": "Boom Kick",
+    "category": "Drum machines",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 863171,
+    "collection": "expansion",
+    "about": "Long, pitched 808-style boom: a swept sine you can play as a bass line."
+  },
+  {
+    "id": "punch-kick",
+    "name": "Punch Kick",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 871090,
+    "collection": "expansion",
+    "about": "Short, punchy 909-style kick with a fast pitch drop and a beater click."
+  },
+  {
+    "id": "machine-snare",
+    "name": "Machine Snare",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 879009,
+    "collection": "expansion",
+    "about": "808-style snare: two tuned tones under a bright noise burst."
+  },
+  {
+    "id": "snap-snare",
+    "name": "Snap Snare",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 886928,
+    "collection": "expansion",
+    "about": "909-style snare: noisier, snappier and brighter than the 808."
+  },
+  {
+    "id": "machine-clap",
+    "name": "Machine Clap",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 894847,
+    "collection": "expansion",
+    "about": "808-style clap: staggered noise bursts with a short room-like tail."
+  },
+  {
+    "id": "machine-cowbell",
+    "name": "Machine Cowbell",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 902766,
+    "collection": "expansion",
+    "about": "808-style cowbell: two square waves at 540 and 800 Hz through a band-pass."
+  },
+  {
+    "id": "machine-hat",
+    "name": "Machine Hat",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 910685,
+    "collection": "expansion",
+    "about": "808-style closed hat: six detuned square waves through a high band-pass."
+  },
+  {
+    "id": "machine-open-hat",
+    "name": "Machine Open Hat",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 918604,
+    "collection": "expansion",
+    "about": "808-style open hat: the same metallic squares with a long decay."
+  },
+  {
+    "id": "machine-tom",
+    "name": "Machine Tom",
+    "category": "Drum machines",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 926523,
+    "collection": "expansion",
+    "about": "Analog drum-machine tom: a pitched, swept sine you can tune across the keys."
+  },
+  {
+    "id": "kit-toms",
+    "name": "Kit Toms",
+    "category": "Drum kit",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 934442,
+    "collection": "expansion",
+    "about": "Acoustic rack and floor toms, tuned across the keys from floor (low) to high rack."
+  },
+  {
+    "id": "china-cymbal",
+    "name": "China Cymbal",
+    "category": "Drum kit",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 942361,
+    "collection": "expansion",
+    "about": "Trashy, bright China cymbal with a fast, rattly decay."
+  },
+  {
+    "id": "ride-bell",
+    "name": "Ride Bell",
+    "category": "Drum kit",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 950280,
+    "collection": "expansion",
+    "about": "Bell of a ride cymbal: a clear, pinging metallic tone over a little wash."
+  },
+  {
+    "id": "cajon",
+    "name": "Cajón",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 958199,
+    "collection": "expansion",
+    "about": "Flamenco cajón: deep bass tone up to C4, snare-wire slap above C4."
+  },
+  {
+    "id": "darbuka",
+    "name": "Darbuka",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 966118,
+    "collection": "expansion",
+    "about": "Goblet drum: resonant doum up to C4, sharp tek at the rim above C4."
+  },
+  {
+    "id": "frame-drum",
+    "name": "Frame Drum",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 974037,
+    "collection": "expansion",
+    "about": "Hand frame drum (bodhrán, tar): soft low boom up to C4, bright rim above C4."
+  },
+  {
+    "id": "taiko",
+    "name": "Taiko",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 981956,
+    "collection": "expansion",
+    "about": "Japanese taiko: a huge low don up to C4, a rim ka click above C4."
+  },
+  {
+    "id": "udu",
+    "name": "Udu",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 989875,
+    "collection": "expansion",
+    "about": "Nigerian clay pot drum: an airy, rising bass bloop up to C4, a clay tap above C4."
+  },
+  {
+    "id": "talking-drum",
+    "name": "Talking Drum",
+    "category": "World percussion",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 997794,
+    "collection": "expansion",
+    "about": "West African talking drum: each stroke bends up in pitch as the cords are squeezed."
+  },
+  {
+    "id": "agogo",
+    "name": "Agogô",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 1005713,
+    "collection": "expansion",
+    "about": "Brazilian double bell: low bell up to C4, high bell above C4."
+  },
+  {
+    "id": "guiro",
+    "name": "Guiro",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 1013632,
+    "collection": "expansion",
+    "about": "Scraped gourd: a long down-scrape up to C4, a short flick above C4."
+  },
+  {
+    "id": "cuica",
+    "name": "Cuíca",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 1021551,
+    "collection": "expansion",
+    "about": "Brazilian friction drum: a squeaking, sliding laugh; low up to C4, high above C4."
+  },
+  {
+    "id": "sleigh-bells",
+    "name": "Sleigh Bells",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 1029470,
+    "collection": "expansion",
+    "about": "A shaken strap of small jingle bells."
+  },
+  {
+    "id": "temple-blocks",
+    "name": "Temple Blocks",
+    "category": "World percussion",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1037389,
+    "collection": "expansion",
+    "about": "Hollow wooden temple blocks, tuned across the keys."
+  },
+  {
+    "id": "slit-drum",
+    "name": "Slit Drum",
+    "category": "World percussion",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1045308,
+    "collection": "expansion",
+    "about": "Wooden slit or log drum: a short, round, pitched knock."
+  },
+  {
+    "id": "vibraslap",
+    "name": "Vibraslap",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 1053227,
+    "collection": "expansion",
+    "about": "The rattling buzz of a vibraslap's loose teeth in a wooden box."
+  },
+  {
+    "id": "mark-tree",
+    "name": "Mark Tree",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 1061146,
+    "collection": "expansion",
+    "about": "Hand sweep across a mark tree's small chimes: upward up to C4, downward above C4."
+  },
+  {
+    "id": "steel-pan",
+    "name": "Steel Pan",
+    "category": "World mallets",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1069065,
+    "collection": "expansion",
+    "about": "Trinidadian tenor steel pan: a sweet, slightly beating metallic note with octave overtones."
+  },
+  {
+    "id": "handpan",
+    "name": "Handpan",
+    "category": "World mallets",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1076984,
+    "collection": "expansion",
+    "about": "Handpan (hang): soft, long-ringing steel notes with octave and twelfth overtones."
+  },
+  {
+    "id": "singing-bowl",
+    "name": "Singing Bowl",
+    "category": "World mallets",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1084903,
+    "collection": "expansion",
+    "about": "Struck Tibetan singing bowl: long ringing tone that slowly beats."
+  },
+  {
+    "id": "gamelan-saron",
+    "name": "Gamelan Saron",
+    "category": "World mallets",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1092822,
+    "collection": "expansion",
+    "about": "Javanese saron: a bronze bar struck with a mallet, nearly pure and short."
+  },
+  {
+    "id": "gamelan-bonang",
+    "name": "Gamelan Bonang",
+    "category": "World mallets",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1100741,
+    "collection": "expansion",
+    "about": "Javanese bonang: a small bronze kettle gong, gong-like and slightly beating."
+  },
+  {
+    "id": "music-box",
+    "name": "Music Box",
+    "category": "World mallets",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1108660,
+    "collection": "expansion",
+    "about": "Music box comb: tiny, pure plucked metal tines with a mechanical click."
+  },
+  {
+    "id": "opera-gong",
+    "name": "Opera Gong",
+    "category": "World mallets",
+    "pitched": false,
+    "kind": "multisample",
+    "seed": 1116579,
+    "collection": "expansion",
+    "about": "Chinese opera gong: a small gong whose pitch slides up after the strike."
+  },
+  {
+    "id": "banjo",
+    "name": "Banjo",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1124498,
+    "collection": "expansion",
+    "about": "Five-string banjo: a bright, twangy pluck with a short drum-head body."
+  },
+  {
+    "id": "mandolin",
+    "name": "Mandolin",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1132417,
+    "collection": "expansion",
+    "about": "Mandolin: paired steel strings, bright and short."
+  },
+  {
+    "id": "ukulele",
+    "name": "Ukulele",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1140336,
+    "collection": "expansion",
+    "about": "Ukulele: soft, short nylon pluck with a small body."
+  },
+  {
+    "id": "clean-electric",
+    "name": "Clean Electric",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1148255,
+    "collection": "expansion",
+    "about": "Clean electric guitar: a long, round single-coil pluck without amp drive."
+  },
+  {
+    "id": "crunch-guitar",
+    "name": "Crunch Guitar",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1156174,
+    "collection": "expansion",
+    "about": "Electric guitar through an overdriven amp and cabinet: crunchy and sustained."
+  },
+  {
+    "id": "fretless-bass",
+    "name": "Fretless Bass",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1164093,
+    "collection": "expansion",
+    "about": "Fretless electric bass: a warm, singing tone with a slight growl."
+  },
+  {
+    "id": "sitar",
+    "name": "Sitar",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1172012,
+    "collection": "expansion",
+    "about": "Sitar: a buzzing bright pluck from the curved jawari bridge, with sympathetic strings ringing."
+  },
+  {
+    "id": "koto",
+    "name": "Koto",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1179931,
+    "collection": "expansion",
+    "about": "Japanese koto: a clear, bright silk-string pluck with a long ring."
+  },
+  {
+    "id": "shamisen",
+    "name": "Shamisen",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1187850,
+    "collection": "expansion",
+    "about": "Japanese shamisen: a percussive plectrum snap on a skin body with a buzzing sawari."
+  },
+  {
+    "id": "oud",
+    "name": "Oud",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1195769,
+    "collection": "expansion",
+    "about": "Middle Eastern oud: warm, fretless paired-string pluck with a deep body."
+  },
+  {
+    "id": "hammered-dulcimer",
+    "name": "Hammered Dulcimer",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1203688,
+    "collection": "expansion",
+    "about": "Hammered dulcimer (santur, cimbalom): bright, ringing struck string courses."
+  },
+  {
+    "id": "erhu",
+    "name": "Erhu",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1211607,
+    "collection": "expansion",
+    "about": "Chinese two-string fiddle: a nasal, expressive bowed tone with a wide vibrato."
+  },
+  {
+    "id": "hurdy-gurdy",
+    "name": "Hurdy-Gurdy",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1219526,
+    "collection": "expansion",
+    "about": "Hurdy-gurdy: a wheel-bowed melody string over fixed C and G drones, with a buzzing bridge."
+  },
+  {
+    "id": "tremolo-strings",
+    "name": "Tremolo Strings",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1227445,
+    "collection": "expansion",
+    "about": "String section playing tremolo: rapid, shimmering bow strokes."
+  },
+  {
+    "id": "alto-sax",
+    "name": "Alto Sax",
+    "category": "Saxophones",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1235364,
+    "collection": "expansion",
+    "about": "Alto saxophone: a reedy, vocal tone with a jazz vibrato."
+  },
+  {
+    "id": "tenor-sax",
+    "name": "Tenor Sax",
+    "category": "Saxophones",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1243283,
+    "collection": "expansion",
+    "about": "Tenor saxophone: warmer and breathier than the alto."
+  },
+  {
+    "id": "baritone-sax",
+    "name": "Baritone Sax",
+    "category": "Saxophones",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1251202,
+    "collection": "expansion",
+    "about": "Baritone saxophone: a big, honking low reed."
+  },
+  {
+    "id": "english-horn",
+    "name": "English Horn",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1259121,
+    "collection": "expansion",
+    "about": "English horn (cor anglais): a darker, mellower oboe."
+  },
+  {
+    "id": "bass-clarinet",
+    "name": "Bass Clarinet",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1267040,
+    "collection": "expansion",
+    "about": "Bass clarinet: a woody, hollow low reed with odd harmonics."
+  },
+  {
+    "id": "contrabassoon",
+    "name": "Contrabassoon",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1274959,
+    "collection": "expansion",
+    "about": "Contrabassoon: the orchestra's lowest reed, dark and buzzy."
+  },
+  {
+    "id": "recorder",
+    "name": "Recorder",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1282878,
+    "collection": "expansion",
+    "about": "Alto recorder: a simple, pure flute tone with a soft chiff."
+  },
+  {
+    "id": "pan-flute",
+    "name": "Pan Flute",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1290797,
+    "collection": "expansion",
+    "about": "Pan flute: breathy, airy pipes with a soft attack."
+  },
+  {
+    "id": "shakuhachi",
+    "name": "Shakuhachi",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1298716,
+    "collection": "expansion",
+    "about": "Japanese bamboo flute: a very breathy, expressive tone that scoops into notes."
+  },
+  {
+    "id": "bansuri",
+    "name": "Bansuri",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1306635,
+    "collection": "expansion",
+    "about": "Indian bamboo flute: breathy and warm with a gentle vibrato."
+  },
+  {
+    "id": "ocarina",
+    "name": "Ocarina",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1314554,
+    "collection": "expansion",
+    "about": "Ocarina: an almost pure, round, hollow tone."
+  },
+  {
+    "id": "duduk",
+    "name": "Duduk",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1322473,
+    "collection": "expansion",
+    "about": "Armenian duduk: a mellow, plaintive double reed."
+  },
+  {
+    "id": "harmonica",
+    "name": "Harmonica",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1330392,
+    "collection": "expansion",
+    "about": "Harmonica: a bright, buzzy free reed that bends into notes."
+  },
+  {
+    "id": "accordion",
+    "name": "Accordion",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1338311,
+    "collection": "expansion",
+    "about": "Accordion with a musette register: three slightly detuned reeds that beat."
+  },
+  {
+    "id": "bagpipes",
+    "name": "Bagpipes",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1346230,
+    "collection": "expansion",
+    "about": "Bagpipes: a loud, reedy chanter over fixed A drones."
+  },
+  {
+    "id": "didgeridoo",
+    "name": "Didgeridoo",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1354149,
+    "collection": "expansion",
+    "about": "Didgeridoo: a buzzing low drone whose vowel shifts as the player moves the mouth."
+  },
+  {
+    "id": "flugelhorn",
+    "name": "Flugelhorn",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1362068,
+    "collection": "expansion",
+    "about": "Flugelhorn: a softer, darker, rounder trumpet."
+  },
+  {
+    "id": "muted-trumpet",
+    "name": "Muted Trumpet",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1369987,
+    "collection": "expansion",
+    "about": "Trumpet with a harmon mute: thin, nasal and buzzy."
+  },
+  {
+    "id": "euphonium",
+    "name": "Euphonium",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1377906,
+    "collection": "expansion",
+    "about": "Euphonium: a mellow, round tenor brass."
+  },
+  {
+    "id": "bass-trombone",
+    "name": "Bass Trombone",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1385825,
+    "collection": "expansion",
+    "about": "Bass trombone: a heavy, dark low brass."
+  },
+  {
+    "id": "drawbar-organ",
+    "name": "Drawbar Organ",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1393744,
+    "collection": "expansion",
+    "about": "Tonewheel organ with percussion and key click through a fast rotary speaker."
+  },
+  {
+    "id": "tape-flute",
+    "name": "Tape Flute",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1401663,
+    "collection": "expansion",
+    "about": "Tape-replay flute keyboard: wobbly, lo-fi flute notes that stop after eight seconds."
+  },
+  {
+    "id": "tape-strings",
+    "name": "Tape Strings",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1409582,
+    "collection": "expansion",
+    "about": "Tape-replay strings: a small, wobbly string ensemble that stops after eight seconds."
+  },
+  {
+    "id": "glass-harmonica",
+    "name": "Glass Harmonica",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1417501,
+    "collection": "expansion",
+    "about": "Glass harmonica: pure, ethereal tones of rubbed glass with a slow swell."
+  },
+  {
+    "id": "honky-tonk",
+    "name": "Honky-Tonk",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1425420,
+    "collection": "expansion",
+    "about": "Honky-tonk upright: a piano with its string courses noticeably out of tune with each other."
+  },
+  {
+    "id": "prepared-piano",
+    "name": "Prepared Piano",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1433339,
+    "collection": "expansion",
+    "about": "Prepared piano: dull, muted strings with bolts and rattles in them."
+  },
+  {
+    "id": "choir-oohs",
+    "name": "Choir Oohs",
+    "category": "Voices",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1441258,
+    "collection": "expansion",
+    "about": "Mixed choir singing a soft 'oo'."
+  },
+  {
+    "id": "soprano-voice",
+    "name": "Soprano Voice",
+    "category": "Voices",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1449177,
+    "collection": "expansion",
+    "about": "Solo operatic soprano singing 'ah' with a wide vibrato."
+  },
+  {
+    "id": "bass-voice",
+    "name": "Bass Voice",
+    "category": "Voices",
+    "pitched": true,
+    "kind": "multisample",
+    "seed": 1457096,
+    "collection": "expansion",
+    "about": "Solo bass singer on a deep 'oh'."
   }
 ]

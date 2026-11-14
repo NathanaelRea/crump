@@ -1,0 +1,40 @@
+{
+  "model": "layered",
+  "params": {
+    "layers": [
+      {
+        "model": "clap",
+        "params": {
+          "hands": 4,
+          "spread": 0.0105,
+          "decay": 0.0075,
+          "low": 800,
+          "high": 2600
+        },
+        "gain": 1
+      },
+      {
+        "model": "machine",
+        "params": {
+          "noise": 1,
+          "noise_band": [
+            700,
+            2200
+          ],
+          "noise_decay": 0.17
+        },
+        "gain": 0.35,
+        "delay": 0.03
+      }
+    ]
+  },
+  "pitched": false,
+  "category": "Drum machines",
+  "seconds": 1.5,
+  "fixed_keys": [
+    36,
+    81
+  ],
+  "id": "machine-clap",
+  "seed_base": 1040000
+}

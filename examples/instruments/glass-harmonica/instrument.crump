@@ -1,0 +1,92 @@
+crump-module 2
+instrument glass-harmonica "Glass Harmonica" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.6s 0.6s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z55-soft-0 asset glass-harmonica-55-soft-0 keys G3 A#3 velocity 0 0.65 root G3 loop 48000 123707 crossfade 8160
+      zone z55-hard-0 asset glass-harmonica-55-hard-0 keys G3 A#3 velocity 0.65 1 root G3 loop 48000 123706 crossfade 8160
+      zone z61-soft-0 asset glass-harmonica-61-soft-0 keys B3 E4 velocity 0 0.65 root C#4 loop 48000 125914 crossfade 8160
+      zone z61-hard-0 asset glass-harmonica-61-hard-0 keys B3 E4 velocity 0.65 1 root C#4 loop 48000 125916 crossfade 8160
+      zone z67-soft-0 asset glass-harmonica-67-soft-0 keys F4 A#4 velocity 0 0.65 root G4 loop 48000 125993 crossfade 8160
+      zone z67-hard-0 asset glass-harmonica-67-hard-0 keys F4 A#4 velocity 0.65 1 root G4 loop 48000 125993 crossfade 8160
+      zone z73-soft-0 asset glass-harmonica-73-soft-0 keys B4 E5 velocity 0 0.65 root C#5 loop 48000 123612 crossfade 8160
+      zone z73-hard-0 asset glass-harmonica-73-hard-0 keys B4 E5 velocity 0.65 1 root C#5 loop 48000 123600 crossfade 8160
+      zone z79-soft-0 asset glass-harmonica-79-soft-0 keys F5 A#5 velocity 0 0.65 root G5 loop 48000 125915 crossfade 8160
+      zone z79-hard-0 asset glass-harmonica-79-hard-0 keys F5 A#5 velocity 0.65 1 root G5 loop 48000 125976 crossfade 8160
+      zone z85-soft-0 asset glass-harmonica-85-soft-0 keys B5 E6 velocity 0 0.65 root C#6 loop 48000 125968 crossfade 8160
+      zone z85-hard-0 asset glass-harmonica-85-hard-0 keys B5 E6 velocity 0.65 1 root C#6 loop 48000 125968 crossfade 8160
+      zone z91-soft-0 asset glass-harmonica-91-soft-0 keys F6 G6 velocity 0 0.65 root G6 loop 48000 125998 crossfade 8160
+      zone z91-hard-0 asset glass-harmonica-91-hard-0 keys F6 G6 velocity 0.65 1 root G6 loop 48000 125998 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset glass-harmonica-55-soft-0 "Glass Harmonica" wav "media/55-soft-0.wav" sha256 "9aad12149be119c774cfe9aca457e82c094be9623dae4701010c9a2ff267dd5c" {
+  usage multisample
+}
+asset glass-harmonica-55-hard-0 "Glass Harmonica" wav "media/55-hard-0.wav" sha256 "b722f8b30c069a8acda6ac7bff9573799e776996be3fc3d0944bfeb8bc19af27" {
+  usage multisample
+}
+asset glass-harmonica-61-soft-0 "Glass Harmonica" wav "media/61-soft-0.wav" sha256 "7195956e4eeeab6f9c57053818fbee74cf2c54c2d4e4f28a02ba03b68fec3126" {
+  usage multisample
+}
+asset glass-harmonica-61-hard-0 "Glass Harmonica" wav "media/61-hard-0.wav" sha256 "5661a9529d7a15d357d1d446d3d824b5a888a0f718b935e9e660e1d35cb4489a" {
+  usage multisample
+}
+asset glass-harmonica-67-soft-0 "Glass Harmonica" wav "media/67-soft-0.wav" sha256 "9a8fde96389f5c582a8b9d611fb395a912a935f4bba7c5286f5be7d492f20a89" {
+  usage multisample
+}
+asset glass-harmonica-67-hard-0 "Glass Harmonica" wav "media/67-hard-0.wav" sha256 "2c1c49ec338d58ec296aa2124baa08351e35407f3f68d1d71c66bd217939b4b4" {
+  usage multisample
+}
+asset glass-harmonica-73-soft-0 "Glass Harmonica" wav "media/73-soft-0.wav" sha256 "7c041f28afe8a3937f7acdca1a3643ab0609f784be510501dae70d0b1fc30e96" {
+  usage multisample
+}
+asset glass-harmonica-73-hard-0 "Glass Harmonica" wav "media/73-hard-0.wav" sha256 "75b7a6e141257733d917ebcb06c698d7484af889aa8204b439381d70180c6d56" {
+  usage multisample
+}
+asset glass-harmonica-79-soft-0 "Glass Harmonica" wav "media/79-soft-0.wav" sha256 "dc15aa8d1e1c4bdf5b08925698df6c079459f4e5432149987c836582db59b934" {
+  usage multisample
+}
+asset glass-harmonica-79-hard-0 "Glass Harmonica" wav "media/79-hard-0.wav" sha256 "97ca86d97fcbae36885fd4ea2ac30fce0a1802d1c65d57a20b5c63db4c48ee21" {
+  usage multisample
+}
+asset glass-harmonica-85-soft-0 "Glass Harmonica" wav "media/85-soft-0.wav" sha256 "b076c8731b12991d9683845dbbec61aaa1bba4963814c4f88424a947eb441b7d" {
+  usage multisample
+}
+asset glass-harmonica-85-hard-0 "Glass Harmonica" wav "media/85-hard-0.wav" sha256 "cb111b1b486791df7ff50b48e6bfb9261f287705192259de645ee1e5862b9f3f" {
+  usage multisample
+}
+asset glass-harmonica-91-soft-0 "Glass Harmonica" wav "media/91-soft-0.wav" sha256 "8623742fc0f25c2889df144951d61c0b2723255585e88aaeae9bff03beb2c686" {
+  usage multisample
+}
+asset glass-harmonica-91-hard-0 "Glass Harmonica" wav "media/91-hard-0.wav" sha256 "33be77ba326b4d3b70af2cba2e8ab7ea075043aa77500a4d743e82ccb4cdace2" {
+  usage multisample
+}

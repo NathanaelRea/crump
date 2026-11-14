@@ -1,0 +1,104 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "86100822ad47563d2e04b289781f63f863293cdf92f5f2e4cae8ee6e958bf570",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "cuica-low-60-soft-0",
+      "path": "media/low-60-soft-0.wav",
+      "sha256": "56d9cc30213b9efc206b48b80435ca8aa37596e13a67c782ecca1bd1e6ee695e",
+      "frames": 20266,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1201600,
+      "normalization_gain": 0.017659718593168415
+    },
+    {
+      "id": "cuica-low-60-hard-0",
+      "path": "media/low-60-hard-0.wav",
+      "sha256": "454d0ce8a594bcc2f867f2b24406c613780a644aae4b962642e5ddedf5c6b37d",
+      "frames": 20377,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1201600,
+      "normalization_gain": 0.017659718593168415
+    },
+    {
+      "id": "cuica-low-60-soft-1",
+      "path": "media/low-60-soft-1.wav",
+      "sha256": "e76ca933b9115a767a03132bc1d68de48474781a4dc2968c92067ea58a7091a1",
+      "frames": 20168,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1201601,
+      "normalization_gain": 0.013648728128446303
+    },
+    {
+      "id": "cuica-low-60-hard-1",
+      "path": "media/low-60-hard-1.wav",
+      "sha256": "6d7aa7bdd536b5be93263cf41eb863c6d2228522227d1a13e4126007faea5326",
+      "frames": 20272,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1201601,
+      "normalization_gain": 0.013648728128446303
+    },
+    {
+      "id": "cuica-high-60-soft-0",
+      "path": "media/high-60-soft-0.wav",
+      "sha256": "b69cb1285183d478d89f56e9c5b3618179d0a202ef8fdf61fafc1f6e60be42a2",
+      "frames": 17683,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1202600,
+      "normalization_gain": 0.00880795702867433
+    },
+    {
+      "id": "cuica-high-60-hard-0",
+      "path": "media/high-60-hard-0.wav",
+      "sha256": "e289943cfaab3872f0ea1bb764641c2ea580e9fcf26ac8cf2c2a2159e0a70a79",
+      "frames": 17753,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1202600,
+      "normalization_gain": 0.00880795702867433
+    },
+    {
+      "id": "cuica-high-60-soft-1",
+      "path": "media/high-60-soft-1.wav",
+      "sha256": "cf69119b57ee2a9ab1c864febe1344396566bb45dc855d45a3b34f70c88359a3",
+      "frames": 17663,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1202601,
+      "normalization_gain": 0.00831336305189349
+    },
+    {
+      "id": "cuica-high-60-hard-1",
+      "path": "media/high-60-hard-1.wav",
+      "sha256": "2f29f4e6e688cbbf266d9518a02c8178e9c053c27cbef5bee9286889d5a7688a",
+      "frames": 17752,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1202601,
+      "normalization_gain": 0.00831336305189349
+    }
+  ]
+}

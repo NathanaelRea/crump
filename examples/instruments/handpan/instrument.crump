@@ -1,0 +1,77 @@
+crump-module 2
+instrument handpan "Handpan" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z52-soft-0 asset handpan-52-soft-0 keys D3 F#3 velocity 0 0.65 root E3
+      zone z52-hard-0 asset handpan-52-hard-0 keys D3 F#3 velocity 0.65 1 root E3
+      zone z57-soft-0 asset handpan-57-soft-0 keys G3 B3 velocity 0 0.65 root A3
+      zone z57-hard-0 asset handpan-57-hard-0 keys G3 B3 velocity 0.65 1 root A3
+      zone z62-soft-0 asset handpan-62-soft-0 keys C4 E4 velocity 0 0.65 root D4
+      zone z62-hard-0 asset handpan-62-hard-0 keys C4 E4 velocity 0.65 1 root D4
+      zone z67-soft-0 asset handpan-67-soft-0 keys F4 A4 velocity 0 0.65 root G4
+      zone z67-hard-0 asset handpan-67-hard-0 keys F4 A4 velocity 0.65 1 root G4
+      zone z72-soft-0 asset handpan-72-soft-0 keys A#4 D5 velocity 0 0.65 root C5
+      zone z72-hard-0 asset handpan-72-hard-0 keys A#4 D5 velocity 0.65 1 root C5
+      zone z77-soft-0 asset handpan-77-soft-0 keys D#5 G5 velocity 0 0.65 root F5
+      zone z77-hard-0 asset handpan-77-hard-0 keys D#5 G5 velocity 0.65 1 root F5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset handpan-52-soft-0 "Handpan" wav "media/52-soft-0.wav" sha256 "ca66920be869af64c61aa9678209666da3522127af0d6fdeb017cf72885fa1a3" {
+  usage multisample
+}
+asset handpan-52-hard-0 "Handpan" wav "media/52-hard-0.wav" sha256 "1ac0d70b8358480a5705d96ed83964da48807fdd44b1181bb50df21f62f33954" {
+  usage multisample
+}
+asset handpan-57-soft-0 "Handpan" wav "media/57-soft-0.wav" sha256 "c93899cf1ca1872f69127824be80b05d4548879c4ca7dd336ed3c1d6fcfa3d61" {
+  usage multisample
+}
+asset handpan-57-hard-0 "Handpan" wav "media/57-hard-0.wav" sha256 "c8db512aaef91949271c6dc40e0a2f2129fb921e0077594d34cbd4555735c1b8" {
+  usage multisample
+}
+asset handpan-62-soft-0 "Handpan" wav "media/62-soft-0.wav" sha256 "a058dcdf2124114af7bb9487547e412d6809904ac8f3261e301ec7683bdf6ba6" {
+  usage multisample
+}
+asset handpan-62-hard-0 "Handpan" wav "media/62-hard-0.wav" sha256 "d4d4eb9ce3afc8930fe1de8c25e1ac40dc422597abce8c867ed993849e8ea6cf" {
+  usage multisample
+}
+asset handpan-67-soft-0 "Handpan" wav "media/67-soft-0.wav" sha256 "79076ac61d78c7b0bc9c58f432d56246a7161d36fa64714b412ed3a6a32d63eb" {
+  usage multisample
+}
+asset handpan-67-hard-0 "Handpan" wav "media/67-hard-0.wav" sha256 "17dd8c5a2acdd55efb0447d38697d5e987e4002a5bd14e595e75a26adeeffde2" {
+  usage multisample
+}
+asset handpan-72-soft-0 "Handpan" wav "media/72-soft-0.wav" sha256 "6f8373c66680a14e8c319ca052377e75685b439b29ad22da1db9dc59bea0cdf8" {
+  usage multisample
+}
+asset handpan-72-hard-0 "Handpan" wav "media/72-hard-0.wav" sha256 "3010b84bea56f45486fa92da2e864b4ba2fd9d0e05260b0b0ac032b65326514b" {
+  usage multisample
+}
+asset handpan-77-soft-0 "Handpan" wav "media/77-soft-0.wav" sha256 "e39bf273fd1316ea7fe57bfed4d287cbfe8d05b72343bd7a63e908252a015bd8" {
+  usage multisample
+}
+asset handpan-77-hard-0 "Handpan" wav "media/77-hard-0.wav" sha256 "0a515d1e3de9c419cf921ce026ccc307a30c4e0daeb08307dcaeb3ab30cf0db5" {
+  usage multisample
+}

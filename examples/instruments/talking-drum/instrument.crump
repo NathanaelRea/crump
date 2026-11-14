@@ -1,0 +1,61 @@
+crump-module 2
+instrument talking-drum "Talking Drum" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z50-soft-0 asset talking-drum-50-soft-0 keys C3 F3 velocity 0 0.65 root D3
+      zone z50-hard-0 asset talking-drum-50-hard-0 keys C3 F3 velocity 0.65 1 root D3
+      zone z56-soft-0 asset talking-drum-56-soft-0 keys F#3 B3 velocity 0 0.65 root G#3
+      zone z56-hard-0 asset talking-drum-56-hard-0 keys F#3 B3 velocity 0.65 1 root G#3
+      zone z62-soft-0 asset talking-drum-62-soft-0 keys C4 F4 velocity 0 0.65 root D4
+      zone z62-hard-0 asset talking-drum-62-hard-0 keys C4 F4 velocity 0.65 1 root D4
+      zone z68-soft-0 asset talking-drum-68-soft-0 keys F#4 C5 velocity 0 0.65 root G#4
+      zone z68-hard-0 asset talking-drum-68-hard-0 keys F#4 C5 velocity 0.65 1 root G#4
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset talking-drum-50-soft-0 "Talking Drum" wav "media/50-soft-0.wav" sha256 "7a4faefa0ef3a1bbd5b2f319dcb6a3aea436699ead0196c437fff6c27c38b6d8" {
+  usage multisample
+}
+asset talking-drum-50-hard-0 "Talking Drum" wav "media/50-hard-0.wav" sha256 "6397c6d0cfc1bc3856ccaf01a09cbed10738a351807fc6f6cc56437db872e7a0" {
+  usage multisample
+}
+asset talking-drum-56-soft-0 "Talking Drum" wav "media/56-soft-0.wav" sha256 "c947e18bd7a38abde6b4547a0d1c51053b4d0b13ebd6302e88c21a4cb69f317b" {
+  usage multisample
+}
+asset talking-drum-56-hard-0 "Talking Drum" wav "media/56-hard-0.wav" sha256 "5ebdbbd62f37ccd47e72f12a4954ec98a13254cebbecd6b59b5f3ae30ff268d8" {
+  usage multisample
+}
+asset talking-drum-62-soft-0 "Talking Drum" wav "media/62-soft-0.wav" sha256 "0bf2c43555f8fe45156dda9e2cf7714e6c941598dc7ed39c8d399aea6662dabc" {
+  usage multisample
+}
+asset talking-drum-62-hard-0 "Talking Drum" wav "media/62-hard-0.wav" sha256 "ca4ec8406ad3ffb6be6d87c9c37175a818d89a5c021bb21babbd962c7e7e089e" {
+  usage multisample
+}
+asset talking-drum-68-soft-0 "Talking Drum" wav "media/68-soft-0.wav" sha256 "61645419c041c3412f76b4e456f200f5800c832b04ce14d4873379346de58fca" {
+  usage multisample
+}
+asset talking-drum-68-hard-0 "Talking Drum" wav "media/68-hard-0.wav" sha256 "b8c7d6e370e72178cbf40eec7d6994c3811819b5b79664b5885da197d5b3f034" {
+  usage multisample
+}

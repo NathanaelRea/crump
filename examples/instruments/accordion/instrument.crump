@@ -1,0 +1,92 @@
+crump-module 2
+instrument accordion "Accordion" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.12s 0.12s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z53-soft-0 asset accordion-53-soft-0 keys F3 G#3 velocity 0 0.65 root F3 loop 48000 125577 crossfade 8160
+      zone z53-hard-0 asset accordion-53-hard-0 keys F3 G#3 velocity 0.65 1 root F3 loop 48000 125577 crossfade 8160
+      zone z59-soft-0 asset accordion-59-soft-0 keys A3 D4 velocity 0 0.65 root B3 loop 48000 123786 crossfade 8160
+      zone z59-hard-0 asset accordion-59-hard-0 keys A3 D4 velocity 0.65 1 root B3 loop 48000 123786 crossfade 8160
+      zone z65-soft-0 asset accordion-65-soft-0 keys D#4 G#4 velocity 0 0.65 root F4 loop 48000 124331 crossfade 8160
+      zone z65-hard-0 asset accordion-65-hard-0 keys D#4 G#4 velocity 0.65 1 root F4 loop 48000 124331 crossfade 8160
+      zone z71-soft-0 asset accordion-71-soft-0 keys A4 D5 velocity 0 0.65 root B4 loop 48000 125780 crossfade 8160
+      zone z71-hard-0 asset accordion-71-hard-0 keys A4 D5 velocity 0.65 1 root B4 loop 48000 125780 crossfade 8160
+      zone z77-soft-0 asset accordion-77-soft-0 keys D#5 G#5 velocity 0 0.65 root F5 loop 48000 125942 crossfade 8160
+      zone z77-hard-0 asset accordion-77-hard-0 keys D#5 G#5 velocity 0.65 1 root F5 loop 48000 125942 crossfade 8160
+      zone z83-soft-0 asset accordion-83-soft-0 keys A5 D6 velocity 0 0.65 root B5 loop 48000 125921 crossfade 8160
+      zone z83-hard-0 asset accordion-83-hard-0 keys A5 D6 velocity 0.65 1 root B5 loop 48000 125921 crossfade 8160
+      zone z89-soft-0 asset accordion-89-soft-0 keys D#6 A6 velocity 0 0.65 root F6 loop 48000 125987 crossfade 8160
+      zone z89-hard-0 asset accordion-89-hard-0 keys D#6 A6 velocity 0.65 1 root F6 loop 48000 125987 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset accordion-53-soft-0 "Accordion" wav "media/53-soft-0.wav" sha256 "8013c0219ff487bc52f09b4dae480d2600e613e0089926d83da64b38b7deedaa" {
+  usage multisample
+}
+asset accordion-53-hard-0 "Accordion" wav "media/53-hard-0.wav" sha256 "9c9acde4069ba91ae907247ec395faee121297b2cc3d7c5d7d6d250db6f5080e" {
+  usage multisample
+}
+asset accordion-59-soft-0 "Accordion" wav "media/59-soft-0.wav" sha256 "d12f0f4ac3df8f7c2a7dd49e68644a70a8feaee77e6475ff5ff7675f31eedab0" {
+  usage multisample
+}
+asset accordion-59-hard-0 "Accordion" wav "media/59-hard-0.wav" sha256 "7d2473c9c0c299de1c20658a7a52f95335cd9b30c12cf387607170b4c06b84b6" {
+  usage multisample
+}
+asset accordion-65-soft-0 "Accordion" wav "media/65-soft-0.wav" sha256 "7c136c88255d6c5a9e26ce8d0487dbfc61f9e670e1805908ea671d8514eaac4c" {
+  usage multisample
+}
+asset accordion-65-hard-0 "Accordion" wav "media/65-hard-0.wav" sha256 "9d1bccd8e3202ee5009f4049894fbd967c6d3332ecac477fafda13a85206e9cc" {
+  usage multisample
+}
+asset accordion-71-soft-0 "Accordion" wav "media/71-soft-0.wav" sha256 "bea0bff81f75a4e717c3ebb0e233d9b3478d7de06483821169369e5f4af57f37" {
+  usage multisample
+}
+asset accordion-71-hard-0 "Accordion" wav "media/71-hard-0.wav" sha256 "49e738342988d132e89032152a8e9ea531cf394aa9eb0606a3ac481a606505fa" {
+  usage multisample
+}
+asset accordion-77-soft-0 "Accordion" wav "media/77-soft-0.wav" sha256 "58a2c9bb60f7d909f20d171bb8669758ded2109e27d061056cdaff2fd7a107d4" {
+  usage multisample
+}
+asset accordion-77-hard-0 "Accordion" wav "media/77-hard-0.wav" sha256 "4a205cfc34deafeee9977ad24344077df4568d26f40495b35c6a2972d3c13dfc" {
+  usage multisample
+}
+asset accordion-83-soft-0 "Accordion" wav "media/83-soft-0.wav" sha256 "1356ed3eb6b18a36ce2500b8248875fc2bd19a438d241b0fa84e62e1f1f5c73d" {
+  usage multisample
+}
+asset accordion-83-hard-0 "Accordion" wav "media/83-hard-0.wav" sha256 "7cdc22e4dbe9daee5a1c605e98bddc0a0a442053e6051a333c172176003ec562" {
+  usage multisample
+}
+asset accordion-89-soft-0 "Accordion" wav "media/89-soft-0.wav" sha256 "e095ea1d754f4b2e522575c08f382e41f7f831d02ecf388f82c2005eb53dd4e5" {
+  usage multisample
+}
+asset accordion-89-hard-0 "Accordion" wav "media/89-hard-0.wav" sha256 "e75715f0398e3886e6dfa9cebe451c8c3983a3beae4b5fffef9ed9e66c1ca4b7" {
+  usage multisample
+}

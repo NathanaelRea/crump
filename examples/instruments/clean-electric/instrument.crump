@@ -1,0 +1,93 @@
+crump-module 2
+instrument clean-electric "Clean Electric" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z40-soft-0 asset clean-electric-40-soft-0 keys E2 G2 velocity 0 0.65 root E2
+      zone z40-hard-0 asset clean-electric-40-hard-0 keys E2 G2 velocity 0.65 1 root E2
+      zone z46-soft-0 asset clean-electric-46-soft-0 keys G#2 C#3 velocity 0 0.65 root A#2
+      zone z46-hard-0 asset clean-electric-46-hard-0 keys G#2 C#3 velocity 0.65 1 root A#2
+      zone z52-soft-0 asset clean-electric-52-soft-0 keys D3 G3 velocity 0 0.65 root E3
+      zone z52-hard-0 asset clean-electric-52-hard-0 keys D3 G3 velocity 0.65 1 root E3
+      zone z58-soft-0 asset clean-electric-58-soft-0 keys G#3 C#4 velocity 0 0.65 root A#3
+      zone z58-hard-0 asset clean-electric-58-hard-0 keys G#3 C#4 velocity 0.65 1 root A#3
+      zone z64-soft-0 asset clean-electric-64-soft-0 keys D4 G4 velocity 0 0.65 root E4
+      zone z64-hard-0 asset clean-electric-64-hard-0 keys D4 G4 velocity 0.65 1 root E4
+      zone z70-soft-0 asset clean-electric-70-soft-0 keys G#4 C#5 velocity 0 0.65 root A#4
+      zone z70-hard-0 asset clean-electric-70-hard-0 keys G#4 C#5 velocity 0.65 1 root A#4
+      zone z76-soft-0 asset clean-electric-76-soft-0 keys D5 G5 velocity 0 0.65 root E5
+      zone z76-hard-0 asset clean-electric-76-hard-0 keys D5 G5 velocity 0.65 1 root E5
+      zone z82-soft-0 asset clean-electric-82-soft-0 keys G#5 D6 velocity 0 0.65 root A#5
+      zone z82-hard-0 asset clean-electric-82-hard-0 keys G#5 D6 velocity 0.65 1 root A#5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset clean-electric-40-soft-0 "Clean Electric" wav "media/40-soft-0.wav" sha256 "263c04b20036920a545bec0062d09027ade5a6c3b0d22fb67c8c12eac9191d08" {
+  usage multisample
+}
+asset clean-electric-40-hard-0 "Clean Electric" wav "media/40-hard-0.wav" sha256 "587b092c6dd0d76c6a4dc5c2ae6035358aa7edd7e69d82506194ff35faa87969" {
+  usage multisample
+}
+asset clean-electric-46-soft-0 "Clean Electric" wav "media/46-soft-0.wav" sha256 "8c6ceead0563f2715ec56ddb057f6bc5bcdaecdb77b9f8c1d5f1e63a8390cb0d" {
+  usage multisample
+}
+asset clean-electric-46-hard-0 "Clean Electric" wav "media/46-hard-0.wav" sha256 "f7f46a000f87d946048d50424870b038b92db7130d4ab39315083ecf01dc6f74" {
+  usage multisample
+}
+asset clean-electric-52-soft-0 "Clean Electric" wav "media/52-soft-0.wav" sha256 "d0ea81721e15c551a78ed17bb93691607d13ebb784ba7d5abebea89a68e7ece1" {
+  usage multisample
+}
+asset clean-electric-52-hard-0 "Clean Electric" wav "media/52-hard-0.wav" sha256 "f9f0ebe412c96098e5c63c7d918efb6e55bb1603d57ddc13c83501ace69830a1" {
+  usage multisample
+}
+asset clean-electric-58-soft-0 "Clean Electric" wav "media/58-soft-0.wav" sha256 "2730509a4417ba655ba84eeb0693cb4b2bd4383803fc53d0e3e40a19dea83da7" {
+  usage multisample
+}
+asset clean-electric-58-hard-0 "Clean Electric" wav "media/58-hard-0.wav" sha256 "2289f9d5cd8dfda44036b01c25c7b82f613278096dc7f6a5d4b3728286714f0f" {
+  usage multisample
+}
+asset clean-electric-64-soft-0 "Clean Electric" wav "media/64-soft-0.wav" sha256 "74892677796cb405d9c98231e0418befa418ee27b8999ac8dc973723fa5b8d36" {
+  usage multisample
+}
+asset clean-electric-64-hard-0 "Clean Electric" wav "media/64-hard-0.wav" sha256 "bc4675908fc30d7276592b6cd4fb8e3de42e552e45096e7b3ea9d47d39208e08" {
+  usage multisample
+}
+asset clean-electric-70-soft-0 "Clean Electric" wav "media/70-soft-0.wav" sha256 "206fec5b7ad062e328ded8dfcada0ba8d90c7001f4c7ba115feacfccf985d35b" {
+  usage multisample
+}
+asset clean-electric-70-hard-0 "Clean Electric" wav "media/70-hard-0.wav" sha256 "ed063166e35df6dfd58cb3745d285e1ba282299992718fe1df9be9cad8a42674" {
+  usage multisample
+}
+asset clean-electric-76-soft-0 "Clean Electric" wav "media/76-soft-0.wav" sha256 "8bcee21a694a26ad0aafe7897a40bdcd460316745cf9534798a72247c1477885" {
+  usage multisample
+}
+asset clean-electric-76-hard-0 "Clean Electric" wav "media/76-hard-0.wav" sha256 "eff955f61e3bce92cadd1f5db33f453ab29b0099d7736495c1bf175751ef3163" {
+  usage multisample
+}
+asset clean-electric-82-soft-0 "Clean Electric" wav "media/82-soft-0.wav" sha256 "0830ea5ed1fe45185b38755f685badef3641abbb7c6511ad462e45e8e277ed07" {
+  usage multisample
+}
+asset clean-electric-82-hard-0 "Clean Electric" wav "media/82-hard-0.wav" sha256 "a3c6e3aa3bd2d8e7a65d40c4e43305a09728672f935387caae26ab0534a78c60" {
+  usage multisample
+}

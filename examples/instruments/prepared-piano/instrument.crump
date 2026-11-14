@@ -1,0 +1,93 @@
+crump-module 2
+instrument prepared-piano "Prepared Piano" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z36-soft-0 asset prepared-piano-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
+      zone z36-hard-0 asset prepared-piano-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
+      zone z43-soft-0 asset prepared-piano-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
+      zone z43-hard-0 asset prepared-piano-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
+      zone z48-soft-0 asset prepared-piano-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
+      zone z48-hard-0 asset prepared-piano-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
+      zone z55-soft-0 asset prepared-piano-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
+      zone z55-hard-0 asset prepared-piano-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
+      zone z60-soft-0 asset prepared-piano-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
+      zone z60-hard-0 asset prepared-piano-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
+      zone z67-soft-0 asset prepared-piano-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
+      zone z67-hard-0 asset prepared-piano-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
+      zone z72-soft-0 asset prepared-piano-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
+      zone z72-hard-0 asset prepared-piano-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
+      zone z79-soft-0 asset prepared-piano-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
+      zone z79-hard-0 asset prepared-piano-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset prepared-piano-36-soft-0 "Prepared Piano" wav "media/36-soft-0.wav" sha256 "317fc3d80cd0463539a2b16b7acf8cc07ff292b9840ccd65caed03e53005558a" {
+  usage multisample
+}
+asset prepared-piano-36-hard-0 "Prepared Piano" wav "media/36-hard-0.wav" sha256 "4bf53673f73309479e7733c96b896605f9482168a1bbd496d2bf9444f7956121" {
+  usage multisample
+}
+asset prepared-piano-43-soft-0 "Prepared Piano" wav "media/43-soft-0.wav" sha256 "5e37816a94c7ab426e269b9e59edb7bad83dca7275454d31f093b697e1f54835" {
+  usage multisample
+}
+asset prepared-piano-43-hard-0 "Prepared Piano" wav "media/43-hard-0.wav" sha256 "4927ec3dfde5a422d83f29faa08c9faf026d1d6e0198d06ea24c6511b396303e" {
+  usage multisample
+}
+asset prepared-piano-48-soft-0 "Prepared Piano" wav "media/48-soft-0.wav" sha256 "89355ca9a3eac4051387e544234aaf861142e6cf386046b47968066f2a8f2476" {
+  usage multisample
+}
+asset prepared-piano-48-hard-0 "Prepared Piano" wav "media/48-hard-0.wav" sha256 "2b130ee26adf5309f63391755b5432eb3e98f6c1cdd72e8e05a38b2865780142" {
+  usage multisample
+}
+asset prepared-piano-55-soft-0 "Prepared Piano" wav "media/55-soft-0.wav" sha256 "565167982cc023f3f0bbd28fc47726a8c8886b10c04310c630fd7cf33d23dc76" {
+  usage multisample
+}
+asset prepared-piano-55-hard-0 "Prepared Piano" wav "media/55-hard-0.wav" sha256 "248294dc4c229fa80ddabdca7e382eefe0d2b74b7897512f815db767e79d991f" {
+  usage multisample
+}
+asset prepared-piano-60-soft-0 "Prepared Piano" wav "media/60-soft-0.wav" sha256 "f937dc175f705434475f6291489c24fefca79a5280b447c6efbf6a6034f26d79" {
+  usage multisample
+}
+asset prepared-piano-60-hard-0 "Prepared Piano" wav "media/60-hard-0.wav" sha256 "623f9ade20b9680f55c202a8e787540e331369258efca63eda16726dc57fc9de" {
+  usage multisample
+}
+asset prepared-piano-67-soft-0 "Prepared Piano" wav "media/67-soft-0.wav" sha256 "1fd3bb79624bab92354c1eaad68582d746bc0e2af767acd8d2aa04d32650f978" {
+  usage multisample
+}
+asset prepared-piano-67-hard-0 "Prepared Piano" wav "media/67-hard-0.wav" sha256 "fe0afc9b6be2bb1ecb7fb2500856a583b685817373e0814baed82b86b07c2aab" {
+  usage multisample
+}
+asset prepared-piano-72-soft-0 "Prepared Piano" wav "media/72-soft-0.wav" sha256 "ff0188613d46fee3369734b321842e49d072c6e4c415970c31d72cee1d374517" {
+  usage multisample
+}
+asset prepared-piano-72-hard-0 "Prepared Piano" wav "media/72-hard-0.wav" sha256 "256a96b89e51d884d4f6a9602f98cad6018b0688deff33ce2a3390bbdb4cdfb6" {
+  usage multisample
+}
+asset prepared-piano-79-soft-0 "Prepared Piano" wav "media/79-soft-0.wav" sha256 "fdee6d73b7f8ba902323d45082bda046e0bdd86db2cdb7ab7f9731f876468a6f" {
+  usage multisample
+}
+asset prepared-piano-79-hard-0 "Prepared Piano" wav "media/79-hard-0.wav" sha256 "9e1525b515ccf0fa925b73fac41c45f0e6ecf58ab3ed66732dcc9605a57bf06c" {
+  usage multisample
+}

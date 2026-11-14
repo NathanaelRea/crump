@@ -1,0 +1,104 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "70cf49952d3d42cb0b8d647d9973804ce3ed5351bf7fb06ae95252d6c98f91ea",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "taiko-don-60-soft-0",
+      "path": "media/don-60-soft-0.wav",
+      "sha256": "cf8d2c55580039560ad6ae6b7bcba716093295652800b53c12a144d2951881fa",
+      "frames": 157935,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1151600,
+      "normalization_gain": 0.5460310769419695
+    },
+    {
+      "id": "taiko-don-60-hard-0",
+      "path": "media/don-60-hard-0.wav",
+      "sha256": "203a0b1582a3f70a0c3cea47f8a63ebdb5b42decf3511cc64e09d2d5de2b3d9b",
+      "frames": 165827,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1151600,
+      "normalization_gain": 0.5460310769419695
+    },
+    {
+      "id": "taiko-don-60-soft-1",
+      "path": "media/don-60-soft-1.wav",
+      "sha256": "3906891515f89a2a16b1520194915a327dd5ae4b14f17908d15fdf019065a11a",
+      "frames": 158323,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1151601,
+      "normalization_gain": 0.5517020933022146
+    },
+    {
+      "id": "taiko-don-60-hard-1",
+      "path": "media/don-60-hard-1.wav",
+      "sha256": "0ebb7345880f5a16445d7323e060a6e895a4ed4a27c45175e2ce3f854ec26554",
+      "frames": 166065,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1151601,
+      "normalization_gain": 0.5517020933022146
+    },
+    {
+      "id": "taiko-ka-60-soft-0",
+      "path": "media/ka-60-soft-0.wav",
+      "sha256": "84a06873debc63abad998625cc268e653ab6238d21cf5f9cf4985943a785e5cd",
+      "frames": 7651,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1152600,
+      "normalization_gain": 0.4564636347612087
+    },
+    {
+      "id": "taiko-ka-60-hard-0",
+      "path": "media/ka-60-hard-0.wav",
+      "sha256": "7871de56dffeac5e018fc70eccd95488630fe19619b9be401268363cc94f5baa",
+      "frames": 7923,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1152600,
+      "normalization_gain": 0.4564636347612087
+    },
+    {
+      "id": "taiko-ka-60-soft-1",
+      "path": "media/ka-60-soft-1.wav",
+      "sha256": "03386743b0e0db1f8b9c59867e85e3e47780dcf4446091534f346b323778aa5e",
+      "frames": 7651,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.48,
+      "round_robin": 1,
+      "seed": 1152601,
+      "normalization_gain": 0.46137815822142597
+    },
+    {
+      "id": "taiko-ka-60-hard-1",
+      "path": "media/ka-60-hard-1.wav",
+      "sha256": "788bf819dcaaa9c2220ec25a80bb50c22a1b98026f7bc337f4eed2125a37b04b",
+      "frames": 7922,
+      "sample_rate": 48000,
+      "root_midi": 60,
+      "velocity": 0.92,
+      "round_robin": 1,
+      "seed": 1152601,
+      "normalization_gain": 0.46137815822142597
+    }
+  ]
+}

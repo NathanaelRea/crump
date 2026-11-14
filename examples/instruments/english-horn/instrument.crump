@@ -1,0 +1,92 @@
+crump-module 2
+instrument english-horn "English Horn" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z52-soft-0 asset english-horn-52-soft-0 keys E3 F#3 velocity 0 0.65 root E3 loop 48000 125185 crossfade 8160
+      zone z52-hard-0 asset english-horn-52-hard-0 keys E3 F#3 velocity 0.65 1 root E3 loop 48000 124893 crossfade 8160
+      zone z57-soft-0 asset english-horn-57-soft-0 keys G3 B3 velocity 0 0.65 root A3 loop 48000 125796 crossfade 8160
+      zone z57-hard-0 asset english-horn-57-hard-0 keys G3 B3 velocity 0.65 1 root A3 loop 48000 125795 crossfade 8160
+      zone z62-soft-0 asset english-horn-62-soft-0 keys C4 E4 velocity 0 0.65 root D4 loop 48000 125875 crossfade 8160
+      zone z62-hard-0 asset english-horn-62-hard-0 keys C4 E4 velocity 0.65 1 root D4 loop 48000 125880 crossfade 8160
+      zone z67-soft-0 asset english-horn-67-soft-0 keys F4 A4 velocity 0 0.65 root G4 loop 48000 123650 crossfade 8160
+      zone z67-hard-0 asset english-horn-67-hard-0 keys F4 A4 velocity 0.65 1 root G4 loop 48000 123652 crossfade 8160
+      zone z72-soft-0 asset english-horn-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5 loop 48000 125941 crossfade 8160
+      zone z72-hard-0 asset english-horn-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5 loop 48000 125948 crossfade 8160
+      zone z78-soft-0 asset english-horn-78-soft-0 keys E5 G#5 velocity 0 0.65 root F#5 loop 48000 123607 crossfade 8160
+      zone z78-hard-0 asset english-horn-78-hard-0 keys E5 G#5 velocity 0.65 1 root F#5 loop 48000 123607 crossfade 8160
+      zone z83-soft-0 asset english-horn-83-soft-0 keys A5 C6 velocity 0 0.65 root B5 loop 48000 123617 crossfade 8160
+      zone z83-hard-0 asset english-horn-83-hard-0 keys A5 C6 velocity 0.65 1 root B5 loop 48000 125987 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset english-horn-52-soft-0 "English Horn" wav "media/52-soft-0.wav" sha256 "288d927613d916a7b77ad4d8d261aaafc6b516f1bec6be45ba93a37cb28e8165" {
+  usage multisample
+}
+asset english-horn-52-hard-0 "English Horn" wav "media/52-hard-0.wav" sha256 "76f1b745d7e313899930c21ad786898f14e0f8c664cf212ec09209244913633f" {
+  usage multisample
+}
+asset english-horn-57-soft-0 "English Horn" wav "media/57-soft-0.wav" sha256 "116dee4e6f83da7f8edb290c81ab163cae9dc38a007a6a1c4c575a639594bd6a" {
+  usage multisample
+}
+asset english-horn-57-hard-0 "English Horn" wav "media/57-hard-0.wav" sha256 "0a5e3dea1c970626d3c3d596cab1dba1c70db4577c43807ab3d8c0c83ba1a108" {
+  usage multisample
+}
+asset english-horn-62-soft-0 "English Horn" wav "media/62-soft-0.wav" sha256 "44c0f550512f7de72a38a9a2f8aa3092b123565790d2de3687575144ba324daf" {
+  usage multisample
+}
+asset english-horn-62-hard-0 "English Horn" wav "media/62-hard-0.wav" sha256 "fea5852a52167cd6834c05308e723643f8aec634bf7b0f5959632dbd1cd58f8e" {
+  usage multisample
+}
+asset english-horn-67-soft-0 "English Horn" wav "media/67-soft-0.wav" sha256 "2f7ea23018e3be08869c569402d4ca5ed548cabb8316bdd5caba11e22b3cc80d" {
+  usage multisample
+}
+asset english-horn-67-hard-0 "English Horn" wav "media/67-hard-0.wav" sha256 "7af365aa633556a668becd9e0df3805da84617c0a65b3c0aca053fbc20c76456" {
+  usage multisample
+}
+asset english-horn-72-soft-0 "English Horn" wav "media/72-soft-0.wav" sha256 "31bb9ab3c9a3a066f5c25f76358aa42d5df08b0e9b4b46f9e0cae3b585e72711" {
+  usage multisample
+}
+asset english-horn-72-hard-0 "English Horn" wav "media/72-hard-0.wav" sha256 "11a6fb0b2448f144f756bf9a5afb9dec4ffbf2bc0b069db584a92c4690bb7253" {
+  usage multisample
+}
+asset english-horn-78-soft-0 "English Horn" wav "media/78-soft-0.wav" sha256 "16c5bf04ef3b7e9ca7a32fa66f73b3591c974f8ecab1f552f5c60d7f6d8756cb" {
+  usage multisample
+}
+asset english-horn-78-hard-0 "English Horn" wav "media/78-hard-0.wav" sha256 "c10383f0d4d32b8061527a300845c6acab0523fde4bcbbf6d800913b6173bf13" {
+  usage multisample
+}
+asset english-horn-83-soft-0 "English Horn" wav "media/83-soft-0.wav" sha256 "5c6fca6a768c463828763410ed464891574d74e307efb81c4c10f5019172d440" {
+  usage multisample
+}
+asset english-horn-83-hard-0 "English Horn" wav "media/83-hard-0.wav" sha256 "c0976fac1959dd4d16c0e463a4105eb16154fd8e33c78b9c4f70b333d4588954" {
+  usage multisample
+}

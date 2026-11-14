@@ -1,0 +1,93 @@
+crump-module 2
+instrument mark-tree "Mark Tree" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone zup-38-soft-0 asset mark-tree-up-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
+      zone zup-43-soft-0 asset mark-tree-up-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
+      zone zup-48-soft-0 asset mark-tree-up-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
+      zone zup-53-soft-0 asset mark-tree-up-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
+      zone zup-58-soft-0 asset mark-tree-up-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
+      zone zup-38-hard-0 asset mark-tree-up-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
+      zone zup-43-hard-0 asset mark-tree-up-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
+      zone zup-48-hard-0 asset mark-tree-up-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
+      zone zup-53-hard-0 asset mark-tree-up-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
+      zone zup-58-hard-0 asset mark-tree-up-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
+      zone zup-38-soft-1 asset mark-tree-up-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
+      zone zup-43-soft-1 asset mark-tree-up-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
+      zone zup-48-soft-1 asset mark-tree-up-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
+      zone zup-53-soft-1 asset mark-tree-up-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
+      zone zup-58-soft-1 asset mark-tree-up-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
+      zone zup-38-hard-1 asset mark-tree-up-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
+      zone zup-43-hard-1 asset mark-tree-up-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
+      zone zup-48-hard-1 asset mark-tree-up-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
+      zone zup-53-hard-1 asset mark-tree-up-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
+      zone zup-58-hard-1 asset mark-tree-up-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
+      zone zdown-63-soft-0 asset mark-tree-down-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
+      zone zdown-68-soft-0 asset mark-tree-down-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone zdown-73-soft-0 asset mark-tree-down-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
+      zone zdown-78-soft-0 asset mark-tree-down-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
+      zone zdown-83-soft-0 asset mark-tree-down-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
+      zone zdown-63-hard-0 asset mark-tree-down-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
+      zone zdown-68-hard-0 asset mark-tree-down-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone zdown-73-hard-0 asset mark-tree-down-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
+      zone zdown-78-hard-0 asset mark-tree-down-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
+      zone zdown-83-hard-0 asset mark-tree-down-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
+      zone zdown-63-soft-1 asset mark-tree-down-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
+      zone zdown-68-soft-1 asset mark-tree-down-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
+      zone zdown-73-soft-1 asset mark-tree-down-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
+      zone zdown-78-soft-1 asset mark-tree-down-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
+      zone zdown-83-soft-1 asset mark-tree-down-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
+      zone zdown-63-hard-1 asset mark-tree-down-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
+      zone zdown-68-hard-1 asset mark-tree-down-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
+      zone zdown-73-hard-1 asset mark-tree-down-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
+      zone zdown-78-hard-1 asset mark-tree-down-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
+      zone zdown-83-hard-1 asset mark-tree-down-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset mark-tree-up-60-soft-0 "Mark Tree" wav "media/up-60-soft-0.wav" sha256 "706fe4f1ab89c2d430c7bba333fd449c026b83a8263080f9879b9ea298704913" {
+  usage multisample
+}
+asset mark-tree-up-60-hard-0 "Mark Tree" wav "media/up-60-hard-0.wav" sha256 "eb43a168f848e0c99dd7b80daa1d278c5b2785bba02fd015ef65ab0a750bb395" {
+  usage multisample
+}
+asset mark-tree-up-60-soft-1 "Mark Tree" wav "media/up-60-soft-1.wav" sha256 "0c54cea6bed10035e7ebecea411131d47b3c28ddd3a76de55004177f0450687d" {
+  usage multisample
+}
+asset mark-tree-up-60-hard-1 "Mark Tree" wav "media/up-60-hard-1.wav" sha256 "6974627ad6c0dd08537e56fb2f1bef496117ed8f105084a13db5c12c7086e3f8" {
+  usage multisample
+}
+asset mark-tree-down-60-soft-0 "Mark Tree" wav "media/down-60-soft-0.wav" sha256 "d321794c110341d5870d8baccb500e65cfbeeb44f8ee8f2d2f7bb989a0ae2da0" {
+  usage multisample
+}
+asset mark-tree-down-60-hard-0 "Mark Tree" wav "media/down-60-hard-0.wav" sha256 "d6d05d014e64a80aae98d7143a088d76c640d151e312e221ff5cc08350509784" {
+  usage multisample
+}
+asset mark-tree-down-60-soft-1 "Mark Tree" wav "media/down-60-soft-1.wav" sha256 "692fce7dec04b1d0727645f4e60030069b72f6419d6180a38beb0d02714a1e8f" {
+  usage multisample
+}
+asset mark-tree-down-60-hard-1 "Mark Tree" wav "media/down-60-hard-1.wav" sha256 "750aa75d36c461118aacac9bffd88338801dea679174cfe38999db4ab0a2f12c" {
+  usage multisample
+}

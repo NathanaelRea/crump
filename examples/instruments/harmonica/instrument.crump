@@ -1,0 +1,92 @@
+crump-module 2
+instrument harmonica "Harmonica" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.1s 0.1s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z60-soft-0 asset harmonica-60-soft-0 keys C4 D#4 velocity 0 0.65 root C4 loop 48000 124656 crossfade 8160
+      zone z60-hard-0 asset harmonica-60-hard-0 keys C4 D#4 velocity 0.65 1 root C4 loop 48000 125941 crossfade 8160
+      zone z66-soft-0 asset harmonica-66-soft-0 keys E4 A4 velocity 0 0.65 root F#4 loop 48000 123608 crossfade 8160
+      zone z66-hard-0 asset harmonica-66-hard-0 keys E4 A4 velocity 0.65 1 root F#4 loop 48000 125816 crossfade 8160
+      zone z72-soft-0 asset harmonica-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5 loop 48000 125976 crossfade 8160
+      zone z72-hard-0 asset harmonica-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5 loop 48000 125792 crossfade 8160
+      zone z78-soft-0 asset harmonica-78-soft-0 keys E5 A5 velocity 0 0.65 root F#5 loop 48000 125941 crossfade 8160
+      zone z78-hard-0 asset harmonica-78-hard-0 keys E5 A5 velocity 0.65 1 root F#5 loop 48000 125953 crossfade 8160
+      zone z84-soft-0 asset harmonica-84-soft-0 keys A#5 D#6 velocity 0 0.65 root C6 loop 48000 125994 crossfade 8160
+      zone z84-hard-0 asset harmonica-84-hard-0 keys A#5 D#6 velocity 0.65 1 root C6 loop 48000 123697 crossfade 8160
+      zone z90-soft-0 asset harmonica-90-soft-0 keys E6 A6 velocity 0 0.65 root F#6 loop 48000 125985 crossfade 8160
+      zone z90-hard-0 asset harmonica-90-hard-0 keys E6 A6 velocity 0.65 1 root F#6 loop 48000 125987 crossfade 8160
+      zone z96-soft-0 asset harmonica-96-soft-0 keys A#6 C7 velocity 0 0.65 root C7 loop 48000 123962 crossfade 8160
+      zone z96-hard-0 asset harmonica-96-hard-0 keys A#6 C7 velocity 0.65 1 root C7 loop 48000 124683 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset harmonica-60-soft-0 "Harmonica" wav "media/60-soft-0.wav" sha256 "78452d0b87438140c11a23d86e8dc0074d3aecc6f08d4c68fa09d38e2cbd5923" {
+  usage multisample
+}
+asset harmonica-60-hard-0 "Harmonica" wav "media/60-hard-0.wav" sha256 "8b494210c397087cee163664c53df037a8fc619201ab78673436d1b66b25946b" {
+  usage multisample
+}
+asset harmonica-66-soft-0 "Harmonica" wav "media/66-soft-0.wav" sha256 "b4cac2104b480f7fbd1a745e1c10ec7ec3a77eaa667c97f2fffbd7648fcdd58b" {
+  usage multisample
+}
+asset harmonica-66-hard-0 "Harmonica" wav "media/66-hard-0.wav" sha256 "f937a92f81771b2f951d565ea94e057be34a5f9756e765d9a214d2195b03c7c2" {
+  usage multisample
+}
+asset harmonica-72-soft-0 "Harmonica" wav "media/72-soft-0.wav" sha256 "c4847136c8dd8b229d212c444c311e49e209790d2e4da848592cefaa3f9713e9" {
+  usage multisample
+}
+asset harmonica-72-hard-0 "Harmonica" wav "media/72-hard-0.wav" sha256 "38d257bcf09dad98b9b5faadb6c8fdba3aa69e1a6d49b82b2a34d1b650d27c96" {
+  usage multisample
+}
+asset harmonica-78-soft-0 "Harmonica" wav "media/78-soft-0.wav" sha256 "d1683a9b87c90c10ffc5ba2115c24b031a9a3d4c8f0e4a0e663e5efe8b131a8c" {
+  usage multisample
+}
+asset harmonica-78-hard-0 "Harmonica" wav "media/78-hard-0.wav" sha256 "0e7928dcc87edcc5f68053d4b8d4ebc15e8e684100516dfaa7070a8f1dac6c1d" {
+  usage multisample
+}
+asset harmonica-84-soft-0 "Harmonica" wav "media/84-soft-0.wav" sha256 "24aa9dfc12792bd60594b4a2c45481ce0e1b81685a265ebe948d1cbd67d0adc3" {
+  usage multisample
+}
+asset harmonica-84-hard-0 "Harmonica" wav "media/84-hard-0.wav" sha256 "67408bc7927eea6b15dbd08b316f9145f504c5798f004fd0245059767134c76c" {
+  usage multisample
+}
+asset harmonica-90-soft-0 "Harmonica" wav "media/90-soft-0.wav" sha256 "f613399ba8e5387a51f514f32209c4e7e54c16c91efc69e8b3146cb5072bac35" {
+  usage multisample
+}
+asset harmonica-90-hard-0 "Harmonica" wav "media/90-hard-0.wav" sha256 "a4443826b053bf7c582247beb0ffefccd2f07eda8b7b7eb6359e596e5405c727" {
+  usage multisample
+}
+asset harmonica-96-soft-0 "Harmonica" wav "media/96-soft-0.wav" sha256 "d0d6cd896546bf5284e32d0014138d9d1c0f0bbd899fc5f11b285ed3f6731c8f" {
+  usage multisample
+}
+asset harmonica-96-hard-0 "Harmonica" wav "media/96-hard-0.wav" sha256 "1b178d093504b18ff0e992f74f0241dbe9165cee4a4309b4c063016691fce4a4" {
+  usage multisample
+}

@@ -1,0 +1,44 @@
+crump 2
+import "instrument.crump"
+project "Hoover" {
+  id example-hoover
+  seed 799819
+  sample_rate 48000
+  render_tail 2s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0.5beat C3 0.25beat 0.85
+      note 1.5beat C3 0.25beat 0.68
+      note 2.5beat C3 0.25beat 0.68
+      note 3.5beat C3 0.25beat 0.68
+      note 4.5beat C3 0.25beat 0.85
+      note 5.5beat C3 0.25beat 0.68
+      note 6.5beat C3 0.25beat 0.68
+      note 7.5beat C3 0.25beat 0.68
+      note 8.5beat G#2 0.25beat 0.85
+      note 9.5beat G#2 0.25beat 0.68
+      note 10.5beat G#2 0.25beat 0.68
+      note 11.5beat G#2 0.25beat 0.68
+      note 12.5beat A#2 0.25beat 0.85
+      note 13.5beat A#2 0.25beat 0.68
+      note 14.5beat A#2 0.25beat 0.68
+      note 15.5beat A#2 0.25beat 0.68
+      note 16.5beat C3 0.25beat 0.85
+      note 17.5beat C3 0.25beat 0.68
+      note 18.5beat C3 0.25beat 0.68
+      note 19.5beat C3 0.25beat 0.68
+      note 20.5beat C3 0.25beat 0.85
+      note 21.5beat C3 0.25beat 0.68
+      note 22.5beat C3 0.25beat 0.68
+      note 23.5beat C3 0.25beat 0.68
+      note 24beat C3 2beat 0.92
+      note 28beat G#2 2beat 0.6
+    }
+    track instrument "Hoover" instrument hoover level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

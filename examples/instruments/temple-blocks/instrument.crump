@@ -1,0 +1,61 @@
+crump-module 2
+instrument temple-blocks "Temple Blocks" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z62-soft-0 asset temple-blocks-62-soft-0 keys C4 F4 velocity 0 0.65 root D4
+      zone z62-hard-0 asset temple-blocks-62-hard-0 keys C4 F4 velocity 0.65 1 root D4
+      zone z68-soft-0 asset temple-blocks-68-soft-0 keys F#4 B4 velocity 0 0.65 root G#4
+      zone z68-hard-0 asset temple-blocks-68-hard-0 keys F#4 B4 velocity 0.65 1 root G#4
+      zone z74-soft-0 asset temple-blocks-74-soft-0 keys C5 F5 velocity 0 0.65 root D5
+      zone z74-hard-0 asset temple-blocks-74-hard-0 keys C5 F5 velocity 0.65 1 root D5
+      zone z80-soft-0 asset temple-blocks-80-soft-0 keys F#5 C6 velocity 0 0.65 root G#5
+      zone z80-hard-0 asset temple-blocks-80-hard-0 keys F#5 C6 velocity 0.65 1 root G#5
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset temple-blocks-62-soft-0 "Temple Blocks" wav "media/62-soft-0.wav" sha256 "0ddbdcc63d5df1ba9beceb0acffcef384fce59aa6a18684aa56e6a308aa7a0fa" {
+  usage multisample
+}
+asset temple-blocks-62-hard-0 "Temple Blocks" wav "media/62-hard-0.wav" sha256 "30fe3a5b4fb604e63a5e0eb69240a7018e0afbdc22a22c57a484ce2952095bfa" {
+  usage multisample
+}
+asset temple-blocks-68-soft-0 "Temple Blocks" wav "media/68-soft-0.wav" sha256 "370c2721774efeedf82e1624bbffba6573c7744d1f2f1080b2ccde49423cebac" {
+  usage multisample
+}
+asset temple-blocks-68-hard-0 "Temple Blocks" wav "media/68-hard-0.wav" sha256 "3637ca4d5efd99200f1334826a957c7c88ad8e3481f9694bfcf71e8df91b56bc" {
+  usage multisample
+}
+asset temple-blocks-74-soft-0 "Temple Blocks" wav "media/74-soft-0.wav" sha256 "e17e28ca5afbb40a5aa2a94b35dc8ed61d40fa2790a53de03b24fbf5292108ec" {
+  usage multisample
+}
+asset temple-blocks-74-hard-0 "Temple Blocks" wav "media/74-hard-0.wav" sha256 "e95b088c6f51529c8c9e540419dda7c06037c8761696b75787553c22c5e7b277" {
+  usage multisample
+}
+asset temple-blocks-80-soft-0 "Temple Blocks" wav "media/80-soft-0.wav" sha256 "bce3e0e57cb75c910cbd9347501459178fb1b0510836b4f9e437a9fb60dd0197" {
+  usage multisample
+}
+asset temple-blocks-80-hard-0 "Temple Blocks" wav "media/80-hard-0.wav" sha256 "697e190bdf2fcb752e7f066e3aa1201ecb3d2bd0a419b46f58caaa0b81a05e0b" {
+  usage multisample
+}

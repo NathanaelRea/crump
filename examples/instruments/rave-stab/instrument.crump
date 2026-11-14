@@ -1,0 +1,109 @@
+crump-module 2
+instrument rave-stab "Rave Stab" graph {
+  polyphony 4
+  voicing poly retrigger always glide 0ms glide_mode always note_priority last steal_priority release_oldest seed 30315
+  parameter level "Level" ratio 0 1 0.37 0.37
+  parameter cutoff "Cutoff" hz 200hz 8khz 700hz 700hz automatable modulatable
+  parameter snap "Snap" hz 0hz 10khz 5000hz 5000hz automatable modulatable
+  parameter decay "Decay" seconds 60ms 2s 260ms 260ms automatable
+  parameter space "Space" ratio 0 1 0.3 0.3 automatable
+  faceplate {
+    control decay "Decay" "Length of each stab" maps decay
+    control snap "Snap" "Filter blip at the start of each stab" maps snap
+    control cutoff "Cutoff" "Brightness of the body" maps cutoff
+    control space "Space" "Echo and hall" maps space
+    control level "Level" "Output level" maps level
+  }
+  graph voice 13 {
+    node root analog_oscillator {
+      waveform saw
+      unison 2
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 1
+      detune 0.1st
+      blend 0.8
+      width 0.6
+      velocity_amount 0.4
+      level 0.12
+      pan 0
+    }
+    node third analog_oscillator {
+      waveform saw
+      unison 2
+      coarse 3st
+      fine 0st
+      phase 0
+      random_phase 1
+      detune 0.1st
+      blend 0.8
+      width 0.6
+      velocity_amount 0.4
+      level 0.12
+      pan 0
+    }
+    node fifth analog_oscillator {
+      waveform saw
+      unison 2
+      coarse 7st
+      fine 0st
+      phase 0
+      random_phase 1
+      detune 0.1st
+      blend 0.8
+      width 0.6
+      velocity_amount 0.4
+      level 0.12
+      pan 0
+    }
+    node seventh analog_oscillator {
+      waveform saw
+      unison 2
+      coarse 10st
+      fine 0st
+      phase 0
+      random_phase 1
+      detune 0.1st
+      blend 0.8
+      width 0.6
+      velocity_amount 0.4
+      level 0.12
+      pan 0
+    }
+    node chord stereo_sum
+    node amplitude envelope mode ahdsr attack 1ms hold 0ms decay $decay sustain 0 release 120ms attack_curve 0 decay_curve -0.3 release_curve 0 retrigger always
+    node snap-envelope envelope mode ahdsr attack 0ms hold 0ms decay 120ms sustain 0 release 60ms attack_curve 0 decay_curve -0.5 release_curve 0 retrigger always
+    node filter stereo_filter model ladder_drive mode lowpass cutoff $cutoff resonance 0.35 drive 0.3 mix 1 pan 0 mod_depth $snap velocity_depth 1500hz key_track 0.4 key_reference 261.625565hz
+    node trim stereo_mixer a_level $level b_level 0
+    node out output
+    bus root-pitch note.pitch -> root.pitch
+    bus root-gain amplitude.control -> root.gain
+    bus third-pitch note.pitch -> third.pitch
+    bus third-gain amplitude.control -> third.gain
+    bus fifth-pitch note.pitch -> fifth.pitch
+    bus fifth-gain amplitude.control -> fifth.gain
+    bus seventh-pitch note.pitch -> seventh.pitch
+    bus seventh-gain amplitude.control -> seventh.gain
+    bus root-sum root.audio -> chord.inputs
+    bus third-sum third.audio -> chord.inputs
+    bus fifth-sum fifth.audio -> chord.inputs
+    bus seventh-sum seventh.audio -> chord.inputs
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus snap-gate note.gate -> snap-envelope.gate
+    bus filter-audio chord.audio -> filter.audio
+    bus filter-snap snap-envelope.control -> filter.mod
+    bus filter-key note.pitch -> filter.key
+    bus filter-velocity note.velocity -> filter.velocity
+    bus trim-audio filter.audio -> trim.a
+    bus output trim.audio -> out.audio
+  }
+  graph shared 8 {
+    node echo delay time 187.5ms feedback 0.3 mix $space
+    node hall reverb room 0.7 damping 0.5 mix $space
+    node shared-out output
+    bus voice-sum voice_sum.audio -> echo.audio
+    bus echo-hall echo.audio -> hall.audio
+    bus shared-output hall.audio -> shared-out.audio
+  }
+}

@@ -1,0 +1,84 @@
+crump-module 2
+instrument tape-strings "Tape Strings" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.2s 0.2s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z43-soft-0 asset tape-strings-43-soft-0 keys G2 A#2 velocity 0 0.65 root G2
+      zone z43-hard-0 asset tape-strings-43-hard-0 keys G2 A#2 velocity 0.65 1 root G2
+      zone z49-soft-0 asset tape-strings-49-soft-0 keys B2 E3 velocity 0 0.65 root C#3
+      zone z49-hard-0 asset tape-strings-49-hard-0 keys B2 E3 velocity 0.65 1 root C#3
+      zone z55-soft-0 asset tape-strings-55-soft-0 keys F3 A#3 velocity 0 0.65 root G3
+      zone z55-hard-0 asset tape-strings-55-hard-0 keys F3 A#3 velocity 0.65 1 root G3
+      zone z61-soft-0 asset tape-strings-61-soft-0 keys B3 E4 velocity 0 0.65 root C#4
+      zone z61-hard-0 asset tape-strings-61-hard-0 keys B3 E4 velocity 0.65 1 root C#4
+      zone z67-soft-0 asset tape-strings-67-soft-0 keys F4 A#4 velocity 0 0.65 root G4
+      zone z67-hard-0 asset tape-strings-67-hard-0 keys F4 A#4 velocity 0.65 1 root G4
+      zone z73-soft-0 asset tape-strings-73-soft-0 keys B4 F5 velocity 0 0.65 root C#5
+      zone z73-hard-0 asset tape-strings-73-hard-0 keys B4 F5 velocity 0.65 1 root C#5
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset tape-strings-43-soft-0 "Tape Strings" wav "media/43-soft-0.wav" sha256 "7125dc05e871a20750bc9456c2721da06598a8b0c259ec22b4b3e6eb56856eca" {
+  usage multisample
+}
+asset tape-strings-43-hard-0 "Tape Strings" wav "media/43-hard-0.wav" sha256 "7c72e95e5fa2f6065deccb579dfc12a25c3d39a71e0e8604b42b0149f91750ed" {
+  usage multisample
+}
+asset tape-strings-49-soft-0 "Tape Strings" wav "media/49-soft-0.wav" sha256 "ec6ee20c0dc06835abdc8354aff7b534c90779379f71fbfaa7e6fad8ca028a6c" {
+  usage multisample
+}
+asset tape-strings-49-hard-0 "Tape Strings" wav "media/49-hard-0.wav" sha256 "b9941f90228c7efd91b8a58ac2ab3a1c043c503f72835402f0bb5613fa55816e" {
+  usage multisample
+}
+asset tape-strings-55-soft-0 "Tape Strings" wav "media/55-soft-0.wav" sha256 "9118a6d3df5a6d36eda6a662950c26920ce342561ad550dbc254673e0c93607b" {
+  usage multisample
+}
+asset tape-strings-55-hard-0 "Tape Strings" wav "media/55-hard-0.wav" sha256 "fc379ff6e01aab69ba0f66cf93954ac7d4f59614ac6102c604a029f65a3fdb21" {
+  usage multisample
+}
+asset tape-strings-61-soft-0 "Tape Strings" wav "media/61-soft-0.wav" sha256 "53467d44f3907bdae65d98b53b96f3d3447174fa0bb72e177dcfebee177dc71f" {
+  usage multisample
+}
+asset tape-strings-61-hard-0 "Tape Strings" wav "media/61-hard-0.wav" sha256 "d066dd87ca77c8355f2596e034524be57f447c65d90e35a1c5d362c08f606508" {
+  usage multisample
+}
+asset tape-strings-67-soft-0 "Tape Strings" wav "media/67-soft-0.wav" sha256 "ff881962a7aa7688bc05be9cdecc71fbe5f2859cc31ba9e53a028afabf6e157f" {
+  usage multisample
+}
+asset tape-strings-67-hard-0 "Tape Strings" wav "media/67-hard-0.wav" sha256 "86880562930b2cf7f9f302dd16cf42075159dc0327f403165d5cee195f77c0ce" {
+  usage multisample
+}
+asset tape-strings-73-soft-0 "Tape Strings" wav "media/73-soft-0.wav" sha256 "7169bbe10c33bb47c8261133a72f1e669651055acf0219f70923a19ff211ba22" {
+  usage multisample
+}
+asset tape-strings-73-hard-0 "Tape Strings" wav "media/73-hard-0.wav" sha256 "3e9c019fb1ddc43cafb614939461fba926ff04827ef6deaa362a38c097607fa2" {
+  usage multisample
+}

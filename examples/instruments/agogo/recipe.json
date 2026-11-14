@@ -1,0 +1,57 @@
+{
+  "model": "modes",
+  "params": {
+    "ratios": [
+      1,
+      2.6,
+      5.3,
+      7.4
+    ],
+    "gains": [
+      1,
+      0.15,
+      0.25,
+      0.2
+    ],
+    "decays": [
+      0.5,
+      0.3,
+      0.25,
+      0.2
+    ],
+    "contact": 0.0003,
+    "tick": 0.2,
+    "tick_band": [
+      3000,
+      12000
+    ],
+    "split": 0.012
+  },
+  "pitched": false,
+  "category": "World percussion",
+  "seconds": 2,
+  "strokes": [
+    {
+      "name": "low",
+      "keys": [
+        36,
+        60
+      ],
+      "params": {
+        "freq": 1016
+      }
+    },
+    {
+      "name": "high",
+      "keys": [
+        61,
+        85
+      ],
+      "params": {
+        "freq": 1424
+      }
+    }
+  ],
+  "id": "agogo",
+  "seed_base": 1180000
+}

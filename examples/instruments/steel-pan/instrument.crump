@@ -1,0 +1,77 @@
+crump-module 2
+instrument steel-pan "Steel Pan" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z62-soft-0 asset steel-pan-62-soft-0 keys C4 E4 velocity 0 0.65 root D4
+      zone z62-hard-0 asset steel-pan-62-hard-0 keys C4 E4 velocity 0.65 1 root D4
+      zone z67-soft-0 asset steel-pan-67-soft-0 keys F4 A4 velocity 0 0.65 root G4
+      zone z67-hard-0 asset steel-pan-67-hard-0 keys F4 A4 velocity 0.65 1 root G4
+      zone z72-soft-0 asset steel-pan-72-soft-0 keys A#4 D5 velocity 0 0.65 root C5
+      zone z72-hard-0 asset steel-pan-72-hard-0 keys A#4 D5 velocity 0.65 1 root C5
+      zone z77-soft-0 asset steel-pan-77-soft-0 keys D#5 G5 velocity 0 0.65 root F5
+      zone z77-hard-0 asset steel-pan-77-hard-0 keys D#5 G5 velocity 0.65 1 root F5
+      zone z82-soft-0 asset steel-pan-82-soft-0 keys G#5 C6 velocity 0 0.65 root A#5
+      zone z82-hard-0 asset steel-pan-82-hard-0 keys G#5 C6 velocity 0.65 1 root A#5
+      zone z87-soft-0 asset steel-pan-87-soft-0 keys C#6 F6 velocity 0 0.65 root D#6
+      zone z87-hard-0 asset steel-pan-87-hard-0 keys C#6 F6 velocity 0.65 1 root D#6
+    }
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus output source.audio -> out.audio
+  }
+}
+asset steel-pan-62-soft-0 "Steel Pan" wav "media/62-soft-0.wav" sha256 "55eacea43f9d12776243c7e199d43b88f5f602f80ea1a7b999e6e1c7109ef2ca" {
+  usage multisample
+}
+asset steel-pan-62-hard-0 "Steel Pan" wav "media/62-hard-0.wav" sha256 "7f214a58b4f538574256f985bb83863dde8359613a1671317f6f418b29e89cd5" {
+  usage multisample
+}
+asset steel-pan-67-soft-0 "Steel Pan" wav "media/67-soft-0.wav" sha256 "7f87f1f4bbd5b50d6f6aaf3a79c76f304b48dd8b130afb35be1065e6d0d03e31" {
+  usage multisample
+}
+asset steel-pan-67-hard-0 "Steel Pan" wav "media/67-hard-0.wav" sha256 "ccccaaac4fa0f873fed48eac1693acfa3cfd7c17b4fdfd21adf411ef7d7a6a3a" {
+  usage multisample
+}
+asset steel-pan-72-soft-0 "Steel Pan" wav "media/72-soft-0.wav" sha256 "a5e99c5b5a40b904252647ba8958c8932ab0697df67928611363af05aa300b5c" {
+  usage multisample
+}
+asset steel-pan-72-hard-0 "Steel Pan" wav "media/72-hard-0.wav" sha256 "db2f7cd0078a44f50720a13ee06ef3f28f5294e274dab99190d1bf8385b0b0e6" {
+  usage multisample
+}
+asset steel-pan-77-soft-0 "Steel Pan" wav "media/77-soft-0.wav" sha256 "f47cc4e50720a8436465c8ed51bb0d5d76e7cbc4681bf77e32460c7166e5a7e5" {
+  usage multisample
+}
+asset steel-pan-77-hard-0 "Steel Pan" wav "media/77-hard-0.wav" sha256 "b81fad5fd3ec3257d79807aee5d03d2d82517652d7dc7745d8c3a9abb2ff8bab" {
+  usage multisample
+}
+asset steel-pan-82-soft-0 "Steel Pan" wav "media/82-soft-0.wav" sha256 "cd718e5ddc3682ccc7b68a826fb3633cfe630c2899efe83e435395090a996006" {
+  usage multisample
+}
+asset steel-pan-82-hard-0 "Steel Pan" wav "media/82-hard-0.wav" sha256 "1dc3d9f76f52d92b4b50acd407bba27e3061397abeb95ea7c8a3513a06a04b13" {
+  usage multisample
+}
+asset steel-pan-87-soft-0 "Steel Pan" wav "media/87-soft-0.wav" sha256 "8b3e3553a090d6118fae73239c15e551b4edc4995c42175f69bc70d8810a7f50" {
+  usage multisample
+}
+asset steel-pan-87-hard-0 "Steel Pan" wav "media/87-hard-0.wav" sha256 "cddf55ed9e5e042a8ebae17dbc8e09b59434d8769206eb9c2ffa1b56f23397ae" {
+  usage multisample
+}

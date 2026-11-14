@@ -26,8 +26,8 @@ SETUP = (
 class LibraryTests(unittest.TestCase):
     def test_complete_catalog_has_unique_ids_and_exact_media(self):
         entries = json.loads((ROOT / "catalog.json").read_text())
-        self.assertEqual(len(entries), 92)
-        self.assertEqual(len({e["id"] for e in entries}), 92)
+        self.assertEqual(len(entries), 184)
+        self.assertEqual(len({e["id"] for e in entries}), 184)
         assets, profiles = set(), set()
         missing = 0
         for entry in entries:

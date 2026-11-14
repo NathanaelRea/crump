@@ -1,0 +1,246 @@
+{
+  "algorithm": "crump-instrument-materials-v1",
+  "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
+  "recipe_sha256": "d3d7aed3c8fbf9660dbe72abc74e0237757a889051da59a8688222f9685286b2",
+  "format": "mono PCM16",
+  "assets": [
+    {
+      "id": "english-horn-52-soft-0",
+      "path": "media/52-soft-0.wav",
+      "sha256": "288d927613d916a7b77ad4d8d261aaafc6b516f1bec6be45ba93a37cb28e8165",
+      "frames": 152963,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1500520,
+      "normalization_gain": 0.43140172177501035,
+      "loop": [
+        48000,
+        125185,
+        8160
+      ]
+    },
+    {
+      "id": "english-horn-52-hard-0",
+      "path": "media/52-hard-0.wav",
+      "sha256": "76f1b745d7e313899930c21ad786898f14e0f8c664cf212ec09209244913633f",
+      "frames": 153469,
+      "sample_rate": 48000,
+      "root_midi": 52,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1500520,
+      "normalization_gain": 0.43140172177501035,
+      "loop": [
+        48000,
+        124893,
+        8160
+      ]
+    },
+    {
+      "id": "english-horn-57-soft-0",
+      "path": "media/57-soft-0.wav",
+      "sha256": "116dee4e6f83da7f8edb290c81ab163cae9dc38a007a6a1c4c575a639594bd6a",
+      "frames": 153203,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1500570,
+      "normalization_gain": 0.4693820114435438,
+      "loop": [
+        48000,
+        125796,
+        8160
+      ]
+    },
+    {
+      "id": "english-horn-57-hard-0",
+      "path": "media/57-hard-0.wav",
+      "sha256": "0a5e3dea1c970626d3c3d596cab1dba1c70db4577c43807ab3d8c0c83ba1a108",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 57,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1500570,
+      "normalization_gain": 0.4693820114435438,
+      "loop": [
+        48000,
+        125795,
+        8160
+      ]
+    },
+    {
+      "id": "english-horn-62-soft-0",
+      "path": "media/62-soft-0.wav",
+      "sha256": "44c0f550512f7de72a38a9a2f8aa3092b123565790d2de3687575144ba324daf",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1500620,
+      "normalization_gain": 0.4933321602526108,
+      "loop": [
+        48000,
+        125875,
+        8160
+      ]
+    },
+    {
+      "id": "english-horn-62-hard-0",
+      "path": "media/62-hard-0.wav",
+      "sha256": "fea5852a52167cd6834c05308e723643f8aec634bf7b0f5959632dbd1cd58f8e",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 62,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1500620,
+      "normalization_gain": 0.4933321602526108,
+      "loop": [
+        48000,
+        125880,
+        8160
+      ]
+    },
+    {
+      "id": "english-horn-67-soft-0",
+      "path": "media/67-soft-0.wav",
+      "sha256": "2f7ea23018e3be08869c569402d4ca5ed548cabb8316bdd5caba11e22b3cc80d",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1500670,
+      "normalization_gain": 0.5542494474783908,
+      "loop": [
+        48000,
+        123650,
+        8160
+      ]
+    },
+    {
+      "id": "english-horn-67-hard-0",
+      "path": "media/67-hard-0.wav",
+      "sha256": "7af365aa633556a668becd9e0df3805da84617c0a65b3c0aca053fbc20c76456",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 67,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1500670,
+      "normalization_gain": 0.5542494474783908,
+      "loop": [
+        48000,
+        123652,
+        8160
+      ]
+    },
+    {
+      "id": "english-horn-72-soft-0",
+      "path": "media/72-soft-0.wav",
+      "sha256": "31bb9ab3c9a3a066f5c25f76358aa42d5df08b0e9b4b46f9e0cae3b585e72711",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 72,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1500720,
+      "normalization_gain": 0.6384832730324547,
+      "loop": [
+        48000,
+        125941,
+        8160
+      ]
+    },
+    {
+      "id": "english-horn-72-hard-0",
+      "path": "media/72-hard-0.wav",
+      "sha256": "11a6fb0b2448f144f756bf9a5afb9dec4ffbf2bc0b069db584a92c4690bb7253",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 72,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1500720,
+      "normalization_gain": 0.6384832730324547,
+      "loop": [
+        48000,
+        125948,
+        8160
+      ]
+    },
+    {
+      "id": "english-horn-78-soft-0",
+      "path": "media/78-soft-0.wav",
+      "sha256": "16c5bf04ef3b7e9ca7a32fa66f73b3591c974f8ecab1f552f5c60d7f6d8756cb",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 78,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1500780,
+      "normalization_gain": 0.6989403108057364,
+      "loop": [
+        48000,
+        123607,
+        8160
+      ]
+    },
+    {
+      "id": "english-horn-78-hard-0",
+      "path": "media/78-hard-0.wav",
+      "sha256": "c10383f0d4d32b8061527a300845c6acab0523fde4bcbbf6d800913b6173bf13",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 78,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1500780,
+      "normalization_gain": 0.6989403108057364,
+      "loop": [
+        48000,
+        123607,
+        8160
+      ]
+    },
+    {
+      "id": "english-horn-83-soft-0",
+      "path": "media/83-soft-0.wav",
+      "sha256": "5c6fca6a768c463828763410ed464891574d74e307efb81c4c10f5019172d440",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 83,
+      "velocity": 0.48,
+      "round_robin": 0,
+      "seed": 1500830,
+      "normalization_gain": 0.4807934492136888,
+      "loop": [
+        48000,
+        123617,
+        8160
+      ]
+    },
+    {
+      "id": "english-horn-83-hard-0",
+      "path": "media/83-hard-0.wav",
+      "sha256": "c0976fac1959dd4d16c0e463a4105eb16154fd8e33c78b9c4f70b333d4588954",
+      "frames": 153600,
+      "sample_rate": 48000,
+      "root_midi": 83,
+      "velocity": 0.92,
+      "round_robin": 0,
+      "seed": 1500830,
+      "normalization_gain": 0.4807934492136888,
+      "loop": [
+        48000,
+        125987,
+        8160
+      ]
+    }
+  ]
+}

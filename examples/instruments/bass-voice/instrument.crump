@@ -1,0 +1,84 @@
+crump-module 2
+instrument bass-voice "Bass Voice" graph {
+  polyphony 16
+  parameter level "Level" ratio 0 1 0.2 0.2
+  parameter tune "Tune" semitones -12st 12st 0st 0st
+  parameter pan "Pan" pan -1 1 0 0
+  parameter touch "Touch" ratio 0 1 0.5 0.5
+  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  parameter release "Release" seconds 0.02s 4s 0.35s 0.35s
+  faceplate {
+    control level "Level" "Output level" maps level
+    control tune "Tune" "Repitch the instrument" maps tune
+    control pan "Pan" "Stereo position" maps pan
+    control touch "Touch" "Velocity amplitude response" maps touch
+    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+  }
+  graph voice 8 {
+    node source multisample {
+      playback one_shot
+      tune $tune
+      rate 1
+      velocity_amount $touch
+      level $level
+      pan $pan
+      zone z36-soft-0 asset bass-voice-36-soft-0 keys C2 D2 velocity 0 0.65 root C2 loop 48000 125991 crossfade 8160
+      zone z36-hard-0 asset bass-voice-36-hard-0 keys C2 D2 velocity 0.65 1 root C2 loop 48000 123735 crossfade 8160
+      zone z41-soft-0 asset bass-voice-41-soft-0 keys D#2 G2 velocity 0 0.65 root F2 loop 48000 124899 crossfade 8160
+      zone z41-hard-0 asset bass-voice-41-hard-0 keys D#2 G2 velocity 0.65 1 root F2 loop 48000 125984 crossfade 8160
+      zone z46-soft-0 asset bass-voice-46-soft-0 keys G#2 C3 velocity 0 0.65 root A#2 loop 48000 125100 crossfade 8160
+      zone z46-hard-0 asset bass-voice-46-hard-0 keys G#2 C3 velocity 0.65 1 root A#2 loop 48000 125090 crossfade 8160
+      zone z51-soft-0 asset bass-voice-51-soft-0 keys C#3 F3 velocity 0 0.65 root D#3 loop 48000 124260 crossfade 8160
+      zone z51-hard-0 asset bass-voice-51-hard-0 keys C#3 F3 velocity 0.65 1 root D#3 loop 48000 123959 crossfade 8160
+      zone z56-soft-0 asset bass-voice-56-soft-0 keys F#3 A#3 velocity 0 0.65 root G#3 loop 48000 125919 crossfade 8160
+      zone z56-hard-0 asset bass-voice-56-hard-0 keys F#3 A#3 velocity 0.65 1 root G#3 loop 48000 123657 crossfade 8160
+      zone z61-soft-0 asset bass-voice-61-soft-0 keys B3 E4 velocity 0 0.65 root C#4 loop 48000 125850 crossfade 8160
+      zone z61-hard-0 asset bass-voice-61-hard-0 keys B3 E4 velocity 0.65 1 root C#4 loop 48000 126000 crossfade 8160
+    }
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    node out output
+    bus pitch note.pitch -> source.pitch
+    bus gate note.gate -> source.gate
+    bus velocity note.velocity -> source.velocity
+    bus amplitude amplitude.control -> source.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output source.audio -> out.audio
+  }
+}
+asset bass-voice-36-soft-0 "Bass Voice" wav "media/36-soft-0.wav" sha256 "0d596f8f30d9f385bbf20766244b015cc23c8a7a04fbb79fb2e41d4023dff059" {
+  usage multisample
+}
+asset bass-voice-36-hard-0 "Bass Voice" wav "media/36-hard-0.wav" sha256 "c4c1327b65fa12ee254f1616ff0ff8771106522ea7715cc31d387ebbbef218e9" {
+  usage multisample
+}
+asset bass-voice-41-soft-0 "Bass Voice" wav "media/41-soft-0.wav" sha256 "be6a0b8ed996c39e894457f2d569f9f4cf15bbf1816ddc15c41c4d64b0b7917b" {
+  usage multisample
+}
+asset bass-voice-41-hard-0 "Bass Voice" wav "media/41-hard-0.wav" sha256 "5f1b80d0ea30e26018b9912bd4f5d241786b80a983454443e6b04e99eee66965" {
+  usage multisample
+}
+asset bass-voice-46-soft-0 "Bass Voice" wav "media/46-soft-0.wav" sha256 "5a8039126a9b5f9c43378f6a67519d1620bd34c2d2a7baaf21491c1b83d89aa8" {
+  usage multisample
+}
+asset bass-voice-46-hard-0 "Bass Voice" wav "media/46-hard-0.wav" sha256 "5911f97385a07c12518983388348ccdc4409d7a1ebc80a2b3ebf538fbbcf9411" {
+  usage multisample
+}
+asset bass-voice-51-soft-0 "Bass Voice" wav "media/51-soft-0.wav" sha256 "b37c3cb794b72314a3fe54c39a45bd452ada5e09b30c4d6b7323e88793bc880c" {
+  usage multisample
+}
+asset bass-voice-51-hard-0 "Bass Voice" wav "media/51-hard-0.wav" sha256 "e874b989b98caaf7f9419747e8eea7903d3d47417f093b555863360ac362e1ae" {
+  usage multisample
+}
+asset bass-voice-56-soft-0 "Bass Voice" wav "media/56-soft-0.wav" sha256 "452a89a4ed3472bd240d44202897f2d69ba8a7f9749250e2e895eb7bc41b0415" {
+  usage multisample
+}
+asset bass-voice-56-hard-0 "Bass Voice" wav "media/56-hard-0.wav" sha256 "732a9203781846f377e8a9a787dd61d030a1888c49096c159bb65ea34e025cd2" {
+  usage multisample
+}
+asset bass-voice-61-soft-0 "Bass Voice" wav "media/61-soft-0.wav" sha256 "d8b56eadbe730664668bcd0e922f4154634d42750808b2fe55bc48c6baf7f219" {
+  usage multisample
+}
+asset bass-voice-61-hard-0 "Bass Voice" wav "media/61-hard-0.wav" sha256 "ac0e30c0e31011230339834fc2b7276b3325c3e197c37e6478e88befc45e98e7" {
+  usage multisample
+}

@@ -1,0 +1,71 @@
+{
+  "model": "sustained",
+  "params": {
+    "drift": 2,
+    "shimmer": 0.03,
+    "shimmer_rate": 7,
+    "swell": 0.03,
+    "noise_band": [
+      800,
+      9000
+    ],
+    "noise_comb": 0.8,
+    "taper": 0.5,
+    "jitter": 2,
+    "vibrato_wander": 0.25,
+    "motions": 12,
+    "motion_tilt": 0.4,
+    "pulse": 0.5,
+    "gamma": 0.05,
+    "attack": [
+      0.03,
+      0.018
+    ],
+    "formants": [],
+    "floor": 1,
+    "rolloff": [
+      2200,
+      3
+    ],
+    "slope": [
+      2.6,
+      2.1
+    ],
+    "vibrato": [
+      5,
+      0,
+      6,
+      0.4,
+      0.5
+    ],
+    "noise": [
+      0.03,
+      0.3,
+      0.015
+    ]
+  },
+  "pitched": true,
+  "category": "World winds",
+  "seconds": 3.2,
+  "loop": [
+    1.0,
+    2.6,
+    0.17
+  ],
+  "roots": [
+    62,
+    67,
+    72,
+    77,
+    82,
+    87
+  ],
+  "range": [
+    60,
+    89
+  ],
+  "release": 0.15,
+  "audition": 72,
+  "id": "ocarina",
+  "seed_base": 1570000
+}
