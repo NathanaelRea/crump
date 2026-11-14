@@ -1,11 +1,11 @@
 {
   "model": "chimes",
   "params": {
-    "count": 28,
-    "low": 2600,
-    "high": 9000,
-    "sweep": 1.1,
-    "decay": 1.6
+    "count": 35,
+    "low": 6500,
+    "high": 16000,
+    "sweep": 1.4,
+    "decay": 0.5
   },
   "pitched": false,
   "category": "World percussion",

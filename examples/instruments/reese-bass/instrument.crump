@@ -2,7 +2,7 @@ crump-module 2
 instrument reese-bass "Reese Bass" graph {
   polyphony 1
   voicing mono retrigger legato glide 30ms glide_mode legato note_priority last steal_priority release_oldest seed 30303
-  parameter level "Level" ratio 0 1 0.62 0.62
+  parameter level "Level" ratio 0 1 0.3 0.3
   parameter cutoff "Cutoff" hz 80hz 6khz 700hz 700hz automatable modulatable
   parameter detune "Detune" semitones 0st 0.6st 0.2st 0.2st automatable
   parameter drive "Drive" ratio 0 1 0.45 0.45 automatable modulatable
@@ -41,7 +41,7 @@ instrument reese-bass "Reese Bass" graph {
     }
     node sources stereo_mixer a_level 1 b_level 0.45
     node amplitude envelope mode ahdsr attack 5ms hold 0ms decay 100ms sustain 1 release 200ms attack_curve 0 decay_curve 0 release_curve 0 retrigger legato
-    node filter stereo_filter model ladder_drive mode lowpass cutoff $cutoff resonance 0.18 drive $drive mix 1 pan 0 mod_depth 0hz velocity_depth 500hz key_track 0.3 key_reference 65.406391hz
+    node filter stereo_filter model ladder_drive mode lowpass cutoff $cutoff resonance 0.05 drive $drive mix 1 pan 0 mod_depth 0hz velocity_depth 500hz key_track 0.3 key_reference 65.406391hz
     node trim stereo_mixer a_level $level b_level 0
     node out output
     bus saws-pitch note.pitch -> saws.pitch

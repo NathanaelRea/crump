@@ -2,7 +2,7 @@ crump-module 2
 instrument acid-line "Acid Line" graph {
   polyphony 1
   voicing mono retrigger legato glide 70ms glide_mode legato note_priority last steal_priority release_oldest seed 30301
-  parameter level "Level" ratio 0 1 0.32 0.32
+  parameter level "Level" ratio 0 1 0.6 0.6
   parameter cutoff "Cutoff" hz 60hz 4khz 320hz 320hz automatable modulatable
   parameter resonance "Resonance" ratio 0 1 0.78 0.78 automatable modulatable
   parameter envelope "Env Mod" hz 0hz 6khz 2600hz 2600hz automatable modulatable
@@ -26,12 +26,12 @@ instrument acid-line "Acid Line" graph {
       random_phase 0
       glide 70ms
       velocity_amount 0.3
-      level 0.32
+      level 1
       pan 0
     }
     node amplitude envelope mode ahdsr attack 1ms hold 0ms decay 400ms sustain 0.7 release 40ms attack_curve 0 decay_curve -0.2 release_curve 0 retrigger legato
     node sweep envelope mode ahdsr attack 1ms hold 0ms decay $decay sustain 0 release 80ms attack_curve 0 decay_curve -0.4 release_curve 0 retrigger legato
-    node filter stereo_filter model ladder_drive mode lowpass cutoff $cutoff resonance $resonance drive 0.35 mix 1 pan 0 mod_depth $envelope velocity_depth $accent key_track 0.25 key_reference 65.406391hz
+    node filter stereo_filter model ladder_drive mode lowpass cutoff $cutoff resonance $resonance drive 0 mix 1 pan 0 mod_depth $envelope velocity_depth $accent key_track 0.25 key_reference 65.406391hz
     node trim stereo_mixer a_level $level b_level 0
     node out output
     bus saw-pitch note.pitch -> saw.pitch

@@ -2,7 +2,7 @@ crump-module 2
 instrument analog-pad "Analog Pad" graph {
   polyphony 8
   voicing poly retrigger always glide 0ms glide_mode always note_priority last steal_priority release_oldest seed 30312
-  parameter level "Level" ratio 0 1 0.068 0.068
+  parameter level "Level" ratio 0 1 0.12 0.12
   parameter attack "Attack" seconds 10ms 4s 900ms 900ms automatable
   parameter release "Release" seconds 100ms 8s 1.5s 1.5s automatable
   parameter cutoff "Cutoff" hz 200hz 10khz 1600hz 1600hz automatable modulatable

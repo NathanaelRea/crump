@@ -67,27 +67,27 @@ instrument guiro "Guiro" graph {
     bus output source.audio -> out.audio
   }
 }
-asset guiro-long-60-soft-0 "Guiro" wav "media/long-60-soft-0.wav" sha256 "2150fde56bd03e78b171f9a7b51845c2fc70af0a1583aba77eaf1ae6e05b4db9" {
+asset guiro-long-60-soft-0 "Guiro" wav "media/long-60-soft-0.wav" sha256 "cd1ae9ba83a6b60ab678aeeadb5a176a23f90e00f763981de75d9e00e97ea402" {
   usage multisample
 }
-asset guiro-long-60-hard-0 "Guiro" wav "media/long-60-hard-0.wav" sha256 "ac55c7b45d14171153c89952838ca0f2dedd7628c7037db539fd3814d5d6acb9" {
+asset guiro-long-60-hard-0 "Guiro" wav "media/long-60-hard-0.wav" sha256 "ae652df6c75fcd9fb79e988b58894e9a3ed7a5de272ea270e68caa0e8bef4c0d" {
   usage multisample
 }
-asset guiro-long-60-soft-1 "Guiro" wav "media/long-60-soft-1.wav" sha256 "10513d66f15c20208a09415abd3a377125d4e7c9dacd74b39e4967fb31168cd6" {
+asset guiro-long-60-soft-1 "Guiro" wav "media/long-60-soft-1.wav" sha256 "f6a7cd94fabb1c11e8e55cdaf87dc984ef1f69d80dab05f6cc38cf7cb69fb5f2" {
   usage multisample
 }
-asset guiro-long-60-hard-1 "Guiro" wav "media/long-60-hard-1.wav" sha256 "7a6a282fc38a42df6474ce8c321d8064df5a7451ffa78a8ea029b472f271116a" {
+asset guiro-long-60-hard-1 "Guiro" wav "media/long-60-hard-1.wav" sha256 "a428f79bba9618f2a07d1b1f2277b84bd9d1b55b57e27cb6331fe58945fa5249" {
   usage multisample
 }
-asset guiro-short-60-soft-0 "Guiro" wav "media/short-60-soft-0.wav" sha256 "db3705bfe3394f3a50b3b653a765176770d02c7cc57f5846a4c0597f14fdef25" {
+asset guiro-short-60-soft-0 "Guiro" wav "media/short-60-soft-0.wav" sha256 "4fb0059b48c6c6389f4789d5a3c594a5a6884a812fe33219c889a74391b5c763" {
   usage multisample
 }
-asset guiro-short-60-hard-0 "Guiro" wav "media/short-60-hard-0.wav" sha256 "817006da197ee91f2fb1d16cc17949104d85880f16114e81552bfc21871fa274" {
+asset guiro-short-60-hard-0 "Guiro" wav "media/short-60-hard-0.wav" sha256 "1e8d649a4913298c4a05f0e3c048c866cadcc8efe4bcfc525dbf727f13f2a9ac" {
   usage multisample
 }
-asset guiro-short-60-soft-1 "Guiro" wav "media/short-60-soft-1.wav" sha256 "ea69b01c437aaaf6c093b66522e68749e484bb55a205547def6a451a152c0875" {
+asset guiro-short-60-soft-1 "Guiro" wav "media/short-60-soft-1.wav" sha256 "fc4d4b7e92e4482a151013f341a80791f0d654b967eb34508afa87fe3eed0ec7" {
   usage multisample
 }
-asset guiro-short-60-hard-1 "Guiro" wav "media/short-60-hard-1.wav" sha256 "3ed236e50be1d6060d2cb87253ae953a26503e6a10aaaa7f77af8e5e28d61c7d" {
+asset guiro-short-60-hard-1 "Guiro" wav "media/short-60-hard-1.wav" sha256 "71cc5917d68a0e67a5c042f6eddaa084ea6fa33814e39e3f8d4cdc2f2b97d3aa" {
   usage multisample
 }

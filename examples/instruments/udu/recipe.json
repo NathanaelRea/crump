@@ -16,25 +16,34 @@
           {
             "model": "machine",
             "params": {
-              "freq": 110,
+              "freq": 88,
               "tone": 1,
               "sweep": -0.35,
-              "sweep_time": 0.06,
-              "decay": 0.2
+              "sweep_time": 0.07,
+              "hold": 0.08,
+              "decay": 0.15
             },
             "gain": 1
           },
           {
-            "model": "machine",
+            "model": "modes",
             "params": {
-              "noise": 1,
-              "noise_band": [
-                150,
-                900
+              "freq": 1000,
+              "ratios": [
+                1,
+                1.5,
+                2
               ],
-              "noise_decay": 0.05
+              "gains": [
+                1,
+                0.7,
+                0.6
+              ],
+              "decay": 0.05,
+              "contact": 0.0008,
+              "tick": 0.2
             },
-            "gain": 0.2
+            "gain": 0.35
           }
         ]
       }
@@ -50,22 +59,35 @@
           {
             "model": "modes",
             "params": {
-              "freq": 520,
+              "freq": 1000,
               "ratios": [
                 1,
-                2.3,
-                3.9
+                1.41,
+                1.5,
+                1.96,
+                2.0
               ],
               "gains": [
-                1,
-                0.5,
-                0.2
+                0.6,
+                0.7,
+                0.6,
+                0.8,
+                1
               ],
               "decay": 0.06,
-              "contact": 0.0008,
+              "contact": 0.0002,
               "tick": 0.3
             },
             "gain": 1
+          },
+          {
+            "model": "machine",
+            "params": {
+              "freq": 137,
+              "tone": 1,
+              "decay": 0.1
+            },
+            "gain": 0.025
           }
         ]
       }

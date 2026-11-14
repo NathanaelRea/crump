@@ -63,17 +63,7 @@
         -12
       ]
     ],
-    "drones": [
-      [
-        48,
-        0.45
-      ],
-      [
-        55,
-        0.35
-      ]
-    ],
-    "buzz": 0.25,
+    "buzz": 0.15,
     "buzz_bands": [
       [
         2000,
@@ -84,7 +74,17 @@
         2500
       ]
     ],
-    "buzz_sink": 0.8
+    "buzz_sink": 0.8,
+    "drone_intervals": [
+      [
+        -12,
+        0.4
+      ],
+      [
+        -17,
+        0.3
+      ]
+    ]
   },
   "extends": "bowed",
   "category": "World strings",

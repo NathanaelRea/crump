@@ -1,56 +1,56 @@
 {
   "algorithm": "crump-instrument-materials-v1",
   "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
-  "recipe_sha256": "70cf49952d3d42cb0b8d647d9973804ce3ed5351bf7fb06ae95252d6c98f91ea",
+  "recipe_sha256": "cebf424f43d5cbea5c6a6400aaccf2092f0491039863980ebac2a35731c88899",
   "format": "mono PCM16",
   "assets": [
     {
       "id": "taiko-don-60-soft-0",
       "path": "media/don-60-soft-0.wav",
-      "sha256": "cf8d2c55580039560ad6ae6b7bcba716093295652800b53c12a144d2951881fa",
-      "frames": 157935,
+      "sha256": "6faa6874e985be972a0c611ca18b5e808eb8cdcfb4d05e644d64398de34765eb",
+      "frames": 161199,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.48,
       "round_robin": 0,
       "seed": 1151600,
-      "normalization_gain": 0.5460310769419695
+      "normalization_gain": 0.7703111554575824
     },
     {
       "id": "taiko-don-60-hard-0",
       "path": "media/don-60-hard-0.wav",
-      "sha256": "203a0b1582a3f70a0c3cea47f8a63ebdb5b42decf3511cc64e09d2d5de2b3d9b",
-      "frames": 165827,
+      "sha256": "4d59df405a01405e47568eccb983be4231049c5e5ce5e2077e4e21b0df45eb46",
+      "frames": 168378,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.92,
       "round_robin": 0,
       "seed": 1151600,
-      "normalization_gain": 0.5460310769419695
+      "normalization_gain": 0.7703111554575824
     },
     {
       "id": "taiko-don-60-soft-1",
       "path": "media/don-60-soft-1.wav",
-      "sha256": "3906891515f89a2a16b1520194915a327dd5ae4b14f17908d15fdf019065a11a",
-      "frames": 158323,
+      "sha256": "23ff8247b5d055b86b1ebfa078d14f1e10651824899b246696b773e5e5c89500",
+      "frames": 160092,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.48,
       "round_robin": 1,
       "seed": 1151601,
-      "normalization_gain": 0.5517020933022146
+      "normalization_gain": 0.7703111554575824
     },
     {
       "id": "taiko-don-60-hard-1",
       "path": "media/don-60-hard-1.wav",
-      "sha256": "0ebb7345880f5a16445d7323e060a6e895a4ed4a27c45175e2ce3f854ec26554",
-      "frames": 166065,
+      "sha256": "7b5a5a81d921ef51f224675a1c5baa332a598b86d2bf5fe0cfa4c5d709a096b0",
+      "frames": 168294,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.92,
       "round_robin": 1,
       "seed": 1151601,
-      "normalization_gain": 0.5517020933022146
+      "normalization_gain": 0.7703111554575824
     },
     {
       "id": "taiko-ka-60-soft-0",

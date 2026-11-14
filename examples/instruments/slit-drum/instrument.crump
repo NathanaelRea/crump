@@ -37,33 +37,33 @@ instrument slit-drum "Slit Drum" graph {
     bus output source.audio -> out.audio
   }
 }
-asset slit-drum-42-soft-0 "Slit Drum" wav "media/42-soft-0.wav" sha256 "7ddc349a1e738ddfd90b77df04a0d65240beba5b26bbac9924c770159c8e6dd0" {
+asset slit-drum-42-soft-0 "Slit Drum" wav "media/42-soft-0.wav" sha256 "6130d4d6df1c980cce9000d1dbadaadda6e38fe59ef7368938b2326c0fbfde5c" {
   usage multisample
 }
-asset slit-drum-42-hard-0 "Slit Drum" wav "media/42-hard-0.wav" sha256 "aab9f2bdcc7e9d1603e1b39e709956517a8a86d4edc5314b0a8dda8327677cc2" {
+asset slit-drum-42-hard-0 "Slit Drum" wav "media/42-hard-0.wav" sha256 "c5cf1630c178e61edd4a58eb5fac3f65f0ff969e3a9cfdf36e64f18ab92586d1" {
   usage multisample
 }
-asset slit-drum-48-soft-0 "Slit Drum" wav "media/48-soft-0.wav" sha256 "f91878fe6ff6ec736b3f6a3d56a659098afa270ebc30310ca828c88bebfc0b33" {
+asset slit-drum-48-soft-0 "Slit Drum" wav "media/48-soft-0.wav" sha256 "b4e5d0108212352146d5613ab519602baa9022933a4a95cccac4e92b19ac8324" {
   usage multisample
 }
-asset slit-drum-48-hard-0 "Slit Drum" wav "media/48-hard-0.wav" sha256 "b56bf3fe8a2caed02fb012a0552319e49dccb8c415f051afd28c782cc668f332" {
+asset slit-drum-48-hard-0 "Slit Drum" wav "media/48-hard-0.wav" sha256 "3fd6c3c405e9587029d895cdb425d809c6e81ce862934a0dfb21e623e84e4d4f" {
   usage multisample
 }
-asset slit-drum-54-soft-0 "Slit Drum" wav "media/54-soft-0.wav" sha256 "23f19e09877ed9c8abbb3a30327a8caf0b972b9dc53269ce84000ce570f3694b" {
+asset slit-drum-54-soft-0 "Slit Drum" wav "media/54-soft-0.wav" sha256 "ff8a02f36b9aa5759fcddf544c59f015bac8396b4ac1a0b1e29f84408260d96e" {
   usage multisample
 }
-asset slit-drum-54-hard-0 "Slit Drum" wav "media/54-hard-0.wav" sha256 "36cc8bb21a8010187009c90fe3911f241f6b6d9158dadd79a1ade6b3e97cce0d" {
+asset slit-drum-54-hard-0 "Slit Drum" wav "media/54-hard-0.wav" sha256 "8467520437c83d82519eef83c20fb914be540f05ba433c5cc69ddcb02ae1f490" {
   usage multisample
 }
-asset slit-drum-60-soft-0 "Slit Drum" wav "media/60-soft-0.wav" sha256 "96c13e1bd7985877e3bab3766625f02e09b1fb7f1dd31244910d686304ff7e7f" {
+asset slit-drum-60-soft-0 "Slit Drum" wav "media/60-soft-0.wav" sha256 "02bbe401541bf7e7cfc2706b45e8abc211079ad6369df76b20555f7442d1f841" {
   usage multisample
 }
-asset slit-drum-60-hard-0 "Slit Drum" wav "media/60-hard-0.wav" sha256 "9688b92b34c613fa120fbb6259f5164e37dddfa5dbbf01b4ea0041faaf7fc712" {
+asset slit-drum-60-hard-0 "Slit Drum" wav "media/60-hard-0.wav" sha256 "6be22e4bc5e22f5de36701f065b755fe3884d785b021732360c6a2b4c0cf8491" {
   usage multisample
 }
-asset slit-drum-66-soft-0 "Slit Drum" wav "media/66-soft-0.wav" sha256 "5ed53b297fae54aa9cbf07aaa79a6710c8b7fc9a4a896a67998d196d885c7f45" {
+asset slit-drum-66-soft-0 "Slit Drum" wav "media/66-soft-0.wav" sha256 "4b4e56f6387d7dfddba77e84cbe00d54f26f7ec9dce81a9f348a1567382b7749" {
   usage multisample
 }
-asset slit-drum-66-hard-0 "Slit Drum" wav "media/66-hard-0.wav" sha256 "24acfd73ca7f2c49d4ec6ac98a35d99bef4c6a9536d145160c7d7885032bec56" {
+asset slit-drum-66-hard-0 "Slit Drum" wav "media/66-hard-0.wav" sha256 "5bfd413281275c9159888b91fcb954d371a4a74026c6b362701edfe533d2965b" {
   usage multisample
 }

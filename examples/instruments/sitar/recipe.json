@@ -1,9 +1,9 @@
 {
   "model": "plucked",
   "params": {
-    "decay": 3.0,
-    "bright": 5000,
-    "position": 0.15,
+    "decay": 1.2,
+    "bright": 12000,
+    "position": 0.1,
     "body": [
       180,
       420,
@@ -11,7 +11,7 @@
       1800
     ],
     "body_mix": 0.35,
-    "buzz": 0.4,
+    "buzz": 0,
     "buzz_drive": 4,
     "buzz_bands": [
       [
@@ -23,8 +23,8 @@
         2500
       ]
     ],
-    "buzz_sink": 1.2,
-    "sympathetic": 0.35,
+    "buzz_sink": 0.5,
+    "sympathetic": 0.08,
     "sympathetic_notes": [
       60,
       62,
@@ -38,12 +38,14 @@
       76,
       77
     ],
-    "sympathetic_decay": 2.5,
-    "thump": 0.04
+    "sympathetic_decay": 1.0,
+    "thump": 0.04,
+    "jawari": 0.5,
+    "jawari_damping": 0.01
   },
   "pitched": true,
   "category": "World strings",
-  "seconds": 10,
+  "seconds": 6,
   "roots": [
     50,
     56,

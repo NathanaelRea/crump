@@ -67,15 +67,15 @@ instrument china-cymbal "China Cymbal" graph {
     bus output source.audio -> out.audio
   }
 }
-asset china-cymbal-60-soft-0 "China Cymbal" wav "media/60-soft-0.wav" sha256 "b7c454bfd4f05430a74a28b44795243a782644caebf8210e36ee89c2a88abcf8" {
+asset china-cymbal-60-soft-0 "China Cymbal" wav "media/60-soft-0.wav" sha256 "fd2177c38af7fe04db760315e1ed528d63b33460615bdcb3ec1a96928bff733b" {
   usage multisample
 }
-asset china-cymbal-60-hard-0 "China Cymbal" wav "media/60-hard-0.wav" sha256 "e5e68063d160bf19eded246fda3443fc06da840bf2f4c09a7aac8a0a01b1eec3" {
+asset china-cymbal-60-hard-0 "China Cymbal" wav "media/60-hard-0.wav" sha256 "a59a58413867d256443cb6cc753b2d6f15bf70103990f4a5a224eae219a32b9e" {
   usage multisample
 }
-asset china-cymbal-60-soft-1 "China Cymbal" wav "media/60-soft-1.wav" sha256 "15c5ca47ce508f7d24c2835a90cfb6f100424980bf1dd0f71fb4bf772b8cb39c" {
+asset china-cymbal-60-soft-1 "China Cymbal" wav "media/60-soft-1.wav" sha256 "5944eea0abc18ef2210fb6b71b881fa3258abdf303ba9a1fbba0168dd1bca0f3" {
   usage multisample
 }
-asset china-cymbal-60-hard-1 "China Cymbal" wav "media/60-hard-1.wav" sha256 "513415af0b75eea5c7e8f94d0884f70fc6d42eb28294e87baa948ca363969a29" {
+asset china-cymbal-60-hard-1 "China Cymbal" wav "media/60-hard-1.wav" sha256 "4c191a29878a10f00b917105cab1613dd9f666fc55f48acbada9413fa7f1536d" {
   usage multisample
 }

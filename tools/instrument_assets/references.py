@@ -7,11 +7,16 @@
 
 References are listening and analysis aids only. They are downloaded into
 renders/instrument-references, never committed or distributed; references.json
-records each clip's source, licence and slice. Fetching needs ffmpeg.
+records each clip's source, licence and slice. A clip comes from a URL, a
+Wikimedia Commons file, a member of a zip archive, or a YouTube video. Fetching
+needs ffmpeg, and yt-dlp for YouTube clips.
 
-  references.py --fetch              download and slice every clip
+  references.py --fetch [ID ...]     download and slice every clip, or some
   references.py --compare [ID ...]   write the model/reference report the player reads
   references.py --fit ID [--write]   fit a smooth reference_eq from the comparison
+  references.py --profile ID [--write]
+                                     measure the harmonic spectral envelope of the
+                                     pitched references for sustained models
 """
 
 import argparse
@@ -22,6 +27,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -54,6 +60,9 @@ def request(url, attempts=6):
 
 def source_url(clip):
     """Direct download URL and human-readable page for a clip."""
+    if "youtube" in clip:
+        page = f"https://www.youtube.com/watch?v={clip['youtube']}"
+        return page, page
     if "commons" not in clip:
         return urllib.parse.quote(clip["url"], safe=":/"), clip.get("page", clip["url"])
     query = urllib.parse.urlencode(
@@ -69,12 +78,26 @@ def fetch(ident, index, clip):
     cache = OUTPUT / "cache" / hashlib.sha256(url.encode()).hexdigest()[:24]
     cache.parent.mkdir(parents=True, exist_ok=True)
     if not cache.exists():
-        cache.write_bytes(request(url).read())
-        time.sleep(3)
+        if "youtube" in clip:
+            # Only the opening minutes; every clip slices well inside them.
+            subprocess.run(
+                ["yt-dlp", "-q", "--no-warnings", "-f", "bestaudio", "--download-sections", "*0-200",
+                 "-o", str(cache) + ".%(ext)s", "--", clip["youtube"]],
+                check=True,
+            )
+            next(cache.parent.glob(cache.name + ".*")).rename(cache)
+        else:
+            cache.write_bytes(request(url).read())
+            time.sleep(3)
+    source = cache
+    if "member" in clip:
+        source = cache.with_name(cache.name + "-" + hashlib.sha256(clip["member"].encode()).hexdigest()[:12])
+        with zipfile.ZipFile(cache) as archive:
+            source.write_bytes(archive.read(clip["member"]))
     destination = OUTPUT / ident / f"{index}.wav"
     destination.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-ss", str(clip["start"]), "-t", str(clip["seconds"]), "-i", str(cache),
+        ["ffmpeg", "-v", "error", "-y", "-ss", str(clip["start"]), "-t", str(clip["seconds"]), "-i", str(source),
          "-ac", "1", "-ar", str(RATE), "-c:a", "pcm_s16le", str(destination)],
         check=True,
     )
@@ -222,25 +245,95 @@ def fit(ident, cap=8.0):
     return [[round(float(h)), round(float(d), 1)] for h, d in zip(hz[::3], db[::3])]
 
 
+def label(clip):
+    if "title" in clip:
+        return clip["title"]
+    if "member" in clip:
+        return Path(clip["member"]).name
+    return clip.get("commons") or Path(urllib.parse.unquote(clip["url"])).name
+
+
+def harmonic_profile(ident, count=32):
+    """Spectral envelope sampled at the harmonics of every steady, pitched frame.
+
+    Each frame contributes its harmonic levels relative to its total energy,
+    at their frequencies, so the result describes the instrument's body rather
+    than any one note. Returns `[[hz, db], ...]` on sixth-octave centres.
+    """
+    frame = int(0.08 * RATE)
+    points = []
+    for index in range(len(json.loads(LIST.read_text())[ident])):
+        path = OUTPUT / ident / f"{index}.wav"
+        if not path.exists():
+            continue
+        x = wavfile.read(path)[1].astype(np.float64) / 32768
+        level = envelope(x, 20)
+        for at in range(0, len(x) - frame, frame // 2):
+            if level[at + frame // 2] < 0.25 * np.max(level):
+                continue
+            chunk = x[at : at + frame] * np.hanning(frame)
+            hz = pitch(np.concatenate([np.zeros(int(0.1 * RATE)), x[at : at + int(0.5 * RATE)]]))
+            if not hz or hz < 50:
+                continue
+            n = 1 << 15
+            spectrum = np.abs(np.fft.rfft(chunk, n)) ** 2
+            f = np.fft.rfftfreq(n, 1 / RATE)
+            harmonics = np.arange(1, count + 1) * hz
+            harmonics = harmonics[harmonics < 14000]
+            energy = np.array([spectrum[np.abs(f - h) < hz * 0.12].sum() for h in harmonics])
+            floor = np.median(spectrum[(f > 40) & (f < harmonics[-1])]) * (hz * 0.24 / (f[1] - f[0]))
+            # A harmonic buried in noise, or a wrong pitch's empty bin, says
+            # nothing about the body.
+            keep = energy > 30 * floor
+            if keep.sum() < 3:
+                continue
+            # Relative to the frame's total, so notes of any pitch agree on the
+            # level the body gives each frequency.
+            db = 10 * np.log10(energy / energy[keep].sum())
+            points += list(zip(harmonics[keep], db[keep]))
+    if not points:
+        raise ValueError(f"{ident}: no steady pitched frames")
+    hz, db = np.asarray(points).T
+    centres = BANDS[(BANDS >= hz.min() / 1.06) & (BANDS <= min(hz.max() * 1.06, 14000))]
+    curve = []
+    for c in centres:
+        inside = np.abs(np.log2(hz / c)) <= 1 / 12
+        if inside.sum() >= 3:
+            curve.append([c, float(np.median(db[inside]))])
+    hz, db = np.asarray(curve).T
+    # Harmonics of one note leave gaps between them; the local maximum bridges
+    # them so the curve follows the body, not the spacing of a few notes.
+    db = np.max([np.pad(db, 1, mode="edge")[k : k + len(db)] for k in range(3)], axis=0)
+    db = np.convolve(np.pad(db, 1, mode="edge"), [0.25, 0.5, 0.25], mode="valid")
+    db -= db.max()
+    return [[round(float(h)), round(float(d), 1)] for h, d in zip(hz, db)]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--fetch", action="store_true")
+    parser.add_argument("--fetch", nargs="*")
     parser.add_argument("--compare", nargs="*")
     parser.add_argument("--fit", nargs="+")
-    parser.add_argument("--write", action="store_true", help="With --fit, store the curve in each recipe")
+    parser.add_argument("--profile", nargs="+")
+    parser.add_argument("--write", action="store_true", help="With --fit or --profile, store the curve in each recipe")
     parser.add_argument("--jobs", type=int, default=8)
     args = parser.parse_args()
     references = json.loads(LIST.read_text())
-    if args.fetch:
-        pages = {}
-        for ident, clips in references.items():
-            for index, clip in enumerate(clips):
+    if args.fetch is not None:
+        pages_path = OUTPUT / "pages.json"
+        pages = json.loads(pages_path.read_text()) if pages_path.exists() else {}
+        for ident in args.fetch or list(references):
+            # Drop slices left over from an earlier, longer clip list.
+            for stale in (OUTPUT / ident).glob("*.wav"):
+                if int(stale.stem) >= len(references[ident]):
+                    stale.unlink()
+            for index, clip in enumerate(references[ident]):
                 try:
                     pages[f"{ident}/{index}"] = fetch(ident, index, clip)["page"]
                     print("fetched", ident, index, flush=True)
                 except Exception as error:  # A missing source must not stop the rest.
                     print("FAILED", ident, index, error, flush=True)
-        (OUTPUT / "pages.json").write_text(json.dumps(pages, indent=2) + "\n")
+        pages_path.write_text(json.dumps(pages, indent=2) + "\n")
     if args.compare is not None:
         selected = args.compare or list(references)
         report_path = OUTPUT / "report.json"
@@ -257,7 +350,7 @@ def main():
                         result
                         | {
                             "url": f"renders/instrument-references/{ident}/{result['index']}.wav?v={version}",
-                            "label": clip.get("commons") or Path(urllib.parse.unquote(clip["url"])).name,
+                            "label": label(clip),
                             "page": pages.get(f"{ident}/{result['index']}", clip.get("page")),
                             "license": clip["license"],
                         }
@@ -275,6 +368,17 @@ def main():
                 path = LIBRARY / ident / "recipe.json"
                 recipe = json.loads(path.read_text())
                 recipe["reference_eq"] = curve
+                path.write_text(json.dumps(recipe, indent=2, ensure_ascii=False) + "\n")
+
+
+    if args.profile:
+        for ident in args.profile:
+            curve = harmonic_profile(ident)
+            print(ident, json.dumps(curve))
+            if args.write:
+                path = LIBRARY / ident / "recipe.json"
+                recipe = json.loads(path.read_text())
+                recipe["params"]["profile"] = curve
                 path.write_text(json.dumps(recipe, indent=2, ensure_ascii=False) + "\n")
 
 

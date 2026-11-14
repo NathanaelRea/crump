@@ -39,39 +39,39 @@ instrument steel-pan "Steel Pan" graph {
     bus output source.audio -> out.audio
   }
 }
-asset steel-pan-62-soft-0 "Steel Pan" wav "media/62-soft-0.wav" sha256 "55eacea43f9d12776243c7e199d43b88f5f602f80ea1a7b999e6e1c7109ef2ca" {
+asset steel-pan-62-soft-0 "Steel Pan" wav "media/62-soft-0.wav" sha256 "6071f8b30ba30cb39159ed38ace8b29bc8601fe250893d83bd3fba55000c32d1" {
   usage multisample
 }
-asset steel-pan-62-hard-0 "Steel Pan" wav "media/62-hard-0.wav" sha256 "7f214a58b4f538574256f985bb83863dde8359613a1671317f6f418b29e89cd5" {
+asset steel-pan-62-hard-0 "Steel Pan" wav "media/62-hard-0.wav" sha256 "8657471e38f5279f37da8c92b2e38c4c0c466446be8338d8e02ec4ef44a20c3a" {
   usage multisample
 }
-asset steel-pan-67-soft-0 "Steel Pan" wav "media/67-soft-0.wav" sha256 "7f87f1f4bbd5b50d6f6aaf3a79c76f304b48dd8b130afb35be1065e6d0d03e31" {
+asset steel-pan-67-soft-0 "Steel Pan" wav "media/67-soft-0.wav" sha256 "0626b938e85f9c82ec7bda7084a813fe9c008f0d5da5bb9f0a810ed97ee73088" {
   usage multisample
 }
-asset steel-pan-67-hard-0 "Steel Pan" wav "media/67-hard-0.wav" sha256 "ccccaaac4fa0f873fed48eac1693acfa3cfd7c17b4fdfd21adf411ef7d7a6a3a" {
+asset steel-pan-67-hard-0 "Steel Pan" wav "media/67-hard-0.wav" sha256 "7eeccf67d8eab93e4af5129af79ba4e676a375ba6d6b4a145bfc83925f9f20a1" {
   usage multisample
 }
-asset steel-pan-72-soft-0 "Steel Pan" wav "media/72-soft-0.wav" sha256 "a5e99c5b5a40b904252647ba8958c8932ab0697df67928611363af05aa300b5c" {
+asset steel-pan-72-soft-0 "Steel Pan" wav "media/72-soft-0.wav" sha256 "a54111cdc28cbaef28765a327f9b7884a12abaa12da95b1e724cecf54d22f7ee" {
   usage multisample
 }
-asset steel-pan-72-hard-0 "Steel Pan" wav "media/72-hard-0.wav" sha256 "db2f7cd0078a44f50720a13ee06ef3f28f5294e274dab99190d1bf8385b0b0e6" {
+asset steel-pan-72-hard-0 "Steel Pan" wav "media/72-hard-0.wav" sha256 "f2b7ae31567d42898484c0bb0d1015583fb41376c5961fcfeba92f9774b85522" {
   usage multisample
 }
-asset steel-pan-77-soft-0 "Steel Pan" wav "media/77-soft-0.wav" sha256 "f47cc4e50720a8436465c8ed51bb0d5d76e7cbc4681bf77e32460c7166e5a7e5" {
+asset steel-pan-77-soft-0 "Steel Pan" wav "media/77-soft-0.wav" sha256 "43bddfe14c3f15c552bcca1c11a67e64eb3c08286e664cb87bed23b3a561195c" {
   usage multisample
 }
-asset steel-pan-77-hard-0 "Steel Pan" wav "media/77-hard-0.wav" sha256 "b81fad5fd3ec3257d79807aee5d03d2d82517652d7dc7745d8c3a9abb2ff8bab" {
+asset steel-pan-77-hard-0 "Steel Pan" wav "media/77-hard-0.wav" sha256 "298dc08a6fe56b78b161585300d18ea377473e79da91711c25d3e6864e5f471f" {
   usage multisample
 }
-asset steel-pan-82-soft-0 "Steel Pan" wav "media/82-soft-0.wav" sha256 "cd718e5ddc3682ccc7b68a826fb3633cfe630c2899efe83e435395090a996006" {
+asset steel-pan-82-soft-0 "Steel Pan" wav "media/82-soft-0.wav" sha256 "fae58f06e8da8279296c6b9850eeb469635e58fe7192cf37093f04a19373ab1f" {
   usage multisample
 }
-asset steel-pan-82-hard-0 "Steel Pan" wav "media/82-hard-0.wav" sha256 "1dc3d9f76f52d92b4b50acd407bba27e3061397abeb95ea7c8a3513a06a04b13" {
+asset steel-pan-82-hard-0 "Steel Pan" wav "media/82-hard-0.wav" sha256 "1335f33576c09cdffe0aae215c1ea56a7f74ec9c190e5f7b656cb2f955f46ca2" {
   usage multisample
 }
-asset steel-pan-87-soft-0 "Steel Pan" wav "media/87-soft-0.wav" sha256 "8b3e3553a090d6118fae73239c15e551b4edc4995c42175f69bc70d8810a7f50" {
+asset steel-pan-87-soft-0 "Steel Pan" wav "media/87-soft-0.wav" sha256 "04adffe0a37672aeaf7d41cc01acac0b39907de40dc2aaa83a9f8d4e0e1a433f" {
   usage multisample
 }
-asset steel-pan-87-hard-0 "Steel Pan" wav "media/87-hard-0.wav" sha256 "cddf55ed9e5e042a8ebae17dbc8e09b59434d8769206eb9c2ffa1b56f23397ae" {
+asset steel-pan-87-hard-0 "Steel Pan" wav "media/87-hard-0.wav" sha256 "8611ce7fba564435b2f3143b14e214dd8b6434156abdd471a41258d00fc25e95" {
   usage multisample
 }

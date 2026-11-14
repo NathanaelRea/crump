@@ -1,56 +1,56 @@
 {
   "algorithm": "crump-instrument-materials-v1",
   "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
-  "recipe_sha256": "845fcdb89611be537a79c88afbd2cf47af9b3cb4ceb5db5b6c6ea4dc1ab58b66",
+  "recipe_sha256": "ee773a6206ec839b4c3fb9b59c4a3b7b1d99b04fa0fbac072e4d23b0dcf1d958",
   "format": "mono PCM16",
   "assets": [
     {
       "id": "ride-bell-60-soft-0",
       "path": "media/60-soft-0.wav",
-      "sha256": "d4587178be05517ebfa2c5d52e4be63790ad13dc76f338c6d9ec3306644a1026",
-      "frames": 288000,
+      "sha256": "9c8342623d3ea96f475c8f5d541213f42b19b65516f288a16a31fe7a3d397f1f",
+      "frames": 119626,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.48,
       "round_robin": 0,
       "seed": 1110600,
-      "normalization_gain": 0.7289650447671031
+      "normalization_gain": 0.6969293115878076
     },
     {
       "id": "ride-bell-60-hard-0",
       "path": "media/60-hard-0.wav",
-      "sha256": "f500d0006d106155dedbb2e2fc38541ad7825fd4166d08edd96fe0bc5d729d27",
-      "frames": 288000,
+      "sha256": "045d95bf4710980bb50561a75af440bf6308d835202c0c1027a917aac2faa105",
+      "frames": 121476,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.92,
       "round_robin": 0,
       "seed": 1110600,
-      "normalization_gain": 0.7289650447671031
+      "normalization_gain": 0.6969293115878076
     },
     {
       "id": "ride-bell-60-soft-1",
       "path": "media/60-soft-1.wav",
-      "sha256": "9e715eb7ed5a27b93d0dc5d9809716d196a4f5a5912bcf6062935a14e3a05fad",
-      "frames": 288000,
+      "sha256": "a661b299ab6912e3b0f787525d02ba7c4a1c53aed0b29a1ffa8aa7cba836db41",
+      "frames": 126457,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.48,
       "round_robin": 1,
       "seed": 1110601,
-      "normalization_gain": 0.8028611464523602
+      "normalization_gain": 0.8200273072628493
     },
     {
       "id": "ride-bell-60-hard-1",
       "path": "media/60-hard-1.wav",
-      "sha256": "fc913b8efd577f64c926ba04f0b4e434fc1905782af19c4af49eadd96f69b611",
-      "frames": 288000,
+      "sha256": "8b717829d522a29ee5322cce779dd2439ff2a4bd787a546525f66b5b62336277",
+      "frames": 136335,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.92,
       "round_robin": 1,
       "seed": 1110601,
-      "normalization_gain": 0.8028611464523602
+      "normalization_gain": 0.8200273072628493
     }
   ]
 }

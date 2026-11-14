@@ -484,6 +484,29 @@ def spectral_envelope(p, scale=1.0, body_seed=0):
     floor = p.get("floor", 0.2)
     high_cut, order = p.get("rolloff", [6000, 2])
     low_cut = p.get("low_cut", 0)
+    if p.get("profile"):
+        # A measured harmonic envelope (references.py --profile) replaces the
+        # formant sketch. Past its top it falls at 12 dB per octave.
+        hz, db = np.asarray(p["profile"], dtype=float).T
+        hz = hz * scale * p.get("profile_scale", 1)
+        # Bore and tone holes add narrow peaks and dips fixed in frequency, so
+        # neighbouring notes get differently uneven harmonics, as real ones do.
+        depth, seed = p.get("profile_ripple", [0, 0])
+        ripple_rng = np.random.Generator(np.random.PCG64(seed + body_seed))
+        ripple_at = np.log(hz[0]) + np.arange(0, 18 * 8) * np.log(2) / 18
+        ripple = depth * np.convolve(ripple_rng.normal(0, 1, len(ripple_at)), [0.25, 0.5, 0.25], mode="same")
+
+        def response(f):
+            f = np.maximum(f, 1.0)
+            log_f = np.log(f)
+            g = np.interp(log_f, np.log(hz), db) - 12 * np.maximum(log_f - np.log(hz[-1]), 0) / np.log(2)
+            g = g + np.interp(log_f, ripple_at, ripple)
+            g = 10 ** (g / 20)
+            if low_cut:
+                g *= (f / low_cut) ** 2 / (1 + (f / low_cut) ** 2)
+            return g
+
+        return response
 
     def response(f):
         f = np.maximum(f, 1.0)
@@ -1279,12 +1302,49 @@ def buzz(x, p, n):
     return band * envelope * 1.414
 
 
+def jawari_string(p, n, rng, velocity, frequency):
+    """String over a curved bridge (sitar, tanpura): the louder it vibrates,
+    the more it wraps the bridge, shortening its speaking length. As it decays
+    the length relaxes, so its overtones sweep in the characteristic zing."""
+    period = RATE / frequency
+    loss = np.exp(-period / (RATE * p.get("decay", 1.5)))
+    size = int(period) + 4
+    line = np.zeros(size)
+    pluck = filtered(rng.normal(0, 1, int(period)), min(15000, p.get("bright", 5000) * (0.45 + 0.65 * velocity)))
+    line[: int(period)] = pluck * np.hanning(int(period))
+    line /= max(np.max(np.abs(line)), 1e-12)
+    # The first lap reads the pluck: it sits one period behind the write head.
+    line = np.roll(line, size - int(period))
+    depth = p["jawari"] * (0.6 + 0.4 * velocity)
+    damping = p.get("jawari_damping", 0.35)
+    out = np.empty(n)
+    write, previous, smooth = 0, 0.0, 0.0
+    for i in range(n):
+        # Only displacement toward the bridge shortens the string.
+        delay = period * (1 - depth * max(previous, 0.0))
+        read = write - delay
+        base = int(np.floor(read))
+        frac = read - base
+        a, b = line[base % size], line[(base + 1) % size]
+        sample = a + (b - a) * frac
+        smooth += (1 - damping) * (sample - smooth)
+        value = loss * smooth
+        line[write % size] = value
+        out[i] = value
+        previous = value
+        write += 1
+    t = np.arange(n) / RATE
+    out = out - shift(out, max(1, int(period * p.get("position", 0.12)))) * 0.7
+    return body(out, p.get("body", [180, 420, 900, 1800]), p.get("body_mix", 0.3)) * (1 - np.exp(-t / 0.0005))
+
+
 def plucked(p, n, rng, velocity, frequency):
     """Plucked strings: courses through the string loop, optional bridge buzz,
     sympathetic strings, plectrum or skin thump, an amplifier and a pitch contour."""
     x = np.zeros(n)
+    voice = jawari_string if p.get("jawari") else string
     for cents, delay, gain in p.get("courses", [[0, 0, 1]]):
-        tone = string(p, n, rng, velocity, frequency * 2 ** (cents / 1200))
+        tone = voice(p, n, rng, velocity, frequency * 2 ** (cents / 1200))
         x += gain * (shift(tone, round(delay * RATE)) if delay else tone)
     t = np.arange(n) / RATE
     peak = np.max(np.abs(x))
@@ -1358,11 +1418,15 @@ def drone(p, n, rng, velocity, frequency):
 
 
 def hurdy(p, n, rng, velocity, frequency):
-    """Hurdy-gurdy: a wheel-bowed melody string over drone strings at fixed
-    pitches `[[midi, gain], ...]`, and the buzzing trompette bridge."""
+    """Hurdy-gurdy: a wheel-bowed melody string over drone strings, and the
+    buzzing trompette bridge. Drones sit at fixed pitches `drones`
+    `[[midi, gain], ...]`, or at `drone_intervals` `[[semitones, gain], ...]`
+    from the played note so every key stays consonant."""
     x = bowed(p, n, rng, velocity, frequency)
-    for drone_note, gain in p.get("drones", []):
-        x += gain * bowed(dict(p, vibrato=[5, 0, 0, 1, 1]), n, rng, velocity, hz(drone_note))
+    drones = [[hz(m), g] for m, g in p.get("drones", [])]
+    drones += [[frequency * 2 ** (s / 12), g] for s, g in p.get("drone_intervals", [])]
+    for pitch, gain in drones:
+        x += gain * bowed(dict(p, vibrato=[5, 0, 0, 1, 1]), n, rng, velocity, pitch)
     if p.get("buzz", 0):
         x += p["buzz"] * buzz(x, p, n)
     return x

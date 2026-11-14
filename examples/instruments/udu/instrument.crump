@@ -67,27 +67,27 @@ instrument udu "Udu" graph {
     bus output source.audio -> out.audio
   }
 }
-asset udu-bass-60-soft-0 "Udu" wav "media/bass-60-soft-0.wav" sha256 "10a7f22e6e632e41cc54ee22333baedb8286f275b2c048f34cc043e3ae3579fa" {
+asset udu-bass-60-soft-0 "Udu" wav "media/bass-60-soft-0.wav" sha256 "72fd4ca770ece85fb1953bc9cbb2940a63554c06b3e4de235a7f72a9cc46cafa" {
   usage multisample
 }
-asset udu-bass-60-hard-0 "Udu" wav "media/bass-60-hard-0.wav" sha256 "55079f119b5b14daf35d1d0059ac64e77e54d42685cf374de123673c311f86ce" {
+asset udu-bass-60-hard-0 "Udu" wav "media/bass-60-hard-0.wav" sha256 "35be38491d7738dd2253b93d8fa7d1353a0c3f3bd620296be71a90fe9cc31a05" {
   usage multisample
 }
-asset udu-bass-60-soft-1 "Udu" wav "media/bass-60-soft-1.wav" sha256 "f7fe4d2c3ae8520782bd8ef0c0af0073fe681c52af1be3a98ec4b7f8066c87d2" {
+asset udu-bass-60-soft-1 "Udu" wav "media/bass-60-soft-1.wav" sha256 "6895d9ee1698f4bbb156b7c003144add10569e2bcb57bbc7c24a8835a8129aa2" {
   usage multisample
 }
-asset udu-bass-60-hard-1 "Udu" wav "media/bass-60-hard-1.wav" sha256 "a6d227e4c0008ce913fe15527b2fba8fd056cb6e940137156715b627f7e20201" {
+asset udu-bass-60-hard-1 "Udu" wav "media/bass-60-hard-1.wav" sha256 "dae120998cef03365c22316ead77e69b685aa9e809a0d3fc27896ba49175eb3f" {
   usage multisample
 }
-asset udu-tap-60-soft-0 "Udu" wav "media/tap-60-soft-0.wav" sha256 "ef066779603b20d80ee9630730bed3bcf9a3bac5b0eb2704e2a0043d1a64727c" {
+asset udu-tap-60-soft-0 "Udu" wav "media/tap-60-soft-0.wav" sha256 "83b48cd7a6aa04ce2d6160166643e99cdfb8a96f96c5b75094714736c94b1bb6" {
   usage multisample
 }
-asset udu-tap-60-hard-0 "Udu" wav "media/tap-60-hard-0.wav" sha256 "17c8e9408da6e305aec109305cd792b06e64479f6f003e67a2116a33b55847d2" {
+asset udu-tap-60-hard-0 "Udu" wav "media/tap-60-hard-0.wav" sha256 "32cf484507f91eaf849b507562923b0907446616302cd7da73e06028d75038dd" {
   usage multisample
 }
-asset udu-tap-60-soft-1 "Udu" wav "media/tap-60-soft-1.wav" sha256 "5a61033908da7d09d1ce0fc452e8d579a946b661c0358e171e974606151184c2" {
+asset udu-tap-60-soft-1 "Udu" wav "media/tap-60-soft-1.wav" sha256 "29089329fdc7c8e0c1baa74a301ee0e1bdcdc6f088f77783d4fe700c3a496d19" {
   usage multisample
 }
-asset udu-tap-60-hard-1 "Udu" wav "media/tap-60-hard-1.wav" sha256 "a454f18e08a1193b0085cdb51672c64d0b3d29ef56004abcc2dfd8f3b82dbb0c" {
+asset udu-tap-60-hard-1 "Udu" wav "media/tap-60-hard-1.wav" sha256 "fbb7c8af1fbe8b2b0d027783bc846479611950b7c945176106aa935d2dc457b5" {
   usage multisample
 }

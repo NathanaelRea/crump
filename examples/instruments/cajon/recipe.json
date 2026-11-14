@@ -13,12 +13,14 @@
       ],
       "params": {
         "freq": 85,
-        "decay": 0.07,
+        "decay": 0.09,
         "contact": 0.004,
-        "bright": 0.25,
-        "slap": 0.04,
-        "wire": 0.05,
-        "wire_decay": 0.04
+        "bright": 1.4,
+        "slap": 1.5,
+        "wire": 0.5,
+        "wire_decay": 0.04,
+        "slap_decay": 0.006,
+        "drive": 2
       }
     },
     {
@@ -28,14 +30,15 @@
         85
       ],
       "params": {
-        "freq": 380,
-        "decay": 0.025,
-        "contact": 0.0012,
-        "bright": 0.85,
-        "slap": 0.25,
-        "slap_decay": 0.006,
-        "wire": 0.45,
-        "wire_decay": 0.07
+        "freq": 120,
+        "decay": 0.05,
+        "contact": 0.0008,
+        "bright": 1,
+        "slap": 1.5,
+        "slap_decay": 0.008,
+        "wire": 0.8,
+        "wire_decay": 0.04,
+        "drive": 1.5
       }
     }
   ],

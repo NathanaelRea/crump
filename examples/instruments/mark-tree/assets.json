@@ -1,104 +1,104 @@
 {
   "algorithm": "crump-instrument-materials-v1",
   "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
-  "recipe_sha256": "878f12bd47f425d460c5c294cedc5e933533db7a146644a618d9f1a436aa9dac",
+  "recipe_sha256": "03360a1118a4bf5fb0d9b863bfd15c849ea939ae09563536eef1daed201c576e",
   "format": "mono PCM16",
   "assets": [
     {
       "id": "mark-tree-up-60-soft-0",
       "path": "media/up-60-soft-0.wav",
-      "sha256": "706fe4f1ab89c2d430c7bba333fd449c026b83a8263080f9879b9ea298704913",
+      "sha256": "8407647ff4167d37fc60ff3f8f3066ad83a5a62937a04e06f109bc9c0f47f77c",
       "frames": 240000,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.48,
       "round_robin": 0,
       "seed": 1251600,
-      "normalization_gain": 0.06950026724548834
+      "normalization_gain": 0.14440382114516045
     },
     {
       "id": "mark-tree-up-60-hard-0",
       "path": "media/up-60-hard-0.wav",
-      "sha256": "eb43a168f848e0c99dd7b80daa1d278c5b2785bba02fd015ef65ab0a750bb395",
+      "sha256": "7e50192d4c57c3e2db15a73a17232b7e8bc39493d573b26b180d69ffbb3f957f",
       "frames": 240000,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.92,
       "round_robin": 0,
       "seed": 1251600,
-      "normalization_gain": 0.06950026724548834
+      "normalization_gain": 0.14440382114516045
     },
     {
       "id": "mark-tree-up-60-soft-1",
       "path": "media/up-60-soft-1.wav",
-      "sha256": "0c54cea6bed10035e7ebecea411131d47b3c28ddd3a76de55004177f0450687d",
+      "sha256": "b3d3f2c4c9d8f8c0c67cda6252de5f621d32656cc12c1f8a7e082e538b43576a",
       "frames": 240000,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.48,
       "round_robin": 1,
       "seed": 1251601,
-      "normalization_gain": 0.0645695970514157
+      "normalization_gain": 0.13161613912472028
     },
     {
       "id": "mark-tree-up-60-hard-1",
       "path": "media/up-60-hard-1.wav",
-      "sha256": "6974627ad6c0dd08537e56fb2f1bef496117ed8f105084a13db5c12c7086e3f8",
+      "sha256": "a669f7e71de58132e562ab24fb717ef12ec370d25c81c10cfc86cdb9c0397761",
       "frames": 240000,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.92,
       "round_robin": 1,
       "seed": 1251601,
-      "normalization_gain": 0.0645695970514157
+      "normalization_gain": 0.13161613912472028
     },
     {
       "id": "mark-tree-down-60-soft-0",
       "path": "media/down-60-soft-0.wav",
-      "sha256": "d321794c110341d5870d8baccb500e65cfbeeb44f8ee8f2d2f7bb989a0ae2da0",
+      "sha256": "ac18a4a85f39802b1de925369f1370d9da7b2d6742d3c8da204daf82733da476",
       "frames": 240000,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.48,
       "round_robin": 0,
       "seed": 1252600,
-      "normalization_gain": 0.06451579702476638
+      "normalization_gain": 0.15696025621319254
     },
     {
       "id": "mark-tree-down-60-hard-0",
       "path": "media/down-60-hard-0.wav",
-      "sha256": "d6d05d014e64a80aae98d7143a088d76c640d151e312e221ff5cc08350509784",
+      "sha256": "3889f8d3a3a32e95181224e549fce40fbe436dc7ceb2dbc64cfdbfcaa605cea3",
       "frames": 240000,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.92,
       "round_robin": 0,
       "seed": 1252600,
-      "normalization_gain": 0.06451579702476638
+      "normalization_gain": 0.15696025621319254
     },
     {
       "id": "mark-tree-down-60-soft-1",
       "path": "media/down-60-soft-1.wav",
-      "sha256": "692fce7dec04b1d0727645f4e60030069b72f6419d6180a38beb0d02714a1e8f",
+      "sha256": "89588d23a23766efd1eec9b6a5f6ed4617a104b34ef76c01b17e8cae2816cc7f",
       "frames": 240000,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.48,
       "round_robin": 1,
       "seed": 1252601,
-      "normalization_gain": 0.06522178608036819
+      "normalization_gain": 0.16024216707536665
     },
     {
       "id": "mark-tree-down-60-hard-1",
       "path": "media/down-60-hard-1.wav",
-      "sha256": "750aa75d36c461118aacac9bffd88338801dea679174cfe38999db4ab0a2f12c",
+      "sha256": "80b2f6d00a378cbf96e02863c3d7b909c563298119f4d05be8917d5aa97068b5",
       "frames": 240000,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.92,
       "round_robin": 1,
       "seed": 1252601,
-      "normalization_gain": 0.06522178608036819
+      "normalization_gain": 0.16024216707536665
     }
   ]
 }

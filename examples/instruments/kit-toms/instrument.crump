@@ -37,33 +37,33 @@ instrument kit-toms "Kit Toms" graph {
     bus output source.audio -> out.audio
   }
 }
-asset kit-toms-38-soft-0 "Kit Toms" wav "media/38-soft-0.wav" sha256 "24aac35a8d7547d3ed8cb863a6287780101e81fa54e7798e5c1fe8bd370abc5d" {
+asset kit-toms-38-soft-0 "Kit Toms" wav "media/38-soft-0.wav" sha256 "f9548794fc009aa988443bf64e9313a2b64d34184aa9245aa950eecbfa988a6a" {
   usage multisample
 }
-asset kit-toms-38-hard-0 "Kit Toms" wav "media/38-hard-0.wav" sha256 "c8244a6aa476e2415788abbc3b3822c061ab652bf674cb724c71ee0bee53eec7" {
+asset kit-toms-38-hard-0 "Kit Toms" wav "media/38-hard-0.wav" sha256 "5aa78ae9140b9f78ac33e39fbcc6b7af598d42ea5c3065b9258df42e18a5779c" {
   usage multisample
 }
-asset kit-toms-43-soft-0 "Kit Toms" wav "media/43-soft-0.wav" sha256 "41f4f6a99966a5b178294108cf8c87c7ac4bf42c5e655162267c33152c4d05f9" {
+asset kit-toms-43-soft-0 "Kit Toms" wav "media/43-soft-0.wav" sha256 "f69d2239420b9a70239cbed32dc2b0f656263dd4c974974eb48dec563a032dc0" {
   usage multisample
 }
-asset kit-toms-43-hard-0 "Kit Toms" wav "media/43-hard-0.wav" sha256 "0be25b121dd2f8db3d1b1ffb73a4d8f28758b0deaf7406069fdd7fee3d61e3f3" {
+asset kit-toms-43-hard-0 "Kit Toms" wav "media/43-hard-0.wav" sha256 "0440c75e6425aaf1d9a2c16444e5b263f9089a1967ec251b8f7c703f3b78b8b2" {
   usage multisample
 }
-asset kit-toms-48-soft-0 "Kit Toms" wav "media/48-soft-0.wav" sha256 "45b53326d828596837073d81c926b422226cba359cc44a4d3c4ff9ed3e74af7d" {
+asset kit-toms-48-soft-0 "Kit Toms" wav "media/48-soft-0.wav" sha256 "4b0954be23139e184448cee12e4b7529deb4629ec9ccf9b2802cd68bd735d139" {
   usage multisample
 }
-asset kit-toms-48-hard-0 "Kit Toms" wav "media/48-hard-0.wav" sha256 "afc9b39b6aeb882a23d0c370bb95f244cd336e99ba058b082d5482881078467e" {
+asset kit-toms-48-hard-0 "Kit Toms" wav "media/48-hard-0.wav" sha256 "490efcffd6efceb25b7866f50e090bfb137a30cc0001d6c25c643f950692ad14" {
   usage multisample
 }
-asset kit-toms-53-soft-0 "Kit Toms" wav "media/53-soft-0.wav" sha256 "acba75c910958208d723efac00a6481abdab739b3b9f926becc944ef5f52ee25" {
+asset kit-toms-53-soft-0 "Kit Toms" wav "media/53-soft-0.wav" sha256 "612e9695b7f4395c5c14c49cdefb519cea67d786f68b93a87f8e23b88245a0c1" {
   usage multisample
 }
-asset kit-toms-53-hard-0 "Kit Toms" wav "media/53-hard-0.wav" sha256 "4dc65083ac5c28e103449585362ba5ab6fb52440e815acb0131d5606fcbf5d76" {
+asset kit-toms-53-hard-0 "Kit Toms" wav "media/53-hard-0.wav" sha256 "6f1bc9ba8e8d90eec42072e4c417f94dcbada135ecef2c7f733d9b32f579c6b0" {
   usage multisample
 }
-asset kit-toms-58-soft-0 "Kit Toms" wav "media/58-soft-0.wav" sha256 "9ed400687de21b79dd0eca6bde902a069469df558cc862f86ebf84b3621cb59e" {
+asset kit-toms-58-soft-0 "Kit Toms" wav "media/58-soft-0.wav" sha256 "9fa72a1d4a8ad6459b41b74cc10a7a0c4293d488cbee9bdbd718b58bc423bd68" {
   usage multisample
 }
-asset kit-toms-58-hard-0 "Kit Toms" wav "media/58-hard-0.wav" sha256 "f011a3cf5423bc9494573f2e3496ecf0ad769746b09983f714b19ea264a6a9a0" {
+asset kit-toms-58-hard-0 "Kit Toms" wav "media/58-hard-0.wav" sha256 "af875c740847f14183df9bbf38d5b309de6870847061a4f8a705226dbcf69b29" {
   usage multisample
 }

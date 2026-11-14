@@ -37,33 +37,33 @@ instrument singing-bowl "Singing Bowl" graph {
     bus output source.audio -> out.audio
   }
 }
-asset singing-bowl-57-soft-0 "Singing Bowl" wav "media/57-soft-0.wav" sha256 "cf03ee6844122740ed87c0b2759b88a27cc2f1d998854c8d9c6bad9509d0a1fa" {
+asset singing-bowl-57-soft-0 "Singing Bowl" wav "media/57-soft-0.wav" sha256 "77bb59420aa9c68d4d9b9f851c3c3b6dacf8abf7644c576f57dee18babff3b57" {
   usage multisample
 }
-asset singing-bowl-57-hard-0 "Singing Bowl" wav "media/57-hard-0.wav" sha256 "d743d51d5c95b7701d6a91609c679a30713f2c3a05e75360c4111e051453e657" {
+asset singing-bowl-57-hard-0 "Singing Bowl" wav "media/57-hard-0.wav" sha256 "e6d478288c7eadc0258e190a97fe841bfd890c9da611f80c72c066efca9f928b" {
   usage multisample
 }
-asset singing-bowl-63-soft-0 "Singing Bowl" wav "media/63-soft-0.wav" sha256 "6e707edf232dc561491eee1d225d745ff2055caec58babb9fd4f08147dc79b64" {
+asset singing-bowl-63-soft-0 "Singing Bowl" wav "media/63-soft-0.wav" sha256 "1f018620d390969cb67a92944282fc530dfedf8c52a2699bfde2fb9c0a9a92e3" {
   usage multisample
 }
-asset singing-bowl-63-hard-0 "Singing Bowl" wav "media/63-hard-0.wav" sha256 "90da7596ebdb23fed8a498457b031514a1a2e1b638cbd5f0c255d88664743c76" {
+asset singing-bowl-63-hard-0 "Singing Bowl" wav "media/63-hard-0.wav" sha256 "f59c8f615c54b86c9f3b95ef2ec7aabc1af5bc99dd6bda72d4c7f60575b6a687" {
   usage multisample
 }
-asset singing-bowl-69-soft-0 "Singing Bowl" wav "media/69-soft-0.wav" sha256 "b4224f890ecee184d5b01092a1ee5e642976e0c26f81d53d160a74d3157d83f4" {
+asset singing-bowl-69-soft-0 "Singing Bowl" wav "media/69-soft-0.wav" sha256 "61e97f0d72a87b70211ac217edac6819d195db867c490e8febf29ac5540d54c1" {
   usage multisample
 }
-asset singing-bowl-69-hard-0 "Singing Bowl" wav "media/69-hard-0.wav" sha256 "12b4cb30d6f2a2ed7cc00b334eb48d80c66a12f41aa1d2fce277c673eb8ade4e" {
+asset singing-bowl-69-hard-0 "Singing Bowl" wav "media/69-hard-0.wav" sha256 "5b45574a4354f8f3a36127cadd8eac6dc0334807b8bc6ae24330a674f8588861" {
   usage multisample
 }
-asset singing-bowl-75-soft-0 "Singing Bowl" wav "media/75-soft-0.wav" sha256 "eec8d9bad4279bed0550818bc2b9f91b2a66c14599d5565c237c37326024011c" {
+asset singing-bowl-75-soft-0 "Singing Bowl" wav "media/75-soft-0.wav" sha256 "5e7cdc5c3fe7a46d727be647b0d6e32f83c2fe64c707ad250f79ace994b1e14a" {
   usage multisample
 }
-asset singing-bowl-75-hard-0 "Singing Bowl" wav "media/75-hard-0.wav" sha256 "a5a25b6653d36e3ad19d0c1794644f37e618ebdf5db6b8b58b32c4455606a8f1" {
+asset singing-bowl-75-hard-0 "Singing Bowl" wav "media/75-hard-0.wav" sha256 "23c68a6f1e972aa854416869f383c476132c34cfb8b905fcf7b908cb8f6a82f4" {
   usage multisample
 }
-asset singing-bowl-81-soft-0 "Singing Bowl" wav "media/81-soft-0.wav" sha256 "e77a496dc1de361bdfbd52dca2ef17737888d38e358c6c6deb957308d053358d" {
+asset singing-bowl-81-soft-0 "Singing Bowl" wav "media/81-soft-0.wav" sha256 "ea47c685634a3a7eb352158380666a0a3f49fe0a39e73cf18eee3b5845f43cfa" {
   usage multisample
 }
-asset singing-bowl-81-hard-0 "Singing Bowl" wav "media/81-hard-0.wav" sha256 "0f4b16e80d52fdc73054d6357ca32d5f32de0ebb0b490f11845eb6c5bfe19d32" {
+asset singing-bowl-81-hard-0 "Singing Bowl" wav "media/81-hard-0.wav" sha256 "8a42eeeaa63f44b30c318fb8df4f8a6662e60fe08fa6f695cba2aee47a557423" {
   usage multisample
 }

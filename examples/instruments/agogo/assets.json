@@ -1,104 +1,104 @@
 {
   "algorithm": "crump-instrument-materials-v1",
   "generator_sha256": "94e78d23cf59c7042dcc6b337cf99424134e321a5b603786f0acbd33c0f9ba6e",
-  "recipe_sha256": "0e8f2b329d842444f4e61a9d845a5863d97fc036292e819336379e69c4c66183",
+  "recipe_sha256": "0a1e5cb15bc28ce52f50a28027cd884a7ce48af6c028e83128501bb0c373c832",
   "format": "mono PCM16",
   "assets": [
     {
       "id": "agogo-low-60-soft-0",
       "path": "media/low-60-soft-0.wav",
-      "sha256": "85c8e3df8c486d50ea552b67250679c3bdfd45086907cc69fbd3e7469962971d",
-      "frames": 96000,
+      "sha256": "6e271df3f54d24448b1da577012b3a07fdb7bcb9fa8419972dcda804c85366cc",
+      "frames": 44887,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.48,
       "round_robin": 0,
       "seed": 1181600,
-      "normalization_gain": 0.6538937454221487
+      "normalization_gain": 0.19136033913938333
     },
     {
       "id": "agogo-low-60-hard-0",
       "path": "media/low-60-hard-0.wav",
-      "sha256": "5ff7f9b7430b6347c8056ca2203b42d5467f890936b14a7fe48a9e9870b2a19a",
-      "frames": 96000,
+      "sha256": "de7dac69e71545698f2eac303b320ceeea8643ff5791eb4f1a0b6e87d3e9a608",
+      "frames": 50627,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.92,
       "round_robin": 0,
       "seed": 1181600,
-      "normalization_gain": 0.6538937454221487
+      "normalization_gain": 0.19136033913938333
     },
     {
       "id": "agogo-low-60-soft-1",
       "path": "media/low-60-soft-1.wav",
-      "sha256": "d4a3f9ccd4f7cc0fd772100fe1389d9d108351f2539eda777746f7aade787e0a",
-      "frames": 96000,
+      "sha256": "6acec2c157b372c88d128ebcb1878c3918e3e5d755e2ce55b02684dbbf1e9583",
+      "frames": 44958,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.48,
       "round_robin": 1,
       "seed": 1181601,
-      "normalization_gain": 0.6521873633960967
+      "normalization_gain": 0.19927579587831362
     },
     {
       "id": "agogo-low-60-hard-1",
       "path": "media/low-60-hard-1.wav",
-      "sha256": "8ee07ff040a07f1958884353a1ff9a250b18abf8b9c5fa879c98c148d6376bb5",
-      "frames": 96000,
+      "sha256": "715e23f900d89802fdba3aeab83d89eaa39449fed3898541237cbb8f50d56f10",
+      "frames": 50745,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.92,
       "round_robin": 1,
       "seed": 1181601,
-      "normalization_gain": 0.6521873633960967
+      "normalization_gain": 0.19927579587831362
     },
     {
       "id": "agogo-high-60-soft-0",
       "path": "media/high-60-soft-0.wav",
-      "sha256": "69519176272018f7ee1a9cd6949911b6b94d31e8eb140465b2efe122a1536c47",
-      "frames": 96000,
+      "sha256": "cbd09643b51eb022a8799c6b57aa5d8d8b85786269a41d374268b101ea58e608",
+      "frames": 57600,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.48,
       "round_robin": 0,
       "seed": 1182600,
-      "normalization_gain": 0.6962667079309979
+      "normalization_gain": 0.3950025437636441
     },
     {
       "id": "agogo-high-60-hard-0",
       "path": "media/high-60-hard-0.wav",
-      "sha256": "5f72c6447f703785aa6295db0ebe23c9864766037105c5b8f49526f52e2b1d20",
-      "frames": 96000,
+      "sha256": "2046b5bef8caac0e824c9cf7fbba8ac791937dd371e827d526676af47ae6bb4d",
+      "frames": 57600,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.92,
       "round_robin": 0,
       "seed": 1182600,
-      "normalization_gain": 0.6962667079309979
+      "normalization_gain": 0.3950025437636441
     },
     {
       "id": "agogo-high-60-soft-1",
       "path": "media/high-60-soft-1.wav",
-      "sha256": "6f4a18c6099e9cbef7b33e54dd8a81730b7b7f4eafd349c40c36f320193f1cbc",
-      "frames": 96000,
+      "sha256": "73aab7cb0a054ae5cb802a97b5b07272d8259ff457d0fec4b535be606d31c756",
+      "frames": 57600,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.48,
       "round_robin": 1,
       "seed": 1182601,
-      "normalization_gain": 0.6856590486733468
+      "normalization_gain": 0.31553460893965474
     },
     {
       "id": "agogo-high-60-hard-1",
       "path": "media/high-60-hard-1.wav",
-      "sha256": "a2eb1f84ba3852a3773cd350ba0f1c04445b40203f6bf203d84098651895ad6e",
-      "frames": 96000,
+      "sha256": "c1ba41e56528da653e257cbcc91d31e89dfa768f2e12ce4c0ef18c8c88a6b082",
+      "frames": 57600,
       "sample_rate": 48000,
       "root_midi": 60,
       "velocity": 0.92,
       "round_robin": 1,
       "seed": 1182601,
-      "normalization_gain": 0.6856590486733468
+      "normalization_gain": 0.31553460893965474
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "model": "plucked",
   "params": {
-    "decay": 0.7,
+    "decay": 0.14,
     "bright": 7000,
     "position": 0.12,
     "fret": 0.01,

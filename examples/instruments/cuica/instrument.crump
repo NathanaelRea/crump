@@ -67,27 +67,27 @@ instrument cuica "Cuíca" graph {
     bus output source.audio -> out.audio
   }
 }
-asset cuica-low-60-soft-0 "Cuíca" wav "media/low-60-soft-0.wav" sha256 "56d9cc30213b9efc206b48b80435ca8aa37596e13a67c782ecca1bd1e6ee695e" {
+asset cuica-low-60-soft-0 "Cuíca" wav "media/low-60-soft-0.wav" sha256 "cfffe5763cb3beedd94fe4cfb673fcab5d9e4ad87320ae780e9607b8730efd56" {
   usage multisample
 }
-asset cuica-low-60-hard-0 "Cuíca" wav "media/low-60-hard-0.wav" sha256 "454d0ce8a594bcc2f867f2b24406c613780a644aae4b962642e5ddedf5c6b37d" {
+asset cuica-low-60-hard-0 "Cuíca" wav "media/low-60-hard-0.wav" sha256 "a031e897ddd54faf30d98cf9057d3b1a5118d6636a905415bff9f8dfefd097fd" {
   usage multisample
 }
-asset cuica-low-60-soft-1 "Cuíca" wav "media/low-60-soft-1.wav" sha256 "e76ca933b9115a767a03132bc1d68de48474781a4dc2968c92067ea58a7091a1" {
+asset cuica-low-60-soft-1 "Cuíca" wav "media/low-60-soft-1.wav" sha256 "cf2207bc8bb736bc7d74496bbe49ef95ebc3b53bd5cb925385f333136be48eab" {
   usage multisample
 }
-asset cuica-low-60-hard-1 "Cuíca" wav "media/low-60-hard-1.wav" sha256 "6d7aa7bdd536b5be93263cf41eb863c6d2228522227d1a13e4126007faea5326" {
+asset cuica-low-60-hard-1 "Cuíca" wav "media/low-60-hard-1.wav" sha256 "54735d2be7093da475faef320aae8a9f7509812405d03febfb6ccad01b0a8745" {
   usage multisample
 }
-asset cuica-high-60-soft-0 "Cuíca" wav "media/high-60-soft-0.wav" sha256 "b69cb1285183d478d89f56e9c5b3618179d0a202ef8fdf61fafc1f6e60be42a2" {
+asset cuica-high-60-soft-0 "Cuíca" wav "media/high-60-soft-0.wav" sha256 "133e8c626c3c733162e045932c0d57b1f1da64653236ccdadd42ea65ec39eeb3" {
   usage multisample
 }
-asset cuica-high-60-hard-0 "Cuíca" wav "media/high-60-hard-0.wav" sha256 "e289943cfaab3872f0ea1bb764641c2ea580e9fcf26ac8cf2c2a2159e0a70a79" {
+asset cuica-high-60-hard-0 "Cuíca" wav "media/high-60-hard-0.wav" sha256 "e267e86746003027c989507069eed2ec5f1e36de03ba57964d36c521ad420a3e" {
   usage multisample
 }
-asset cuica-high-60-soft-1 "Cuíca" wav "media/high-60-soft-1.wav" sha256 "cf69119b57ee2a9ab1c864febe1344396566bb45dc855d45a3b34f70c88359a3" {
+asset cuica-high-60-soft-1 "Cuíca" wav "media/high-60-soft-1.wav" sha256 "db05219a48264675bf83e46a2d586f980a314702bf2cc7dfb6f67c42d669258c" {
   usage multisample
 }
-asset cuica-high-60-hard-1 "Cuíca" wav "media/high-60-hard-1.wav" sha256 "2f29f4e6e688cbbf266d9518a02c8178e9c053c27cbef5bee9286889d5a7688a" {
+asset cuica-high-60-hard-1 "Cuíca" wav "media/high-60-hard-1.wav" sha256 "caa90ee32bf8c36f58496e6cdada7de789870aa43e36134f2dc5af01cc2877d0" {
   usage multisample
 }

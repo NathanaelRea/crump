@@ -2,7 +2,7 @@ crump-module 2
 instrument wobble-bass "Wobble Bass" graph {
   polyphony 1
   voicing mono retrigger legato glide 25ms glide_mode legato note_priority last steal_priority release_oldest seed 30304
-  parameter level "Level" ratio 0 1 0.4 0.4
+  parameter level "Level" ratio 0 1 0.55 0.55
   parameter cutoff "Cutoff" hz 60hz 3khz 160hz 160hz automatable modulatable
   parameter depth "Wobble" hz 0hz 6khz 2600hz 2600hz automatable modulatable
   parameter resonance "Resonance" ratio 0 1 0.45 0.45 automatable modulatable
@@ -24,7 +24,7 @@ instrument wobble-bass "Wobble Bass" graph {
       blend 0.8
       width 0.25
       glide 25ms
-      level 0.3
+      level 0.5
       pan 0
     }
     node sub analog_oscillator {
@@ -35,7 +35,7 @@ instrument wobble-bass "Wobble Bass" graph {
       phase 0
       random_phase 0
       glide 25ms
-      level 0.35
+      level 0.6
       pan 0
     }
     node sources stereo_mixer a_level 1 b_level 0.6
@@ -52,7 +52,7 @@ instrument wobble-bass "Wobble Bass" graph {
       retrigger note
     }
     node amplitude envelope mode ahdsr attack 4ms hold 0ms decay 100ms sustain 1 release 150ms attack_curve 0 decay_curve 0 release_curve 0 retrigger legato
-    node filter stereo_filter model ladder_drive mode lowpass cutoff $cutoff resonance $resonance drive 0.5 mix 1 pan 0 mod_depth $depth velocity_depth 0hz key_track 0.2 key_reference 65.406391hz
+    node filter stereo_filter model ladder_drive mode lowpass cutoff $cutoff resonance $resonance drive 0 mix 1 pan 0 mod_depth $depth velocity_depth 0hz key_track 0.2 key_reference 65.406391hz
     node trim stereo_mixer a_level $level b_level 0
     node out output
     bus saws-pitch note.pitch -> saws.pitch

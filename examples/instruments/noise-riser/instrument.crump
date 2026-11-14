@@ -12,8 +12,8 @@ instrument noise-riser "Noise Riser" graph {
     control space "Space" "Echo and hall" maps space
     control level "Level" "Output level" maps level
   }
-  graph voice 10 {
-    node hiss noise level $level
+  graph voice 11 {
+    node hiss noise level 1
     node lift amplifier level 1
     node hiss-stereo mono_to_stereo
     node tone analog_oscillator {
@@ -26,13 +26,14 @@ instrument noise-riser "Noise Riser" graph {
       detune 0.2st
       blend 0.8
       width 0.8
-      level 0.06
+      level 0.5
       pan 0
     }
     node sources stereo_mixer a_level 1 b_level 1
     node amplitude envelope mode ahdsr attack $rise hold 0ms decay 1s sustain 1 release $release attack_curve 0.4 decay_curve 0 release_curve -0.3 retrigger always
     node sweep envelope mode ahdsr attack $rise hold 0ms decay 1s sustain 1 release $release attack_curve 0.6 decay_curve 0 release_curve 0 retrigger always
-    node band stereo_filter model svf_clean mode bandpass cutoff 250hz resonance 0.55 drive 0 mix 1 pan 0 mod_depth 9khz velocity_depth 0hz key_track 0.5 key_reference 261.625565hz
+    node band stereo_filter model svf_clean mode lowpass cutoff 200hz resonance 0.75 drive 0 mix 1 pan 0 mod_depth 9khz velocity_depth 0hz key_track 0.5 key_reference 261.625565hz
+    node trim stereo_mixer a_level $level b_level 0
     node out output
     bus tone-pitch note.pitch -> tone.pitch
     bus hiss-lift hiss.audio -> lift.audio
@@ -46,7 +47,8 @@ instrument noise-riser "Noise Riser" graph {
     bus band-audio sources.audio -> band.audio
     bus band-sweep sweep.control -> band.mod
     bus band-key note.pitch -> band.key
-    bus output band.audio -> out.audio
+    bus trim-audio band.audio -> trim.a
+    bus output trim.audio -> out.audio
   }
   graph shared 8 {
     node echo delay time 187.5ms feedback 0.3 mix $space

@@ -1,12 +1,43 @@
 {
-  "model": "tuned_drum",
+  "model": "layered_tuned",
   "params": {
-    "decay": 0.22,
-    "contact": 0.0024,
-    "bright": 0.5,
-    "slap": 0.05,
-    "slap_decay": 0.006,
-    "bend": 0.12
+    "layers": [
+      {
+        "model": "tuned_drum",
+        "params": {
+          "decay": 0.35,
+          "contact": 0.0022,
+          "bright": 0.85,
+          "slap": 0.12,
+          "slap_decay": 0.004,
+          "bend": 0.25
+        },
+        "gain": 1
+      },
+      {
+        "model": "machine_tuned",
+        "ratio": 0.7,
+        "params": {
+          "tone": 1,
+          "sweep": 0.5,
+          "sweep_time": 0.025,
+          "decay": 0.2
+        },
+        "gain": 0.7
+      },
+      {
+        "model": "machine",
+        "params": {
+          "noise": 1,
+          "noise_band": [
+            500,
+            4000
+          ],
+          "noise_decay": 0.03
+        },
+        "gain": 1.0
+      }
+    ]
   },
   "pitched": true,
   "category": "Drum kit",

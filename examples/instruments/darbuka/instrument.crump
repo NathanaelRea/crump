@@ -67,27 +67,27 @@ instrument darbuka "Darbuka" graph {
     bus output source.audio -> out.audio
   }
 }
-asset darbuka-doum-60-soft-0 "Darbuka" wav "media/doum-60-soft-0.wav" sha256 "b43cad0fdf35e915b8957d94d3ac217996e26761dd76c6be93db31f18dd6c841" {
+asset darbuka-doum-60-soft-0 "Darbuka" wav "media/doum-60-soft-0.wav" sha256 "fe5a408f691a30cd1bb2ffaf9546bcc05e4f13c1ca29736b0326c03239d7c66d" {
   usage multisample
 }
-asset darbuka-doum-60-hard-0 "Darbuka" wav "media/doum-60-hard-0.wav" sha256 "8b4f73a48c1d69cb8ef4da5f5c6bb9457e7b20e59365a8bb2ba1aead59420760" {
+asset darbuka-doum-60-hard-0 "Darbuka" wav "media/doum-60-hard-0.wav" sha256 "ed74356d2ca8fe616d9a2fda4107e907dedba4c1ab5750ee05c63a55140c9cdb" {
   usage multisample
 }
-asset darbuka-doum-60-soft-1 "Darbuka" wav "media/doum-60-soft-1.wav" sha256 "8964e0e8081e41cfc20ddd18f7a2a01333d0ef4ae9d185ce011a94b3175b4e72" {
+asset darbuka-doum-60-soft-1 "Darbuka" wav "media/doum-60-soft-1.wav" sha256 "6dd31a497eff84dd4f540e9d26a6980c0f8c7327325e49dc67f8b6c1183965a5" {
   usage multisample
 }
-asset darbuka-doum-60-hard-1 "Darbuka" wav "media/doum-60-hard-1.wav" sha256 "7404ac53d05f58135d02e31e646af34491966a53f9f4b17194ec91505c980457" {
+asset darbuka-doum-60-hard-1 "Darbuka" wav "media/doum-60-hard-1.wav" sha256 "205910947fe043a0b0273a76988f1114397be741d7d1aec803d5af0e67b3327b" {
   usage multisample
 }
-asset darbuka-tek-60-soft-0 "Darbuka" wav "media/tek-60-soft-0.wav" sha256 "2e07bf256997618bc28ae7a3694fb8ac3e4c2a493c3f3d8ebbb7c42c38d3642f" {
+asset darbuka-tek-60-soft-0 "Darbuka" wav "media/tek-60-soft-0.wav" sha256 "8189fbc2676a22aede198666ea7e38ef03cebfa6b5d5c9a2b4681b1ccb921878" {
   usage multisample
 }
-asset darbuka-tek-60-hard-0 "Darbuka" wav "media/tek-60-hard-0.wav" sha256 "1bddf447ca4c032def6012de5046f2aa4b51662f4b3cb3d06f0c7bc7bc0014d4" {
+asset darbuka-tek-60-hard-0 "Darbuka" wav "media/tek-60-hard-0.wav" sha256 "024d563c2d3bf8e909d91972dd29aa18d6e3ce4bff85912b0436cc9e1de78b4a" {
   usage multisample
 }
-asset darbuka-tek-60-soft-1 "Darbuka" wav "media/tek-60-soft-1.wav" sha256 "4410d070e36305334cdc2ebd5a4e7343ed15f820388360ed36d5fdf3581256bc" {
+asset darbuka-tek-60-soft-1 "Darbuka" wav "media/tek-60-soft-1.wav" sha256 "bc2d229c5fc4638352c63029cf3b5549af7649f9ec405001aa8f00259d05d034" {
   usage multisample
 }
-asset darbuka-tek-60-hard-1 "Darbuka" wav "media/tek-60-hard-1.wav" sha256 "b9be506e14872eec2694d3d382c61637acfdaaa9ef1771b06cea936e53b12a5d" {
+asset darbuka-tek-60-hard-1 "Darbuka" wav "media/tek-60-hard-1.wav" sha256 "1bbfe2ddfa48eb2f11d914f260b9d6a9e0679ee18a43488575a41eedae620cca" {
   usage multisample
 }

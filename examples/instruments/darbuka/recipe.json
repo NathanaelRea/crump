@@ -1,5 +1,5 @@
 {
-  "model": "membrane",
+  "model": "layered",
   "params": {},
   "pitched": false,
   "category": "World percussion",
@@ -12,11 +12,47 @@
         60
       ],
       "params": {
-        "freq": 190,
-        "decay": 0.28,
-        "contact": 0.003,
-        "bright": 0.35,
-        "slap": 0.03
+        "layers": [
+          {
+            "model": "modes",
+            "params": {
+              "freq": 125,
+              "ratios": [
+                1,
+                1.6,
+                2.3,
+                3.4
+              ],
+              "gains": [
+                1,
+                0.03,
+                0.02,
+                0.015
+              ],
+              "decays": [
+                0.17,
+                0.05,
+                0.04,
+                0.03
+              ],
+              "contact": 0.003,
+              "hardness": 0.4
+            },
+            "gain": 1
+          },
+          {
+            "model": "machine",
+            "params": {
+              "noise": 1,
+              "noise_band": [
+                400,
+                2500
+              ],
+              "noise_decay": 0.01
+            },
+            "gain": 0.5
+          }
+        ]
       }
     },
     {
@@ -26,13 +62,67 @@
         85
       ],
       "params": {
-        "freq": 640,
-        "decay": 0.05,
-        "contact": 0.0006,
-        "bright": 0.95,
-        "slap": 0.18,
-        "slap_decay": 0.004,
-        "edge": true
+        "layers": [
+          {
+            "model": "modes",
+            "params": {
+              "freq": 125,
+              "ratios": [
+                1
+              ],
+              "gains": [
+                1
+              ],
+              "decays": [
+                0.08
+              ],
+              "contact": 0.001,
+              "hardness": 0.6
+            },
+            "gain": 0.05
+          },
+          {
+            "model": "modes",
+            "params": {
+              "freq": 730,
+              "ratios": [
+                1,
+                1.47,
+                1.9,
+                2.07,
+                2.3,
+                2.7,
+                3.1
+              ],
+              "gains": [
+                0.7,
+                1,
+                0.6,
+                0.7,
+                1,
+                0.6,
+                0.5
+              ],
+              "decay": 0.05,
+              "contact": 0.0004,
+              "hardness": 0.9,
+              "tick": 0.3
+            },
+            "gain": 1
+          },
+          {
+            "model": "machine",
+            "params": {
+              "noise": 1,
+              "noise_band": [
+                300,
+                3000
+              ],
+              "noise_decay": 0.02
+            },
+            "gain": 0.5
+          }
+        ]
       }
     }
   ],

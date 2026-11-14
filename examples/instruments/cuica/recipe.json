@@ -1,6 +1,9 @@
 {
   "model": "friction",
-  "params": {},
+  "params": {
+    "rub": 0.02,
+    "slope": 1.0
+  },
   "pitched": false,
   "category": "World percussion",
   "seconds": 0.8,
@@ -12,7 +15,7 @@
         60
       ],
       "params": {
-        "freq": 300,
+        "freq": 330,
         "contour": [
           [
             0,
@@ -54,7 +57,7 @@
         85
       ],
       "params": {
-        "freq": 520,
+        "freq": 620,
         "contour": [
           [
             0,

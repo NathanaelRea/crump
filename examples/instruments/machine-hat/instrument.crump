@@ -67,15 +67,15 @@ instrument machine-hat "Machine Hat" graph {
     bus output source.audio -> out.audio
   }
 }
-asset machine-hat-60-soft-0 "Machine Hat" wav "media/60-soft-0.wav" sha256 "2f8762472892cd0b921604580b9dc936c9f8e0de13d91992705863b4a0782d36" {
+asset machine-hat-60-soft-0 "Machine Hat" wav "media/60-soft-0.wav" sha256 "003af1e85365029401be2739472f46b142efe8055dd6bf528bb13117c4bfca1d" {
   usage multisample
 }
-asset machine-hat-60-hard-0 "Machine Hat" wav "media/60-hard-0.wav" sha256 "ed3aacacb7694c6577cc73f3bfe0a5f7a52700569b268c728773647548e6547b" {
+asset machine-hat-60-hard-0 "Machine Hat" wav "media/60-hard-0.wav" sha256 "5f567f60c7efe6e484dd1c80fe9baa3a50b251d8b012389da6f7079695bffa4c" {
   usage multisample
 }
-asset machine-hat-60-soft-1 "Machine Hat" wav "media/60-soft-1.wav" sha256 "cef9b8a6fba274dba5a9ee9cc2bdfdc09c880f25e27820994667d9c3886c8999" {
+asset machine-hat-60-soft-1 "Machine Hat" wav "media/60-soft-1.wav" sha256 "856741f52f8adb4f73b00c4b1ed8ad0efb950a094d8f160d5a765a6126db7754" {
   usage multisample
 }
-asset machine-hat-60-hard-1 "Machine Hat" wav "media/60-hard-1.wav" sha256 "9d2086118be09c6aa41c0e93e93517d9d718e7ad1c0bb994f330d7553c69e596" {
+asset machine-hat-60-hard-1 "Machine Hat" wav "media/60-hard-1.wav" sha256 "eaed1e558efa2aaea2729ab6934d7fab8287504680ae5923b1b6b3501e285bf1" {
   usage multisample
 }

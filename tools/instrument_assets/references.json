@@ -25,10 +25,18 @@
   ],
   "machine-hat": [
     {
-      "start": 0.9,
-      "seconds": 0.25,
-      "commons": "808patterns 01.ogg",
-      "license": "CC BY-SA 3.0"
+      "start": 0.44,
+      "seconds": 0.5,
+      "youtube": "FtmTFwoyzg8",
+      "title": "TR-808 hi-hat 1",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 0.44,
+      "seconds": 0.5,
+      "youtube": "bv84gGWe0k8",
+      "title": "TR-808 hi-hat 2",
+      "license": "YouTube (local reference only)"
     }
   ],
   "kit-toms": [
@@ -43,6 +51,14 @@
       "seconds": 0.36,
       "commons": "Floor tom.ogg",
       "license": "CC BY-SA 3.0"
+    },
+    {
+      "start": 0,
+      "seconds": 2,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Percussion.zip",
+      "member": "Percussion/tom-toms/tom-toms__05_mezzo-forte_struck-singly.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
     }
   ],
   "china-cymbal": [
@@ -50,6 +66,13 @@
       "start": 0,
       "seconds": 3,
       "url": "https://theremin.music.uiowa.edu/sound files/MIS/Percussion/cymbals/suspended cymbals/stick/16chinese.stick.normal.mf.aif",
+      "page": "https://theremin.music.uiowa.edu/MIS.html",
+      "license": "University of Iowa MIS (free use)"
+    },
+    {
+      "start": 0,
+      "seconds": 4,
+      "url": "https://theremin.music.uiowa.edu/sound files/MIS/Percussion/cymbals/suspended cymbals/stick/19chinese.stick.normal.mf.aif",
       "page": "https://theremin.music.uiowa.edu/MIS.html",
       "license": "University of Iowa MIS (free use)"
     }
@@ -71,18 +94,62 @@
   ],
   "cajon": [
     {
-      "start": 20,
-      "seconds": 8,
-      "commons": "Base de compás por bulerías de Jerez (palmas y caja).ogg",
-      "license": "CC0"
+      "start": 4.92,
+      "seconds": 0.4,
+      "youtube": "_GeiBIgKH14",
+      "title": "Cajon sample kit (bass)",
+      "license": "YouTube (local reference only)",
+      "stroke": "bass"
+    },
+    {
+      "start": 72.09,
+      "seconds": 0.4,
+      "youtube": "7uwb_7YHt1U",
+      "title": "Cajon lesson: bass tone",
+      "license": "YouTube (local reference only)",
+      "stroke": "bass"
+    },
+    {
+      "start": 27.57,
+      "seconds": 0.6,
+      "youtube": "h82cJRmchw0",
+      "title": "Cajon lesson: slap tone",
+      "license": "YouTube (local reference only)",
+      "stroke": "slap"
     }
   ],
   "darbuka": [
     {
-      "start": 0,
-      "seconds": 6,
-      "commons": "Darbuka.ogg",
-      "license": "CC BY-SA 4.0"
+      "start": 43.6,
+      "seconds": 1.6,
+      "youtube": "O9GNdshDWsE",
+      "title": "Darbuka lesson: doum",
+      "license": "YouTube (local reference only)",
+      "stroke": "doum"
+    },
+    {
+      "start": 0.96,
+      "seconds": 1.0,
+      "youtube": "_dZVSiI-O6A",
+      "title": "Doumbek sample: doum",
+      "license": "YouTube (local reference only)",
+      "stroke": "doum"
+    },
+    {
+      "start": 2.05,
+      "seconds": 0.9,
+      "youtube": "_dZVSiI-O6A",
+      "title": "Doumbek sample: tek",
+      "license": "YouTube (local reference only)",
+      "stroke": "tek"
+    },
+    {
+      "start": 3.73,
+      "seconds": 1.4,
+      "youtube": "JkfjSlsJr38",
+      "title": "Darbuka: ka",
+      "license": "YouTube (local reference only)",
+      "stroke": "tek"
     }
   ],
   "frame-drum": [
@@ -95,59 +162,147 @@
   ],
   "taiko": [
     {
-      "start": 0.15,
-      "seconds": 0.35,
-      "commons": "02 Taiko2 (short).oga",
-      "license": "CC0"
+      "start": 0,
+      "seconds": 3,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/VSCO 1 Percussion/drums/other/ethnic/giant/mallet/EthnicLargeMallet_hit_ff_1.wav",
+      "page": "https://github.com/sgossner/VSCO-2-CE",
+      "license": "CC0",
+      "stroke": "don"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/VSCO 1 Percussion/drums/other/ethnic/giant/mallet/EthnicLargeMallet_hit_f_1.wav",
+      "page": "https://github.com/sgossner/VSCO-2-CE",
+      "license": "CC0",
+      "stroke": "don"
+    },
+    {
+      "start": 0.1,
+      "seconds": 1.15,
+      "youtube": "Mv6EJy6DTWA",
+      "title": "Taiko drums (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)",
+      "stroke": "don"
     }
   ],
   "udu": [
     {
-      "start": 0,
-      "seconds": 20,
-      "commons": "Udu Sound 99.wav",
-      "license": "CC BY 4.0"
+      "start": 18.39,
+      "seconds": 0.3,
+      "youtube": "3yBNZ2_nBlI",
+      "title": "LP udu Claytone: bass",
+      "license": "YouTube (local reference only)",
+      "stroke": "bass"
+    },
+    {
+      "start": 1.95,
+      "seconds": 0.95,
+      "youtube": "Ukfj5oUkf0E",
+      "title": "Schlagwerk bass udu",
+      "license": "YouTube (local reference only)",
+      "stroke": "bass"
+    },
+    {
+      "start": 11.76,
+      "seconds": 0.5,
+      "youtube": "3yBNZ2_nBlI",
+      "title": "LP udu Claytone: tap",
+      "license": "YouTube (local reference only)",
+      "stroke": "tap"
     }
   ],
   "talking-drum": [
     {
-      "start": 0.28,
-      "seconds": 3,
-      "commons": "The sound of the talking drum when its been played.ogg",
-      "license": "CC BY-SA 4.0"
+      "start": 2.06,
+      "seconds": 1.6,
+      "youtube": "HAqFGibDiaU",
+      "title": "Talking drum (Emin)",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 16.19,
+      "seconds": 1.6,
+      "youtube": "HAqFGibDiaU",
+      "title": "Talking drum (Emin)",
+      "license": "YouTube (local reference only)"
     }
   ],
   "agogo": [
     {
-      "start": 0.2,
-      "seconds": 3,
-      "commons": "Agogo.ogg",
-      "license": "Public domain",
+      "start": 0,
+      "seconds": 2,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Percussion.zip",
+      "member": "Percussion/agogo bells/agogo-bells__025_mezzo-forte_struck-singly.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0.01,
+      "seconds": 1.5,
+      "youtube": "aUB3f-9P1mg",
+      "title": "Agogo bells",
+      "license": "YouTube (local reference only)",
       "stroke": "high"
+    },
+    {
+      "start": 0,
+      "seconds": 2,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/VSCO 1 Percussion/varMetal/various/agogoBell_f_1.wav",
+      "page": "https://github.com/sgossner/VSCO-2-CE",
+      "license": "CC0"
     }
   ],
   "guiro": [
     {
       "start": 0,
-      "seconds": 20,
-      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/Percussion/Guiro-Slow_v1_Sum.wav",
-      "page": "https://github.com/sgossner/VSCO-2-CE",
-      "license": "CC0"
+      "seconds": 2,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Percussion.zip",
+      "member": "Percussion/guiro/guiro__05_mezzo-forte_scraped.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)",
+      "stroke": "long"
     },
     {
       "start": 0,
-      "seconds": 20,
-      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/Percussion/Guiro-Hit_v1_rr1_Sum.wav",
+      "seconds": 2,
+      "url": "https://theremin.music.uiowa.edu/sound files/MIS/Percussion/hand percussion/guiro/guiro.away.mf.aif",
+      "page": "https://theremin.music.uiowa.edu/MIS.html",
+      "license": "University of Iowa MIS (free use)",
+      "stroke": "long"
+    },
+    {
+      "start": 0,
+      "seconds": 1,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Percussion.zip",
+      "member": "Percussion/guiro/guiro__025_mezzo-forte_struck-singly.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)",
+      "stroke": "short"
+    },
+    {
+      "start": 0,
+      "seconds": 1,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/VSCO 1 Percussion/varWood/guiro_short.wav",
       "page": "https://github.com/sgossner/VSCO-2-CE",
-      "license": "CC0"
+      "license": "CC0",
+      "stroke": "short"
     }
   ],
   "cuica": [
     {
-      "start": 0.1,
-      "seconds": 3,
-      "commons": "Cuica01.ogg",
-      "license": "CC BY-SA 3.0"
+      "start": 6.25,
+      "seconds": 1.7,
+      "youtube": "y3s3f_kQQVw",
+      "title": "Cuica",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 1.81,
+      "seconds": 0.3,
+      "youtube": "-P9lN1OMAss",
+      "title": "Cuica demo",
+      "license": "YouTube (local reference only)"
     }
   ],
   "sleigh-bells": [
@@ -173,37 +328,63 @@
       "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/Percussion/LogDrumHi_MedM_v2_rr1_Sum.wav",
       "page": "https://github.com/sgossner/VSCO-2-CE",
       "license": "CC0"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/VSCO 1 Percussion/varWood/log_drum/slitdrum1_ff_1.wav",
+      "page": "https://github.com/sgossner/VSCO-2-CE",
+      "license": "CC0"
     }
   ],
   "vibraslap": [
     {
       "start": 0,
-      "seconds": 20,
-      "commons": "Vibraslap01.ogg",
-      "license": "CC BY-SA 3.0"
+      "seconds": 4,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Percussion.zip",
+      "member": "Percussion/vibraslap/vibraslap__very-long_forte_undamped.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 4,
+      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/VSCO 1 Percussion/varWood/vibraslap1.wav",
+      "page": "https://github.com/sgossner/VSCO-2-CE",
+      "license": "CC0"
     }
   ],
   "mark-tree": [
     {
       "start": 0,
-      "seconds": 20,
-      "url": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/master/Percussion/BellTree_Stroke1_v1_Sum.wav",
-      "page": "https://github.com/sgossner/VSCO-2-CE",
-      "license": "CC0"
+      "seconds": 6,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Percussion.zip",
+      "member": "Percussion/wind chimes/wind-chimes__long_mezzo-piano_hand.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
     },
     {
       "start": 0,
-      "seconds": 20,
-      "commons": "Windchimes.ogg",
-      "license": "Public domain"
+      "seconds": 6,
+      "youtube": "879Fc51DOeA",
+      "title": "Mark tree",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 12.9,
+      "seconds": 6,
+      "youtube": "drf9q3G61U0",
+      "title": "Spectrasound 35-bar mark tree",
+      "license": "YouTube (local reference only)"
     }
   ],
   "handpan": [
     {
-      "start": 1.8,
-      "seconds": 4,
-      "commons": "Hang 2007 vertical.ogg",
-      "license": "CC BY-SA 3.0"
+      "start": 17.82,
+      "seconds": 5,
+      "youtube": "shk4GPogmFA",
+      "title": "Sensory handpan D Amara",
+      "license": "YouTube (local reference only)"
     }
   ],
   "singing-bowl": [
@@ -213,6 +394,13 @@
       "commons": "Tibetan Singing Bowl hit 4.5inch.flac",
       "license": "CC BY-SA 4.0",
       "hz": 361
+    },
+    {
+      "start": 2.3,
+      "seconds": 4.4,
+      "youtube": "IE42s4tdrDk",
+      "title": "Tibetan singing bowl strike",
+      "license": "YouTube (local reference only)"
     }
   ],
   "gamelan-saron": [
@@ -242,18 +430,29 @@
   ],
   "opera-gong": [
     {
-      "start": 0.25,
-      "seconds": 5.3,
-      "commons": "Gong or bell vibrant (short).ogg",
-      "license": "CC0"
+      "start": 0.09,
+      "seconds": 7.5,
+      "youtube": "CoGigvqDbQo",
+      "title": "13\" Chinese opera gong, descending",
+      "license": "YouTube (local reference only)"
     }
   ],
   "mandolin": [
     {
       "start": 0,
-      "seconds": 10,
-      "commons": "MandolinenDemo.ogg",
-      "license": "CC0"
+      "seconds": 4,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Strings.zip",
+      "member": "Strings/mandolin/mandolin_A4_very-long_piano_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 4,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Strings.zip",
+      "member": "Strings/mandolin/mandolin_A3_very-long_piano_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
     }
   ],
   "ukulele": [
@@ -266,6 +465,13 @@
   ],
   "fretless-bass": [
     {
+      "start": 3.34,
+      "seconds": 5,
+      "youtube": "1iJRj3rptDg",
+      "title": "Fretless bass (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
+    },
+    {
       "start": 0,
       "seconds": 10,
       "commons": "Fretless bass solo 1.ogg",
@@ -273,6 +479,20 @@
     }
   ],
   "sitar": [
+    {
+      "start": 1.3,
+      "seconds": 1.3,
+      "youtube": "VEbQAB-sJ1Y",
+      "title": "Sitar (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 2.58,
+      "seconds": 1.3,
+      "youtube": "VEbQAB-sJ1Y",
+      "title": "Sitar (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
+    },
     {
       "start": 0,
       "seconds": 1.6,
@@ -282,10 +502,18 @@
   ],
   "koto": [
     {
-      "start": 0,
-      "seconds": 20,
-      "commons": "AsianRiff koto.ogg",
-      "license": "CC BY-SA 3.0"
+      "start": 0.12,
+      "seconds": 1.2,
+      "youtube": "rizz-5-MSgE",
+      "title": "Koto (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 1.28,
+      "seconds": 1.3,
+      "youtube": "rizz-5-MSgE",
+      "title": "Koto (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
     }
   ],
   "oud": [
@@ -294,17 +522,39 @@
       "seconds": 1.05,
       "commons": "Oud open Strings.ogg",
       "license": "CC BY-SA 3.0"
+    },
+    {
+      "start": 5.19,
+      "seconds": 5,
+      "youtube": "zU4xlCFpgiw",
+      "title": "Oud (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
     }
   ],
   "hammered-dulcimer": [
     {
-      "start": 0,
-      "seconds": 10,
-      "commons": "Payvar-Dehlavi-Concertino for Santur.ogg",
-      "license": "Public domain"
+      "start": 2.28,
+      "seconds": 1.1,
+      "youtube": "dG1At6rOmlg",
+      "title": "Dulcimer (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 3.39,
+      "seconds": 0.9,
+      "youtube": "dG1At6rOmlg",
+      "title": "Dulcimer (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
     }
   ],
   "erhu": [
+    {
+      "start": 4.35,
+      "seconds": 6,
+      "youtube": "AGp3rHKn6aA",
+      "title": "Erhu demo",
+      "license": "YouTube (local reference only)"
+    },
     {
       "start": 10,
       "seconds": 10,
@@ -314,10 +564,11 @@
   ],
   "hurdy-gurdy": [
     {
-      "start": 0,
-      "seconds": 20,
-      "commons": "HurdySample.ogg",
-      "license": "Public domain"
+      "start": 0.24,
+      "seconds": 6.5,
+      "youtube": "R0D1P7iyK7Q",
+      "title": "Hurdy-gurdy low G melody",
+      "license": "YouTube (local reference only)"
     }
   ],
   "tremolo-strings": [
@@ -343,22 +594,64 @@
       "url": "https://theremin.music.uiowa.edu/sound files/MIS/Woodwinds/altosaxophone/AltoSax.Vib.mf.C4B4.aiff",
       "page": "https://theremin.music.uiowa.edu/MIS.html",
       "license": "University of Iowa MIS (free use)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/saxophone/saxophone_C4_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/saxophone/saxophone_Gs3_1_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/saxophone/saxophone_E4_1_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/saxophone/saxophone_C5_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/saxophone/saxophone_G5_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
     }
   ],
   "tenor-sax": [
     {
-      "start": 0,
-      "seconds": 20,
-      "commons": "Lick Tenor Sax.wav",
-      "license": "CC BY-SA 4.0"
+      "start": 0.19,
+      "seconds": 4,
+      "youtube": "0kMsJfea5u0",
+      "title": "Tenor saxophone (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
     }
   ],
   "baritone-sax": [
     {
-      "start": 0,
-      "seconds": 20,
-      "commons": "Bariton Saxophone independently performing a base line in 5 voice sax sectional harmony.oga",
-      "license": "CC BY-SA 3.0"
+      "start": 2.72,
+      "seconds": 4,
+      "youtube": "_gFN7RJIX7U",
+      "title": "Baritone saxophone (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
     }
   ],
   "bass-clarinet": [
@@ -368,22 +661,41 @@
       "url": "https://theremin.music.uiowa.edu/sound files/MIS/Woodwinds/bassclarinet/BassClarinet.mf.B2Bb3.aiff",
       "page": "https://theremin.music.uiowa.edu/MIS.html",
       "license": "University of Iowa MIS (free use)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/bass clarinet/bass-clarinet_A2_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
     }
   ],
   "contrabassoon": [
     {
       "start": 0,
-      "seconds": 20,
-      "commons": "Contra2.ogg",
-      "license": "CC BY-SA 3.0"
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/contrabassoon/contrabassoon_A1_1_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/contrabassoon/contrabassoon_A2_1_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
     }
   ],
   "recorder": [
     {
-      "start": 0,
-      "seconds": 10,
-      "commons": "Hans P Keuning - 12 difficult studies (treble recorder) - Moderato.ogg",
-      "license": "CC BY-SA 3.0"
+      "start": 0.12,
+      "seconds": 4,
+      "youtube": "GLl6hg7tAgQ",
+      "title": "Recorder (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
     }
   ],
   "shakuhachi": [
@@ -408,6 +720,13 @@
       "seconds": 2,
       "commons": "Tortuga Ocarina 4.ogg",
       "license": "CC BY-SA 4.0"
+    },
+    {
+      "start": 0.15,
+      "seconds": 4,
+      "youtube": "9ylUgFNNKrE",
+      "title": "Ocarina (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
     }
   ],
   "duduk": [
@@ -428,26 +747,36 @@
   ],
   "accordion": [
     {
-      "start": 0,
-      "seconds": 10,
-      "commons": "Accordion registers.ogg",
-      "license": "Public domain"
+      "start": 3.6,
+      "seconds": 3,
+      "youtube": "vMsVWm3-OeQ",
+      "title": "Musette accordion (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
     }
   ],
   "bagpipes": [
     {
-      "start": 0,
-      "seconds": 10,
-      "commons": "Skye Boat Song.ogg",
-      "license": "CC BY-SA 2.0"
+      "start": 2.4,
+      "seconds": 8,
+      "youtube": "989tydsWJJQ",
+      "title": "Great Highland bagpipe drone",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 2.58,
+      "seconds": 1.3,
+      "youtube": "MBaO_c0-U_k",
+      "title": "Bagpipe (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
     }
   ],
   "didgeridoo": [
     {
-      "start": 0,
-      "seconds": 10,
-      "commons": "Didgeridoo sound.ogg",
-      "license": "CC BY-SA 4.0"
+      "start": 20.6,
+      "seconds": 7,
+      "youtube": "r5Xfo6g9vGQ",
+      "title": "Didgeridoo drone",
+      "license": "YouTube (local reference only)"
     }
   ],
   "flugelhorn": [
@@ -459,6 +788,13 @@
     }
   ],
   "muted-trumpet": [
+    {
+      "start": 0.5,
+      "seconds": 5,
+      "youtube": "A4LelPoyF_Y",
+      "title": "Muted trumpet (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
+    },
     {
       "start": 0,
       "seconds": 20,
@@ -511,6 +847,174 @@
       "seconds": 10,
       "commons": "Happy music for children (prepared piano).wav",
       "license": "CC BY-SA 4.0"
+    }
+  ],
+  "machine-open-hat": [
+    {
+      "start": 0.45,
+      "seconds": 1.4,
+      "youtube": "sjBd4BbL36Q",
+      "title": "TR-808 open hi-hat 2",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 0.46,
+      "seconds": 1.4,
+      "youtube": "Ip9sB4R0ja8",
+      "title": "TR-808 open hi-hat 4",
+      "license": "YouTube (local reference only)"
+    }
+  ],
+  "machine-clap": [
+    {
+      "start": 0.45,
+      "seconds": 0.8,
+      "youtube": "ipMPb0MZr3w",
+      "title": "TR-808 clap 1",
+      "license": "YouTube (local reference only)"
+    }
+  ],
+  "machine-tom": [
+    {
+      "start": 0.45,
+      "seconds": 1.0,
+      "youtube": "UtnZ6rHZvug",
+      "title": "TR-808 low tom 1",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 0.04,
+      "seconds": 1.0,
+      "youtube": "uPGn9NEnp_Y",
+      "title": "808 tom",
+      "license": "YouTube (local reference only)"
+    }
+  ],
+  "temple-blocks": [
+    {
+      "start": 0.96,
+      "seconds": 0.6,
+      "youtube": "TF2HT_ln514",
+      "title": "Meinl wood temple blocks",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 1.6,
+      "seconds": 0.6,
+      "youtube": "TF2HT_ln514",
+      "title": "Meinl wood temple blocks",
+      "license": "YouTube (local reference only)"
+    }
+  ],
+  "steel-pan": [
+    {
+      "start": 2.57,
+      "seconds": 1.3,
+      "youtube": "ZXQCHRnLWRE",
+      "title": "Steel drums (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 20.88,
+      "seconds": 0.6,
+      "youtube": "doA9_druR4U",
+      "title": "Low D tenor steel pan",
+      "license": "YouTube (local reference only)"
+    }
+  ],
+  "shamisen": [
+    {
+      "start": 2.58,
+      "seconds": 1.3,
+      "youtube": "ZI6D_2F37t4",
+      "title": "Shamisen (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
+    }
+  ],
+  "banjo": [
+    {
+      "start": 0,
+      "seconds": 4,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Strings.zip",
+      "member": "Strings/banjo/banjo_A3_very-long_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 4,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Strings.zip",
+      "member": "Strings/banjo/banjo_A4_very-long_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    }
+  ],
+  "clean-electric": [
+    {
+      "start": 4.4,
+      "seconds": 4.3,
+      "youtube": "TlhJJYMymT4",
+      "title": "Clean guitar (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 2.66,
+      "seconds": 0.9,
+      "youtube": "TlhJJYMymT4",
+      "title": "Clean guitar (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
+    }
+  ],
+  "crunch-guitar": [
+    {
+      "start": 0.15,
+      "seconds": 1.6,
+      "youtube": "Beyr410QO30",
+      "title": "Overdriven guitar (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
+    }
+  ],
+  "english-horn": [
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/cor anglais/cor-anglais_A4_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/cor anglais/cor-anglais_C4_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    }
+  ],
+  "pan-flute": [
+    {
+      "start": 0.18,
+      "seconds": 1.8,
+      "youtube": "2Sw0oW5fFNk",
+      "title": "Pan flute low note",
+      "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 0.19,
+      "seconds": 4,
+      "youtube": "exrLZn5wYdE",
+      "title": "Pan flute (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
+    }
+  ],
+  "choir-oohs": [
+    {
+      "start": 0.19,
+      "seconds": 1.6,
+      "youtube": "EWPEZPa04S4",
+      "title": "Choir (keyboard preset, isolated notes)",
+      "license": "YouTube (local reference only)"
     }
   ]
 }

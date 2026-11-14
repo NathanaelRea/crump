@@ -35,27 +35,27 @@ instrument talking-drum "Talking Drum" graph {
     bus output source.audio -> out.audio
   }
 }
-asset talking-drum-50-soft-0 "Talking Drum" wav "media/50-soft-0.wav" sha256 "7a4faefa0ef3a1bbd5b2f319dcb6a3aea436699ead0196c437fff6c27c38b6d8" {
+asset talking-drum-50-soft-0 "Talking Drum" wav "media/50-soft-0.wav" sha256 "4ea3b17ae7e6d821cca65c6e24e54ac5900a0434d4cda3587a9e30dbec63960c" {
   usage multisample
 }
-asset talking-drum-50-hard-0 "Talking Drum" wav "media/50-hard-0.wav" sha256 "6397c6d0cfc1bc3856ccaf01a09cbed10738a351807fc6f6cc56437db872e7a0" {
+asset talking-drum-50-hard-0 "Talking Drum" wav "media/50-hard-0.wav" sha256 "b8c72a0cc62a4a129c5f59fbcaaf949135929375b68ab04a5a5274fa8ccdeead" {
   usage multisample
 }
-asset talking-drum-56-soft-0 "Talking Drum" wav "media/56-soft-0.wav" sha256 "c947e18bd7a38abde6b4547a0d1c51053b4d0b13ebd6302e88c21a4cb69f317b" {
+asset talking-drum-56-soft-0 "Talking Drum" wav "media/56-soft-0.wav" sha256 "0fe06341c78994af7b17c23478880c1f6da8ea1b14b0b1e9af0fc34d5d1f4f90" {
   usage multisample
 }
-asset talking-drum-56-hard-0 "Talking Drum" wav "media/56-hard-0.wav" sha256 "5ebdbbd62f37ccd47e72f12a4954ec98a13254cebbecd6b59b5f3ae30ff268d8" {
+asset talking-drum-56-hard-0 "Talking Drum" wav "media/56-hard-0.wav" sha256 "2f8e2dd299aee9ffb81f9086cd0b6ca9ec1d72d866b2e4065356448372d973fd" {
   usage multisample
 }
-asset talking-drum-62-soft-0 "Talking Drum" wav "media/62-soft-0.wav" sha256 "0bf2c43555f8fe45156dda9e2cf7714e6c941598dc7ed39c8d399aea6662dabc" {
+asset talking-drum-62-soft-0 "Talking Drum" wav "media/62-soft-0.wav" sha256 "bc425a204e4e8a7368150edf2f44ab6b23e0e1c74894e9f3f18718cc637eed7a" {
   usage multisample
 }
-asset talking-drum-62-hard-0 "Talking Drum" wav "media/62-hard-0.wav" sha256 "ca4ec8406ad3ffb6be6d87c9c37175a818d89a5c021bb21babbd962c7e7e089e" {
+asset talking-drum-62-hard-0 "Talking Drum" wav "media/62-hard-0.wav" sha256 "f3466fdef99958c72903933ff99975c1058253afa5caa1933d91c47c9571daff" {
   usage multisample
 }
-asset talking-drum-68-soft-0 "Talking Drum" wav "media/68-soft-0.wav" sha256 "61645419c041c3412f76b4e456f200f5800c832b04ce14d4873379346de58fca" {
+asset talking-drum-68-soft-0 "Talking Drum" wav "media/68-soft-0.wav" sha256 "50a8f3d82d4fbe6e8ab0750559797f28fc1b0c6dd0ffc9be19645ff4db978ab3" {
   usage multisample
 }
-asset talking-drum-68-hard-0 "Talking Drum" wav "media/68-hard-0.wav" sha256 "b8c7d6e370e72178cbf40eec7d6994c3811819b5b79664b5885da197d5b3f034" {
+asset talking-drum-68-hard-0 "Talking Drum" wav "media/68-hard-0.wav" sha256 "62345e555f5b3d754afad033f120676eb365b8564355e2b0b3a2f2aa18ea7061" {
   usage multisample
 }

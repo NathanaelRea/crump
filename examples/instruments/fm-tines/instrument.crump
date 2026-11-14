@@ -16,7 +16,7 @@ instrument fm-tines "FM Tines" graph {
     source velocity note_velocity per_voice unipolar
     route velocity-bark source velocity target index depth 0.25 map unipolar curve linear order 0 bypass false
   }
-  graph voice 12 {
+  graph voice 13 {
     node body-modulator oscillator waveform sine detune 0st glide 0s level 1
     node tine-modulator oscillator waveform sine detune 45.6874st glide 0s level 0.35
     node body-depth amplifier level 1
@@ -37,6 +37,7 @@ instrument fm-tines "FM Tines" graph {
     node amplitude envelope mode ahdsr attack 1ms hold 0ms decay 2.5s sustain 0.12 release $release attack_curve 0 decay_curve -0.5 release_curve -0.2 retrigger always
     node body-envelope envelope mode ahdsr attack 0ms hold 0ms decay 1.4s sustain 0.2 release 400ms attack_curve 0 decay_curve -0.4 release_curve 0 retrigger always
     node tine-envelope envelope mode ahdsr attack 0ms hold 0ms decay 70ms sustain 0 release 50ms attack_curve 0 decay_curve -0.5 release_curve 0 retrigger always
+    node dc-block stereo_filter model svf_clean mode highpass cutoff 30hz resonance 0 drive 0 mix 1 pan 0 mod_depth 0hz velocity_depth 0hz key_track 0 key_reference 261.625565hz
     node out output
     bus body-pitch note.pitch -> body-modulator.pitch
     bus tine-pitch note.pitch -> tine-modulator.pitch
@@ -53,7 +54,8 @@ instrument fm-tines "FM Tines" graph {
     bus amplitude-gate note.gate -> amplitude.gate
     bus body-gate note.gate -> body-envelope.gate
     bus tine-gate note.gate -> tine-envelope.gate
-    bus output carrier.audio -> out.audio
+    bus dc-block-audio carrier.audio -> dc-block.audio
+    bus output dc-block.audio -> out.audio
   }
   graph shared 8 {
     node echo delay time 187.5ms feedback 0.3 mix $space
