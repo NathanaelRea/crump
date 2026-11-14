@@ -711,7 +711,16 @@ fn node_section(kind: NodeKind, domain: GraphDomain) -> PresentationSectionKind 
         | NodeKind::Granular
         | NodeKind::Spectral => PresentationSectionKind::Sources,
         NodeKind::Envelope | NodeKind::Lfo => PresentationSectionKind::EnvelopesLfos,
-        NodeKind::Lowpass | NodeKind::StereoFilter => PresentationSectionKind::Filters,
+        NodeKind::Lowpass
+        | NodeKind::StereoFilter
+        | NodeKind::DcBlock
+        | NodeKind::LinearPhaseLowpass => PresentationSectionKind::Filters,
+        NodeKind::DelayLine
+        | NodeKind::Math
+        | NodeKind::StereoMath
+        | NodeKind::Shaper
+        | NodeKind::ToAudio
+        | NodeKind::ToControl => PresentationSectionKind::SourceMixer,
         NodeKind::Delay | NodeKind::Reverb | NodeKind::Saturation
             if domain == GraphDomain::Shared =>
         {

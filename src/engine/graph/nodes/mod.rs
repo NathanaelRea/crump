@@ -33,6 +33,7 @@ mod effects;
 mod envelope;
 mod filter;
 mod oscillator;
+mod primitives;
 mod sample_source;
 mod spectral;
 mod wavetable;
@@ -146,6 +147,11 @@ pub(super) fn authored_node_work_units(instrument: &Instrument, node: &GraphNode
         NodeKind::Lfo if matches!(node.setting("waveform"), Some(SettingValue::Text(value)) if value == "custom") => {
             1_u64.saturating_add(node.directives.len() as u64)
         }
+        NodeKind::DelayLine => 4,
+        // Binary search over the authored table, plus the interpolation.
+        NodeKind::Shaper if !node.directives.is_empty() => {
+            1_u64.saturating_add(u64::from((node.directives.len() as u32).max(1).ilog2()) + 1)
+        }
         _ => 1,
     }
 }
@@ -229,6 +235,16 @@ pub(super) fn authored_node_heap_bytes(
                 .clamp(1.0, MAX_SPECTRAL_PEAKS as f64) as usize,
         ),
         NodeKind::StereoFilter => std::mem::size_of::<filter::StereoFilterState>() as u64,
+        NodeKind::DelayLine => primitives::delay_line_state_bytes(primitives::delay_line_capacity(
+            authored_node_number(
+                instrument,
+                node,
+                "max_time",
+                primitives::DEFAULT_DELAY_LINE_MAX_SECONDS,
+            )
+            .clamp(0.0, primitives::MAX_DELAY_LINE_SECONDS),
+            sample_rate,
+        )),
         _ => 0,
     }
 }
@@ -461,6 +477,11 @@ use oscillator::{
     AnalogPhaseWarp, AnalogWarpStage, GraphLfoRetrigger, LfoConfig, LfoState, NoiseConfig,
     NoiseState, OscillatorConfig, OscillatorState, OscillatorWaveform, UnisonConfig, UnisonState,
 };
+use primitives::{
+    DcBlockConfig, DcBlockState, DelayInterpolation, DelayLineConfig, DelayLineMode,
+    DelayLineState, LinearPhaseLowpassConfig, LinearPhaseLowpassState, MathConfig, MathOperation,
+    ShaperConfig, ShaperCurve,
+};
 use sample_source::{
     GrainEdge, GrainWindow, GranularConfig, GranularState, MultisampleConfig,
     MultisampleRoundRobinGroup, MultisampleState, MultisampleZone,
@@ -583,6 +604,14 @@ enum NodeProgramKind {
     Reverb(ReverbConfig),
     Output,
     Lfo(Box<LfoConfig>),
+    DelayLine(DelayLineConfig),
+    Math(MathConfig),
+    StereoMath(MathConfig),
+    Shaper(Box<ShaperConfig>),
+    ToAudio,
+    ToControl,
+    DcBlock(DcBlockConfig),
+    LinearPhaseLowpass(LinearPhaseLowpassConfig),
 }
 
 /// Mutable state paired with one [`NodeProgram`] variant at voice creation.
@@ -623,6 +652,9 @@ enum NodeStateKind {
     Delay(DelayState),
     Reverb(ReverbState),
     Lfo(LfoState),
+    DelayLine(DelayLineState),
+    DcBlock(DcBlockState),
+    LinearPhaseLowpass(LinearPhaseLowpassState),
     Stateless,
 }
 
@@ -642,6 +674,8 @@ pub(super) struct NodeInputs {
     pub(super) amplitude_modulation: Signal,
     pub(super) input_a: Signal,
     pub(super) input_b: Signal,
+    pub(super) time_modulation: Signal,
+    pub(super) control: Signal,
     pub(super) summed_audio: Signal,
     pub(super) has_key: bool,
     pub(super) has_velocity: bool,
@@ -651,6 +685,7 @@ pub(super) struct NodeInputs {
     pub(super) has_phase_modulation: bool,
     pub(super) has_sync: bool,
     pub(super) has_amplitude_modulation: bool,
+    pub(super) has_time_modulation: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1424,6 +1459,91 @@ impl NodeProgram {
                 mix: number("mix", Unit::Ratio, 0.15)?,
             }),
             NodeKind::Output => NodeProgramKind::Output,
+            NodeKind::DelayLine => {
+                let max_time = number(
+                    "max_time",
+                    Unit::Seconds,
+                    primitives::DEFAULT_DELAY_LINE_MAX_SECONDS,
+                )?
+                .constant;
+                if !(0.001..=primitives::MAX_DELAY_LINE_SECONDS).contains(&max_time) {
+                    return Err(EngineError::Compile(format!(
+                        "delay_line max_time must be between 1ms and {}s",
+                        primitives::MAX_DELAY_LINE_SECONDS
+                    )));
+                }
+                NodeProgramKind::DelayLine(DelayLineConfig {
+                    mode: match text(node, "mode", "time") {
+                        "time" => DelayLineMode::Time,
+                        "pitch" => DelayLineMode::Pitch,
+                        value => {
+                            return Err(EngineError::Compile(format!(
+                                "unsupported delay_line mode `{value}`"
+                            )));
+                        }
+                    },
+                    interpolation: match text(node, "interpolation", "lagrange3") {
+                        "linear" => DelayInterpolation::Linear,
+                        "lagrange3" => DelayInterpolation::Lagrange3,
+                        "allpass" => DelayInterpolation::Allpass,
+                        value => {
+                            return Err(EngineError::Compile(format!(
+                                "unsupported delay_line interpolation `{value}`"
+                            )));
+                        }
+                    },
+                    time: number("time", Unit::Seconds, 0.01)?,
+                    ratio: number("ratio", Unit::Ratio, 1.0)?,
+                    mod_depth: number("mod_depth", Unit::Ratio, 0.5)?,
+                    tune_compensation: number("tune_compensation", Unit::Ratio, 0.0)?,
+                    capacity_frames: primitives::delay_line_capacity(max_time, sample_rate),
+                })
+            }
+            NodeKind::Math | NodeKind::StereoMath => {
+                let operation =
+                    MathOperation::parse(text(node, "operation", "add")).ok_or_else(|| {
+                        EngineError::Compile(format!(
+                            "unsupported math operation `{}`",
+                            text(node, "operation", "add")
+                        ))
+                    })?;
+                let config = MathConfig {
+                    operation,
+                    amount: number("amount", Unit::Ratio, operation.default_amount())?,
+                };
+                if node.kind == NodeKind::Math {
+                    NodeProgramKind::Math(config)
+                } else {
+                    NodeProgramKind::StereoMath(config)
+                }
+            }
+            NodeKind::Shaper => {
+                let curve = ShaperCurve::parse(text(node, "curve", "tanh")).ok_or_else(|| {
+                    EngineError::Compile(format!(
+                        "unsupported shaper curve `{}`",
+                        text(node, "curve", "tanh")
+                    ))
+                })?;
+                let (points, point_count) = compile_shaper_points(node, curve)?;
+                NodeProgramKind::Shaper(Box::new(ShaperConfig {
+                    curve,
+                    drive: number("drive", Unit::Ratio, 1.0)?,
+                    bias: number("bias", Unit::Ratio, 0.0)?,
+                    asymmetry: number("asymmetry", Unit::Ratio, 0.5)?,
+                    points,
+                    point_count,
+                }))
+            }
+            NodeKind::ToAudio => NodeProgramKind::ToAudio,
+            NodeKind::ToControl => NodeProgramKind::ToControl,
+            NodeKind::DcBlock => NodeProgramKind::DcBlock(DcBlockConfig {
+                cutoff: number("cutoff", Unit::Hertz, 20.0)?,
+            }),
+            NodeKind::LinearPhaseLowpass => {
+                NodeProgramKind::LinearPhaseLowpass(LinearPhaseLowpassConfig {
+                    amount: number("amount", Unit::Ratio, 0.5)?,
+                })
+            }
             NodeKind::Lfo => {
                 let (custom_points, custom_point_count) = compile_lfo_points(node)?;
                 NodeProgramKind::Lfo(Box::new(LfoConfig {
@@ -1605,7 +1725,19 @@ impl NodeProgram {
                 NodeProgramKind::Lfo(config) => {
                     NodeStateKind::Lfo(LfoState::new(seed, config.retrigger))
                 }
-                NodeProgramKind::Mixer(_)
+                NodeProgramKind::DelayLine(config) => {
+                    NodeStateKind::DelayLine(DelayLineState::new(config.capacity_frames))
+                }
+                NodeProgramKind::DcBlock(_) => NodeStateKind::DcBlock(DcBlockState::default()),
+                NodeProgramKind::LinearPhaseLowpass(_) => {
+                    NodeStateKind::LinearPhaseLowpass(LinearPhaseLowpassState::default())
+                }
+                NodeProgramKind::Math(_)
+                | NodeProgramKind::StereoMath(_)
+                | NodeProgramKind::Shaper(_)
+                | NodeProgramKind::ToAudio
+                | NodeProgramKind::ToControl
+                | NodeProgramKind::Mixer(_)
                 | NodeProgramKind::MonoToStereo
                 | NodeProgramKind::StereoToMono
                 | NodeProgramKind::StereoMixer(_)
@@ -1820,6 +1952,44 @@ impl NodeProgram {
             (NodeProgramKind::Lfo(config), NodeStateKind::Lfo(state)) => {
                 Signal::Control(config.process(state, controls, sample_rate, inputs.song_frame))
             }
+            (NodeProgramKind::DelayLine(config), NodeStateKind::DelayLine(state)) => {
+                Signal::Mono(config.process(
+                    state,
+                    inputs.audio.mono(),
+                    inputs.pitch.control(),
+                    inputs.time_modulation.mono(),
+                    inputs.has_time_modulation,
+                    controls,
+                    sample_rate,
+                ))
+            }
+            (NodeProgramKind::Math(config), NodeStateKind::Stateless) => Signal::Mono(
+                config.process_mono(inputs.input_a.mono(), inputs.input_b.mono(), controls),
+            ),
+            (NodeProgramKind::StereoMath(config), NodeStateKind::Stateless) => Signal::Stereo(
+                config.process_stereo(inputs.input_a.stereo(), inputs.input_b.stereo(), controls),
+            ),
+            (NodeProgramKind::Shaper(config), NodeStateKind::Stateless) => {
+                Signal::Mono(config.process(inputs.audio.mono(), controls))
+            }
+            (NodeProgramKind::ToAudio, NodeStateKind::Stateless) => {
+                Signal::Mono(inputs.control.control())
+            }
+            (NodeProgramKind::ToControl, NodeStateKind::Stateless) => {
+                let value = inputs.audio.mono();
+                Signal::Control(if value.is_finite() {
+                    value.clamp(-1.0, 1.0)
+                } else {
+                    0.0
+                })
+            }
+            (NodeProgramKind::DcBlock(config), NodeStateKind::DcBlock(state)) => {
+                Signal::Mono(config.process(state, inputs.audio.mono(), controls, sample_rate))
+            }
+            (
+                NodeProgramKind::LinearPhaseLowpass(config),
+                NodeStateKind::LinearPhaseLowpass(state),
+            ) => Signal::Mono(config.process(state, inputs.audio.mono(), controls)),
             // Preserve callback-safe legacy behavior if an internal caller violates
             // the program/state pairing invariant.
             _ => Signal::None,
@@ -1907,7 +2077,32 @@ impl NodeProgram {
                                 && left.value.to_bits() == right.value.to_bits()
                         })
             }
+            (NodeProgramKind::DelayLine(left), NodeProgramKind::DelayLine(right)) => {
+                left.mode == right.mode
+                    && left.interpolation == right.interpolation
+                    && left.capacity_frames == right.capacity_frames
+            }
+            (NodeProgramKind::Math(left), NodeProgramKind::Math(right))
+            | (NodeProgramKind::StereoMath(left), NodeProgramKind::StereoMath(right)) => {
+                left.operation == right.operation
+            }
+            (NodeProgramKind::Shaper(left), NodeProgramKind::Shaper(right)) => {
+                let count = usize::from(left.point_count);
+                left.curve == right.curve
+                    && left.point_count == right.point_count
+                    && left.points[..count]
+                        .iter()
+                        .zip(right.points[..count].iter())
+                        .all(|(left, right)| {
+                            left.0.to_bits() == right.0.to_bits()
+                                && left.1.to_bits() == right.1.to_bits()
+                        })
+            }
             (NodeProgramKind::Noise(_), NodeProgramKind::Noise(_))
+            | (NodeProgramKind::ToAudio, NodeProgramKind::ToAudio)
+            | (NodeProgramKind::ToControl, NodeProgramKind::ToControl)
+            | (NodeProgramKind::DcBlock(_), NodeProgramKind::DcBlock(_))
+            | (NodeProgramKind::LinearPhaseLowpass(_), NodeProgramKind::LinearPhaseLowpass(_))
             | (NodeProgramKind::Mixer(_), NodeProgramKind::Mixer(_))
             | (NodeProgramKind::MonoToStereo, NodeProgramKind::MonoToStereo)
             | (NodeProgramKind::StereoToMono, NodeProgramKind::StereoToMono)
@@ -1936,8 +2131,14 @@ impl NodeProgram {
             NodeProgramKind::Granular(config) => config.allocation_bytes(),
             NodeProgramKind::Spectral(config) => config.allocation_bytes(),
             NodeProgramKind::Lfo(_) => std::mem::size_of::<LfoConfig>() as u64,
+            NodeProgramKind::Shaper(_) => std::mem::size_of::<ShaperConfig>() as u64,
             _ => 0,
         }
+    }
+
+    /// Whether this program reads only earlier frames and therefore runs after all others.
+    pub(super) const fn breaks_feedback(&self) -> bool {
+        matches!(self.0, NodeProgramKind::DelayLine(_))
     }
 
     #[cfg(test)]
@@ -1978,6 +2179,9 @@ impl NodeState {
             NodeStateKind::Lfo(state) => state.reset(seed),
             NodeStateKind::Delay(state) => state.reset(),
             NodeStateKind::Reverb(state) => state.reset(),
+            NodeStateKind::DelayLine(state) => state.reset(),
+            NodeStateKind::DcBlock(state) => *state = DcBlockState::default(),
+            NodeStateKind::LinearPhaseLowpass(state) => *state = LinearPhaseLowpassState::default(),
             NodeStateKind::Stateless => {}
         }
     }
@@ -2000,6 +2204,10 @@ impl NodeState {
             NodeStateKind::Filter(state) => *state = RuntimeFilterState::default(),
             NodeStateKind::StereoFilter(state) => **state = StereoFilterState::default(),
             NodeStateKind::Lfo(state) => state.retrigger(seed),
+            // A voice-start resets loop state so each note starts from silence.
+            NodeStateKind::DelayLine(state) => state.reset(),
+            NodeStateKind::DcBlock(state) => *state = DcBlockState::default(),
+            NodeStateKind::LinearPhaseLowpass(state) => *state = LinearPhaseLowpassState::default(),
             NodeStateKind::Delay(_) | NodeStateKind::Reverb(_) | NodeStateKind::Stateless => {}
         }
     }
@@ -2025,6 +2233,9 @@ impl NodeState {
             | NodeStateKind::StereoFilter(_)
             | NodeStateKind::Delay(_)
             | NodeStateKind::Reverb(_)
+            | NodeStateKind::DelayLine(_)
+            | NodeStateKind::DcBlock(_)
+            | NodeStateKind::LinearPhaseLowpass(_)
             | NodeStateKind::Stateless => {}
         }
     }
@@ -2045,6 +2256,9 @@ impl NodeState {
                 std::mem::size_of::<acoustic::BankState>() as u64 + state.dsp.allocation_bytes()
             }
             NodeStateKind::Delay(state) => state.heap_bytes(),
+            NodeStateKind::DelayLine(state) => {
+                std::mem::size_of::<DelayLineState>() as u64 + state.heap_bytes()
+            }
             NodeStateKind::Reverb(state) => state.heap_bytes(),
             NodeStateKind::Unison(_) => std::mem::size_of::<UnisonState>() as u64,
             NodeStateKind::AnalogOscillator(_) => {
@@ -2174,6 +2388,62 @@ fn compile_lfo_points(
         return Err(EngineError::Compile(
             "custom LFO points must begin at phase 0 and end at phase 1".to_owned(),
         ));
+    }
+    Ok((points, node.directives.len() as u8))
+}
+
+fn compile_shaper_points(
+    node: &GraphNode,
+    curve: ShaperCurve,
+) -> Result<([(f32, f32); primitives::MAX_SHAPER_POINTS], u8), EngineError> {
+    let mut points = [(0.0_f32, 0.0_f32); primitives::MAX_SHAPER_POINTS];
+    if curve != ShaperCurve::Table {
+        if !node.directives.is_empty() {
+            return Err(EngineError::Compile(
+                "only a table shaper may declare point directives".to_owned(),
+            ));
+        }
+        return Ok((points, 0));
+    }
+    if !(2..=primitives::MAX_SHAPER_POINTS).contains(&node.directives.len()) {
+        return Err(EngineError::Compile(format!(
+            "table shaper requires 2..={} points",
+            primitives::MAX_SHAPER_POINTS
+        )));
+    }
+    let mut ids = BTreeSet::new();
+    for (index, directive) in node.directives.iter().enumerate() {
+        let tokens = &directive.tokens;
+        if !directive.children.is_empty()
+            || tokens.len() != 6
+            || tokens[0].value != "point"
+            || tokens[2].value != "input"
+            || tokens[4].value != "output"
+            || !ids.insert(tokens[1].value.as_str())
+        {
+            return Err(EngineError::Compile(
+                "shaper point syntax is `point ID input VALUE output VALUE` with unique IDs"
+                    .to_owned(),
+            ));
+        }
+        let parse = |token: &crate::model::NodeDirectiveToken| {
+            token
+                .value
+                .parse::<f64>()
+                .ok()
+                .filter(|value| value.is_finite() && value.abs() <= 16.0)
+                .ok_or_else(|| {
+                    EngineError::Compile("shaper points must be finite within -16..=16".to_owned())
+                })
+        };
+        let input = parse(&tokens[3])? as f32;
+        let output = parse(&tokens[5])? as f32;
+        if index > 0 && input <= points[index - 1].0 {
+            return Err(EngineError::Compile(
+                "shaper point inputs must strictly increase".to_owned(),
+            ));
+        }
+        points[index] = (input, output);
     }
     Ok((points, node.directives.len() as u8))
 }
@@ -2356,6 +2626,8 @@ mod tests {
             amplitude_modulation: Signal::None,
             input_a: a,
             input_b: b,
+            time_modulation: Signal::None,
+            control: Signal::None,
             summed_audio,
             has_key: false,
             has_velocity: false,
@@ -2365,6 +2637,7 @@ mod tests {
             has_phase_modulation: false,
             has_sync: false,
             has_amplitude_modulation: false,
+            has_time_modulation: false,
         }
     }
 

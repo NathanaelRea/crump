@@ -2568,6 +2568,22 @@ pub enum NodeKind {
     Granular,
     /// Exact-asset deterministic sinusoidal-peak spectral source.
     Spectral,
+    /// Per-voice fractional mono delay whose output depends only on earlier frames.
+    DelayLine,
+    /// Mono sample-wise arithmetic on Audio.
+    Math,
+    /// Stereo sample-wise arithmetic on Audio.
+    StereoMath,
+    /// Memoryless mono waveshaping curve.
+    Shaper,
+    /// Explicit Control-to-Audio conversion.
+    ToAudio,
+    /// Explicit Audio-to-Control conversion.
+    ToControl,
+    /// First-order DC-blocking high-pass filter.
+    DcBlock,
+    /// Three-tap symmetric low-pass with exactly one frame of delay at every frequency.
+    LinearPhaseLowpass,
 }
 
 impl NodeKind {
@@ -2575,6 +2591,14 @@ impl NodeKind {
     #[must_use]
     pub const fn is_summing(self) -> bool {
         matches!(self, Self::Sum | Self::StereoSum)
+    }
+
+    /// Reports whether the Node's output depends only on inputs from earlier frames.
+    ///
+    /// Buses into such a Node may close a feedback loop; every other cycle is invalid.
+    #[must_use]
+    pub const fn breaks_feedback(self) -> bool {
+        matches!(self, Self::DelayLine)
     }
 }
 
@@ -2610,6 +2634,14 @@ impl FromStr for NodeKind {
             "multisample" => Ok(Self::Multisample),
             "granular" => Ok(Self::Granular),
             "spectral" => Ok(Self::Spectral),
+            "delay_line" => Ok(Self::DelayLine),
+            "math" => Ok(Self::Math),
+            "stereo_math" => Ok(Self::StereoMath),
+            "shaper" => Ok(Self::Shaper),
+            "to_audio" => Ok(Self::ToAudio),
+            "to_control" => Ok(Self::ToControl),
+            "dc_block" => Ok(Self::DcBlock),
+            "linear_phase_lowpass" => Ok(Self::LinearPhaseLowpass),
             _ => Err(ValueError::UnknownNode(value.to_owned())),
         }
     }

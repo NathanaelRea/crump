@@ -43,6 +43,9 @@ pub(super) struct StereoFilterConfig {
     pub(super) key_reference: Scalar,
 }
 
+/// Small-signal ladder loop gain at resonance 1, the oscillation threshold at low cutoff.
+const LADDER_FEEDBACK: f64 = 4.0;
+
 #[derive(Debug, Clone, Copy, Default)]
 struct LadderState {
     stages: [f64; 4],
@@ -80,8 +83,14 @@ impl LadderState {
         let oversampled_rate = sample_rate * 2.0;
         let coefficient = (1.0 - (-2.0 * PI * cutoff / oversampled_rate).exp()).clamp(0.0, 1.0);
         let midpoint = (self.previous_input + input) * 0.5;
+        // The feedback sits inside the drive saturator, whose small-signal gain is
+        // `drive_gain / normalizer`. Dividing that back out makes the small-signal loop gain
+        // exactly `LADDER_FEEDBACK × resonance` at every drive. The four oversampled stages plus
+        // the one-substep feedback delay need a loop gain of at least 4 to oscillate at any
+        // cutoff, so resonance below 1 always decays.
+        let feedback_gain = LADDER_FEEDBACK * resonance.clamp(0.0, 1.0) * normalizer / drive_gain;
         for oversampled_input in [midpoint, input] {
-            let feedback = self.stages[3] * resonance.clamp(0.0, 1.0) * 3.8;
+            let feedback = self.stages[3] * feedback_gain;
             let driven = ((oversampled_input - feedback) * drive_gain).tanh() / normalizer;
             let mut stage_input = driven;
             for stage in &mut self.stages {

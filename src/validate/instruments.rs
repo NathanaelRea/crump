@@ -869,6 +869,8 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
                 validate_spectral_settings(node, &parameters, diagnostics);
             } else if node.kind == NodeKind::Lfo {
                 validate_lfo_directives(node, diagnostics);
+            } else if node.kind == NodeKind::Shaper {
+                validate_shaper_directives(node, diagnostics);
             } else if node.kind == NodeKind::Envelope {
                 validate_envelope_mode(node, diagnostics);
             } else if !node.directives.is_empty() {
@@ -907,8 +909,15 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
     let mut bus_ids = BTreeSet::new();
     let mut input_counts: BTreeMap<(&str, &str), usize> = BTreeMap::new();
     let mut voice_sum_connections = 0_usize;
+    // Same-frame dependencies. A Bus into a feedback-breaking Node is consumed after the
+    // frame, so it never orders Nodes and may close a loop.
     let mut adjacency: BTreeMap<&str, Vec<&str>> =
         nodes.keys().map(|id| (*id, Vec::new())).collect();
+    let breaks_feedback = |id: &str| {
+        nodes
+            .get(id)
+            .is_some_and(|node| node.kind.breaks_feedback())
+    };
     let mut reverse: BTreeMap<&str, Vec<&str>> = nodes.keys().map(|id| (*id, Vec::new())).collect();
     for connection in &graph.connections {
         let duplicate = !bus_ids.insert(connection.id.as_str());
@@ -994,7 +1003,9 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
             );
         }
         if !matches!(connection.from.node.as_str(), "note" | "voice_sum") {
-            if let Some(edges) = adjacency.get_mut(connection.from.node.as_str()) {
+            if !breaks_feedback(connection.to.node.as_str())
+                && let Some(edges) = adjacency.get_mut(connection.from.node.as_str())
+            {
                 edges.push(connection.to.node.as_str());
             }
             if let Some(edges) = reverse.get_mut(connection.to.node.as_str()) {
@@ -1039,7 +1050,9 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
                     .iter()
                     .filter(|node| node.references_parameter(&route.target))
                 {
-                    if let Some(edges) = adjacency.get_mut(source_node) {
+                    if !consumer.kind.breaks_feedback()
+                        && let Some(edges) = adjacency.get_mut(source_node)
+                    {
                         edges.push(consumer.id.as_str());
                     }
                     if let Some(edges) = reverse.get_mut(consumer.id.as_str()) {
@@ -1067,11 +1080,15 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
             }
         }
     }
-    if contains_cycle(&adjacency) {
+    validate_primitive_inputs(graph, &parameters, &input_counts, diagnostics);
+    if let Some(cycle) = find_cycle(&adjacency) {
         located_error(
             diagnostics,
             "CRV048",
-            "graph contains a routing cycle",
+            format!(
+                "graph contains a zero-latency routing cycle `{}`; close feedback loops through a `delay_line` input",
+                cycle.join(" -> ")
+            ),
             &graph.location,
         );
     }
@@ -1372,6 +1389,214 @@ fn validate_node_settings(
                 "ladder_drive currently supports only lowpass mode",
                 &node.location,
             );
+        }
+    }
+}
+
+/// Port and setting combinations of the generic primitives that per-key validation cannot see.
+fn validate_primitive_inputs(
+    graph: &Graph,
+    parameters: &BTreeMap<&str, &crate::model::Parameter>,
+    input_counts: &BTreeMap<(&str, &str), usize>,
+    diagnostics: &mut Diagnostics,
+) {
+    let text = |node: &crate::model::GraphNode, key: &str, default: &'static str| match node
+        .setting(key)
+    {
+        Some(SettingValue::Text(value)) => value.clone(),
+        _ => default.to_owned(),
+    };
+    let connected = |node: &crate::model::GraphNode, port: &str| {
+        input_counts
+            .get(&(node.id.as_str(), port))
+            .copied()
+            .unwrap_or(0)
+            > 0
+    };
+    let mut error = |node: &crate::model::GraphNode, message: String| {
+        located_error(diagnostics, "CRV220", message, &node.location);
+    };
+    for node in &graph.nodes {
+        match node.kind {
+            NodeKind::DelayLine => {
+                let pitch_mode = text(node, "mode", "time") == "pitch";
+                if pitch_mode && !connected(node, "pitch") {
+                    error(
+                        node,
+                        format!(
+                            "delay_line `{}` in pitch mode requires input `pitch`",
+                            node.id
+                        ),
+                    );
+                }
+                if !pitch_mode && connected(node, "pitch") {
+                    error(
+                        node,
+                        format!(
+                            "delay_line `{}` reads `pitch` only in pitch mode; set `mode pitch`",
+                            node.id
+                        ),
+                    );
+                }
+                for (key, used) in [("time", !pitch_mode), ("ratio", pitch_mode)] {
+                    if !used && node.setting(key).is_some() {
+                        error(
+                            node,
+                            format!(
+                                "delay_line `{}` setting `{key}` applies only in {} mode",
+                                node.id,
+                                if pitch_mode { "time" } else { "pitch" }
+                            ),
+                        );
+                    }
+                }
+                let seconds = |key: &str, default: f64| match node.setting(key) {
+                    Some(SettingValue::Text(value)) => Unit::Seconds.parse_value(value).ok(),
+                    Some(SettingValue::Parameter(key)) => parameters
+                        .get(key.as_str())
+                        .map(|parameter| parameter.maximum),
+                    Some(SettingValue::Number(_)) => None,
+                    None => Some(default),
+                };
+                if !pitch_mode
+                    && let (Some(time), Some(max_time)) =
+                        (seconds("time", 0.01), seconds("max_time", 0.1))
+                    && time > max_time
+                {
+                    error(
+                        node,
+                        format!(
+                            "delay_line `{}` time reaches {time}s, beyond its {max_time}s max_time buffer",
+                            node.id
+                        ),
+                    );
+                }
+            }
+            NodeKind::Math | NodeKind::StereoMath => {
+                let operation = text(node, "operation", "add");
+                let binary = matches!(
+                    operation.as_str(),
+                    "add" | "subtract" | "multiply" | "min" | "max"
+                );
+                if binary && !connected(node, "b") {
+                    error(
+                        node,
+                        format!(
+                            "math `{}` operation `{operation}` requires input `b`",
+                            node.id
+                        ),
+                    );
+                }
+                if !binary && connected(node, "b") {
+                    error(
+                        node,
+                        format!(
+                            "math `{}` operation `{operation}` uses only input `a`",
+                            node.id
+                        ),
+                    );
+                }
+                if node.setting("amount").is_some()
+                    && !matches!(operation.as_str(), "offset" | "scale")
+                {
+                    error(
+                        node,
+                        format!(
+                            "math `{}` setting `amount` applies only to offset and scale",
+                            node.id
+                        ),
+                    );
+                }
+            }
+            NodeKind::Shaper
+                if node.setting("asymmetry").is_some()
+                    && text(node, "curve", "tanh") != "asymmetric" =>
+            {
+                error(
+                    node,
+                    format!(
+                        "shaper `{}` setting `asymmetry` applies only to the asymmetric curve",
+                        node.id
+                    ),
+                );
+            }
+            _ => {}
+        }
+    }
+}
+
+fn validate_shaper_directives(node: &crate::model::GraphNode, diagnostics: &mut Diagnostics) {
+    const MAX_POINTS: usize = 64;
+    let table =
+        matches!(node.setting("curve"), Some(SettingValue::Text(value)) if value == "table");
+    if !table {
+        if !node.directives.is_empty() {
+            located_error(
+                diagnostics,
+                "CRV060",
+                "only a table shaper may declare point directives",
+                &node.location,
+            );
+        }
+        return;
+    }
+    if !(2..=MAX_POINTS).contains(&node.directives.len()) {
+        located_error(
+            diagnostics,
+            "CRV060",
+            format!("table shaper requires 2..={MAX_POINTS} points"),
+            &node.location,
+        );
+    }
+    let mut ids = BTreeSet::new();
+    let mut previous_input = None;
+    for directive in &node.directives {
+        let tokens = &directive.tokens;
+        if !directive.children.is_empty()
+            || tokens.len() != 6
+            || tokens[0].value != "point"
+            || tokens[2].value != "input"
+            || tokens[4].value != "output"
+        {
+            located_error(
+                diagnostics,
+                "CRV060",
+                "shaper point syntax is `point ID input VALUE output VALUE` with no children",
+                &directive.location,
+            );
+            continue;
+        }
+        if !valid_id(&tokens[1].value) || !ids.insert(tokens[1].value.as_str()) {
+            source_site_error(
+                diagnostics,
+                "CRV060",
+                "shaper point ID is invalid or duplicated",
+                &tokens[1].site,
+            );
+        }
+        let bounded = |token: &crate::model::NodeDirectiveToken| {
+            token
+                .value
+                .parse::<f64>()
+                .ok()
+                .filter(|value| value.is_finite() && value.abs() <= 16.0)
+        };
+        match (bounded(&tokens[3]), bounded(&tokens[5])) {
+            (Some(input), Some(_)) if previous_input.is_none_or(|previous| input > previous) => {
+                previous_input = Some(input);
+            }
+            (Some(_), Some(_)) => source_site_error(
+                diagnostics,
+                "CRV060",
+                "shaper point inputs must strictly increase",
+                &tokens[3].site,
+            ),
+            _ => source_site_error(
+                diagnostics,
+                "CRV060",
+                "shaper point input and output must be finite within -16..=16",
+                &tokens[3].site,
+            ),
         }
     }
 }
@@ -2215,6 +2440,20 @@ fn setting_domain(kind: NodeKind, key: &str) -> Option<NumericDomain> {
             Some(NumericDomain::bounded(0.0, 1.0))
         }
         (NodeKind::Lfo, "swing") => Some(NumericDomain::bounded(-1.0, 1.0)),
+        (NodeKind::DelayLine, "time") => Some(NumericDomain::bounded(0.0, 2.0)),
+        (NodeKind::DelayLine, "max_time") => Some(NumericDomain::bounded(0.001, 2.0)),
+        (NodeKind::DelayLine, "ratio") => Some(NumericDomain::bounded(0.01, 16.0)),
+        (NodeKind::DelayLine, "mod_depth") => Some(NumericDomain::bounded(0.0, 1.0)),
+        (NodeKind::DelayLine, "tune_compensation") => Some(NumericDomain::bounded(0.0, 16.0)),
+        (NodeKind::Math | NodeKind::StereoMath, "amount") => {
+            Some(NumericDomain::bounded(-64.0, 64.0))
+        }
+        (NodeKind::Shaper, "drive") => Some(NumericDomain::bounded(0.0, 64.0)),
+        (NodeKind::Shaper, "bias") => Some(NumericDomain::bounded(-16.0, 16.0)),
+        (NodeKind::Shaper, "asymmetry") | (NodeKind::LinearPhaseLowpass, "amount") => {
+            Some(NumericDomain::bounded(0.0, 1.0))
+        }
+        (NodeKind::DcBlock, "cutoff") => Some(NumericDomain::bounded(1.0, 500.0)),
         _ => None,
     }
 }
@@ -2367,7 +2606,17 @@ fn node_output(kind: NodeKind, port: &str) -> Option<SignalType> {
             "audio",
         ) => Some(SignalType::AudioStereo),
         (NodeKind::Envelope, "control") => Some(SignalType::Unipolar),
-        (NodeKind::Lfo, "control") => Some(SignalType::Control),
+        (NodeKind::Lfo | NodeKind::ToControl, "control") => Some(SignalType::Control),
+        (
+            NodeKind::DelayLine
+            | NodeKind::Math
+            | NodeKind::Shaper
+            | NodeKind::ToAudio
+            | NodeKind::DcBlock
+            | NodeKind::LinearPhaseLowpass,
+            "audio",
+        ) => Some(SignalType::AudioMono),
+        (NodeKind::StereoMath, "audio") => Some(SignalType::AudioStereo),
         _ => None,
     }
 }
@@ -2431,6 +2680,19 @@ fn node_input(kind: NodeKind, port: &str) -> Option<SignalType> {
             | NodeKind::StereoFilter,
             "audio",
         ) => Some(SignalType::AudioStereo),
+        (
+            NodeKind::DelayLine
+            | NodeKind::Shaper
+            | NodeKind::ToControl
+            | NodeKind::DcBlock
+            | NodeKind::LinearPhaseLowpass,
+            "audio",
+        )
+        | (NodeKind::DelayLine, "time_mod")
+        | (NodeKind::Math, "a" | "b") => Some(SignalType::AudioMono),
+        (NodeKind::DelayLine, "pitch") => Some(SignalType::Hertz),
+        (NodeKind::StereoMath, "a" | "b") => Some(SignalType::AudioStereo),
+        (NodeKind::ToAudio, "control") => Some(SignalType::Control),
         _ => None,
     }
 }
@@ -2460,6 +2722,13 @@ const fn required_inputs(kind: NodeKind) -> &'static [&'static str] {
         NodeKind::Delay | NodeKind::Reverb | NodeKind::Output | NodeKind::StereoFilter => {
             &["audio"]
         }
+        NodeKind::DelayLine
+        | NodeKind::Shaper
+        | NodeKind::ToControl
+        | NodeKind::DcBlock
+        | NodeKind::LinearPhaseLowpass => &["audio"],
+        NodeKind::Math | NodeKind::StereoMath => &["a"],
+        NodeKind::ToAudio => &["control"],
     }
 }
 
@@ -3187,6 +3456,82 @@ const fn setting_schema(kind: NodeKind) -> &'static [SettingSpec] {
                 kind: Text(&["note", "transport"]),
             },
         ],
+        NodeKind::DelayLine => &[
+            SettingSpec {
+                key: "mode",
+                kind: Text(&["time", "pitch"]),
+            },
+            SettingSpec {
+                key: "time",
+                kind: Number(Unit::Seconds),
+            },
+            SettingSpec {
+                key: "ratio",
+                kind: Number(Unit::Ratio),
+            },
+            SettingSpec {
+                key: "max_time",
+                kind: Number(Unit::Seconds),
+            },
+            SettingSpec {
+                key: "mod_depth",
+                kind: Number(Unit::Ratio),
+            },
+            SettingSpec {
+                key: "interpolation",
+                kind: Text(&["linear", "lagrange3", "allpass"]),
+            },
+            SettingSpec {
+                key: "tune_compensation",
+                kind: Number(Unit::Ratio),
+            },
+        ],
+        NodeKind::Math | NodeKind::StereoMath => &[
+            SettingSpec {
+                key: "operation",
+                kind: Text(&[
+                    "add", "subtract", "multiply", "min", "max", "abs", "negate", "offset", "scale",
+                ]),
+            },
+            SettingSpec {
+                key: "amount",
+                kind: Number(Unit::Ratio),
+            },
+        ],
+        NodeKind::Shaper => &[
+            SettingSpec {
+                key: "curve",
+                kind: Text(&[
+                    "tanh",
+                    "hard_clip",
+                    "soft_clip",
+                    "one_sided",
+                    "asymmetric",
+                    "table",
+                ]),
+            },
+            SettingSpec {
+                key: "drive",
+                kind: Number(Unit::Ratio),
+            },
+            SettingSpec {
+                key: "bias",
+                kind: Number(Unit::Ratio),
+            },
+            SettingSpec {
+                key: "asymmetry",
+                kind: Number(Unit::Ratio),
+            },
+        ],
+        NodeKind::ToAudio | NodeKind::ToControl => &[],
+        NodeKind::DcBlock => &[SettingSpec {
+            key: "cutoff",
+            kind: Number(Unit::Hertz),
+        }],
+        NodeKind::LinearPhaseLowpass => &[SettingSpec {
+            key: "amount",
+            kind: Number(Unit::Ratio),
+        }],
         NodeKind::Spectral => &[
             SettingSpec {
                 key: "asset",
@@ -3283,10 +3628,19 @@ const fn node_kind_name(kind: NodeKind) -> &'static str {
         NodeKind::Multisample => "multisample",
         NodeKind::Granular => "granular",
         NodeKind::Spectral => "spectral",
+        NodeKind::DelayLine => "delay_line",
+        NodeKind::Math => "math",
+        NodeKind::StereoMath => "stereo_math",
+        NodeKind::Shaper => "shaper",
+        NodeKind::ToAudio => "to_audio",
+        NodeKind::ToControl => "to_control",
+        NodeKind::DcBlock => "dc_block",
+        NodeKind::LinearPhaseLowpass => "linear_phase_lowpass",
     }
 }
 
-fn contains_cycle(adjacency: &BTreeMap<&str, Vec<&str>>) -> bool {
+/// Returns one same-frame dependency cycle, starting and ending at its smallest Node ID.
+fn find_cycle<'a>(adjacency: &BTreeMap<&'a str, Vec<&'a str>>) -> Option<Vec<&'a str>> {
     let mut indegree: BTreeMap<&str, usize> = adjacency.keys().map(|node| (*node, 0)).collect();
     for destinations in adjacency.values() {
         for destination in destinations {
@@ -3299,9 +3653,8 @@ fn contains_cycle(adjacency: &BTreeMap<&str, Vec<&str>>) -> bool {
         .iter()
         .filter_map(|(node, count)| (*count == 0).then_some(*node))
         .collect();
-    let mut visited = 0;
     while let Some(node) = ready.pop_front() {
-        visited += 1;
+        indegree.remove(node);
         if let Some(destinations) = adjacency.get(node) {
             for destination in destinations {
                 if let Some(count) = indegree.get_mut(destination) {
@@ -3313,7 +3666,32 @@ fn contains_cycle(adjacency: &BTreeMap<&str, Vec<&str>>) -> bool {
             }
         }
     }
-    visited != adjacency.len()
+    // Every remaining Node lies on or downstream of a cycle; walking remaining successors
+    // from any of them must revisit a Node.
+    let start = *indegree.keys().next()?;
+    let mut path = vec![start];
+    let mut node = start;
+    loop {
+        let next = adjacency
+            .get(node)?
+            .iter()
+            .copied()
+            .filter(|next| indegree.contains_key(next))
+            .min()?;
+        if let Some(position) = path.iter().position(|seen| *seen == next) {
+            let mut cycle = path.split_off(position);
+            let smallest = cycle
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, id)| **id)
+                .map_or(0, |(index, _)| index);
+            cycle.rotate_left(smallest);
+            cycle.push(cycle[0]);
+            return Some(cycle);
+        }
+        path.push(next);
+        node = next;
+    }
 }
 
 fn reverse_reachable<'a>(
