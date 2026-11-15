@@ -1,8 +1,6 @@
 crump-module 2
 instrument machine-snare "Machine Snare" graph {
   polyphony 4
-  parameter hold-tone4 "Fixed pitch" semitones -48st 48st -6.47408st -6.47408st modulatable
-  parameter hold-tone7 "Fixed pitch" semitones -48st 48st 3.98804st 3.98804st modulatable
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
   faceplate {
@@ -10,16 +8,11 @@ instrument machine-snare "Machine Snare" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-position note_key per_voice bipolar reference C4 range 48st
-    route hold-tone4-key source key-position target hold-tone4 depth -48st map bipolar curve linear order 0 bypass false
-    route hold-tone7-key source key-position target hold-tone7 depth -48st map bipolar curve linear order 0 bypass false
   }
-  graph voice 43 {
+  graph voice 33 {
     # A drum-machine voice: swept sine, square clusters, noise and click.
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall1 math operation add
-    node fall1-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall1-leak math operation scale amount 0.997918835299
+    node fall1 onepole mode leak time 0.01s
     node shape2 shaper {
       curve table
       drive 1
@@ -41,34 +34,26 @@ instrument machine-snare "Machine Snare" graph {
       point p14 input 1.12 output 1.10861
       point p15 input 1.2 output 1.17985
     }
-    node fall3 math operation add
-    node fall3-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall3-leak math operation scale amount 0.999810623995
-    node tone4 analog_oscillator waveform sine coarse $hold-tone4 level 1.41421 fm_depth 3.15641st am_mode ring am_depth 1
+    node fall3 onepole mode leak time 0.11s
+    node tone4-pitch constant frequency 180hz
+    node tone4 analog_oscillator waveform sine level 1.41421 fm_depth 3.15641st am_mode ring am_depth 1
     node tone4-mono stereo_to_mono
     node gain5 math operation scale amount 0.8
-    node fall6 math operation add
-    node fall6-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall6-leak math operation scale amount 0.999702425237
-    node tone7 analog_oscillator waveform sine coarse $hold-tone7 level 0.707107 fm_depth 3.15641st am_mode ring am_depth 1
+    node fall6 onepole mode leak time 0.07s
+    node tone7-pitch constant frequency 329.4hz
+    node tone7 analog_oscillator waveform sine level 0.707107 fm_depth 3.15641st am_mode ring am_depth 1
     node tone7-mono stereo_to_mono
     node hiss8 noise level 1
-    node fall9 math operation add
-    node fall9-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall9-leak math operation scale amount 0.99983975643
+    node fall9 onepole mode leak time 0.13s
     node rise10 math operation subtract
-    node fall11 math operation add
-    node fall11-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall11-leak math operation scale amount 0.959035753166
+    node fall11 onepole mode leak time 0.0004981s
     node gain12 math operation scale amount 1.02556
     node times13 math operation multiply
     node hi-14 lowpass mode highpass cutoff 1800hz resonance 0.308309
     node lo-15 lowpass mode lowpass cutoff 9000hz resonance 0.308309
     node gain16 math operation scale amount 0.842465
     node hiss17 noise level 1
-    node fall18 math operation add
-    node fall18-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall18-leak math operation scale amount 0.98278872462
+    node fall18 onepole mode leak time 0.0012s
     node times19 math operation multiply
     node hi-20 lowpass mode highpass cutoff 1500hz resonance 0.308309
     node lo-21 lowpass mode lowpass cutoff 12000hz resonance 0.308309
@@ -81,37 +66,22 @@ instrument machine-snare "Machine Snare" graph {
     node out output
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall1-audio-fall1-previous-audio fall1.audio -> fall1-previous.audio
-    bus onset-audio-fall1-a onset.audio -> fall1.a
-    bus fall1-previous-audio-fall1-leak-a fall1-previous.audio -> fall1-leak.a
-    bus fall1-leak-audio-fall1-b fall1-leak.audio -> fall1.b
+    bus onset-audio-fall1-audio onset.audio -> fall1.audio
     bus fall1-audio-shape2-audio fall1.audio -> shape2.audio
-    bus fall3-audio-fall3-previous-audio fall3.audio -> fall3-previous.audio
-    bus onset-audio-fall3-a onset.audio -> fall3.a
-    bus fall3-previous-audio-fall3-leak-a fall3-previous.audio -> fall3-leak.a
-    bus fall3-leak-audio-fall3-b fall3-leak.audio -> fall3.b
-    bus note-pitch-tone4-pitch note.pitch -> tone4.pitch
+    bus onset-audio-fall3-audio onset.audio -> fall3.audio
+    bus tone4-pitch-pitch-tone4-pitch tone4-pitch.pitch -> tone4.pitch
     bus shape2-audio-tone4-fm shape2.audio -> tone4.fm
     bus fall3-audio-tone4-am fall3.audio -> tone4.am
     bus tone4-audio-tone4-mono-audio tone4.audio -> tone4-mono.audio
     bus tone4-mono-audio-gain5-a tone4-mono.audio -> gain5.a
-    bus fall6-audio-fall6-previous-audio fall6.audio -> fall6-previous.audio
-    bus onset-audio-fall6-a onset.audio -> fall6.a
-    bus fall6-previous-audio-fall6-leak-a fall6-previous.audio -> fall6-leak.a
-    bus fall6-leak-audio-fall6-b fall6-leak.audio -> fall6.b
-    bus note-pitch-tone7-pitch note.pitch -> tone7.pitch
+    bus onset-audio-fall6-audio onset.audio -> fall6.audio
+    bus tone7-pitch-pitch-tone7-pitch tone7-pitch.pitch -> tone7.pitch
     bus shape2-audio-tone7-fm shape2.audio -> tone7.fm
     bus fall6-audio-tone7-am fall6.audio -> tone7.am
     bus tone7-audio-tone7-mono-audio tone7.audio -> tone7-mono.audio
-    bus fall9-audio-fall9-previous-audio fall9.audio -> fall9-previous.audio
-    bus onset-audio-fall9-a onset.audio -> fall9.a
-    bus fall9-previous-audio-fall9-leak-a fall9-previous.audio -> fall9-leak.a
-    bus fall9-leak-audio-fall9-b fall9-leak.audio -> fall9.b
+    bus onset-audio-fall9-audio onset.audio -> fall9.audio
     bus fall9-audio-rise10-a fall9.audio -> rise10.a
-    bus fall11-audio-fall11-previous-audio fall11.audio -> fall11-previous.audio
-    bus onset-audio-fall11-a onset.audio -> fall11.a
-    bus fall11-previous-audio-fall11-leak-a fall11-previous.audio -> fall11-leak.a
-    bus fall11-leak-audio-fall11-b fall11-leak.audio -> fall11.b
+    bus onset-audio-fall11-audio onset.audio -> fall11.audio
     bus fall11-audio-rise10-b fall11.audio -> rise10.b
     bus rise10-audio-gain12-a rise10.audio -> gain12.a
     bus hiss8-audio-times13-a hiss8.audio -> times13.a
@@ -119,10 +89,7 @@ instrument machine-snare "Machine Snare" graph {
     bus times13-audio-hi-14-audio times13.audio -> hi-14.audio
     bus hi-14-audio-lo-15-audio hi-14.audio -> lo-15.audio
     bus lo-15-audio-gain16-a lo-15.audio -> gain16.a
-    bus fall18-audio-fall18-previous-audio fall18.audio -> fall18-previous.audio
-    bus onset-audio-fall18-a onset.audio -> fall18.a
-    bus fall18-previous-audio-fall18-leak-a fall18-previous.audio -> fall18-leak.a
-    bus fall18-leak-audio-fall18-b fall18-leak.audio -> fall18.b
+    bus onset-audio-fall18-audio onset.audio -> fall18.audio
     bus hiss17-audio-times19-a hiss17.audio -> times19.a
     bus fall18-audio-times19-b fall18.audio -> times19.b
     bus times19-audio-hi-20-audio times19.audio -> hi-20.audio

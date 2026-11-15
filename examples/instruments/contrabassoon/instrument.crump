@@ -19,56 +19,27 @@ instrument contrabassoon "Contrabassoon" graph {
   }
   modulation {
     source velocity note_velocity per_voice unipolar
-    source key-from-as0-3 note_key per_voice bipolar reference A#0 range 3st
-    source key-from-cs1-3 note_key per_voice bipolar reference C#1 range 3st
-    source key-from-e1-3 note_key per_voice bipolar reference E1 range 3st
-    source key-from-g1-3 note_key per_voice bipolar reference G1 range 3st
-    source key-from-as1-3 note_key per_voice bipolar reference A#1 range 3st
-    source key-from-cs2-3 note_key per_voice bipolar reference C#2 range 3st
-    source key-from-e2-3 note_key per_voice bipolar reference E2 range 3st
-    source key-from-g2-3 note_key per_voice bipolar reference G2 range 3st
-    source key-from-as2-3 note_key per_voice bipolar reference A#2 range 3st
-    source key-from-cs3-3 note_key per_voice bipolar reference C#3 range 3st
-    source key-from-e3-1 note_key per_voice bipolar reference E3 range 1st
+    source register-curve key_curve per_voice bipolar {
+      point as0 key A#0 value 0
+      point cs1 key C#1 value -0.171652
+      point e1 key E1 value -0.293391
+      point g1 key G1 value -0.421021
+      point as1 key A#1 value -0.523452
+      point cs2 key C#2 value -0.591724
+      point e2 key E2 value -0.643581
+      point g2 key G2 value -0.849531
+      point as2 key A#2 value -0.839174
+      point cs3 key C#3 value -1
+      point e3 key E3 value -0.95592
+      point f3 key F3 value -0.889785
+    }
     route attack-velocity source velocity target attack depth -0.00161841s map unipolar curve linear order 0 bypass false
     route vibrato-depth-velocity source velocity target vibrato-depth depth 0.09069 map unipolar curve linear order 0 bypass false
     route noise-velocity source velocity target noise depth 0.0144306 map unipolar curve linear order 0 bypass false
-    route register-1 source key-from-as0-3 target register depth -0.152448 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-2 source key-from-cs1-3 target register depth -0.108119 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-3 source key-from-e1-3 target register depth -0.113352 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-4 source key-from-g1-3 target register depth -0.0909706 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-5 source key-from-as1-3 target register depth -0.0606339 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-6 source key-from-cs2-3 target register depth -0.0460558 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-7 source key-from-e2-3 target register depth -0.182909 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-8 source key-from-g2-3 target register depth 0.00919789 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-9 source key-from-as2-3 target register depth -0.142833 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-10 source key-from-cs3-3 target register depth 0.0391485 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-11 source key-from-e3-1 target register depth 0.0587356 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route register-by-key source register-curve target register depth 0.888123 map bipolar curve linear order 0 bypass false
     route dynamics-velocity source velocity target dynamics depth 0.642857 map unipolar curve linear order 0 bypass false
   }
-  graph voice 54 {
+  graph voice 37 {
     # A breath-driven tone: an oscillator and breath noise through fixed formants.
     node breath envelope mode adsr attack $attack decay 0.15s sustain 0.9 release $release attack_curve 0.3
     node breath-audio to_audio
@@ -89,32 +60,38 @@ instrument contrabassoon "Contrabassoon" graph {
     node reed analog_oscillator waveform saw level 1 velocity_amount 1 fm_depth 1st random_phase 1
     node reed-mono stereo_to_mono
     node brightness lowpass mode lowpass cutoff 200hz resonance 0.1 mod_depth 0hz velocity_depth 1200hz key_track 0.585489 key_reference 261.626hz
-    node smear1 biquad mode allpass frequency 142.652hz q 1.5
-    node smear2 biquad mode allpass frequency 320.968hz q 1.2
-    node smear3 biquad mode allpass frequency 641.936hz q 1
-    node smear4 biquad mode allpass frequency 1069.89hz q 0.8
-    node air-low biquad mode highpass frequency 150hz q 0.7071
-    node air-band biquad mode lowpass frequency 9551.98hz q 0.7071
+    node smear biquad_chain {
+      band smear1 mode allpass frequency 142.652hz q 1.5
+      band smear2 mode allpass frequency 320.968hz q 1.2
+      band smear3 mode allpass frequency 641.936hz q 1
+      band smear4 mode allpass frequency 1069.89hz q 0.8
+    }
+    node air-filter biquad_chain {
+      band air-low mode highpass frequency 150hz q 0.7071
+      band air-band mode lowpass frequency 9551.98hz q 0.7071
+    }
     node steady-air math operation scale amount 0.5
     node pulsed-air math operation scale amount 1.38366
     node air-drive sum max_inputs 2
     node breath-noise math operation multiply
     node breath-level math operation scale amount $noise
     node voice sum max_inputs 2
-    node formant1 biquad mode peak frequency 67.8297hz q 2.5 gain -8.77631db
-    node formant2 biquad mode peak frequency 1037.04hz q 2.5 gain -7.04671db
-    node formant3 biquad mode peak frequency 298.42hz q 1.95204 gain 10.3073db
-    node formant4 biquad mode peak frequency 723.502hz q 1.76895 gain 4.30681db
-    node formant5 biquad mode peak frequency 1375.63hz q 1.94887 gain 12.476db
-    node formant6 biquad mode peak frequency 3142.12hz q 2.44504 gain 14.988db
-    node formant7 biquad mode lowshelf frequency 60hz q 0.7071 gain -15db
-    node formant8 biquad mode highshelf frequency 1446.91hz q 0.7071 gain -6.33096db
-    node formant9 biquad mode peak frequency 60hz q 1.71047 gain -1.97db
-    node formant10 biquad mode peak frequency 164.87hz q 2.5 gain -3.60881db
-    node formant11 biquad mode peak frequency 2671.45hz q 0.500001 gain -6.22208db
-    node formant12 biquad mode peak frequency 1363.62hz q 2.5 gain 2.37966db
-    node below-note biquad mode highpass frequency 104.65hz q 0.7071 key_track 1 key_reference 261.626hz
-    node radiation biquad mode highpass frequency 25hz q 0.7071
+    node formants biquad_chain {
+      band formant1 mode peak frequency 67.8297hz q 2.5 gain -8.77631db
+      band formant2 mode peak frequency 1037.04hz q 2.5 gain -7.04671db
+      band formant3 mode peak frequency 298.42hz q 1.95204 gain 10.3073db
+      band formant4 mode peak frequency 723.502hz q 1.76895 gain 4.30681db
+      band formant5 mode peak frequency 1375.63hz q 1.94887 gain 12.476db
+      band formant6 mode peak frequency 3142.12hz q 2.44504 gain 14.988db
+      band formant7 mode lowshelf frequency 60hz q 0.7071 gain -15db
+      band formant8 mode highshelf frequency 1446.91hz q 0.7071 gain -6.33096db
+      band formant9 mode peak frequency 60hz q 1.71047 gain -1.97db
+      band formant10 mode peak frequency 164.87hz q 2.5 gain -3.60881db
+      band formant11 mode peak frequency 2671.45hz q 0.500001 gain -6.22208db
+      band formant12 mode peak frequency 1363.62hz q 2.5 gain 2.37966db
+      band below-note mode highpass frequency 104.65hz q 0.7071 key_track 1 key_reference 261.626hz
+      band radiation mode highpass frequency 25hz q 0.7071
+    }
     node shimmer-depth math operation scale amount 1.00987
     node shimmer math operation offset amount 1
     node alive math operation multiply
@@ -149,39 +126,22 @@ instrument contrabassoon "Contrabassoon" graph {
     bus breath-control-brightness-mod breath.control -> brightness.mod
     bus note-velocity-brightness-velocity note.velocity -> brightness.velocity
     bus note-pitch-brightness-key note.pitch -> brightness.key
-    bus brightness-audio-smear1-audio brightness.audio -> smear1.audio
-    bus smear1-audio-smear2-audio smear1.audio -> smear2.audio
-    bus smear2-audio-smear3-audio smear2.audio -> smear3.audio
-    bus smear3-audio-smear4-audio smear3.audio -> smear4.audio
-    bus air-audio-air-low-audio air.audio -> air-low.audio
-    bus air-low-audio-air-band-audio air-low.audio -> air-band.audio
+    bus brightness-audio-smear-audio brightness.audio -> smear.audio
+    bus air-audio-air-filter-audio air.audio -> air-filter.audio
     bus breath-audio-audio-steady-air-a breath-audio.audio -> steady-air.a
     bus reed-mono-audio-pulsed-air-a reed-mono.audio -> pulsed-air.a
     bus steady-air-audio-air-drive-inputs steady-air.audio -> air-drive.inputs
     bus pulsed-air-audio-air-drive-inputs pulsed-air.audio -> air-drive.inputs
-    bus air-band-audio-breath-noise-a air-band.audio -> breath-noise.a
+    bus air-filter-audio-breath-noise-a air-filter.audio -> breath-noise.a
     bus air-drive-audio-breath-noise-b air-drive.audio -> breath-noise.b
     bus breath-noise-audio-breath-level-a breath-noise.audio -> breath-level.a
-    bus smear4-audio-voice-inputs smear4.audio -> voice.inputs
+    bus smear-audio-voice-inputs smear.audio -> voice.inputs
     bus breath-level-audio-voice-inputs breath-level.audio -> voice.inputs
-    bus voice-audio-formant1-audio voice.audio -> formant1.audio
-    bus formant1-audio-formant2-audio formant1.audio -> formant2.audio
-    bus formant2-audio-formant3-audio formant2.audio -> formant3.audio
-    bus formant3-audio-formant4-audio formant3.audio -> formant4.audio
-    bus formant4-audio-formant5-audio formant4.audio -> formant5.audio
-    bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
-    bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
-    bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
-    bus formant8-audio-formant9-audio formant8.audio -> formant9.audio
-    bus formant9-audio-formant10-audio formant9.audio -> formant10.audio
-    bus formant10-audio-formant11-audio formant10.audio -> formant11.audio
-    bus formant11-audio-formant12-audio formant11.audio -> formant12.audio
-    bus formant12-audio-below-note-audio formant12.audio -> below-note.audio
-    bus note-pitch-below-note-key note.pitch -> below-note.key
-    bus below-note-audio-radiation-audio below-note.audio -> radiation.audio
+    bus voice-audio-formants-audio voice.audio -> formants.audio
+    bus note-pitch-formants-key note.pitch -> formants.key
     bus flutter-audio-shimmer-depth-a flutter.audio -> shimmer-depth.a
     bus shimmer-depth-audio-shimmer-a shimmer-depth.audio -> shimmer.a
-    bus radiation-audio-alive-a radiation.audio -> alive.a
+    bus formants-audio-alive-a formants.audio -> alive.a
     bus shimmer-audio-alive-b shimmer.audio -> alive.b
     bus alive-audio-register-level-a alive.audio -> register-level.a
     bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a

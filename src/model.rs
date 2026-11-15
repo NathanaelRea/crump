@@ -2012,6 +2012,11 @@ pub enum InstrumentModulationSourceKind {
         /// Semitone displacement mapping to unit magnitude.
         range_semitones: f64,
     },
+    /// Piecewise-linear curve over the note's key, held flat beyond its end points.
+    KeyCurve {
+        /// Points in strictly increasing key order.
+        points: Vec<KeyCurvePoint>,
+    },
     /// Current note gate.
     NoteGate,
     /// Normalized note age over a positive duration.
@@ -2031,6 +2036,19 @@ pub enum InstrumentModulationSourceKind {
         /// Stable owner-local Parameter key.
         parameter: String,
     },
+}
+
+/// One authored point of a `key_curve` Modulation source.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct KeyCurvePoint {
+    /// Durable source-local point identity.
+    pub id: String,
+    /// MIDI key.
+    pub key: u8,
+    /// Normalized value at the key, within the source's polarity domain.
+    pub value: f64,
+    /// Declaration location.
+    pub location: SourceLocation,
 }
 
 /// One stable Instrument-owned Modulation source declaration.
@@ -2451,6 +2469,73 @@ impl NodeDirective {
     }
 }
 
+/// Maximum bands in one `biquad_chain` Node.
+pub const MAX_BIQUAD_CHAIN_BANDS: usize = 32;
+
+/// Readable syntax of one `biquad_chain` `band` directive.
+pub const BIQUAD_BAND_SYNTAX: &str = "biquad_chain band syntax is `band ID mode MODE frequency HZ` followed by optional `q Q`, `gain DB`, `key_track RATIO` and `key_reference HZ` clauses, each at most once";
+
+/// The clauses of one `biquad_chain` `band` directive, in any order after the ID.
+///
+/// Omitted clauses take the `biquad` defaults: Q 0.7071, 0 dB gain, no key
+/// tracking, and a C4 key reference.
+#[derive(Debug, Clone, Copy)]
+pub struct BandClauses<'a> {
+    /// Stable band ID.
+    pub id: &'a NodeDirectiveToken,
+    /// Biquad response.
+    pub mode: &'a NodeDirectiveToken,
+    /// Centre or corner frequency.
+    pub frequency: &'a NodeDirectiveToken,
+    /// Resonance.
+    pub q: Option<&'a NodeDirectiveToken>,
+    /// Peak or shelf gain.
+    pub gain: Option<&'a NodeDirectiveToken>,
+    /// How far the frequency follows the chain's `key` input.
+    pub key_track: Option<&'a NodeDirectiveToken>,
+    /// Key frequency at which the band sits at `frequency`.
+    pub key_reference: Option<&'a NodeDirectiveToken>,
+}
+
+impl NodeDirective {
+    /// Reads a `biquad_chain` `band` directive's clauses, or `None` when its shape
+    /// is invalid: an unknown or repeated clause, a missing value, or a missing
+    /// `mode` or `frequency`. Values are not parsed here.
+    #[must_use]
+    pub fn band_clauses(&self) -> Option<BandClauses<'_>> {
+        let tokens = &self.tokens;
+        if !self.children.is_empty() || tokens.len() < 2 || tokens[0].value != "band" {
+            return None;
+        }
+        let mut clauses: [Option<&NodeDirectiveToken>; 6] = [None; 6];
+        for pair in tokens[2..].chunks(2) {
+            let [key, value] = pair else { return None };
+            let slot = match key.value.as_str() {
+                "mode" => 0,
+                "frequency" => 1,
+                "q" => 2,
+                "gain" => 3,
+                "key_track" => 4,
+                "key_reference" => 5,
+                _ => return None,
+            };
+            if clauses[slot].replace(value).is_some() {
+                return None;
+            }
+        }
+        let [mode, frequency, q, gain, key_track, key_reference] = clauses;
+        Some(BandClauses {
+            id: &tokens[1],
+            mode: mode?,
+            frequency: frequency?,
+            q,
+            gain,
+            key_track,
+            key_reference,
+        })
+    }
+}
+
 /// A graph Processing Node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphNode {
@@ -2588,6 +2673,10 @@ pub enum NodeKind {
     Biquad,
     /// First-order low-pass, high-pass, or leaky integrator.
     OnePole,
+    /// Serial chain of fixed biquad bands, such as a set of fitted formants.
+    BiquadChain,
+    /// Fixed frequency, the note-independent counterpart of `note.pitch`.
+    Constant,
 }
 
 impl NodeKind {
@@ -2648,6 +2737,8 @@ impl FromStr for NodeKind {
             "linear_phase_lowpass" => Ok(Self::LinearPhaseLowpass),
             "biquad" => Ok(Self::Biquad),
             "onepole" | "one_pole" => Ok(Self::OnePole),
+            "biquad_chain" => Ok(Self::BiquadChain),
+            "constant" => Ok(Self::Constant),
             _ => Err(ValueError::UnknownNode(value.to_owned())),
         }
     }

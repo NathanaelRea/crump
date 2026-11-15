@@ -1981,10 +1981,12 @@ fn runtime_node_output(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> 
             | NodeKind::DcBlock
             | NodeKind::LinearPhaseLowpass
             | NodeKind::Biquad
-            | NodeKind::OnePole,
+            | NodeKind::OnePole
+            | NodeKind::BiquadChain,
             "audio",
         ) => Some(RuntimeSignalType::AudioMono),
         (NodeKind::StereoMath, "audio") => Some(RuntimeSignalType::AudioStereo),
+        (NodeKind::Constant, "pitch") => Some(RuntimeSignalType::Hertz),
         _ => None,
     }
 }
@@ -2044,9 +2046,10 @@ fn runtime_node_input(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> {
             | NodeKind::StereoFilter,
             "audio",
         ) => Some(RuntimeSignalType::AudioStereo),
-        (NodeKind::Lowpass | NodeKind::StereoFilter | NodeKind::Biquad, "key") => {
-            Some(RuntimeSignalType::Hertz)
-        }
+        (
+            NodeKind::Lowpass | NodeKind::StereoFilter | NodeKind::Biquad | NodeKind::BiquadChain,
+            "key",
+        ) => Some(RuntimeSignalType::Hertz),
         (NodeKind::Lowpass | NodeKind::StereoFilter, "mod") => Some(RuntimeSignalType::Control),
         (NodeKind::Lowpass | NodeKind::StereoFilter, "velocity") => {
             Some(RuntimeSignalType::Unipolar)
@@ -2059,7 +2062,8 @@ fn runtime_node_input(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> {
             | NodeKind::DcBlock
             | NodeKind::LinearPhaseLowpass
             | NodeKind::Biquad
-            | NodeKind::OnePole,
+            | NodeKind::OnePole
+            | NodeKind::BiquadChain,
             "audio",
         )
         | (NodeKind::DelayLine, "time_mod")
@@ -2083,7 +2087,7 @@ const fn runtime_required_inputs(kind: NodeKind) -> &'static [&'static str] {
         NodeKind::Multisample => &["pitch", "gate", "velocity"],
         NodeKind::Granular => &["pitch", "gate"],
         NodeKind::Spectral => &["pitch"],
-        NodeKind::Noise | NodeKind::Lfo => &[],
+        NodeKind::Noise | NodeKind::Lfo | NodeKind::Constant => &[],
         NodeKind::Envelope => &["gate"],
         NodeKind::Mixer | NodeKind::StereoMixer => &["a"],
         NodeKind::StereoSum | NodeKind::Sum => &["inputs"],
@@ -2102,7 +2106,8 @@ const fn runtime_required_inputs(kind: NodeKind) -> &'static [&'static str] {
         | NodeKind::DcBlock
         | NodeKind::LinearPhaseLowpass
         | NodeKind::Biquad
-        | NodeKind::OnePole => &["audio"],
+        | NodeKind::OnePole
+        | NodeKind::BiquadChain => &["audio"],
         NodeKind::Math | NodeKind::StereoMath => &["a"],
         NodeKind::ToAudio => &["control"],
     }

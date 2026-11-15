@@ -3,8 +3,6 @@ instrument guiro "Guiro" graph {
   polyphony 4
   parameter upper-stroke "Upper stroke" ratio 0 1 0 0 modulatable
   parameter lower-stroke "Lower stroke" ratio 0 1 1 1 modulatable
-  parameter hold-tone1 "Fixed pitch" semitones -48st 48st -5.53805st -5.53805st modulatable
-  parameter hold-tone20 "Fixed pitch" semitones -48st 48st -4.65004st -4.65004st modulatable
   parameter ring "Ring" ratio 0.1 4 1 1
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
@@ -15,15 +13,13 @@ instrument guiro "Guiro" graph {
   }
   modulation {
     source key-step note_key per_voice unipolar reference C4 range 1st
-    source key-position note_key per_voice bipolar reference C4 range 48st
     route key-upper source key-step target upper-stroke depth 1 map unipolar curve linear order 0 bypass false
     route key-lower source key-step target lower-stroke depth -1 map unipolar curve linear order 0 bypass false
-    route hold-tone1-key source key-position target hold-tone1 depth -48st map bipolar curve linear order 0 bypass false
-    route hold-tone20-key source key-position target hold-tone20 depth -48st map bipolar curve linear order 0 bypass false
   }
   graph voice 51 {
     # A stick scraped across ridges into a hollow body.
-    node tone1 analog_oscillator waveform saw coarse $hold-tone1 level 1.41421 drift 0.5st
+    node tone1-pitch constant frequency 190hz
+    node tone1 analog_oscillator waveform saw level 1.41421 drift 0.5st
     node tone1-mono stereo_to_mono
     node previous2 delay_line mode time time 0.01ms interpolation linear max_time 1ms
     node edge3 math operation subtract
@@ -68,9 +64,7 @@ instrument guiro "Guiro" graph {
     node body8 modal_bank profile guiro-long-gourd max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
     node hiss9 noise level 1
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall10 math operation add
-    node fall10-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall10-leak math operation scale amount 0.999989583388
+    node fall10 onepole mode leak time 2s
     node times11 math operation multiply
     node hi-12 lowpass mode highpass cutoff 1500hz resonance 0.308309
     node lo-13 lowpass mode lowpass cutoff 9000hz resonance 0.308309
@@ -80,7 +74,8 @@ instrument guiro "Guiro" graph {
     node hi-17 lowpass mode highpass cutoff 300hz resonance 0.308309
     node hi-18 lowpass mode highpass cutoff 32hz resonance 0.308309
     node gain19 math operation scale amount $lower-stroke
-    node tone20 analog_oscillator waveform saw coarse $hold-tone20 level 1.41421 drift 0.5st
+    node tone20-pitch constant frequency 200hz
+    node tone20 analog_oscillator waveform saw level 1.41421 drift 0.5st
     node tone20-mono stereo_to_mono
     node previous21 delay_line mode time time 0.01ms interpolation linear max_time 1ms
     node edge22 math operation subtract
@@ -138,7 +133,7 @@ instrument guiro "Guiro" graph {
     node level math operation scale amount $level
     node place pan position $pan
     node out output
-    bus note-pitch-tone1-pitch note.pitch -> tone1.pitch
+    bus tone1-pitch-pitch-tone1-pitch tone1-pitch.pitch -> tone1.pitch
     bus tone1-audio-tone1-mono-audio tone1.audio -> tone1-mono.audio
     bus tone1-mono-audio-previous2-audio tone1-mono.audio -> previous2.audio
     bus previous2-audio-edge3-a previous2.audio -> edge3.a
@@ -154,10 +149,7 @@ instrument guiro "Guiro" graph {
     bus note-gate-body8-gate note.gate -> body8.gate
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall10-audio-fall10-previous-audio fall10.audio -> fall10-previous.audio
-    bus onset-audio-fall10-a onset.audio -> fall10.a
-    bus fall10-previous-audio-fall10-leak-a fall10-previous.audio -> fall10-leak.a
-    bus fall10-leak-audio-fall10-b fall10-leak.audio -> fall10.b
+    bus onset-audio-fall10-audio onset.audio -> fall10.audio
     bus hiss9-audio-times11-a hiss9.audio -> times11.a
     bus fall10-audio-times11-b fall10.audio -> times11.b
     bus times11-audio-hi-12-audio times11.audio -> hi-12.audio
@@ -170,7 +162,7 @@ instrument guiro "Guiro" graph {
     bus plus16-audio-hi-17-audio plus16.audio -> hi-17.audio
     bus hi-17-audio-hi-18-audio hi-17.audio -> hi-18.audio
     bus hi-18-audio-gain19-a hi-18.audio -> gain19.a
-    bus note-pitch-tone20-pitch note.pitch -> tone20.pitch
+    bus tone20-pitch-pitch-tone20-pitch tone20-pitch.pitch -> tone20.pitch
     bus tone20-audio-tone20-mono-audio tone20.audio -> tone20-mono.audio
     bus tone20-mono-audio-previous21-audio tone20-mono.audio -> previous21.audio
     bus previous21-audio-edge22-a previous21.audio -> edge22.a

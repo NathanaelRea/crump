@@ -19,40 +19,23 @@ instrument didgeridoo "Didgeridoo" graph {
   }
   modulation {
     source velocity note_velocity per_voice unipolar
-    source key-from-g1-3 note_key per_voice bipolar reference G1 range 3st
-    source key-from-as1-3 note_key per_voice bipolar reference A#1 range 3st
-    source key-from-cs2-3 note_key per_voice bipolar reference C#2 range 3st
-    source key-from-e2-3 note_key per_voice bipolar reference E2 range 3st
-    source key-from-g2-3 note_key per_voice bipolar reference G2 range 3st
-    source key-from-as2-3 note_key per_voice bipolar reference A#2 range 3st
-    source key-from-cs3-1 note_key per_voice bipolar reference C#3 range 1st
+    source register-curve key_curve per_voice bipolar {
+      point g1 key G1 value 0
+      point as1 key A#1 value 0.402069
+      point cs2 key C#2 value 1
+      point e2 key E2 value 0.905607
+      point g2 key G2 value -0.273209
+      point as2 key A#2 value -0.00786855
+      point cs3 key C#3 value 0.440356
+      point d3 key D3 value 0.306206
+    }
     route attack-velocity source velocity target attack depth -0.0579079s map unipolar curve linear order 0 bypass false
     route vibrato-depth-velocity source velocity target vibrato-depth depth 0.0117763 map unipolar curve linear order 0 bypass false
     route noise-velocity source velocity target noise depth -0.0280598 map unipolar curve linear order 0 bypass false
-    route register-1 source key-from-g1-3 target register depth 0.386435 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-2 source key-from-as1-3 target register depth 0.574682 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-3 source key-from-cs2-3 target register depth -0.0907226 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-4 source key-from-e2-3 target register depth -1.13298 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-5 source key-from-g2-3 target register depth 0.255023 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-6 source key-from-as2-3 target register depth 0.430796 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-7 source key-from-cs3-1 target register depth -0.128934 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route register-by-key source register-curve target register depth 0.961117 map bipolar curve linear order 0 bypass false
     route dynamics-velocity source velocity target dynamics depth 0.642857 map unipolar curve linear order 0 bypass false
   }
-  graph voice 61 {
+  graph voice 48 {
     # A breath-driven tone: an oscillator and breath noise through fixed formants.
     node breath envelope mode adsr attack $attack decay 0.15s sustain 0.9 release $release attack_curve 0.3
     node breath-audio to_audio
@@ -83,8 +66,10 @@ instrument didgeridoo "Didgeridoo" graph {
     node tone-sum math operation add
     node tone-drive to_control
     node brightness lowpass mode lowpass cutoff 1466.78hz resonance 0.1 mod_depth 0hz velocity_depth 800hz key_track 0.370116 key_reference 261.626hz
-    node air-low biquad mode highpass frequency 182.535hz q 0.7071
-    node air-band biquad mode lowpass frequency 8378.98hz q 0.7071
+    node air-filter biquad_chain {
+      band air-low mode highpass frequency 182.535hz q 0.7071
+      band air-band mode lowpass frequency 8378.98hz q 0.7071
+    }
     node steady-air math operation scale amount 0.5
     node pulsed-air math operation scale amount 0.360636
     node air-drive sum max_inputs 2
@@ -100,19 +85,21 @@ instrument didgeridoo "Didgeridoo" graph {
     node lips math operation scale amount 0.5
     node mouthed math operation scale amount 1.5
     node voiced math operation add
-    node formant1 biquad mode peak frequency 130.084hz q 2.5 gain -10.9985db
-    node formant2 biquad mode peak frequency 129.92hz q 2.5 gain -10.4869db
-    node formant3 biquad mode peak frequency 206.973hz q 2.5 gain 14.9736db
-    node formant4 biquad mode peak frequency 592.736hz q 1.75628 gain 11.1611db
-    node formant5 biquad mode peak frequency 2493.68hz q 2.10381 gain 6.71806db
-    node formant6 biquad mode peak frequency 1792.1hz q 2.34097 gain 5.31081db
-    node formant7 biquad mode lowshelf frequency 73.7908hz q 0.7071 gain -5.91243db
-    node formant8 biquad mode highshelf frequency 2315.4hz q 0.7071 gain 3.01082db
-    node formant9 biquad mode peak frequency 203.567hz q 2.5 gain 14.9927db
-    node formant10 biquad mode peak frequency 1688.75hz q 1.59481 gain 6.40446db
-    node formant11 biquad mode peak frequency 707.285hz q 1.44766 gain 4.24828db
-    node formant12 biquad mode peak frequency 2597.85hz q 1.07543 gain -6.57885db
-    node radiation biquad mode highpass frequency 30hz q 0.7071
+    node formants biquad_chain {
+      band formant1 mode peak frequency 130.084hz q 2.5 gain -10.9985db
+      band formant2 mode peak frequency 129.92hz q 2.5 gain -10.4869db
+      band formant3 mode peak frequency 206.973hz q 2.5 gain 14.9736db
+      band formant4 mode peak frequency 592.736hz q 1.75628 gain 11.1611db
+      band formant5 mode peak frequency 2493.68hz q 2.10381 gain 6.71806db
+      band formant6 mode peak frequency 1792.1hz q 2.34097 gain 5.31081db
+      band formant7 mode lowshelf frequency 73.7908hz q 0.7071 gain -5.91243db
+      band formant8 mode highshelf frequency 2315.4hz q 0.7071 gain 3.01082db
+      band formant9 mode peak frequency 203.567hz q 2.5 gain 14.9927db
+      band formant10 mode peak frequency 1688.75hz q 1.59481 gain 6.40446db
+      band formant11 mode peak frequency 707.285hz q 1.44766 gain 4.24828db
+      band formant12 mode peak frequency 2597.85hz q 1.07543 gain -6.57885db
+      band radiation mode highpass frequency 30hz q 0.7071
+    }
     node shimmer-depth math operation scale amount 1.00987
     node shimmer math operation offset amount 1
     node alive math operation multiply
@@ -151,13 +138,12 @@ instrument didgeridoo "Didgeridoo" graph {
     bus tone-drive-control-brightness-mod tone-drive.control -> brightness.mod
     bus note-velocity-brightness-velocity note.velocity -> brightness.velocity
     bus note-pitch-brightness-key note.pitch -> brightness.key
-    bus air-audio-air-low-audio air.audio -> air-low.audio
-    bus air-low-audio-air-band-audio air-low.audio -> air-band.audio
+    bus air-audio-air-filter-audio air.audio -> air-filter.audio
     bus breath-audio-audio-steady-air-a breath-audio.audio -> steady-air.a
     bus reed-mono-audio-pulsed-air-a reed-mono.audio -> pulsed-air.a
     bus steady-air-audio-air-drive-inputs steady-air.audio -> air-drive.inputs
     bus pulsed-air-audio-air-drive-inputs pulsed-air.audio -> air-drive.inputs
-    bus air-band-audio-breath-noise-a air-band.audio -> breath-noise.a
+    bus air-filter-audio-breath-noise-a air-filter.audio -> breath-noise.a
     bus air-drive-audio-breath-noise-b air-drive.audio -> breath-noise.b
     bus breath-noise-audio-breath-level-a breath-noise.audio -> breath-level.a
     bus brightness-audio-voice-inputs brightness.audio -> voice.inputs
@@ -175,22 +161,10 @@ instrument didgeridoo "Didgeridoo" graph {
     bus mouth-shape-audio-mouthed-a mouth-shape.audio -> mouthed.a
     bus lips-audio-voiced-a lips.audio -> voiced.a
     bus mouthed-audio-voiced-b mouthed.audio -> voiced.b
-    bus voiced-audio-formant1-audio voiced.audio -> formant1.audio
-    bus formant1-audio-formant2-audio formant1.audio -> formant2.audio
-    bus formant2-audio-formant3-audio formant2.audio -> formant3.audio
-    bus formant3-audio-formant4-audio formant3.audio -> formant4.audio
-    bus formant4-audio-formant5-audio formant4.audio -> formant5.audio
-    bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
-    bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
-    bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
-    bus formant8-audio-formant9-audio formant8.audio -> formant9.audio
-    bus formant9-audio-formant10-audio formant9.audio -> formant10.audio
-    bus formant10-audio-formant11-audio formant10.audio -> formant11.audio
-    bus formant11-audio-formant12-audio formant11.audio -> formant12.audio
-    bus formant12-audio-radiation-audio formant12.audio -> radiation.audio
+    bus voiced-audio-formants-audio voiced.audio -> formants.audio
     bus flutter-audio-shimmer-depth-a flutter.audio -> shimmer-depth.a
     bus shimmer-depth-audio-shimmer-a shimmer-depth.audio -> shimmer.a
-    bus radiation-audio-alive-a radiation.audio -> alive.a
+    bus formants-audio-alive-a formants.audio -> alive.a
     bus shimmer-audio-alive-b shimmer.audio -> alive.b
     bus alive-audio-register-level-a alive.audio -> register-level.a
     bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a

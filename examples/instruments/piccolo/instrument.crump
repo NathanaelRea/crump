@@ -21,7 +21,7 @@ instrument piccolo "Piccolo" graph {
     route pressure-velocity source velocity target pressure depth 0.238547 map unipolar curve linear order 0 bypass false
     route vibrato-depth-velocity source velocity target vibrato-depth depth 0.00495172 map unipolar curve linear order 0 bypass false
   }
-  graph voice 43 {
+  graph voice 38 {
     # An air jet across a pipe: the jet's delay and curve set the tone.
     node blow envelope mode adsr attack $attack decay 0.08s sustain 1 release $release attack_curve 0.3
     node blow-audio to_audio
@@ -93,12 +93,14 @@ instrument piccolo "Piccolo" graph {
     }
     node end-feedback math operation scale amount 0.48702
     node into-pipe math operation add
-    node body1 biquad mode peak frequency 1635.17hz q 2.50184 gain -2.57646db
-    node body2 biquad mode peak frequency 3412.89hz q 4.42887 gain 8.52244db
-    node body3 biquad mode peak frequency 6042.73hz q 6 gain -10.0763db
-    node body4 biquad mode highshelf frequency 3035.78hz q 0.7071 gain -3.40164db
-    node radiation biquad mode lowpass frequency 5485.5hz q 0.7071
-    node sub-cut biquad mode highpass frequency 157.006hz q 0.7071 key_track 1 key_reference 261.626hz
+    node body biquad_chain {
+      band body1 mode peak frequency 1635.17hz q 2.50184 gain -2.57646db
+      band body2 mode peak frequency 3412.89hz q 4.42887 gain 8.52244db
+      band body3 mode peak frequency 6042.73hz q 6 gain -10.0763db
+      band body4 mode highshelf frequency 3035.78hz q 0.7071 gain -3.40164db
+      band radiation mode lowpass frequency 5485.5hz q 0.7071
+      band sub-cut mode highpass frequency 157.006hz q 0.7071 key_track 1 key_reference 261.626hz
+    }
     node trim math operation scale amount 0.0759836
     node level math operation scale amount $level
     node place pan position $pan
@@ -142,14 +144,9 @@ instrument piccolo "Piccolo" graph {
     bus jet-flow-audio-into-pipe-a jet-flow.audio -> into-pipe.a
     bus end-feedback-audio-into-pipe-b end-feedback.audio -> into-pipe.b
     bus into-pipe-audio-bore-audio into-pipe.audio -> bore.audio
-    bus bore-audio-body1-audio bore.audio -> body1.audio
-    bus body1-audio-body2-audio body1.audio -> body2.audio
-    bus body2-audio-body3-audio body2.audio -> body3.audio
-    bus body3-audio-body4-audio body3.audio -> body4.audio
-    bus body4-audio-radiation-audio body4.audio -> radiation.audio
-    bus radiation-audio-sub-cut-audio radiation.audio -> sub-cut.audio
-    bus note-pitch-sub-cut-key note.pitch -> sub-cut.key
-    bus sub-cut-audio-trim-a sub-cut.audio -> trim.a
+    bus bore-audio-body-audio bore.audio -> body.audio
+    bus note-pitch-body-key note.pitch -> body.key
+    bus body-audio-trim-a body.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a
     bus level-audio-place-audio level.audio -> place.audio
     bus place-audio-out-audio place.audio -> out.audio

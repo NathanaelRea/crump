@@ -11,13 +11,12 @@ instrument gamelan-bonang "Gamelan Bonang" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-level note_key per_voice bipolar reference F4 range 12st
-    route key-gain-low source key-level target key-gain depth 0.206127 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    source key-gain-curve key_curve per_voice bipolar {
+      point f3 key F3 value -0.252433
+      point f4 key F4 value 0
+      point f5 key F5 value 1
     }
-    route key-gain-high source key-level target key-gain depth 0.81656 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.81656 map bipolar curve linear order 0 bypass false
   }
   graph voice 8 {
     # A strike on a tuned body with explicit mode ratios, plus a contact tick.

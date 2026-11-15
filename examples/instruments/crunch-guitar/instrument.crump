@@ -13,93 +13,45 @@ instrument crunch-guitar "Crunch Guitar" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-from-c1-12 note_key per_voice bipolar reference C1 range 12st
-    source key-from-c2-12 note_key per_voice bipolar reference C2 range 12st
-    source key-from-c3-12 note_key per_voice bipolar reference C3 range 12st
-    source key-from-c4-12 note_key per_voice bipolar reference C4 range 12st
-    source key-from-c5-12 note_key per_voice bipolar reference C5 range 12st
-    source key-from-c6-12 note_key per_voice bipolar reference C6 range 12st
-    source key-from-c7-12 note_key per_voice bipolar reference C7 range 12st
-    source key-from-c1-24 note_key per_voice bipolar reference C1 range 24st
-    source key-from-c4-6 note_key per_voice bipolar reference C4 range 6st
-    source key-from-fs4-6 note_key per_voice bipolar reference F#4 range 6st
-    source key-from-c5-6 note_key per_voice bipolar reference C5 range 6st
-    source key-from-fs5-6 note_key per_voice bipolar reference F#5 range 6st
-    source key-from-c6-6 note_key per_voice bipolar reference C6 range 6st
-    source key-from-fs6-18 note_key per_voice bipolar reference F#6 range 18st
     source velocity note_velocity per_voice unipolar
-    route sustain-1 source key-from-c1-12 target sustain depth 0.012942848 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
+    source sustain-curve key_curve per_voice unipolar {
+      point c1 key C1 value 0
+      point c2 key C2 value 0.509604
+      point c3 key C3 value 0.698604
+      point c4 key C4 value 0.818612
+      point c5 key C5 value 0.879236
+      point c6 key C6 value 0.92216
+      point c7 key C7 value 0.974036
+      point c8 key C8 value 1
     }
-    route sustain-2 source key-from-c2-12 target sustain depth 0.0048001779 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
+    source length-curve key_curve per_voice unipolar {
+      point c1 key C1 value 0
+      point c3 key C3 value 0.0903736
+      point c4 key C4 value 0.402047
+      point fs4 key F#4 value 0.884476
+      point c5 key C5 value 1
+      point fs5 key F#5 value 0.971189
+      point c6 key C6 value 0.930373
+      point fs6 key F#6 value 0.872451
+      point c8 key C8 value 0.499629
     }
-    route sustain-3 source key-from-c3-12 target sustain depth 0.0030479448 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
+    source length2-curve key_curve per_voice unipolar {
+      point c1 key C1 value 0
+      point c3 key C3 value 0.0903736
+      point c4 key C4 value 0.402047
+      point fs4 key F#4 value 0.884476
+      point c5 key C5 value 1
+      point fs5 key F#5 value 0.971189
+      point c6 key C6 value 0.930373
+      point fs6 key F#6 value 0.872451
+      point c8 key C8 value 0.49963
     }
-    route sustain-4 source key-from-c4-12 target sustain depth 0.0015397089 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route sustain-5 source key-from-c5-12 target sustain depth 0.0010901768 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route sustain-6 source key-from-c6-12 target sustain depth 0.001317549 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route sustain-7 source key-from-c7-12 target sustain depth 0.00065942708 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-1 source key-from-c1-24 target length depth 0.0006369689 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-2 source key-from-c3-12 target length depth 0.0021967266 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-3 source key-from-c4-6 target length depth 0.003400245 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-4 source key-from-fs4-6 target length depth 0.00081423675 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-5 source key-from-c5-6 target length depth -0.00020306657 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-6 source key-from-fs5-6 target length depth -0.00028767648 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-7 source key-from-c6-6 target length depth -0.00040824673 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-8 source key-from-fs6-18 target length depth -0.0026277102 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-1 source key-from-c1-24 target length2 depth 0.00063678497 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-2 source key-from-c3-12 target length2 depth 0.0021960923 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-3 source key-from-c4-6 target length2 depth 0.0033992631 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-4 source key-from-fs4-6 target length2 depth 0.00081400162 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-5 source key-from-c5-6 target length2 depth -0.00020300793 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-6 source key-from-fs5-6 target length2 depth -0.00028759341 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-7 source key-from-c6-6 target length2 depth -0.00040812884 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-8 source key-from-fs6-18 target length2 depth -0.0026269514 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route sustain-by-key source sustain-curve target sustain depth 0.0253978 map unipolar curve linear order 0 bypass false
+    route length-by-key source length-curve target length depth 0.00704818 map unipolar curve linear order 0 bypass false
+    route length2-by-key source length2-curve target length2 depth 0.00704614 map unipolar curve linear order 0 bypass false
     route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve linear order 0 bypass false
   }
-  graph voice 51 {
+  graph voice 38 {
     # A plucked string: a pitch-tracked loop that loses its upper partials first, then the body.
     node pluck exciter kind impact contact 0.00053214s hardness 0.4 level 1
     node released onepole mode leak time 0.02s
@@ -133,20 +85,22 @@ instrument crunch-guitar "Crunch Guitar" graph {
     node preamp math operation scale amount 8
     node valve shaper curve asymmetric drive 4 bias 0.1 asymmetry 0.3
     node valve-dc dc_block cutoff 30hz
-    node formant1 biquad mode peak frequency 517.962hz q 0.979019 gain -6.43522db
-    node formant2 biquad mode peak frequency 238.588hz q 2 gain -9.3193db
-    node formant3 biquad mode peak frequency 366.313hz q 0.918519 gain 12db
-    node formant4 biquad mode peak frequency 1828.86hz q 1.3087 gain 4.08178db
-    node formant5 biquad mode peak frequency 2751.59hz q 1.35122 gain -8.22516db
-    node formant6 biquad mode peak frequency 64.4498hz q 2 gain 7.80911db
-    node formant7 biquad mode lowshelf frequency 60hz q 0.7071 gain 4.00706db
-    node formant8 biquad mode highshelf frequency 2973.36hz q 0.7071 gain -12db
-    node cabinet1 biquad mode highpass frequency 90hz q 0.7
-    node cabinet2 biquad mode peak frequency 120hz q 0.9 gain 3db
-    node cabinet3 biquad mode peak frequency 2400hz q 1 gain 4db
-    node cabinet4 biquad mode lowpass frequency 4800hz q 0.9
-    node cabinet5 biquad mode lowpass frequency 6000hz q 0.7
-    node radiation biquad mode highpass frequency 80hz q 0.7071
+    node formants biquad_chain {
+      band formant1 mode peak frequency 517.962hz q 0.979019 gain -6.43522db
+      band formant2 mode peak frequency 238.588hz q 2 gain -9.3193db
+      band formant3 mode peak frequency 366.313hz q 0.918519 gain 12db
+      band formant4 mode peak frequency 1828.86hz q 1.3087 gain 4.08178db
+      band formant5 mode peak frequency 2751.59hz q 1.35122 gain -8.22516db
+      band formant6 mode peak frequency 64.4498hz q 2 gain 7.80911db
+      band formant7 mode lowshelf frequency 60hz q 0.7071 gain 4.00706db
+      band formant8 mode highshelf frequency 2973.36hz q 0.7071 gain -12db
+      band cabinet1 mode highpass frequency 90hz q 0.7
+      band cabinet2 mode peak frequency 120hz q 0.9 gain 3db
+      band cabinet3 mode peak frequency 2400hz q 1 gain 4db
+      band cabinet4 mode lowpass frequency 4800hz q 0.9
+      band cabinet5 mode lowpass frequency 6000hz q 0.7
+      band radiation mode highpass frequency 80hz q 0.7071
+    }
     node dynamics-level math operation scale amount $dynamics
     node trim math operation scale amount 0.128594
     node level math operation scale amount $level
@@ -201,21 +155,8 @@ instrument crunch-guitar "Crunch Guitar" graph {
     bus coil-audio-preamp-a coil.audio -> preamp.a
     bus preamp-audio-valve-audio preamp.audio -> valve.audio
     bus valve-audio-valve-dc-audio valve.audio -> valve-dc.audio
-    bus valve-dc-audio-formant1-audio valve-dc.audio -> formant1.audio
-    bus formant1-audio-formant2-audio formant1.audio -> formant2.audio
-    bus formant2-audio-formant3-audio formant2.audio -> formant3.audio
-    bus formant3-audio-formant4-audio formant3.audio -> formant4.audio
-    bus formant4-audio-formant5-audio formant4.audio -> formant5.audio
-    bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
-    bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
-    bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
-    bus formant8-audio-cabinet1-audio formant8.audio -> cabinet1.audio
-    bus cabinet1-audio-cabinet2-audio cabinet1.audio -> cabinet2.audio
-    bus cabinet2-audio-cabinet3-audio cabinet2.audio -> cabinet3.audio
-    bus cabinet3-audio-cabinet4-audio cabinet3.audio -> cabinet4.audio
-    bus cabinet4-audio-cabinet5-audio cabinet4.audio -> cabinet5.audio
-    bus cabinet5-audio-radiation-audio cabinet5.audio -> radiation.audio
-    bus radiation-audio-dynamics-level-a radiation.audio -> dynamics-level.a
+    bus valve-dc-audio-formants-audio valve-dc.audio -> formants.audio
+    bus formants-audio-dynamics-level-a formants.audio -> dynamics-level.a
     bus dynamics-level-audio-trim-a dynamics-level.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a
     bus level-audio-place-audio level.audio -> place.audio

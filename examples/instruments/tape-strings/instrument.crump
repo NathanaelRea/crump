@@ -19,18 +19,17 @@ instrument tape-strings "Tape Strings" graph {
   }
   modulation {
     source velocity note_velocity per_voice unipolar
-    source key-level note_key per_voice bipolar reference C4 range 12st
+    source key-gain-curve key_curve per_voice bipolar {
+      point c3 key C3 value 0.231553
+      point c4 key C4 value 0
+      point c5 key C5 value -1
+    }
     route attack-velocity source velocity target attack depth -0.27272727s map unipolar curve linear order 0 bypass false
     route vibrato-depth-velocity source velocity target vibrato-depth depth 0.068181818 map unipolar curve linear order 0 bypass false
     route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(1.725) order 0 bypass false
-    route key-gain-low source key-level target key-gain depth -0.0527151 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
-    }
-    route key-gain-high source key-level target key-gain depth -0.227659 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.227659 map bipolar curve linear order 0 bypass false
   }
-  graph voice 58 {
+  graph voice 54 {
     # A blown, bowed or sung tone: a saw through a fixed resonator bank fitted to the body.
     node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
     node vibrato lfo waveform sine rate 5.5hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
@@ -54,12 +53,8 @@ instrument tape-strings "Tape Strings" graph {
     node breath-amp to_audio
     node gain7 math operation scale amount 1
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall8 math operation add
-    node fall8-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall8-leak math operation scale amount 0.999995833342
-    node fall9 math operation add
-    node fall9-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall9-leak math operation scale amount 0.998261235628
+    node fall8 onepole mode leak time 5s
+    node fall9 onepole mode leak time 0.01197s
     node gain10 math operation scale amount -1
     node plus11 math operation add
     node gain12 math operation scale amount 11
@@ -116,14 +111,8 @@ instrument tape-strings "Tape Strings" graph {
     bus breath-amp-audio-gain7-a breath-amp.audio -> gain7.a
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall8-audio-fall8-previous-audio fall8.audio -> fall8-previous.audio
-    bus onset-audio-fall8-a onset.audio -> fall8.a
-    bus fall8-previous-audio-fall8-leak-a fall8-previous.audio -> fall8-leak.a
-    bus fall8-leak-audio-fall8-b fall8-leak.audio -> fall8.b
-    bus fall9-audio-fall9-previous-audio fall9.audio -> fall9-previous.audio
-    bus onset-audio-fall9-a onset.audio -> fall9.a
-    bus fall9-previous-audio-fall9-leak-a fall9-previous.audio -> fall9-leak.a
-    bus fall9-leak-audio-fall9-b fall9-leak.audio -> fall9.b
+    bus onset-audio-fall8-audio onset.audio -> fall8.audio
+    bus onset-audio-fall9-audio onset.audio -> fall9.audio
     bus fall9-audio-gain10-a fall9.audio -> gain10.a
     bus fall8-audio-plus11-a fall8.audio -> plus11.a
     bus gain10-audio-plus11-b gain10.audio -> plus11.b

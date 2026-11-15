@@ -915,6 +915,10 @@ pub(crate) enum CompiledInstrumentSourceKind {
         reference: u8,
         range_semitones: f64,
     },
+    /// `(key, value)` points in strictly increasing key order.
+    KeyCurve {
+        points: Vec<(f64, f64)>,
+    },
     NoteGate,
     NoteAge {
         duration_frames: f64,
@@ -1070,6 +1074,9 @@ impl CompiledInstrumentSource {
                 CompiledInstrumentSourceKind::GraphPort { node, port } => {
                     node.capacity() + port.capacity()
                 }
+                CompiledInstrumentSourceKind::KeyCurve { points } => {
+                    points.capacity() * std::mem::size_of::<(f64, f64)>()
+                }
                 _ => 0,
             }
     }
@@ -1113,6 +1120,9 @@ impl CompiledInstrumentSource {
                 reference,
                 range_semitones,
             } => (f64::from(context.pitch) - f64::from(reference)) / range_semitones,
+            CompiledInstrumentSourceKind::KeyCurve { ref points } => {
+                key_curve_value(points, f64::from(context.pitch))
+            }
             CompiledInstrumentSourceKind::NoteGate => f64::from(context.gate),
             CompiledInstrumentSourceKind::NoteAge { duration_frames } => {
                 (context.frame as f64 / duration_frames).clamp(0.0, 1.0)
@@ -1144,6 +1154,23 @@ impl CompiledInstrumentSource {
             },
         })
     }
+}
+
+/// Piecewise-linear lookup with constant extrapolation beyond the end points.
+fn key_curve_value(points: &[(f64, f64)], key: f64) -> f64 {
+    let (Some(first), Some(last)) = (points.first(), points.last()) else {
+        return 0.0;
+    };
+    if key <= first.0 {
+        return first.1;
+    }
+    if key >= last.0 {
+        return last.1;
+    }
+    let upper = points.partition_point(|point| point.0 <= key);
+    let (k0, v0) = points[upper - 1];
+    let (k1, v1) = points[upper];
+    v0 + (v1 - v0) * (key - k0) / (k1 - k0)
 }
 
 fn remap_polarity(value: f64, from: ControlPolarity, to: ControlPolarity) -> f64 {
@@ -1357,6 +1384,14 @@ fn compile_instrument_source(
             reference: *reference,
             range_semitones: *range_semitones,
         },
+        InstrumentModulationSourceKind::KeyCurve { points } => {
+            CompiledInstrumentSourceKind::KeyCurve {
+                points: points
+                    .iter()
+                    .map(|point| (f64::from(point.key), point.value))
+                    .collect(),
+            }
+        }
         InstrumentModulationSourceKind::NoteGate => CompiledInstrumentSourceKind::NoteGate,
         InstrumentModulationSourceKind::NoteAge { duration_seconds } => {
             CompiledInstrumentSourceKind::NoteAge {

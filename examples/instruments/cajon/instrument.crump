@@ -18,23 +18,19 @@ instrument cajon "Cajón" graph {
     route key-upper source key-step target upper-stroke depth 1 map unipolar curve linear order 0 bypass false
     route key-lower source key-step target lower-stroke depth -1 map unipolar curve linear order 0 bypass false
   }
-  graph voice 47 {
+  graph voice 41 {
     # A strike on a drumhead's modes, with slap and wire noise bursts.
     node strike1 exciter kind impact contact 0.00333793s hardness $hardness level 1
     node body2 modal_bank profile cajon-bass-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
     node hiss3 noise level 1
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall4 math operation add
-    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall4-leak math operation scale amount 0.99653379897
+    node fall4 onepole mode leak time 0.006s
     node times5 math operation multiply
     node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
     node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
     node gain8 math operation scale amount 2.59808
     node hiss9 noise level 1
-    node fall10 math operation add
-    node fall10-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall10-leak math operation scale amount 0.999479302277
+    node fall10 onepole mode leak time 0.04s
     node times11 math operation multiply
     node hi-12 lowpass mode highpass cutoff 1400hz resonance 0.308309
     node lo-13 lowpass mode lowpass cutoff 11500hz resonance 0.308309
@@ -46,9 +42,7 @@ instrument cajon "Cajón" graph {
     node strike19 exciter kind impact contact 0.000667586s hardness 0.53 level 1
     node body20 modal_bank profile cajon-slap-head max_modes 10 key_track 0 decay_scale 1 brightness 0 level 1
     node hiss21 noise level 1
-    node fall22 math operation add
-    node fall22-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall22-leak math operation scale amount 0.997399221234
+    node fall22 onepole mode leak time 0.008s
     node times23 math operation multiply
     node hi-24 lowpass mode highpass cutoff 600hz resonance 0.308309
     node lo-25 lowpass mode lowpass cutoff 9000hz resonance 0.308309
@@ -74,19 +68,13 @@ instrument cajon "Cajón" graph {
     bus note-gate-body2-gate note.gate -> body2.gate
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
-    bus onset-audio-fall4-a onset.audio -> fall4.a
-    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
-    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus onset-audio-fall4-audio onset.audio -> fall4.audio
     bus hiss3-audio-times5-a hiss3.audio -> times5.a
     bus fall4-audio-times5-b fall4.audio -> times5.b
     bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
     bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
     bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
-    bus fall10-audio-fall10-previous-audio fall10.audio -> fall10-previous.audio
-    bus onset-audio-fall10-a onset.audio -> fall10.a
-    bus fall10-previous-audio-fall10-leak-a fall10-previous.audio -> fall10-leak.a
-    bus fall10-leak-audio-fall10-b fall10-leak.audio -> fall10.b
+    bus onset-audio-fall10-audio onset.audio -> fall10.audio
     bus hiss9-audio-times11-a hiss9.audio -> times11.a
     bus fall10-audio-times11-b fall10.audio -> times11.b
     bus times11-audio-hi-12-audio times11.audio -> hi-12.audio
@@ -103,10 +91,7 @@ instrument cajon "Cajón" graph {
     bus strike19-audio-body20-audio strike19.audio -> body20.audio
     bus note-pitch-body20-pitch note.pitch -> body20.pitch
     bus note-gate-body20-gate note.gate -> body20.gate
-    bus fall22-audio-fall22-previous-audio fall22.audio -> fall22-previous.audio
-    bus onset-audio-fall22-a onset.audio -> fall22.a
-    bus fall22-previous-audio-fall22-leak-a fall22-previous.audio -> fall22-leak.a
-    bus fall22-leak-audio-fall22-b fall22-leak.audio -> fall22.b
+    bus onset-audio-fall22-audio onset.audio -> fall22.audio
     bus hiss21-audio-times23-a hiss21.audio -> times23.a
     bus fall22-audio-times23-b fall22.audio -> times23.b
     bus times23-audio-hi-24-audio times23.audio -> hi-24.audio

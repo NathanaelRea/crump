@@ -19,7 +19,7 @@ instrument pizzicato-strings "Pizzicato Strings" graph {
     route treble-key source treble target treble depth 1 map unipolar curve linear order 0 bypass false
     route bass-key source treble target bass depth -1 map unipolar curve linear order 0 bypass false
   }
-  graph voice 64 {
+  graph voice 62 {
     # Plucked section strings through a body that changes with register.
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
     node held math operation add
@@ -64,9 +64,7 @@ instrument pizzicato-strings "Pizzicato Strings" graph {
     node string-decay-leak math operation scale amount $leak
     node times8 math operation multiply
     node hiss9 noise level 1
-    node fall10 math operation add
-    node fall10-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall10-leak math operation scale amount 0.998265395058
+    node fall10 onepole mode leak time 0.012s
     node times11 math operation multiply
     node hi-12 lowpass mode highpass cutoff 80hz resonance 0.308309
     node lo-13 lowpass mode lowpass cutoff 1500hz resonance 0.308309
@@ -149,10 +147,7 @@ instrument pizzicato-strings "Pizzicato Strings" graph {
     bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
     bus string-tone-audio-times8-a string-tone.audio -> times8.a
     bus string-decay-audio-times8-b string-decay.audio -> times8.b
-    bus fall10-audio-fall10-previous-audio fall10.audio -> fall10-previous.audio
-    bus onset-audio-fall10-a onset.audio -> fall10.a
-    bus fall10-previous-audio-fall10-leak-a fall10-previous.audio -> fall10-leak.a
-    bus fall10-leak-audio-fall10-b fall10-leak.audio -> fall10.b
+    bus onset-audio-fall10-audio onset.audio -> fall10.audio
     bus hiss9-audio-times11-a hiss9.audio -> times11.a
     bus fall10-audio-times11-b fall10.audio -> times11.b
     bus times11-audio-hi-12-audio times11.audio -> hi-12.audio

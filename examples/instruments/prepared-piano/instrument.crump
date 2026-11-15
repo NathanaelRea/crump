@@ -14,24 +14,21 @@ instrument prepared-piano "Prepared Piano" graph {
   }
   modulation {
     source key-range note_key per_voice bipolar reference A3 range 33st
-    source key-level note_key per_voice bipolar reference C4 range 12st
+    source key-gain-curve key_curve per_voice bipolar {
+      point c3 key C3 value -0.515978
+      point c4 key C4 value 0
+      point c5 key C5 value 1
+    }
     route ring-key source key-range target ring depth -2.00508 map bipolar curve linear order 0 bypass false
-    route key-gain-low source key-level target key-gain depth 0.428099 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
-    }
-    route key-gain-high source key-level target key-gain depth 0.829685 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.829685 map bipolar curve linear order 0 bypass false
   }
-  graph voice 35 {
+  graph voice 31 {
     # A prepared piano string, a bolt's modes and a rattle.
     node strike1 exciter kind impact contact 0.000166035s hardness $hardness level 1
     node body2 modal_bank profile prepared-piano-strings max_modes 28 key_track 1 decay_scale $ring brightness 0 level 1
     node gain3 math operation scale amount 0.103594
     node hiss4 noise level 1
-    node fall5 math operation add
-    node fall5-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall5-leak math operation scale amount 0.999372178345
+    node fall5 onepole mode leak time 0.033173s
     node times6 math operation multiply
     node hi-7 lowpass mode highpass cutoff 90hz resonance 0.308309
     node lo-8 lowpass mode lowpass cutoff 12000hz resonance 0.308309
@@ -48,9 +45,7 @@ instrument prepared-piano "Prepared Piano" graph {
     node rattle noise level 1
     node hi-19 lowpass mode highpass cutoff 1500hz resonance 0.308309
     node lo-20 lowpass mode lowpass cutoff 7000hz resonance 0.308309
-    node fall21 math operation add
-    node fall21-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall21-leak math operation scale amount 0.999958334201
+    node fall21 onepole mode leak time 0.5s
     node times22 math operation multiply
     node gain23 math operation scale amount 0.105434
     node plus24 math operation add
@@ -66,10 +61,7 @@ instrument prepared-piano "Prepared Piano" graph {
     bus note-pitch-body2-pitch note.pitch -> body2.pitch
     bus note-gate-body2-gate note.gate -> body2.gate
     bus body2-audio-gain3-a body2.audio -> gain3.a
-    bus fall5-audio-fall5-previous-audio fall5.audio -> fall5-previous.audio
-    bus strike1-audio-fall5-a strike1.audio -> fall5.a
-    bus fall5-previous-audio-fall5-leak-a fall5-previous.audio -> fall5-leak.a
-    bus fall5-leak-audio-fall5-b fall5-leak.audio -> fall5.b
+    bus strike1-audio-fall5-audio strike1.audio -> fall5.audio
     bus hiss4-audio-times6-a hiss4.audio -> times6.a
     bus fall5-audio-times6-b fall5.audio -> times6.b
     bus times6-audio-hi-7-audio times6.audio -> hi-7.audio
@@ -94,10 +86,7 @@ instrument prepared-piano "Prepared Piano" graph {
     bus gain17-audio-plus18-b gain17.audio -> plus18.b
     bus rattle-audio-hi-19-audio rattle.audio -> hi-19.audio
     bus hi-19-audio-lo-20-audio hi-19.audio -> lo-20.audio
-    bus fall21-audio-fall21-previous-audio fall21.audio -> fall21-previous.audio
-    bus strike1-audio-fall21-a strike1.audio -> fall21.a
-    bus fall21-previous-audio-fall21-leak-a fall21-previous.audio -> fall21-leak.a
-    bus fall21-leak-audio-fall21-b fall21-leak.audio -> fall21.b
+    bus strike1-audio-fall21-audio strike1.audio -> fall21.audio
     bus lo-20-audio-times22-a lo-20.audio -> times22.a
     bus fall21-audio-times22-b fall21.audio -> times22.b
     bus times22-audio-gain23-a times22.audio -> gain23.a

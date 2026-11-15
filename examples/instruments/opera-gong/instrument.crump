@@ -11,7 +11,7 @@ instrument opera-gong "Opera Gong" graph {
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 23 {
+  graph voice 21 {
     # An opera gong: measured inharmonic modes beat in close clusters; the strike energy blooms into the upper cluster and the pitch falls as the plate relaxes.
     node mallet exciter kind impact contact 0.0015s hardness 0.4 level 1
     node plate modal_bank profile opera-gong-plate max_modes 48 key_track 0 decay_scale $ring brightness 0 rise 0.05s level 1
@@ -21,9 +21,7 @@ instrument opera-gong "Opera Gong" graph {
     node bloom-level math operation scale amount $bloom
     node plate-sum math operation add
     node hiss1 noise level 1
-    node fall2 math operation add
-    node fall2-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall2-leak math operation scale amount 0.999305796626
+    node fall2 onepole mode leak time 0.03s
     node times3 math operation multiply
     node hi-4 lowpass mode highpass cutoff 300hz resonance 0.308309
     node lo-5 lowpass mode lowpass cutoff 6000hz resonance 0.308309
@@ -120,10 +118,7 @@ instrument opera-gong "Opera Gong" graph {
     bus bloom-audio-bloom-level-a bloom.audio -> bloom-level.a
     bus plate-audio-plate-sum-a plate.audio -> plate-sum.a
     bus bloom-level-audio-plate-sum-b bloom-level.audio -> plate-sum.b
-    bus fall2-audio-fall2-previous-audio fall2.audio -> fall2-previous.audio
-    bus mallet-audio-fall2-a mallet.audio -> fall2.a
-    bus fall2-previous-audio-fall2-leak-a fall2-previous.audio -> fall2-leak.a
-    bus fall2-leak-audio-fall2-b fall2-leak.audio -> fall2.b
+    bus mallet-audio-fall2-audio mallet.audio -> fall2.audio
     bus hiss1-audio-times3-a hiss1.audio -> times3.a
     bus fall2-audio-times3-b fall2.audio -> times3.b
     bus times3-audio-hi-4-audio times3.audio -> hi-4.audio

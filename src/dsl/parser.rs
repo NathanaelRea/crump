@@ -15,12 +15,12 @@ use crate::{
         GlideMode, Graph, GraphDomain, GraphNode, GrooveSites, GrooveTemplate, Group, Instrument,
         InstrumentKind, InstrumentModulationRate, InstrumentModulationRoute,
         InstrumentModulationRouteSites, InstrumentModulationScope, InstrumentModulationSource,
-        InstrumentModulationSourceKind, InstrumentPreview, LATEST_SOURCE_VERSION, LfoDirection,
-        LfoMode, LfoRetrigger, LfoWaveform, Locator, Master, MediaAsset, MediaAssetUsage,
-        ModulationCurve, ModulationOperator, ModulationRate, ModulationRoute, ModulationScope,
-        NodeDirective, NodeDirectiveToken, NodeKind, NodeSetting, NotePriority, OutputTarget,
-        Panner, Parameter, ParameterLock, ParameterLockSites, ParameterTarget, Pattern,
-        PatternEvent, PatternVariation, PatternVariationSites, PresentationItem,
+        InstrumentModulationSourceKind, InstrumentPreview, KeyCurvePoint, LATEST_SOURCE_VERSION,
+        LfoDirection, LfoMode, LfoRetrigger, LfoWaveform, Locator, Master, MediaAsset,
+        MediaAssetUsage, ModulationCurve, ModulationOperator, ModulationRate, ModulationRoute,
+        ModulationScope, NodeDirective, NodeDirectiveToken, NodeKind, NodeSetting, NotePriority,
+        OutputTarget, Panner, Parameter, ParameterLock, ParameterLockSites, ParameterTarget,
+        Pattern, PatternEvent, PatternVariation, PatternVariationSites, PresentationItem,
         PresentationItemKind, PresentationSection, PresentationSectionKind, Processor,
         ProcessorKind, ProcessorSetting, Project, RetriggerPolicy, Return, SOURCE_VERSION_V1,
         SOURCE_VERSION_V2, SampleDirection, SampleEventSites, SampleLoopRegion, SampleMapping,
@@ -411,6 +411,8 @@ const fn node_kind_has_runtime(kind: NodeKind) -> bool {
                 | NodeKind::LinearPhaseLowpass
                 | NodeKind::Biquad
                 | NodeKind::OnePole
+                | NodeKind::BiquadChain
+                | NodeKind::Constant
         )
 }
 
@@ -1436,10 +1438,14 @@ impl Parser<'_> {
         &mut self,
         statement: &Statement,
     ) -> Option<InstrumentModulationSource> {
-        if !statement.children.is_empty() {
+        let key_curve = statement
+            .tokens
+            .get(2)
+            .is_some_and(|token| token.value == "key_curve");
+        if !statement.children.is_empty() && !key_curve {
             self.error_at(
                 "CRP175",
-                "Instrument Modulation sources cannot contain nested directives",
+                "only a key_curve Modulation source may contain nested point directives",
                 statement,
             );
         }
@@ -1605,6 +1611,38 @@ impl Parser<'_> {
                     3,
                     4,
                 )
+            }
+            "key_curve" if statement.tokens.len() == 5 => {
+                let mut points = Vec::new();
+                for child in &statement.children {
+                    let tokens = &child.tokens;
+                    if tokens.len() != 6
+                        || tokens[0].value != "point"
+                        || tokens[2].value != "key"
+                        || tokens[4].value != "value"
+                        || !child.children.is_empty()
+                    {
+                        self.error_at(
+                            "CRP175",
+                            "key curve point syntax is `point ID key PITCH value VALUE`",
+                            child,
+                        );
+                        continue;
+                    }
+                    let (Some(key), Some(value)) = (
+                        self.parse_pitch_token(&tokens[3]),
+                        self.parse_ratio(&tokens[5]),
+                    ) else {
+                        continue;
+                    };
+                    points.push(KeyCurvePoint {
+                        id: tokens[1].value.clone(),
+                        key,
+                        value,
+                        location: child.location(self.file, self.source),
+                    });
+                }
+                (InstrumentModulationSourceKind::KeyCurve { points }, 3, 4)
             }
             "note_age"
                 if statement.tokens.len() == 7 && statement.tokens[5].value == "duration" =>
@@ -2600,7 +2638,12 @@ impl Parser<'_> {
                             && child
                                 .tokens
                                 .first()
-                                .is_some_and(|token| token.value == "point"));
+                                .is_some_and(|token| token.value == "point"))
+                        || (kind == NodeKind::BiquadChain
+                            && child
+                                .tokens
+                                .first()
+                                .is_some_and(|token| token.value == "band"));
                 if structured_directive {
                     directives.push(self.parse_node_directive(child));
                 } else if child.tokens.len() == 2 && child.children.is_empty() {
@@ -2608,7 +2651,7 @@ impl Parser<'_> {
                 } else {
                     self.error_at(
                         "CRP170",
-                        "runnable Node block settings use one non-nested `key value` directive per line; supported structured forms are oscillator warp/distortion, custom LFO and shaper table point, sample slice, and multisample zone directives",
+                        "runnable Node block settings use one non-nested `key value` directive per line; supported structured forms are oscillator warp/distortion, custom LFO and shaper table point, sample slice, multisample zone, and biquad chain band directives",
                         child,
                     );
                 }

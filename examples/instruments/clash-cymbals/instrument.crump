@@ -11,21 +11,17 @@ instrument clash-cymbals "Clash Cymbals" graph {
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 24 {
+  graph voice 20 {
     # A strike on dense metal modes, with rattle and broadband shimmer.
     node strike1 exciter kind impact contact 0.000484s hardness $hardness level 1
     node hiss2 noise level 1
-    node fall3 math operation add
-    node fall3-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall3-leak math operation scale amount 0.999479302277
+    node fall3 onepole mode leak time 0.04s
     node times4 math operation multiply
     node gain5 math operation scale amount 0.155885
     node plus6 math operation add
     node body7 modal_bank profile clash-cymbals-plate max_modes 150 key_track 0 decay_scale $ring brightness 0 level 1
     node hiss8 noise level 1
-    node fall9 math operation add
-    node fall9-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall9-leak math operation scale amount 0.999978070416
+    node fall9 onepole mode leak time 0.95s
     node times10 math operation multiply
     node hi-11 lowpass mode highpass cutoff 2500hz resonance 0.308309
     node lo-12 lowpass mode lowpass cutoff 17000hz resonance 0.308309
@@ -39,10 +35,7 @@ instrument clash-cymbals "Clash Cymbals" graph {
     node out output
     bus note-gate-strike1-gate note.gate -> strike1.gate
     bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
-    bus fall3-audio-fall3-previous-audio fall3.audio -> fall3-previous.audio
-    bus strike1-audio-fall3-a strike1.audio -> fall3.a
-    bus fall3-previous-audio-fall3-leak-a fall3-previous.audio -> fall3-leak.a
-    bus fall3-leak-audio-fall3-b fall3-leak.audio -> fall3.b
+    bus strike1-audio-fall3-audio strike1.audio -> fall3.audio
     bus hiss2-audio-times4-a hiss2.audio -> times4.a
     bus fall3-audio-times4-b fall3.audio -> times4.b
     bus times4-audio-gain5-a times4.audio -> gain5.a
@@ -51,10 +44,7 @@ instrument clash-cymbals "Clash Cymbals" graph {
     bus plus6-audio-body7-audio plus6.audio -> body7.audio
     bus note-pitch-body7-pitch note.pitch -> body7.pitch
     bus note-gate-body7-gate note.gate -> body7.gate
-    bus fall9-audio-fall9-previous-audio fall9.audio -> fall9-previous.audio
-    bus strike1-audio-fall9-a strike1.audio -> fall9.a
-    bus fall9-previous-audio-fall9-leak-a fall9-previous.audio -> fall9-leak.a
-    bus fall9-leak-audio-fall9-b fall9-leak.audio -> fall9.b
+    bus strike1-audio-fall9-audio strike1.audio -> fall9.audio
     bus hiss8-audio-times10-a hiss8.audio -> times10.a
     bus fall9-audio-times10-b fall9.audio -> times10.b
     bus times10-audio-hi-11-audio times10.audio -> hi-11.audio

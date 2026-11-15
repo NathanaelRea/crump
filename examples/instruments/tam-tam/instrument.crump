@@ -9,30 +9,22 @@ instrument tam-tam "Tam-tam" graph {
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 32 {
+  graph voice 24 {
     # A felt strike on a dense plate, then a slow bloom into its upper modes.
     node hiss1 noise level 1
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall2 math operation add
-    node fall2-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall2-leak math operation scale amount 0.99551010983
+    node fall2 onepole mode leak time 0.00463s
     node rise3 math operation subtract
-    node fall4 math operation add
-    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall4-leak math operation scale amount 0.991040378773
+    node fall4 onepole mode leak time 0.002315s
     node gain5 math operation scale amount 4
     node times6 math operation multiply
     node lo-7 lowpass mode lowpass cutoff 1278hz resonance 0.308309
     node body8 modal_bank profile tam-tam-plate max_modes 160 key_track 0 decay_scale $ring brightness 0 rise 0.03s level 1
     node gain9 math operation scale amount 0.0183236
     node hiss10 noise level 1
-    node fall11 math operation add
-    node fall11-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall11-leak math operation scale amount 0.999985119158
+    node fall11 onepole mode leak time 1.4s
     node rise12 math operation subtract
-    node fall13 math operation add
-    node fall13-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall13-leak math operation scale amount 0.999919381557
+    node fall13 onepole mode leak time 0.2583s
     node gain14 math operation scale amount 1.79773
     node times15 math operation multiply
     node body16 modal_bank profile tam-tam-bloom max_modes 5 key_track 0 decay_scale 1 brightness 0 level 1
@@ -45,15 +37,9 @@ instrument tam-tam "Tam-tam" graph {
     node out output
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall2-audio-fall2-previous-audio fall2.audio -> fall2-previous.audio
-    bus onset-audio-fall2-a onset.audio -> fall2.a
-    bus fall2-previous-audio-fall2-leak-a fall2-previous.audio -> fall2-leak.a
-    bus fall2-leak-audio-fall2-b fall2-leak.audio -> fall2.b
+    bus onset-audio-fall2-audio onset.audio -> fall2.audio
     bus fall2-audio-rise3-a fall2.audio -> rise3.a
-    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
-    bus onset-audio-fall4-a onset.audio -> fall4.a
-    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
-    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus onset-audio-fall4-audio onset.audio -> fall4.audio
     bus fall4-audio-rise3-b fall4.audio -> rise3.b
     bus rise3-audio-gain5-a rise3.audio -> gain5.a
     bus hiss1-audio-times6-a hiss1.audio -> times6.a
@@ -63,15 +49,9 @@ instrument tam-tam "Tam-tam" graph {
     bus note-pitch-body8-pitch note.pitch -> body8.pitch
     bus note-gate-body8-gate note.gate -> body8.gate
     bus body8-audio-gain9-a body8.audio -> gain9.a
-    bus fall11-audio-fall11-previous-audio fall11.audio -> fall11-previous.audio
-    bus onset-audio-fall11-a onset.audio -> fall11.a
-    bus fall11-previous-audio-fall11-leak-a fall11-previous.audio -> fall11-leak.a
-    bus fall11-leak-audio-fall11-b fall11-leak.audio -> fall11.b
+    bus onset-audio-fall11-audio onset.audio -> fall11.audio
     bus fall11-audio-rise12-a fall11.audio -> rise12.a
-    bus fall13-audio-fall13-previous-audio fall13.audio -> fall13-previous.audio
-    bus onset-audio-fall13-a onset.audio -> fall13.a
-    bus fall13-previous-audio-fall13-leak-a fall13-previous.audio -> fall13-leak.a
-    bus fall13-leak-audio-fall13-b fall13-leak.audio -> fall13.b
+    bus onset-audio-fall13-audio onset.audio -> fall13.audio
     bus fall13-audio-rise12-b fall13.audio -> rise12.b
     bus rise12-audio-gain14-a rise12.audio -> gain14.a
     bus hiss10-audio-times15-a hiss10.audio -> times15.a

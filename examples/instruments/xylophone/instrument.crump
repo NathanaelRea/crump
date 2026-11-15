@@ -13,13 +13,12 @@ instrument xylophone "Xylophone" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-level note_key per_voice bipolar reference F5 range 12st
-    route key-gain-low source key-level target key-gain depth -0.00325421 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    source key-gain-curve key_curve per_voice unipolar {
+      point f4 key F4 value 0.0842359
+      point f5 key F5 value 0
+      point f6 key F6 value 1
     }
-    route key-gain-high source key-level target key-gain depth 0.0386321 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.0386321 map unipolar curve linear order 0 bypass false
   }
   graph voice 8 {
     # A mallet on a tuned bar's modes, optionally through a pickup.

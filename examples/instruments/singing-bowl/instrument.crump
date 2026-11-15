@@ -12,14 +12,13 @@ instrument singing-bowl "Singing Bowl" graph {
   }
   modulation {
     source key-range note_key per_voice bipolar reference A4 range 14st
-    source key-level note_key per_voice bipolar reference A4 range 12st
+    source key-gain-curve key_curve per_voice bipolar {
+      point a3 key A3 value -0.234537
+      point a4 key A4 value 0
+      point a5 key A5 value 1
+    }
     route ring-key source key-range target ring depth -0.207569 map bipolar curve linear order 0 bypass false
-    route key-gain-low source key-level target key-gain depth 0.131926 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
-    }
-    route key-gain-high source key-level target key-gain depth 0.562495 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.562495 map bipolar curve linear order 0 bypass false
   }
   graph voice 8 {
     # A strike on a tuned body with explicit mode ratios, plus a contact tick.

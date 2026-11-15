@@ -930,3 +930,245 @@ fn onepole_leak_shapes_a_strike_into_an_exponential_and_biquads_filter_it() {
     let ratio = level(4_800) / level(9_600);
     assert!((ratio - std::f64::consts::E).abs() < 0.6, "{ratio}");
 }
+
+#[test]
+fn biquad_chain_matches_the_same_biquads_in_series() {
+    // Noise is the first Node in both graphs, so both draw the same sequence.
+    let separate = "    node hiss noise level $level
+    node low biquad mode lowshelf frequency 200hz gain -6db
+    node peak biquad mode peak frequency 1.5khz q 3 gain 9db
+    node follow biquad mode highpass frequency 80hz key_track 1 key_reference 220hz
+    node stereo mono_to_stereo
+    node out output
+    bus noise hiss.audio -> low.audio
+    bus first low.audio -> peak.audio
+    bus second peak.audio -> follow.audio
+    bus key note.pitch -> follow.key
+    bus tap follow.audio -> stereo.audio
+    bus output stereo.audio -> out.audio";
+    let chained = "    node hiss noise level $level
+    node tone biquad_chain {
+      band low mode lowshelf frequency 200hz gain -6db
+      band peak mode peak frequency 1.5khz q 3 gain 9db
+      band follow mode highpass frequency 80hz key_track 1 key_reference 220hz
+    }
+    node stereo mono_to_stereo
+    node out output
+    bus noise hiss.audio -> tone.audio
+    bus key note.pitch -> tone.key
+    bus tap tone.audio -> stereo.audio
+    bus output stereo.audio -> out.audio";
+    let a = render(&compile(&probe(separate)), 24_000, 128);
+    let b = render(&compile(&probe(chained)), 24_000, 128);
+    assert!(a.iter().flatten().any(|value| *value != 0.0));
+    assert_eq!(a, b);
+}
+
+#[test]
+fn constant_holds_an_oscillator_on_one_pitch_for_every_key() {
+    let graph = "    node fixed constant frequency 110hz
+    node tone oscillator waveform sine level $level
+    node stereo mono_to_stereo
+    node out output
+    bus pitch fixed.pitch -> tone.pitch
+    bus tap tone.audio -> stereo.audio
+    bus output stereo.audio -> out.audio";
+    for key in ["C2", "A4", "C7"] {
+        let compiled = compile(&project_with(
+            &[("instrument.crump", &module(graph))],
+            &[("probe", "probe")],
+            &format!("      note 0beat {key} 1beat 0.8"),
+            48_000,
+        ));
+        let audio = render(&compiled, 24_000, 128);
+        let left = audio[4_800..14_400]
+            .iter()
+            .map(|f| f[0])
+            .collect::<Vec<_>>();
+        let measured = fundamental(&left, 110.0, 48_000.0);
+        assert!(
+            (measured / 110.0).log2().abs() * 1_200.0 < 1.0,
+            "{key}: {measured}"
+        );
+    }
+}
+
+#[test]
+fn key_curve_interpolates_between_points_and_holds_beyond_them() {
+    let source = r#"crump-module 2
+instrument probe "Probe" graph {
+  polyphony 2
+  parameter level "Level" ratio 0 1 0 0 modulatable
+  faceplate {
+    control level "Level" "Output level" maps level
+  }
+  modulation {
+    source register key_curve per_voice unipolar {
+      point low key C3 value 0.25
+      point high key C5 value 1
+    }
+    route register-level source register target level depth 0.8 map unipolar curve linear order 0 bypass false
+  }
+  graph voice 5 {
+    node tone oscillator waveform sine
+    node gain math operation scale amount $level
+    node stereo mono_to_stereo
+    node out output
+    bus pitch note.pitch -> tone.pitch
+    bus level tone.audio -> gain.a
+    bus tap gain.audio -> stereo.audio
+    bus output stereo.audio -> out.audio
+  }
+}
+"#;
+    // Below, at, between, and above the points: 0.25, 0.25, 0.625 and 1, times the 0.8 depth.
+    for (key, expected) in [("C1", 0.2), ("C3", 0.2), ("C4", 0.5), ("C7", 0.8)] {
+        let compiled = compile(&project_with(
+            &[("instrument.crump", source)],
+            &[("probe", "probe")],
+            &format!("      note 0beat {key} 1beat 0.8"),
+            48_000,
+        ));
+        let audio = render(&compiled, 24_000, 128);
+        let peak = audio[4_800..14_400]
+            .iter()
+            .map(|frame| frame[0].abs())
+            .fold(0.0_f32, f32::max);
+        assert!((f64::from(peak) - expected).abs() < 0.01, "{key}: {peak}");
+    }
+}
+
+#[test]
+fn biquad_chain_constant_and_key_curve_contracts_fail_closed() {
+    let out = "    node stereo mono_to_stereo
+    node out output
+    bus tap shaped.audio -> stereo.audio
+    bus output stereo.audio -> out.audio";
+    let chain = |bands: &str, key: bool| {
+        format!(
+            "{PLUCK}\n    node shaped biquad_chain {{\n{bands}\n    }}\n    bus a pluck.audio -> shaped.audio\n{}{out}",
+            if key {
+                "    bus k note.pitch -> shaped.key\n"
+            } else {
+                ""
+            }
+        )
+    };
+    let cases = [
+        (
+            chain("      band a mode lowpass frequency 1khz gain 6db", false),
+            "applies only to peak and shelf modes",
+        ),
+        (
+            chain("      band a mode bandpass frequency 1khz", true),
+            "reads `key` only when a band sets `key_track`",
+        ),
+        (
+            chain(
+                "      band a mode bandpass frequency 1khz key_track 1",
+                false,
+            ),
+            "has key-tracked bands but no `key` input",
+        ),
+        (
+            chain("      band a mode peak frequency 1khz q 100", false),
+            "band `q` must be a literal",
+        ),
+        (
+            chain("      band a mode peak q 2", false),
+            "biquad_chain band syntax",
+        ),
+        (
+            chain(
+                "      band a mode peak frequency 1khz\n      band a mode notch frequency 2khz",
+                false,
+            ),
+            "invalid or duplicated",
+        ),
+        (
+            format!(
+                "{PLUCK}\n    node fixed constant\n    node tone oscillator\n    node shaped math operation multiply\n    bus p fixed.pitch -> tone.pitch\n    bus a pluck.audio -> shaped.a\n    bus b tone.audio -> shaped.b\n{out}"
+            ),
+            "requires a `frequency`",
+        ),
+    ];
+    for (graph, text) in cases {
+        let diagnostics = codes(&probe(&graph));
+        assert!(
+            diagnostics
+                .iter()
+                .any(|(_, message)| message.contains(text)),
+            "`{text}` missing from {diagnostics:?}"
+        );
+    }
+    let curve = |polarity: &str, points: &str| {
+        format!(
+            r#"crump-module 2
+instrument probe "Probe" graph {{
+  polyphony 2
+  parameter level "Level" ratio 0 1 0 0 modulatable
+  faceplate {{
+    control level "Level" "Output level" maps level
+  }}
+  modulation {{
+    source register key_curve per_voice {polarity} {{
+{points}
+    }}
+    route r source register target level depth 1 map {polarity} curve linear order 0 bypass false
+  }}
+  graph voice 4 {{
+    node tone oscillator
+    node gain math operation scale amount $level
+    node stereo mono_to_stereo
+    node out output
+    bus pitch note.pitch -> tone.pitch
+    bus level tone.audio -> gain.a
+    bus tap gain.audio -> stereo.audio
+    bus output stereo.audio -> out.audio
+  }}
+}}
+"#
+        )
+    };
+    for (source, text) in [
+        (
+            curve("unipolar", "      point a key C4 value 0.5"),
+            "key curve requires 2..=64 points",
+        ),
+        (
+            curve(
+                "unipolar",
+                "      point a key C4 value 0.5\n      point b key C3 value 1",
+            ),
+            "keys must strictly increase",
+        ),
+        (
+            curve(
+                "unipolar",
+                "      point a key C3 value -0.5\n      point b key C4 value 1",
+            ),
+            "must lie within 0..=1 for a unipolar source",
+        ),
+        (
+            curve(
+                "bipolar",
+                "      point a key C3 value 0\n      point a key C4 value 1",
+            ),
+            "invalid or duplicated",
+        ),
+    ] {
+        let bundle = project_with(
+            &[("instrument.crump", &source)],
+            &[("probe", "probe")],
+            "      note 0beat C4 1beat 0.8",
+            48_000,
+        );
+        let diagnostics = codes(&bundle);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|(_, message)| message.contains(text)),
+            "`{text}` missing from {diagnostics:?}"
+        );
+    }
+}

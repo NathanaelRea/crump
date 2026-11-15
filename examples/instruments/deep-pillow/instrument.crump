@@ -1,7 +1,6 @@
 crump-module 2
 instrument deep-pillow "Deep Pillow" graph {
   polyphony 4
-  parameter hold-tone4 "Fixed pitch" semitones -48st 48st -28.1194st -28.1194st modulatable
   parameter ring "Ring" ratio 0.1 4 1 1
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
@@ -11,25 +10,18 @@ instrument deep-pillow "Deep Pillow" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-position note_key per_voice bipolar reference C4 range 48st
-    route hold-tone4-key source key-position target hold-tone4 depth -48st map bipolar curve linear order 0 bypass false
   }
-  graph voice 24 {
+  graph voice 19 {
     # A strike on a drumhead's modes, with slap and wire noise bursts.
     node strike1 exciter kind impact contact 0.000409293s hardness 0 level 1
-    node fall2 math operation add
-    node fall2-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall2-leak math operation scale amount 0.999674594029
-    node fall3 math operation add
-    node fall3-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall3-leak math operation scale amount 0.99877526041
-    node tone4 analog_oscillator waveform sine coarse $hold-tone4 level 1.41421 fm_depth 1.91863st am_mode ring am_depth 1
+    node fall2 onepole mode leak time 0.06402s
+    node fall3 onepole mode leak time 0.017s
+    node tone4-pitch constant frequency 51.556hz
+    node tone4 analog_oscillator waveform sine level 1.41421 fm_depth 1.91863st am_mode ring am_depth 1
     node tone4-mono stereo_to_mono
     node body5 modal_bank profile deep-pillow-head max_modes 9 key_track 0 decay_scale $ring brightness 0 level 1
     node hiss6 noise level 1
-    node fall7 math operation add
-    node fall7-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall7-leak math operation scale amount 0.994404650296
+    node fall7 onepole mode leak time 0.003713s
     node times8 math operation multiply
     node hi-9 lowpass mode highpass cutoff 600hz resonance 0.308309
     node lo-10 lowpass mode lowpass cutoff 9000hz resonance 0.308309
@@ -42,25 +34,16 @@ instrument deep-pillow "Deep Pillow" graph {
     node out output
     bus note-gate-strike1-gate note.gate -> strike1.gate
     bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
-    bus fall2-audio-fall2-previous-audio fall2.audio -> fall2-previous.audio
-    bus strike1-audio-fall2-a strike1.audio -> fall2.a
-    bus fall2-previous-audio-fall2-leak-a fall2-previous.audio -> fall2-leak.a
-    bus fall2-leak-audio-fall2-b fall2-leak.audio -> fall2.b
-    bus fall3-audio-fall3-previous-audio fall3.audio -> fall3-previous.audio
-    bus strike1-audio-fall3-a strike1.audio -> fall3.a
-    bus fall3-previous-audio-fall3-leak-a fall3-previous.audio -> fall3-leak.a
-    bus fall3-leak-audio-fall3-b fall3-leak.audio -> fall3.b
-    bus note-pitch-tone4-pitch note.pitch -> tone4.pitch
+    bus strike1-audio-fall2-audio strike1.audio -> fall2.audio
+    bus strike1-audio-fall3-audio strike1.audio -> fall3.audio
+    bus tone4-pitch-pitch-tone4-pitch tone4-pitch.pitch -> tone4.pitch
     bus fall3-audio-tone4-fm fall3.audio -> tone4.fm
     bus fall2-audio-tone4-am fall2.audio -> tone4.am
     bus tone4-audio-tone4-mono-audio tone4.audio -> tone4-mono.audio
     bus strike1-audio-body5-audio strike1.audio -> body5.audio
     bus note-pitch-body5-pitch note.pitch -> body5.pitch
     bus note-gate-body5-gate note.gate -> body5.gate
-    bus fall7-audio-fall7-previous-audio fall7.audio -> fall7-previous.audio
-    bus strike1-audio-fall7-a strike1.audio -> fall7.a
-    bus fall7-previous-audio-fall7-leak-a fall7-previous.audio -> fall7-leak.a
-    bus fall7-leak-audio-fall7-b fall7-leak.audio -> fall7.b
+    bus strike1-audio-fall7-audio strike1.audio -> fall7.audio
     bus hiss6-audio-times8-a hiss6.audio -> times8.a
     bus fall7-audio-times8-b fall7.audio -> times8.b
     bus times8-audio-hi-9-audio times8.audio -> hi-9.audio

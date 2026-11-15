@@ -17,16 +17,15 @@ instrument solo-violin "Solo Violin" graph {
   }
   modulation {
     source velocity note_velocity per_voice unipolar
-    source key-level note_key per_voice bipolar reference G4 range 12st
+    source key-gain-curve key_curve per_voice unipolar {
+      point g3 key G3 value 0.564188
+      point g4 key G4 value 0
+      point g5 key G5 value 1
+    }
     route attack-velocity source velocity target attack depth -0.47727273s map unipolar curve linear order 0 bypass false
     route vibrato-depth-velocity source velocity target vibrato-depth depth 0.068181818 map unipolar curve linear order 0 bypass false
     route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(0.9742) order 0 bypass false
-    route key-gain-low source key-level target key-gain depth -0.563306 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
-    }
-    route key-gain-high source key-level target key-gain depth 0.998436 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.998436 map unipolar curve linear order 0 bypass false
   }
   graph voice 31 {
     # A bowed string: a Helmholtz saw through a jagged body and the instrument's body curve.

@@ -11,15 +11,14 @@ instrument deep-rubber "Deep Rubber" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-level note_key per_voice bipolar reference C4 range 12st
-    route key-gain-low source key-level target key-gain depth -1.05694 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    source key-gain-curve key_curve per_voice unipolar {
+      point c3 key C3 value 0.206104
+      point c4 key C4 value 0
+      point c5 key C5 value 1
     }
-    route key-gain-high source key-level target key-gain depth 5.12818 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 5.12818 map unipolar curve linear order 0 bypass false
   }
-  graph voice 32 {
+  graph voice 30 {
     # A plucked string: a pitch-tuned delay loop with a per-trip loss, a pickup and a body.
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
     node held math operation add
@@ -40,9 +39,7 @@ instrument deep-rubber "Deep Rubber" graph {
     node gain1 math operation scale amount 0.7
     node gain2 math operation scale amount 1.73205
     node string-tone lowpass mode lowpass cutoff 247.5hz resonance 0.308309 velocity_depth 357.5hz
-    node string-decay math operation add
-    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node string-decay-leak math operation scale amount 0.999970238538
+    node string-decay onepole mode leak time 0.7s
     node times3 math operation multiply
     node body4 modal_bank profile deep-rubber-box max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
     node gain5 math operation scale amount 0.1
@@ -82,10 +79,7 @@ instrument deep-rubber "Deep Rubber" graph {
     bus string-out-audio-gain2-a string-out.audio -> gain2.a
     bus gain2-audio-string-tone-audio gain2.audio -> string-tone.audio
     bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
-    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
-    bus onset-audio-string-decay-a onset.audio -> string-decay.a
-    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
-    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
+    bus onset-audio-string-decay-audio onset.audio -> string-decay.audio
     bus string-tone-audio-times3-a string-tone.audio -> times3.a
     bus string-decay-audio-times3-b string-decay.audio -> times3.b
     bus times3-audio-body4-audio times3.audio -> body4.audio

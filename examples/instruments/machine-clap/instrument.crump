@@ -9,15 +9,11 @@ instrument machine-clap "Machine Clap" graph {
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 44 {
+  graph voice 36 {
     # Layers of simpler models, each peak-normalised.
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall1 math operation add
-    node fall1-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall1-leak math operation scale amount 0.997226076677
-    node fall2 math operation add
-    node fall2-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall2-leak math operation scale amount 0.946616613353
+    node fall1 onepole mode leak time 0.0075s
+    node fall2 onepole mode leak time 0.00037975s
     node gain3 math operation scale amount -1
     node plus4 math operation add
     node gain5 math operation scale amount 1.23499
@@ -35,13 +31,9 @@ instrument machine-clap "Machine Clap" graph {
     node plus17 math operation add
     node gain18 math operation scale amount 2.24229
     node hiss19 noise level 1
-    node fall20 math operation add
-    node fall20-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall20-leak math operation scale amount 0.999877458489
+    node fall20 onepole mode leak time 0.17s
     node rise21 math operation subtract
-    node fall22 math operation add
-    node fall22-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall22-leak math operation scale amount 0.959071916584
+    node fall22 onepole mode leak time 0.0004985s
     node gain23 math operation scale amount 1.02029
     node times24 math operation multiply
     node hi-25 lowpass mode highpass cutoff 700hz resonance 0.308309
@@ -57,14 +49,8 @@ instrument machine-clap "Machine Clap" graph {
     node out output
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall1-audio-fall1-previous-audio fall1.audio -> fall1-previous.audio
-    bus onset-audio-fall1-a onset.audio -> fall1.a
-    bus fall1-previous-audio-fall1-leak-a fall1-previous.audio -> fall1-leak.a
-    bus fall1-leak-audio-fall1-b fall1-leak.audio -> fall1.b
-    bus fall2-audio-fall2-previous-audio fall2.audio -> fall2-previous.audio
-    bus onset-audio-fall2-a onset.audio -> fall2.a
-    bus fall2-previous-audio-fall2-leak-a fall2-previous.audio -> fall2-leak.a
-    bus fall2-leak-audio-fall2-b fall2-leak.audio -> fall2.b
+    bus onset-audio-fall1-audio onset.audio -> fall1.audio
+    bus onset-audio-fall2-audio onset.audio -> fall2.audio
     bus fall2-audio-gain3-a fall2.audio -> gain3.a
     bus fall1-audio-plus4-a fall1.audio -> plus4.a
     bus gain3-audio-plus4-b gain3.audio -> plus4.b
@@ -88,15 +74,9 @@ instrument machine-clap "Machine Clap" graph {
     bus gain14-audio-plus17-a gain14.audio -> plus17.a
     bus gain16-audio-plus17-b gain16.audio -> plus17.b
     bus plus17-audio-gain18-a plus17.audio -> gain18.a
-    bus fall20-audio-fall20-previous-audio fall20.audio -> fall20-previous.audio
-    bus onset-audio-fall20-a onset.audio -> fall20.a
-    bus fall20-previous-audio-fall20-leak-a fall20-previous.audio -> fall20-leak.a
-    bus fall20-leak-audio-fall20-b fall20-leak.audio -> fall20.b
+    bus onset-audio-fall20-audio onset.audio -> fall20.audio
     bus fall20-audio-rise21-a fall20.audio -> rise21.a
-    bus fall22-audio-fall22-previous-audio fall22.audio -> fall22-previous.audio
-    bus onset-audio-fall22-a onset.audio -> fall22.a
-    bus fall22-previous-audio-fall22-leak-a fall22-previous.audio -> fall22-leak.a
-    bus fall22-leak-audio-fall22-b fall22-leak.audio -> fall22.b
+    bus onset-audio-fall22-audio onset.audio -> fall22.audio
     bus fall22-audio-rise21-b fall22.audio -> rise21.b
     bus rise21-audio-gain23-a rise21.audio -> gain23.a
     bus hiss19-audio-times24-a hiss19.audio -> times24.a

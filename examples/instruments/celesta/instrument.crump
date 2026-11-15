@@ -13,13 +13,12 @@ instrument celesta "Celesta" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-level note_key per_voice bipolar reference C5 range 12st
-    route key-gain-low source key-level target key-gain depth 0.0947184 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    source key-gain-curve key_curve per_voice bipolar {
+      point c4 key C4 value -0.299542
+      point c5 key C5 value 0
+      point c6 key C6 value 1
     }
-    route key-gain-high source key-level target key-gain depth 0.316211 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.316211 map bipolar curve linear order 0 bypass false
   }
   graph voice 8 {
     # A mallet on a tuned bar's modes, optionally through a pickup.

@@ -15,17 +15,16 @@ instrument drawbar-organ "Drawbar Organ" graph {
   }
   modulation {
     source velocity note_velocity per_voice unipolar
-    source key-level note_key per_voice bipolar reference C4 range 12st
+    source key-gain-curve key_curve per_voice bipolar {
+      point c3 key C3 value 1
+      point c4 key C4 value 0
+      point c5 key C5 value -0.604897
+    }
     route attack-velocity source velocity target attack depth -0.013636364s map unipolar curve linear order 0 bypass false
     route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(1.27) order 0 bypass false
-    route key-gain-low source key-level target key-gain depth -0.0680101 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
-    }
-    route key-gain-high source key-level target key-gain depth -0.0411391 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.0680101 map bipolar curve linear order 0 bypass false
   }
-  graph voice 52 {
+  graph voice 48 {
     # Tonewheel organ: drawbar sines, percussion and key click.
     node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
     node stop1 analog_oscillator waveform sine coarse -12.0168st level 2.22144 velocity_amount 0
@@ -40,17 +39,13 @@ instrument drawbar-organ "Drawbar Organ" graph {
     node stop5-mono stereo_to_mono
     node mix1 sum max_inputs 5
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node percussion-decay math operation add
-    node percussion-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node percussion-decay-leak math operation scale amount 0.999916670139
+    node percussion-decay onepole mode leak time 0.25s
     node tone2 analog_oscillator waveform sine coarse 19.0196st level 1.41421 am_mode ring am_depth 1
     node tone2-mono stereo_to_mono
     node gain3 math operation scale amount 4.14681
     node plus4 math operation add
     node hiss5 noise level 1
-    node fall6 math operation add
-    node fall6-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall6-leak math operation scale amount 0.994805206518
+    node fall6 onepole mode leak time 0.004s
     node times7 math operation multiply
     node hi-8 lowpass mode highpass cutoff 800hz resonance 0.308309
     node lo-9 lowpass mode lowpass cutoff 9000hz resonance 0.308309
@@ -107,20 +102,14 @@ instrument drawbar-organ "Drawbar Organ" graph {
     bus stop5-mono-audio-mix1-inputs stop5-mono.audio -> mix1.inputs
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus percussion-decay-audio-percussion-decay-previous-audio percussion-decay.audio -> percussion-decay-previous.audio
-    bus onset-audio-percussion-decay-a onset.audio -> percussion-decay.a
-    bus percussion-decay-previous-audio-percussion-decay-leak-a percussion-decay-previous.audio -> percussion-decay-leak.a
-    bus percussion-decay-leak-audio-percussion-decay-b percussion-decay-leak.audio -> percussion-decay.b
+    bus onset-audio-percussion-decay-audio onset.audio -> percussion-decay.audio
     bus note-pitch-tone2-pitch note.pitch -> tone2.pitch
     bus percussion-decay-audio-tone2-am percussion-decay.audio -> tone2.am
     bus tone2-audio-tone2-mono-audio tone2.audio -> tone2-mono.audio
     bus tone2-mono-audio-gain3-a tone2-mono.audio -> gain3.a
     bus mix1-audio-plus4-a mix1.audio -> plus4.a
     bus gain3-audio-plus4-b gain3.audio -> plus4.b
-    bus fall6-audio-fall6-previous-audio fall6.audio -> fall6-previous.audio
-    bus onset-audio-fall6-a onset.audio -> fall6.a
-    bus fall6-previous-audio-fall6-leak-a fall6-previous.audio -> fall6-leak.a
-    bus fall6-leak-audio-fall6-b fall6-leak.audio -> fall6.b
+    bus onset-audio-fall6-audio onset.audio -> fall6.audio
     bus hiss5-audio-times7-a hiss5.audio -> times7.a
     bus fall6-audio-times7-b fall6.audio -> times7.b
     bus times7-audio-hi-8-audio times7.audio -> hi-8.audio

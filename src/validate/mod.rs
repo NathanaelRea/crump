@@ -65,6 +65,8 @@ pub const MAX_AUTOMATION_POINTS: usize = 8_192;
 pub const MAX_CONTROL_TARGETS: usize = 1_024;
 /// Maximum authored Instrument Modulation sources evaluated per sample.
 pub const MAX_INSTRUMENT_MODULATION_SOURCES: usize = 64;
+/// Maximum points in one `key_curve` Modulation source.
+pub const MAX_KEY_CURVE_POINTS: usize = 64;
 /// Maximum normalized macro Parameters exposed by one Instrument.
 pub const MAX_INSTRUMENT_MACROS: usize = 8;
 /// Maximum reusable Instrument-owned LFO source programs.

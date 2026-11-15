@@ -11,7 +11,7 @@ instrument castanets "Castanets" graph {
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 20 {
+  graph voice 18 {
     # Two shells meeting a millisecond apart.
     node strike1 exciter kind impact contact 0.00021296s hardness $hardness level 1
     node second-shell delay_line mode time time 0.00145s interpolation linear max_time 5ms
@@ -19,9 +19,7 @@ instrument castanets "Castanets" graph {
     node plus3 math operation add
     node body4 modal_bank profile castanets-shells max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
     node hiss5 noise level 1
-    node fall6 math operation add
-    node fall6-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall6-leak math operation scale amount 0.98278872462
+    node fall6 onepole mode leak time 0.0012s
     node times7 math operation multiply
     node hi-8 lowpass mode highpass cutoff 1500hz resonance 0.308309
     node lo-9 lowpass mode lowpass cutoff 12000hz resonance 0.308309
@@ -42,10 +40,7 @@ instrument castanets "Castanets" graph {
     bus plus3-audio-body4-audio plus3.audio -> body4.audio
     bus note-pitch-body4-pitch note.pitch -> body4.pitch
     bus note-gate-body4-gate note.gate -> body4.gate
-    bus fall6-audio-fall6-previous-audio fall6.audio -> fall6-previous.audio
-    bus strike1-audio-fall6-a strike1.audio -> fall6.a
-    bus fall6-previous-audio-fall6-leak-a fall6-previous.audio -> fall6-leak.a
-    bus fall6-leak-audio-fall6-b fall6-leak.audio -> fall6.b
+    bus strike1-audio-fall6-audio strike1.audio -> fall6.audio
     bus hiss5-audio-times7-a hiss5.audio -> times7.a
     bus fall6-audio-times7-b fall6.audio -> times7.b
     bus times7-audio-hi-8-audio times7.audio -> hi-8.audio

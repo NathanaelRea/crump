@@ -15,7 +15,7 @@ use crate::{
 use super::{
     MAX_AUTOMATION_LANES, MAX_AUTOMATION_POINTS, MAX_AUTOMATION_POINTS_PER_LANE,
     MAX_CONTROL_TARGETS, MAX_INSTRUMENT_LFOS, MAX_INSTRUMENT_MACROS,
-    MAX_INSTRUMENT_MODULATION_SOURCES, MAX_MODULATION_OPERATORS,
+    MAX_INSTRUMENT_MODULATION_SOURCES, MAX_KEY_CURVE_POINTS, MAX_MODULATION_OPERATORS,
     MAX_MODULATION_OPERATORS_PER_ROUTE, MAX_MODULATION_ROUTES, located_error, source_site_error,
     valid_id, valid_key,
 };
@@ -611,6 +611,7 @@ fn validate_instrument_modulation(
             InstrumentModulationSourceKind::GraphPort { .. }
             | InstrumentModulationSourceKind::NoteVelocity
             | InstrumentModulationSourceKind::NoteKey { .. }
+            | InstrumentModulationSourceKind::KeyCurve { .. }
             | InstrumentModulationSourceKind::NoteGate
             | InstrumentModulationSourceKind::NoteAge { .. } => {
                 source.scope == InstrumentModulationScope::PerVoice
@@ -749,6 +750,9 @@ fn validate_instrument_modulation(
                         &source.location,
                     );
                 }
+            }
+            InstrumentModulationSourceKind::KeyCurve { points } => {
+                validate_key_curve(source, points, diagnostics);
             }
             InstrumentModulationSourceKind::NoteAge { duration_seconds } => {
                 if !duration_seconds.is_finite() || *duration_seconds <= 0.0 {
@@ -1052,6 +1056,60 @@ fn rate_is_valid(rate: &crate::model::InstrumentModulationRate, project: &Projec
         crate::model::InstrumentModulationRate::Synchronized(literal) => {
             crate::time::parse_musical_time(literal, project.song.meter)
                 .is_ok_and(|period| period > crate::time::MusicalTime::ZERO)
+        }
+    }
+}
+
+fn validate_key_curve(
+    source: &crate::model::InstrumentModulationSource,
+    points: &[crate::model::KeyCurvePoint],
+    diagnostics: &mut Diagnostics,
+) {
+    if !(2..=MAX_KEY_CURVE_POINTS).contains(&points.len()) {
+        located_error(
+            diagnostics,
+            "CRV175",
+            format!("key curve requires 2..={MAX_KEY_CURVE_POINTS} points"),
+            &source.location,
+        );
+    }
+    let domain = match source.polarity {
+        ControlPolarity::Unipolar => 0.0..=1.0,
+        ControlPolarity::Bipolar => -1.0..=1.0,
+    };
+    let mut ids = BTreeSet::new();
+    for (index, point) in points.iter().enumerate() {
+        if !valid_id(&point.id) || !ids.insert(point.id.as_str()) {
+            located_error(
+                diagnostics,
+                "CRV175",
+                format!("key curve point id `{}` is invalid or duplicated", point.id),
+                &point.location,
+            );
+        }
+        if index > 0 && point.key <= points[index - 1].key {
+            located_error(
+                diagnostics,
+                "CRV175",
+                "key curve point keys must strictly increase",
+                &point.location,
+            );
+        }
+        if !point.value.is_finite() || !domain.contains(&point.value) {
+            located_error(
+                diagnostics,
+                "CRV175",
+                format!(
+                    "key curve point value must lie within {}..={} for a {} source",
+                    domain.start(),
+                    domain.end(),
+                    match source.polarity {
+                        ControlPolarity::Unipolar => "unipolar",
+                        ControlPolarity::Bipolar => "bipolar",
+                    }
+                ),
+                &point.location,
+            );
         }
     }
 }

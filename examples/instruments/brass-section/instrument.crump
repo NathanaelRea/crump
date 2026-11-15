@@ -21,7 +21,7 @@ instrument brass-section "Brass Section" graph {
     route pressure-velocity source velocity target pressure depth 0.438782 map unipolar curve linear order 0 bypass false
     route vibrato-depth-velocity source velocity target vibrato-depth depth 0.00462161 map unipolar curve linear order 0 bypass false
   }
-  graph voice 40 {
+  graph voice 35 {
     # Lips buzzing into a brass bore: the lip resonance follows the note.
     node blow envelope mode adsr attack $attack decay 0.08s sustain 1 release $release attack_curve 0.3
     node blow-audio to_audio
@@ -53,12 +53,14 @@ instrument brass-section "Brass Section" graph {
     node into-bore math operation add
     node bore-dc dc_block cutoff 20hz
     node bore-loss linear_phase_lowpass amount 0.214108
-    node body1 biquad mode peak frequency 392.87hz q 1.32383 gain -8.25468db
-    node body2 biquad mode peak frequency 1999.52hz q 5.91555 gain 4.66092db
-    node body3 biquad mode peak frequency 2615.09hz q 5.99998 gain 6.84299db
-    node body4 biquad mode highshelf frequency 1691.91hz q 0.7071 gain -4.3214db
-    node radiation biquad mode lowpass frequency 5002.64hz q 0.7071
-    node sub-cut biquad mode highpass frequency 229.242hz q 0.7071 key_track 1 key_reference 261.626hz
+    node body biquad_chain {
+      band body1 mode peak frequency 392.87hz q 1.32383 gain -8.25468db
+      band body2 mode peak frequency 1999.52hz q 5.91555 gain 4.66092db
+      band body3 mode peak frequency 2615.09hz q 5.99998 gain 6.84299db
+      band body4 mode highshelf frequency 1691.91hz q 0.7071 gain -4.3214db
+      band radiation mode lowpass frequency 5002.64hz q 0.7071
+      band sub-cut mode highpass frequency 229.242hz q 0.7071 key_track 1 key_reference 261.626hz
+    }
     node trim math operation scale amount 0.388145
     node level math operation scale amount $level
     node place pan position $pan
@@ -99,14 +101,9 @@ instrument brass-section "Brass Section" graph {
     bus into-bore-audio-bore-dc-audio into-bore.audio -> bore-dc.audio
     bus bore-dc-audio-bore-loss-audio bore-dc.audio -> bore-loss.audio
     bus bore-loss-audio-bore-audio bore-loss.audio -> bore.audio
-    bus bore-dc-audio-body1-audio bore-dc.audio -> body1.audio
-    bus body1-audio-body2-audio body1.audio -> body2.audio
-    bus body2-audio-body3-audio body2.audio -> body3.audio
-    bus body3-audio-body4-audio body3.audio -> body4.audio
-    bus body4-audio-radiation-audio body4.audio -> radiation.audio
-    bus radiation-audio-sub-cut-audio radiation.audio -> sub-cut.audio
-    bus note-pitch-sub-cut-key note.pitch -> sub-cut.key
-    bus sub-cut-audio-trim-a sub-cut.audio -> trim.a
+    bus bore-dc-audio-body-audio bore-dc.audio -> body.audio
+    bus note-pitch-body-key note.pitch -> body.key
+    bus body-audio-trim-a body.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a
     bus level-audio-place-audio level.audio -> place.audio
     bus place-audio-out-audio place.audio -> out.audio

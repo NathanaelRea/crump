@@ -13,13 +13,12 @@ instrument tubular-bells "Tubular Bells" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-level note_key per_voice bipolar reference G4 range 12st
-    route key-gain-low source key-level target key-gain depth 0.0485464 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    source key-gain-curve key_curve per_voice bipolar {
+      point g3 key G3 value -0.23248
+      point g4 key G4 value 0
+      point g5 key G5 value 1
     }
-    route key-gain-high source key-level target key-gain depth 0.20882 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.20882 map bipolar curve linear order 0 bypass false
   }
   graph voice 8 {
     # A mallet on a tuned bar's modes, optionally through a pickup.

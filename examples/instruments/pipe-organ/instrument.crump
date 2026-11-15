@@ -15,17 +15,16 @@ instrument pipe-organ "Pipe Organ" graph {
   }
   modulation {
     source velocity note_velocity per_voice unipolar
-    source key-level note_key per_voice bipolar reference C4 range 12st
+    source key-gain-curve key_curve per_voice bipolar {
+      point c3 key C3 value -0.662273
+      point c4 key C4 value 0
+      point c5 key C5 value 1
+    }
     route attack-velocity source velocity target attack depth -0.10227273s map unipolar curve linear order 0 bypass false
     route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(1.309) order 0 bypass false
-    route key-gain-low source key-level target key-gain depth 0.422967 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
-    }
-    route key-gain-high source key-level target key-gain depth 0.63866 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.63866 map bipolar curve linear order 0 bypass false
   }
-  graph voice 58 {
+  graph voice 54 {
     # Organ ranks: oscillators at each stop's pitch through a fixed body.
     node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
     node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
@@ -63,12 +62,8 @@ instrument pipe-organ "Pipe Organ" graph {
     node breath-amp to_audio
     node gain10 math operation scale amount 1
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall11 math operation add
-    node fall11-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall11-leak math operation scale amount 0.999999333334
-    node fall12 math operation add
-    node fall12-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall12-leak math operation scale amount 0.998264729548
+    node fall11 onepole mode leak time 30s
+    node fall12 onepole mode leak time 0.011995s
     node gain13 math operation scale amount -1
     node plus14 math operation add
     node gain15 math operation scale amount 8.29156
@@ -158,14 +153,8 @@ instrument pipe-organ "Pipe Organ" graph {
     bus breath-amp-audio-gain10-a breath-amp.audio -> gain10.a
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall11-audio-fall11-previous-audio fall11.audio -> fall11-previous.audio
-    bus onset-audio-fall11-a onset.audio -> fall11.a
-    bus fall11-previous-audio-fall11-leak-a fall11-previous.audio -> fall11-leak.a
-    bus fall11-leak-audio-fall11-b fall11-leak.audio -> fall11.b
-    bus fall12-audio-fall12-previous-audio fall12.audio -> fall12-previous.audio
-    bus onset-audio-fall12-a onset.audio -> fall12.a
-    bus fall12-previous-audio-fall12-leak-a fall12-previous.audio -> fall12-leak.a
-    bus fall12-leak-audio-fall12-b fall12-leak.audio -> fall12.b
+    bus onset-audio-fall11-audio onset.audio -> fall11.audio
+    bus onset-audio-fall12-audio onset.audio -> fall12.audio
     bus fall12-audio-gain13-a fall12.audio -> gain13.a
     bus fall11-audio-plus14-a fall11.audio -> plus14.a
     bus gain13-audio-plus14-b gain13.audio -> plus14.b

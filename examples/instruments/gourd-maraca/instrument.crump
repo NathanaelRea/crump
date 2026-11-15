@@ -9,7 +9,7 @@ instrument gourd-maraca "Gourd Maraca" graph {
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 25 {
+  graph voice 21 {
     # Beads or jingles: a burst of random contacts through small resonant shells.
     node grains1 exciter kind collisions contact 4e-05s hardness 0.5 rate 10000hz duration 0.0771398s attack 0.0364165s level 1
     node gain2 math operation scale amount 1.22787
@@ -17,13 +17,9 @@ instrument gourd-maraca "Gourd Maraca" graph {
     node gain4 math operation scale amount 2
     node hiss5 noise level 1
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall6 math operation add
-    node fall6-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall6-leak math operation scale amount 0.99972996416
+    node fall6 onepole mode leak time 0.07715s
     node rise7 math operation subtract
-    node fall8 math operation add
-    node fall8-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall8-leak math operation scale amount 0.999158197533
+    node fall8 onepole mode leak time 0.02474s
     node gain9 math operation scale amount 2.51826
     node times10 math operation multiply
     node hi-11 lowpass mode highpass cutoff 1000hz resonance 0.308309
@@ -45,15 +41,9 @@ instrument gourd-maraca "Gourd Maraca" graph {
     bus body3-audio-gain4-a body3.audio -> gain4.a
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall6-audio-fall6-previous-audio fall6.audio -> fall6-previous.audio
-    bus onset-audio-fall6-a onset.audio -> fall6.a
-    bus fall6-previous-audio-fall6-leak-a fall6-previous.audio -> fall6-leak.a
-    bus fall6-leak-audio-fall6-b fall6-leak.audio -> fall6.b
+    bus onset-audio-fall6-audio onset.audio -> fall6.audio
     bus fall6-audio-rise7-a fall6.audio -> rise7.a
-    bus fall8-audio-fall8-previous-audio fall8.audio -> fall8-previous.audio
-    bus onset-audio-fall8-a onset.audio -> fall8.a
-    bus fall8-previous-audio-fall8-leak-a fall8-previous.audio -> fall8-leak.a
-    bus fall8-leak-audio-fall8-b fall8-leak.audio -> fall8.b
+    bus onset-audio-fall8-audio onset.audio -> fall8.audio
     bus fall8-audio-rise7-b fall8.audio -> rise7.b
     bus rise7-audio-gain9-a rise7.audio -> gain9.a
     bus hiss5-audio-times10-a hiss5.audio -> times10.a

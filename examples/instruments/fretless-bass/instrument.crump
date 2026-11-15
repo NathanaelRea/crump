@@ -11,15 +11,14 @@ instrument fretless-bass "Fretless Bass" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-level note_key per_voice bipolar reference E2 range 12st
-    route key-gain-low source key-level target key-gain depth -0.20485 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    source key-gain-curve key_curve per_voice unipolar {
+      point e1 key E1 value 0.169725
+      point e2 key E2 value 0
+      point e3 key E3 value 1
     }
-    route key-gain-high source key-level target key-gain depth 1.20695 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 1.20695 map unipolar curve linear order 0 bypass false
   }
-  graph voice 49 {
+  graph voice 45 {
     # Plucked strings: pitch-tuned delay loops, bridge buzz, sympathetic strings and body.
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
     node held math operation add
@@ -40,16 +39,12 @@ instrument fretless-bass "Fretless Bass" graph {
     node gain1 math operation scale amount 0.7
     node gain2 math operation scale amount 1.73205
     node string-tone lowpass mode lowpass cutoff 360hz resonance 0.308309 velocity_depth 520hz
-    node string-decay math operation add
-    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node string-decay-leak math operation scale amount 0.999986979251
+    node string-decay onepole mode leak time 1.6s
     node times3 math operation multiply
     node shape4 shaper curve hard_clip drive 4.24328 bias 0
     node hi-5 lowpass mode highpass cutoff 600hz resonance 0.308309
     node lo-6 lowpass mode lowpass cutoff 1800hz resonance 0.308309
-    node fall7 math operation add
-    node fall7-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall7-leak math operation scale amount 0.999930557967
+    node fall7 onepole mode leak time 0.3s
     node times8 math operation multiply
     node hi-9 lowpass mode highpass cutoff 400hz resonance 0.308309
     node lo-10 lowpass mode lowpass cutoff 1200hz resonance 0.308309
@@ -99,19 +94,13 @@ instrument fretless-bass "Fretless Bass" graph {
     bus string-out-audio-gain2-a string-out.audio -> gain2.a
     bus gain2-audio-string-tone-audio gain2.audio -> string-tone.audio
     bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
-    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
-    bus onset-audio-string-decay-a onset.audio -> string-decay.a
-    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
-    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
+    bus onset-audio-string-decay-audio onset.audio -> string-decay.audio
     bus string-tone-audio-times3-a string-tone.audio -> times3.a
     bus string-decay-audio-times3-b string-decay.audio -> times3.b
     bus string-tone-audio-shape4-audio string-tone.audio -> shape4.audio
     bus shape4-audio-hi-5-audio shape4.audio -> hi-5.audio
     bus hi-5-audio-lo-6-audio hi-5.audio -> lo-6.audio
-    bus fall7-audio-fall7-previous-audio fall7.audio -> fall7-previous.audio
-    bus onset-audio-fall7-a onset.audio -> fall7.a
-    bus fall7-previous-audio-fall7-leak-a fall7-previous.audio -> fall7-leak.a
-    bus fall7-leak-audio-fall7-b fall7-leak.audio -> fall7.b
+    bus onset-audio-fall7-audio onset.audio -> fall7.audio
     bus lo-6-audio-times8-a lo-6.audio -> times8.a
     bus fall7-audio-times8-b fall7.audio -> times8.b
     bus shape4-audio-hi-9-audio shape4.audio -> hi-9.audio
