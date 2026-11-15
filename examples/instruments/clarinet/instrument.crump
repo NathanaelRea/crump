@@ -1,105 +1,175 @@
 crump-module 2
 instrument clarinet "Clarinet" graph {
   polyphony 6
-  parameter attack "Attack" seconds 0.003s 1s 0.106756s 0.106756s modulatable
-  parameter release "Release" seconds 0.01s 3s 0.12s 0.12s
-  parameter pressure "Breath" ratio 0 2 0.895335 0.895335 modulatable
+  parameter attack "Attack" seconds 0.002s 2s 0.0588624s 0.0588624s modulatable
+  parameter release "Release" seconds 0.01s 4s 0.12s 0.12s
+  parameter vibrato-depth "Vibrato" ratio 0 1 0 0 modulatable
+  parameter noise "Air" ratio 0 4 0.310032 0.310032 modulatable
+  parameter register "Register level" ratio 0.05 20 1.5758 1.5758 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0.357143 0.357143 modulatable
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
   faceplate {
     control attack "Attack" "How quickly the note speaks" maps attack
-    control release "Release" "How quickly the note stops" maps release
-    control pressure "Breath" "Breath pressure: louder and brighter" maps pressure
+    control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control noise "Air" "Breath noise level" maps noise
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
     source velocity note_velocity per_voice unipolar
-    route attack-velocity source velocity target attack depth -0.0699744s map unipolar curve linear order 0 bypass false
-    route pressure-velocity source velocity target pressure depth -0.241603 map unipolar curve linear order 0 bypass false
-  }
-  graph voice 35 {
-    # A reed on a bore: breath pushes against the reed, the bore answers.
-    node blow envelope mode adsr attack $attack decay 0.08s sustain 1 release $release attack_curve 0.3
-    node blow-audio to_audio
-    node pressure math operation scale amount $pressure
-    node swell lfo waveform sample_hold rate 3.1hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
-    node swell-audio to_audio
-    node swell-smooth onepole mode lowpass cutoff 4hz
-    node gain1 math operation scale amount 0.02
-    node swell-depth math operation scale amount 1
-    node swell-gain math operation offset amount 1
-    node pressure-live math operation multiply
-    node breath-noise noise level 1
-    node breath-noise-band biquad mode bandpass frequency 2190.89hz q 0.421325
-    node times2 math operation multiply
-    node breath-noise-level math operation scale amount 0.0784024
-    node mouth math operation add
-    node bore delay_line mode pitch ratio 0.5 interpolation lagrange3 tune_compensation 1 max_time 0.1s mod_depth 1
-    node bell linear_phase_lowpass amount 0.90236
-    node reflect math operation scale amount -0.952248
-    node across math operation subtract
-    node reed shaper {
-      curve table
-      drive 1
-      bias 0
-      point closed input -1 output 1
-      point open input 2 output -1
+    source key-from-cs3-6 note_key per_voice bipolar reference C#3 range 6st
+    source key-from-g3-6 note_key per_voice bipolar reference G3 range 6st
+    source key-from-cs4-6 note_key per_voice bipolar reference C#4 range 6st
+    source key-from-g4-6 note_key per_voice bipolar reference G4 range 6st
+    source key-from-cs5-6 note_key per_voice bipolar reference C#5 range 6st
+    source key-from-g5-6 note_key per_voice bipolar reference G5 range 6st
+    source key-from-cs6-6 note_key per_voice bipolar reference C#6 range 6st
+    source key-from-g6-3 note_key per_voice bipolar reference G6 range 3st
+    route attack-velocity source velocity target attack depth -0.0295413s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.00240832 map unipolar curve linear order 0 bypass false
+    route noise-velocity source velocity target noise depth -0.307536 map unipolar curve linear order 0 bypass false
+    route register-1 source key-from-cs3-6 target register depth -0.0314308 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
     }
-    node flow math operation multiply
-    node into-bore math operation add
-    node radiate dc_block cutoff 20hz
-    node flow-out math operation scale amount 0.465006
-    node radiated math operation add
-    node body1 biquad mode peak frequency 262.129hz q 0.4 gain -12db
-    node body2 biquad mode peak frequency 437.509hz q 5.99354 gain 3.72803db
-    node body3 biquad mode peak frequency 5616.19hz q 1.17529 gain -8.81196db
-    node body4 biquad mode highshelf frequency 4681.83hz q 0.7071 gain -11.9951db
-    node radiation biquad mode lowpass frequency 2627.7hz q 0.7071
-    node sub-cut biquad mode highpass frequency 173.419hz q 0.7071 key_track 1 key_reference 261.626hz
-    node trim math operation scale amount 0.436792
+    route register-2 source key-from-g3-6 target register depth -0.119578 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-3 source key-from-cs4-6 target register depth -0.187416 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-4 source key-from-g4-6 target register depth -0.248818 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-5 source key-from-cs5-6 target register depth -0.203317 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-6 source key-from-g5-6 target register depth -0.113033 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-7 source key-from-cs6-6 target register depth -0.0190718 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-8 source key-from-g6-3 target register depth 0.079694 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route dynamics-velocity source velocity target dynamics depth 0.642857 map unipolar curve linear order 0 bypass false
+  }
+  graph voice 50 {
+    # A breath-driven tone: an oscillator and breath noise through fixed formants.
+    node breath envelope mode adsr attack $attack decay 0.15s sustain 0.9 release $release attack_curve 0.3
+    node breath-audio to_audio
+    node vibrato lfo waveform sine rate 5hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-fade envelope mode ahdsr attack 0.5s hold 0s decay 0.01s sustain 1 release 0.3s attack_curve 0.6
+    node vibrato-fade-audio to_audio
+    node vibrato-shape math operation multiply
+    node vibrato-amount math operation scale amount $vibrato-depth
+    node air noise level 1
+    node wander lfo waveform sample_hold rate 2.7hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node wander-audio to_audio
+    node wander-smooth onepole mode lowpass cutoff 2.5hz
+    node wander-amount math operation scale amount 0.0545455
+    node flutter onepole mode lowpass cutoff 18hz
+    node flutter-amount math operation scale amount 1.5148
+    node pitch-movement sum max_inputs 3
+    node reed analog_oscillator waveform square level 1 velocity_amount 1 fm_depth 1st random_phase 1
+    node reed-mono stereo_to_mono
+    node upper analog_oscillator waveform saw level 1.01543 velocity_amount 1 fm_depth 1st random_phase 1
+    node upper-mono stereo_to_mono
+    node upper-band biquad mode highpass frequency 1563.26hz q 0.7071
+    node reed-pair math operation add
+    node brightness lowpass mode lowpass cutoff 951.993hz resonance 0.1 mod_depth 0hz velocity_depth 3000hz key_track 0.3 key_reference 261.626hz
+    node air-low biquad mode highpass frequency 1130.82hz q 0.7071
+    node air-band biquad mode lowpass frequency 3597.71hz q 0.7071
+    node steady-air math operation scale amount 0.5
+    node pulsed-air math operation scale amount 0.354086
+    node air-drive sum max_inputs 2
+    node breath-noise math operation multiply
+    node breath-level math operation scale amount $noise
+    node voice sum max_inputs 2
+    node formant1 biquad mode peak frequency 423.24hz q 2.5 gain -5.48813db
+    node formant2 biquad mode peak frequency 8314.85hz q 0.738522 gain -14.0786db
+    node formant3 biquad mode peak frequency 220.39hz q 2.4515 gain -4.59841db
+    node formant4 biquad mode peak frequency 1286.21hz q 0.5 gain 6.64823db
+    node formant5 biquad mode peak frequency 220.372hz q 2.43693 gain -4.58509db
+    node formant6 biquad mode peak frequency 3040.69hz q 2.5 gain 5.70137db
+    node formant7 biquad mode lowshelf frequency 327.255hz q 0.7071 gain -4.09939db
+    node formant8 biquad mode highshelf frequency 7234.25hz q 0.7071 gain -18db
+    node below-note biquad mode highpass frequency 156.975hz q 0.7071 key_track 1 key_reference 261.626hz
+    node radiation biquad mode highpass frequency 40hz q 0.7071
+    node shimmer-depth math operation scale amount 1.00987
+    node shimmer math operation offset amount 1
+    node alive math operation multiply
+    node register-level math operation scale amount $register
+    node dynamics-level math operation scale amount $dynamics
+    node trim math operation scale amount 0.112245
     node level math operation scale amount $level
     node place pan position $pan
     node out output
-    bus note-gate-blow-gate note.gate -> blow.gate
-    bus blow-control-blow-audio-control blow.control -> blow-audio.control
-    bus blow-audio-audio-pressure-a blow-audio.audio -> pressure.a
-    bus swell-control-swell-audio-control swell.control -> swell-audio.control
-    bus swell-audio-audio-swell-smooth-audio swell-audio.audio -> swell-smooth.audio
-    bus swell-smooth-audio-gain1-a swell-smooth.audio -> gain1.a
-    bus gain1-audio-swell-depth-a gain1.audio -> swell-depth.a
-    bus swell-depth-audio-swell-gain-a swell-depth.audio -> swell-gain.a
-    bus pressure-audio-pressure-live-a pressure.audio -> pressure-live.a
-    bus swell-gain-audio-pressure-live-b swell-gain.audio -> pressure-live.b
-    bus breath-noise-audio-breath-noise-band-audio breath-noise.audio -> breath-noise-band.audio
-    bus breath-noise-band-audio-times2-a breath-noise-band.audio -> times2.a
-    bus pressure-live-audio-times2-b pressure-live.audio -> times2.b
-    bus times2-audio-breath-noise-level-a times2.audio -> breath-noise-level.a
-    bus pressure-live-audio-mouth-a pressure-live.audio -> mouth.a
-    bus breath-noise-level-audio-mouth-b breath-noise-level.audio -> mouth.b
-    bus note-pitch-bore-pitch note.pitch -> bore.pitch
-    bus bore-audio-bell-audio bore.audio -> bell.audio
-    bus bell-audio-reflect-a bell.audio -> reflect.a
-    bus reflect-audio-across-a reflect.audio -> across.a
-    bus mouth-audio-across-b mouth.audio -> across.b
-    bus across-audio-reed-audio across.audio -> reed.audio
-    bus reed-audio-flow-a reed.audio -> flow.a
-    bus across-audio-flow-b across.audio -> flow.b
-    bus mouth-audio-into-bore-a mouth.audio -> into-bore.a
-    bus flow-audio-into-bore-b flow.audio -> into-bore.b
-    bus into-bore-audio-bore-audio into-bore.audio -> bore.audio
-    bus flow-audio-flow-out-a flow.audio -> flow-out.a
-    bus bore-audio-radiated-a bore.audio -> radiated.a
-    bus flow-out-audio-radiated-b flow-out.audio -> radiated.b
-    bus radiated-audio-radiate-audio radiated.audio -> radiate.audio
-    bus radiate-audio-body1-audio radiate.audio -> body1.audio
-    bus body1-audio-body2-audio body1.audio -> body2.audio
-    bus body2-audio-body3-audio body2.audio -> body3.audio
-    bus body3-audio-body4-audio body3.audio -> body4.audio
-    bus body4-audio-radiation-audio body4.audio -> radiation.audio
-    bus radiation-audio-sub-cut-audio radiation.audio -> sub-cut.audio
-    bus note-pitch-sub-cut-key note.pitch -> sub-cut.key
-    bus sub-cut-audio-trim-a sub-cut.audio -> trim.a
+    bus note-gate-breath-gate note.gate -> breath.gate
+    bus breath-control-breath-audio-control breath.control -> breath-audio.control
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-fade-gate note.gate -> vibrato-fade.gate
+    bus vibrato-fade-control-vibrato-fade-audio-control vibrato-fade.control -> vibrato-fade-audio.control
+    bus vibrato-audio-audio-vibrato-shape-a vibrato-audio.audio -> vibrato-shape.a
+    bus vibrato-fade-audio-audio-vibrato-shape-b vibrato-fade-audio.audio -> vibrato-shape.b
+    bus vibrato-shape-audio-vibrato-amount-a vibrato-shape.audio -> vibrato-amount.a
+    bus wander-control-wander-audio-control wander.control -> wander-audio.control
+    bus wander-audio-audio-wander-smooth-audio wander-audio.audio -> wander-smooth.audio
+    bus wander-smooth-audio-wander-amount-a wander-smooth.audio -> wander-amount.a
+    bus air-audio-flutter-audio air.audio -> flutter.audio
+    bus flutter-audio-flutter-amount-a flutter.audio -> flutter-amount.a
+    bus vibrato-amount-audio-pitch-movement-inputs vibrato-amount.audio -> pitch-movement.inputs
+    bus wander-amount-audio-pitch-movement-inputs wander-amount.audio -> pitch-movement.inputs
+    bus flutter-amount-audio-pitch-movement-inputs flutter-amount.audio -> pitch-movement.inputs
+    bus note-pitch-reed-pitch note.pitch -> reed.pitch
+    bus note-velocity-reed-velocity note.velocity -> reed.velocity
+    bus breath-control-reed-gain breath.control -> reed.gain
+    bus pitch-movement-audio-reed-fm pitch-movement.audio -> reed.fm
+    bus reed-audio-reed-mono-audio reed.audio -> reed-mono.audio
+    bus note-pitch-upper-pitch note.pitch -> upper.pitch
+    bus note-velocity-upper-velocity note.velocity -> upper.velocity
+    bus breath-control-upper-gain breath.control -> upper.gain
+    bus pitch-movement-audio-upper-fm pitch-movement.audio -> upper.fm
+    bus upper-audio-upper-mono-audio upper.audio -> upper-mono.audio
+    bus upper-mono-audio-upper-band-audio upper-mono.audio -> upper-band.audio
+    bus reed-mono-audio-reed-pair-a reed-mono.audio -> reed-pair.a
+    bus upper-band-audio-reed-pair-b upper-band.audio -> reed-pair.b
+    bus reed-pair-audio-brightness-audio reed-pair.audio -> brightness.audio
+    bus breath-control-brightness-mod breath.control -> brightness.mod
+    bus note-velocity-brightness-velocity note.velocity -> brightness.velocity
+    bus note-pitch-brightness-key note.pitch -> brightness.key
+    bus air-audio-air-low-audio air.audio -> air-low.audio
+    bus air-low-audio-air-band-audio air-low.audio -> air-band.audio
+    bus breath-audio-audio-steady-air-a breath-audio.audio -> steady-air.a
+    bus reed-mono-audio-pulsed-air-a reed-mono.audio -> pulsed-air.a
+    bus steady-air-audio-air-drive-inputs steady-air.audio -> air-drive.inputs
+    bus pulsed-air-audio-air-drive-inputs pulsed-air.audio -> air-drive.inputs
+    bus air-band-audio-breath-noise-a air-band.audio -> breath-noise.a
+    bus air-drive-audio-breath-noise-b air-drive.audio -> breath-noise.b
+    bus breath-noise-audio-breath-level-a breath-noise.audio -> breath-level.a
+    bus brightness-audio-voice-inputs brightness.audio -> voice.inputs
+    bus breath-level-audio-voice-inputs breath-level.audio -> voice.inputs
+    bus voice-audio-formant1-audio voice.audio -> formant1.audio
+    bus formant1-audio-formant2-audio formant1.audio -> formant2.audio
+    bus formant2-audio-formant3-audio formant2.audio -> formant3.audio
+    bus formant3-audio-formant4-audio formant3.audio -> formant4.audio
+    bus formant4-audio-formant5-audio formant4.audio -> formant5.audio
+    bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
+    bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
+    bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
+    bus formant8-audio-below-note-audio formant8.audio -> below-note.audio
+    bus note-pitch-below-note-key note.pitch -> below-note.key
+    bus below-note-audio-radiation-audio below-note.audio -> radiation.audio
+    bus flutter-audio-shimmer-depth-a flutter.audio -> shimmer-depth.a
+    bus shimmer-depth-audio-shimmer-a shimmer-depth.audio -> shimmer.a
+    bus radiation-audio-alive-a radiation.audio -> alive.a
+    bus shimmer-audio-alive-b shimmer.audio -> alive.b
+    bus alive-audio-register-level-a alive.audio -> register-level.a
+    bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a
+    bus dynamics-level-audio-trim-a dynamics-level.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a
     bus level-audio-place-audio level.audio -> place.audio
     bus place-audio-out-audio place.audio -> out.audio

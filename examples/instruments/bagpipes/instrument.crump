@@ -1,221 +1,178 @@
 crump-module 2
 instrument bagpipes "Bagpipes" graph {
-  polyphony 8
-  parameter attack "Attack" seconds 0.002s 2s 0.122727s 0.122727s modulatable
-  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
-  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
-  parameter hold-drone1 "Fixed pitch" semitones -48st 48st -15st -15st modulatable
-  parameter hold-drone2 "Fixed pitch" semitones -48st 48st -3st -3st modulatable
-  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  polyphony 1
+  parameter attack "Attack" seconds 0.002s 2s 0.0234317s 0.0234317s modulatable
+  parameter release "Release" seconds 0.01s 4s 0.12s 0.12s
+  parameter vibrato-depth "Vibrato" ratio 0 1 0 0 modulatable
+  parameter noise "Air" ratio 0 4 1.15583 1.15583 modulatable
+  parameter drone1-pitch "Drone 1" semitones -48st 48st -24st -24st modulatable
+  parameter drone2-pitch "Drone 2" semitones -48st 48st -12st -12st modulatable
+  parameter register "Register level" ratio 0.05 20 1.13828 1.13828 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0.357143 0.357143 modulatable
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
   faceplate {
     control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control noise "Air" "Breath noise level" maps noise
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
     source velocity note_velocity per_voice unipolar
-    source key-position note_key per_voice bipolar reference C4 range 48st
-    source key-level note_key per_voice bipolar reference A4 range 12st
-    route attack-velocity source velocity target attack depth -0.068181818s map unipolar curve linear order 0 bypass false
-    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(1.726) order 0 bypass false
-    route hold-drone1-key source key-position target hold-drone1 depth -48st map bipolar curve linear order 0 bypass false
-    route hold-drone2-key source key-position target hold-drone2 depth -48st map bipolar curve linear order 0 bypass false
-    route key-gain-low source key-level target key-gain depth -0.0580384 map bipolar curve linear order 0 bypass false {
+    source key-a4-36 note_key per_voice bipolar reference A4 range 36st
+    source key-from-d4-6 note_key per_voice bipolar reference D4 range 6st
+    source key-from-gs4-6 note_key per_voice bipolar reference G#4 range 6st
+    source key-from-d5-6 note_key per_voice bipolar reference D5 range 6st
+    source key-from-gs5-4 note_key per_voice bipolar reference G#5 range 4st
+    route attack-velocity source velocity target attack depth -0.0114391s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.0724093 map unipolar curve linear order 0 bypass false
+    route noise-velocity source velocity target noise depth -1.08192 map unipolar curve linear order 0 bypass false
+    route drone1-pitch-low source key-a4-36 target drone1-pitch depth -36st map bipolar curve linear order 0 bypass false {
       clamp -1 0
     }
-    route key-gain-high source key-level target key-gain depth -0.0438639 map bipolar curve linear order 0 bypass false {
+    route drone1-pitch-high source key-a4-36 target drone1-pitch depth -36st map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
+    route drone2-pitch-low source key-a4-36 target drone2-pitch depth -36st map bipolar curve linear order 0 bypass false {
+      clamp -1 0
+    }
+    route drone2-pitch-high source key-a4-36 target drone2-pitch depth -36st map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-1 source key-from-d4-6 target register depth -0.158228 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-2 source key-from-gs4-6 target register depth -0.0913646 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-3 source key-from-d5-6 target register depth -0.020229 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-4 source key-from-gs5-4 target register depth -0.109883 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route dynamics-velocity source velocity target dynamics depth 0.642857 map unipolar curve linear order 0 bypass false
   }
-  graph voice 59 {
-    # Layers of simpler models tuned to the key, each peak-normalised.
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
-    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
-    node drift-audio to_audio
-    node gain1 math operation scale amount 0.01
-    node reed analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 fm_depth 1st
+  graph voice 50 {
+    # A breath-driven tone: an oscillator and breath noise through fixed formants.
+    node breath envelope mode adsr attack $attack decay 0.15s sustain 0.9 release $release attack_curve 0.3
+    node breath-audio to_audio
+    node vibrato lfo waveform sine rate 5hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-fade envelope mode ahdsr attack 0.5s hold 0s decay 0.01s sustain 1 release 0.3s attack_curve 0.6
+    node vibrato-fade-audio to_audio
+    node vibrato-shape math operation multiply
+    node vibrato-amount math operation scale amount $vibrato-depth
+    node air noise level 1
+    node wander lfo waveform sample_hold rate 2.7hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node wander-audio to_audio
+    node wander-smooth onepole mode lowpass cutoff 2.5hz
+    node wander-amount math operation scale amount 0.0363636
+    node flutter onepole mode lowpass cutoff 18hz
+    node flutter-amount math operation scale amount 1.5148
+    node pitch-movement sum max_inputs 3
+    node reed analog_oscillator waveform saw level 1 velocity_amount 1 fm_depth 1st random_phase 1
     node reed-mono stereo_to_mono
-    node velocity-tone lowpass mode lowpass cutoff 30hz resonance 0.308309 velocity_depth 21000hz
-    node breath noise level 1
-    node hi-2 lowpass mode highpass cutoff 500hz resonance 0.308309
-    node lo-3 lowpass mode lowpass cutoff 9000hz resonance 0.308309
-    node breath-comb-in math operation add
-    node breath-comb delay_line mode pitch ratio 1 interpolation linear max_time 0.05s
-    node gain4 math operation scale amount 0.7
-    node gain5 math operation scale amount 0.3
-    node gain6 math operation scale amount 0.3
-    node gain7 math operation scale amount 0.7
-    node plus8 math operation add
-    node breath-amp to_audio
-    node gain9 math operation scale amount 1
-    node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall10 math operation add
-    node fall10-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall10-leak math operation scale amount 0.999996527784
-    node fall11 math operation add
-    node fall11-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall11-leak math operation scale amount 0.998261928865
-    node gain12 math operation scale amount -1
-    node plus13 math operation add
-    node gain14 math operation scale amount 13.2
-    node plus15 math operation add
-    node times16 math operation multiply
-    node gain17 math operation scale amount 0.00365208
-    node plus18 math operation add
-    node hi-19 lowpass mode highpass cutoff 800hz resonance 0.308309
-    node lo-20 lowpass mode lowpass cutoff 2500hz resonance 0.308309
-    node body21 modal_bank profile bagpipes-body max_modes 14 key_track 0 decay_scale 1 brightness 0 level 1
-    node dynamics-gain math operation scale amount $dynamics
-    node gain22 math operation scale amount 0.0878568
-    node drone1 analog_oscillator waveform saw coarse $hold-drone1 level 1.41421 velocity_amount 0
+    node brightness lowpass mode lowpass cutoff 492.155hz resonance 0.1 mod_depth 2105.79hz velocity_depth 3000hz key_track 0.3 key_reference 261.626hz
+    node air-low biquad mode highpass frequency 3000hz q 0.7071
+    node air-band biquad mode lowpass frequency 3579.11hz q 0.7071
+    node steady-air math operation scale amount 0.5
+    node pulsed-air math operation scale amount 0.0779411
+    node air-drive sum max_inputs 2
+    node breath-noise math operation multiply
+    node breath-level math operation scale amount $noise
+    node drone1 analog_oscillator waveform saw coarse $drone1-pitch level 0.35 velocity_amount 0 random_phase 1 fm_depth 1st
     node drone1-mono stereo_to_mono
-    node hi-23 lowpass mode highpass cutoff 800hz resonance 0.308309
-    node lo-24 lowpass mode lowpass cutoff 2500hz resonance 0.308309
-    node body25 modal_bank profile bagpipes-drone1 max_modes 10 key_track 0 decay_scale 1 brightness 0 level 1
-    node hi-26 lowpass mode highpass cutoff 100hz resonance 0.308309
-    node gain27 math operation scale amount 0.0697792
-    node drone2 analog_oscillator waveform saw coarse $hold-drone2 level 1.41421 velocity_amount 0
+    node drone2 analog_oscillator waveform saw coarse $drone2-pitch level 0.25 velocity_amount 0 random_phase 1 fm_depth 1st
     node drone2-mono stereo_to_mono
-    node hi-28 lowpass mode highpass cutoff 800hz resonance 0.308309
-    node lo-29 lowpass mode lowpass cutoff 2500hz resonance 0.308309
-    node body30 modal_bank profile bagpipes-drone2 max_modes 10 key_track 0 decay_scale 1 brightness 0 level 1
-    node hi-31 lowpass mode highpass cutoff 100hz resonance 0.308309
-    node gain32 math operation scale amount 0.055779
-    node mix33 sum max_inputs 3
-    node hi-34 lowpass mode highpass cutoff 32hz resonance 0.308309
-    node register math operation scale amount $key-gain
-    node trim math operation scale amount 0.357992
+    node voice sum max_inputs 4
+    node formant1 biquad mode peak frequency 5440.28hz q 1.13711 gain -7.43971db
+    node formant2 biquad mode peak frequency 347.294hz q 2 gain -3.93252db
+    node formant3 biquad mode peak frequency 480.212hz q 2 gain 11.3881db
+    node formant4 biquad mode peak frequency 6139.6hz q 1.99983 gain 3.41953db
+    node formant5 biquad mode peak frequency 4885.29hz q 0.5 gain 12db
+    node formant6 biquad mode peak frequency 1208.96hz q 1.7514 gain 12db
+    node formant7 biquad mode lowshelf frequency 775.731hz q 0.7071 gain -12db
+    node formant8 biquad mode highshelf frequency 1878.62hz q 0.7071 gain -5.72506db
+    node below-note biquad mode highpass frequency 156.975hz q 0.7071 key_track 1 key_reference 261.626hz
+    node radiation biquad mode highpass frequency 40hz q 0.7071
+    node shimmer-depth math operation scale amount 1.00987
+    node shimmer math operation offset amount 1
+    node alive math operation multiply
+    node register-level math operation scale amount $register
+    node dynamics-level math operation scale amount $dynamics
+    node trim math operation scale amount 0.103738
     node level math operation scale amount $level
     node place pan position $pan
     node out output
-    bus note-gate-amplitude-gate note.gate -> amplitude.gate
-    bus drift-control-drift-audio-control drift.control -> drift-audio.control
-    bus drift-audio-audio-gain1-a drift-audio.audio -> gain1.a
+    bus note-gate-breath-gate note.gate -> breath.gate
+    bus breath-control-breath-audio-control breath.control -> breath-audio.control
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-fade-gate note.gate -> vibrato-fade.gate
+    bus vibrato-fade-control-vibrato-fade-audio-control vibrato-fade.control -> vibrato-fade-audio.control
+    bus vibrato-audio-audio-vibrato-shape-a vibrato-audio.audio -> vibrato-shape.a
+    bus vibrato-fade-audio-audio-vibrato-shape-b vibrato-fade-audio.audio -> vibrato-shape.b
+    bus vibrato-shape-audio-vibrato-amount-a vibrato-shape.audio -> vibrato-amount.a
+    bus wander-control-wander-audio-control wander.control -> wander-audio.control
+    bus wander-audio-audio-wander-smooth-audio wander-audio.audio -> wander-smooth.audio
+    bus wander-smooth-audio-wander-amount-a wander-smooth.audio -> wander-amount.a
+    bus air-audio-flutter-audio air.audio -> flutter.audio
+    bus flutter-audio-flutter-amount-a flutter.audio -> flutter-amount.a
+    bus vibrato-amount-audio-pitch-movement-inputs vibrato-amount.audio -> pitch-movement.inputs
+    bus wander-amount-audio-pitch-movement-inputs wander-amount.audio -> pitch-movement.inputs
+    bus flutter-amount-audio-pitch-movement-inputs flutter-amount.audio -> pitch-movement.inputs
     bus note-pitch-reed-pitch note.pitch -> reed.pitch
     bus note-velocity-reed-velocity note.velocity -> reed.velocity
-    bus gain1-audio-reed-fm gain1.audio -> reed.fm
-    bus amplitude-control-reed-gain amplitude.control -> reed.gain
+    bus breath-control-reed-gain breath.control -> reed.gain
+    bus pitch-movement-audio-reed-fm pitch-movement.audio -> reed.fm
     bus reed-audio-reed-mono-audio reed.audio -> reed-mono.audio
-    bus reed-mono-audio-velocity-tone-audio reed-mono.audio -> velocity-tone.audio
-    bus note-velocity-velocity-tone-velocity note.velocity -> velocity-tone.velocity
-    bus breath-audio-hi-2-audio breath.audio -> hi-2.audio
-    bus hi-2-audio-lo-3-audio hi-2.audio -> lo-3.audio
-    bus lo-3-audio-breath-comb-in-a lo-3.audio -> breath-comb-in.a
-    bus note-pitch-breath-comb-pitch note.pitch -> breath-comb.pitch
-    bus breath-comb-in-audio-breath-comb-audio breath-comb-in.audio -> breath-comb.audio
-    bus breath-comb-audio-gain4-a breath-comb.audio -> gain4.a
-    bus gain4-audio-breath-comb-in-b gain4.audio -> breath-comb-in.b
-    bus breath-comb-in-audio-gain5-a breath-comb-in.audio -> gain5.a
-    bus lo-3-audio-gain6-a lo-3.audio -> gain6.a
-    bus gain5-audio-gain7-a gain5.audio -> gain7.a
-    bus gain6-audio-plus8-a gain6.audio -> plus8.a
-    bus gain7-audio-plus8-b gain7.audio -> plus8.b
-    bus amplitude-control-breath-amp-control amplitude.control -> breath-amp.control
-    bus breath-amp-audio-gain9-a breath-amp.audio -> gain9.a
-    bus note-gate-onset-gate note.gate -> onset.gate
-    bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall10-audio-fall10-previous-audio fall10.audio -> fall10-previous.audio
-    bus onset-audio-fall10-a onset.audio -> fall10.a
-    bus fall10-previous-audio-fall10-leak-a fall10-previous.audio -> fall10-leak.a
-    bus fall10-leak-audio-fall10-b fall10-leak.audio -> fall10.b
-    bus fall11-audio-fall11-previous-audio fall11.audio -> fall11-previous.audio
-    bus onset-audio-fall11-a onset.audio -> fall11.a
-    bus fall11-previous-audio-fall11-leak-a fall11-previous.audio -> fall11-leak.a
-    bus fall11-leak-audio-fall11-b fall11-leak.audio -> fall11.b
-    bus fall11-audio-gain12-a fall11.audio -> gain12.a
-    bus fall10-audio-plus13-a fall10.audio -> plus13.a
-    bus gain12-audio-plus13-b gain12.audio -> plus13.b
-    bus plus13-audio-gain14-a plus13.audio -> gain14.a
-    bus gain9-audio-plus15-a gain9.audio -> plus15.a
-    bus gain14-audio-plus15-b gain14.audio -> plus15.b
-    bus plus8-audio-times16-a plus8.audio -> times16.a
-    bus plus15-audio-times16-b plus15.audio -> times16.b
-    bus times16-audio-gain17-a times16.audio -> gain17.a
-    bus velocity-tone-audio-plus18-a velocity-tone.audio -> plus18.a
-    bus gain17-audio-plus18-b gain17.audio -> plus18.b
-    bus plus18-audio-hi-19-audio plus18.audio -> hi-19.audio
-    bus hi-19-audio-lo-20-audio hi-19.audio -> lo-20.audio
-    bus lo-20-audio-body21-audio lo-20.audio -> body21.audio
-    bus note-pitch-body21-pitch note.pitch -> body21.pitch
-    bus note-gate-body21-gate note.gate -> body21.gate
-    bus body21-audio-dynamics-gain-a body21.audio -> dynamics-gain.a
-    bus dynamics-gain-audio-gain22-a dynamics-gain.audio -> gain22.a
+    bus reed-mono-audio-brightness-audio reed-mono.audio -> brightness.audio
+    bus breath-control-brightness-mod breath.control -> brightness.mod
+    bus note-velocity-brightness-velocity note.velocity -> brightness.velocity
+    bus note-pitch-brightness-key note.pitch -> brightness.key
+    bus air-audio-air-low-audio air.audio -> air-low.audio
+    bus air-low-audio-air-band-audio air-low.audio -> air-band.audio
+    bus breath-audio-audio-steady-air-a breath-audio.audio -> steady-air.a
+    bus reed-mono-audio-pulsed-air-a reed-mono.audio -> pulsed-air.a
+    bus steady-air-audio-air-drive-inputs steady-air.audio -> air-drive.inputs
+    bus pulsed-air-audio-air-drive-inputs pulsed-air.audio -> air-drive.inputs
+    bus air-band-audio-breath-noise-a air-band.audio -> breath-noise.a
+    bus air-drive-audio-breath-noise-b air-drive.audio -> breath-noise.b
+    bus breath-noise-audio-breath-level-a breath-noise.audio -> breath-level.a
     bus note-pitch-drone1-pitch note.pitch -> drone1.pitch
-    bus note-velocity-drone1-velocity note.velocity -> drone1.velocity
-    bus amplitude-control-drone1-gain amplitude.control -> drone1.gain
+    bus breath-control-drone1-gain breath.control -> drone1.gain
+    bus wander-amount-audio-drone1-fm wander-amount.audio -> drone1.fm
     bus drone1-audio-drone1-mono-audio drone1.audio -> drone1-mono.audio
-    bus drone1-mono-audio-hi-23-audio drone1-mono.audio -> hi-23.audio
-    bus hi-23-audio-lo-24-audio hi-23.audio -> lo-24.audio
-    bus lo-24-audio-body25-audio lo-24.audio -> body25.audio
-    bus note-pitch-body25-pitch note.pitch -> body25.pitch
-    bus note-gate-body25-gate note.gate -> body25.gate
-    bus body25-audio-hi-26-audio body25.audio -> hi-26.audio
-    bus hi-26-audio-gain27-a hi-26.audio -> gain27.a
     bus note-pitch-drone2-pitch note.pitch -> drone2.pitch
-    bus note-velocity-drone2-velocity note.velocity -> drone2.velocity
-    bus amplitude-control-drone2-gain amplitude.control -> drone2.gain
+    bus breath-control-drone2-gain breath.control -> drone2.gain
+    bus wander-amount-audio-drone2-fm wander-amount.audio -> drone2.fm
     bus drone2-audio-drone2-mono-audio drone2.audio -> drone2-mono.audio
-    bus drone2-mono-audio-hi-28-audio drone2-mono.audio -> hi-28.audio
-    bus hi-28-audio-lo-29-audio hi-28.audio -> lo-29.audio
-    bus lo-29-audio-body30-audio lo-29.audio -> body30.audio
-    bus note-pitch-body30-pitch note.pitch -> body30.pitch
-    bus note-gate-body30-gate note.gate -> body30.gate
-    bus body30-audio-hi-31-audio body30.audio -> hi-31.audio
-    bus hi-31-audio-gain32-a hi-31.audio -> gain32.a
-    bus gain22-audio-mix33-inputs gain22.audio -> mix33.inputs
-    bus gain27-audio-mix33-inputs gain27.audio -> mix33.inputs
-    bus gain32-audio-mix33-inputs gain32.audio -> mix33.inputs
-    bus mix33-audio-hi-34-audio mix33.audio -> hi-34.audio
-    bus hi-34-audio-register-a hi-34.audio -> register.a
-    bus register-audio-trim-a register.audio -> trim.a
+    bus brightness-audio-voice-inputs brightness.audio -> voice.inputs
+    bus breath-level-audio-voice-inputs breath-level.audio -> voice.inputs
+    bus drone1-mono-audio-voice-inputs drone1-mono.audio -> voice.inputs
+    bus drone2-mono-audio-voice-inputs drone2-mono.audio -> voice.inputs
+    bus voice-audio-formant1-audio voice.audio -> formant1.audio
+    bus formant1-audio-formant2-audio formant1.audio -> formant2.audio
+    bus formant2-audio-formant3-audio formant2.audio -> formant3.audio
+    bus formant3-audio-formant4-audio formant3.audio -> formant4.audio
+    bus formant4-audio-formant5-audio formant4.audio -> formant5.audio
+    bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
+    bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
+    bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
+    bus formant8-audio-below-note-audio formant8.audio -> below-note.audio
+    bus note-pitch-below-note-key note.pitch -> below-note.key
+    bus below-note-audio-radiation-audio below-note.audio -> radiation.audio
+    bus flutter-audio-shimmer-depth-a flutter.audio -> shimmer-depth.a
+    bus shimmer-depth-audio-shimmer-a shimmer-depth.audio -> shimmer.a
+    bus radiation-audio-alive-a radiation.audio -> alive.a
+    bus shimmer-audio-alive-b shimmer.audio -> alive.b
+    bus alive-audio-register-level-a alive.audio -> register-level.a
+    bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a
+    bus dynamics-level-audio-trim-a dynamics-level.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a
     bus level-audio-place-audio level.audio -> place.audio
     bus place-audio-out-audio place.audio -> out.audio
   }
-}
-profile bagpipes-body {
-  root 261.626hz
-  mode m0 frequency 50hz decay 0.0159155s gain 0.0669063 after_decay 0.0159155s after_gain 0
-  mode m1 frequency 77.1282hz decay 0.0103176s gain 0.0734506 after_decay 0.0103176s after_gain 0
-  mode m2 frequency 118.975hz decay 0.00668859s gain 0.072884 after_decay 0.00668859s after_gain 0
-  mode m3 frequency 183.526hz decay 0.00433602s gain 0.0728446 after_decay 0.00433602s after_gain 0
-  mode m4 frequency 283.101hz decay 0.00281092s gain 0.0701206 after_decay 0.00281092s after_gain 0
-  mode m5 frequency 436.701hz decay 0.00182224s gain 0.0510546 after_decay 0.00182224s after_gain 0
-  mode m6 frequency 673.64hz decay 0.00118131s gain 0.0391106 after_decay 0.00118131s after_gain 0
-  mode m7 frequency 1039.13hz decay 0.000765808s gain 0.0540749 after_decay 0.000765808s after_gain 0
-  mode m8 frequency 1602.93hz decay 0.000496451s gain 0.269172 after_decay 0.000496451s after_gain 0
-  mode m9 frequency 2472.61hz decay 0.000321835s gain 0.0985227 after_decay 0.000321835s after_gain 0
-  mode m10 frequency 3814.16hz decay 0.000208637s gain 0.0285934 after_decay 0.000208637s after_gain 0
-  mode m11 frequency 5883.59hz decay 0.000135253s gain 0.0429786 after_decay 0.000135253s after_gain 0
-  mode m12 frequency 9075.8hz decay 0.0001s gain 0.147358 after_decay 0.0001s after_gain 0
-  mode m13 frequency 14000hz decay 0.0001s gain 1 after_decay 0.0001s after_gain 0
-}
-profile bagpipes-drone1 {
-  root 261.626hz
-  mode m0 frequency 50hz decay 0.0159155s gain 0.527506 after_decay 0.0159155s after_gain 0
-  mode m1 frequency 93.514hz decay 0.00850969s gain 0.475307 after_decay 0.00850969s after_gain 0
-  mode m2 frequency 174.897hz decay 0.00454996s gain 0.355792 after_decay 0.00454996s after_gain 0
-  mode m3 frequency 327.107hz decay 0.00243277s gain 0.242193 after_decay 0.00243277s after_gain 0
-  mode m4 frequency 611.781hz decay 0.00130075s gain 0.157406 after_decay 0.00130075s after_gain 0
-  mode m5 frequency 1144.2hz decay 0.000695485s gain 0.527836 after_decay 0.000695485s after_gain 0
-  mode m6 frequency 2139.97hz decay 0.000371862s gain 0.251127 after_decay 0.000371862s after_gain 0
-  mode m7 frequency 4002.35hz decay 0.000198827s gain 0.0947021 after_decay 0.000198827s after_gain 0
-  mode m8 frequency 7485.51hz decay 0.000106309s gain 0.247836 after_decay 0.000106309s after_gain 0
-  mode m9 frequency 14000hz decay 0.0001s gain 1 after_decay 0.0001s after_gain 0
-}
-profile bagpipes-drone2 {
-  root 261.626hz
-  mode m0 frequency 50hz decay 0.0159155s gain 0.527506 after_decay 0.0159155s after_gain 0
-  mode m1 frequency 93.514hz decay 0.00850969s gain 0.475307 after_decay 0.00850969s after_gain 0
-  mode m2 frequency 174.897hz decay 0.00454996s gain 0.355792 after_decay 0.00454996s after_gain 0
-  mode m3 frequency 327.107hz decay 0.00243277s gain 0.242193 after_decay 0.00243277s after_gain 0
-  mode m4 frequency 611.781hz decay 0.00130075s gain 0.157406 after_decay 0.00130075s after_gain 0
-  mode m5 frequency 1144.2hz decay 0.000695485s gain 0.527836 after_decay 0.000695485s after_gain 0
-  mode m6 frequency 2139.97hz decay 0.000371862s gain 0.251127 after_decay 0.000371862s after_gain 0
-  mode m7 frequency 4002.35hz decay 0.000198827s gain 0.0947021 after_decay 0.000198827s after_gain 0
-  mode m8 frequency 7485.51hz decay 0.000106309s gain 0.247836 after_decay 0.000106309s after_gain 0
-  mode m9 frequency 14000hz decay 0.0001s gain 1 after_decay 0.0001s after_gain 0
 }

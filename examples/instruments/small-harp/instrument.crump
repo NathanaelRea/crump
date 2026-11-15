@@ -1,110 +1,279 @@
 crump-module 2
 instrument small-harp "Small Harp" graph {
-  polyphony 8
-  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
-  parameter ring "Ring" ratio 0.1 4 1 1
+  polyphony 12
+  parameter sustain "Sustain" ratio 0.5 0.99999 0.99886 0.99886 modulatable
+  parameter room "Room" ratio 0 1 0.194706 0.194706
+  parameter register "Register level" ratio 0.05 20 0.668344 0.668344 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control ring "Ring" "How long the body rings" maps ring
+    control sustain "Sustain" "How long the string rings" maps sustain
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-level note_key per_voice bipolar reference C4 range 12st
-    route key-gain-low source key-level target key-gain depth 0.127671 map bipolar curve linear order 0 bypass false {
+    source key-c4-24 note_key per_voice bipolar reference C4 range 24st
+    source key-from-c1-3 note_key per_voice bipolar reference C1 range 3st
+    source key-from-ds1-3 note_key per_voice bipolar reference D#1 range 3st
+    source key-from-fs1-3 note_key per_voice bipolar reference F#1 range 3st
+    source key-from-a1-3 note_key per_voice bipolar reference A1 range 3st
+    source key-from-c2-3 note_key per_voice bipolar reference C2 range 3st
+    source key-from-ds2-3 note_key per_voice bipolar reference D#2 range 3st
+    source key-from-fs2-3 note_key per_voice bipolar reference F#2 range 3st
+    source key-from-a2-3 note_key per_voice bipolar reference A2 range 3st
+    source key-from-c3-3 note_key per_voice bipolar reference C3 range 3st
+    source key-from-ds3-3 note_key per_voice bipolar reference D#3 range 3st
+    source key-from-fs3-3 note_key per_voice bipolar reference F#3 range 3st
+    source key-from-a3-3 note_key per_voice bipolar reference A3 range 3st
+    source key-from-c4-3 note_key per_voice bipolar reference C4 range 3st
+    source key-from-ds4-3 note_key per_voice bipolar reference D#4 range 3st
+    source key-from-fs4-3 note_key per_voice bipolar reference F#4 range 3st
+    source key-from-a4-3 note_key per_voice bipolar reference A4 range 3st
+    source key-from-c5-3 note_key per_voice bipolar reference C5 range 3st
+    source key-from-ds5-3 note_key per_voice bipolar reference D#5 range 3st
+    source key-from-fs5-3 note_key per_voice bipolar reference F#5 range 3st
+    source key-from-a5-3 note_key per_voice bipolar reference A5 range 3st
+    source key-from-c6-3 note_key per_voice bipolar reference C6 range 3st
+    source key-from-ds6-3 note_key per_voice bipolar reference D#6 range 3st
+    source key-from-fs6-1 note_key per_voice bipolar reference F#6 range 1st
+    source velocity note_velocity per_voice unipolar
+    route sustain-low source key-c4-24 target sustain depth 0.00714255 map bipolar curve linear order 0 bypass false {
       clamp -1 0
     }
-    route key-gain-high source key-level target key-gain depth 0.252913 map bipolar curve linear order 0 bypass false {
+    route sustain-high source key-c4-24 target sustain depth 0.000939666 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
+    route register-1 source key-from-c1-3 target register depth -0.0795003 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-2 source key-from-ds1-3 target register depth 0.205485 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-3 source key-from-fs1-3 target register depth -0.225475 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-5 source key-from-c2-3 target register depth 0.243978 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-6 source key-from-ds2-3 target register depth -0.167176 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-7 source key-from-fs2-3 target register depth -0.228785 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-8 source key-from-a2-3 target register depth 0.0196464 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-9 source key-from-c3-3 target register depth 0.173021 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-10 source key-from-ds3-3 target register depth 0.123288 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-11 source key-from-fs3-3 target register depth 0.585432 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-12 source key-from-a3-3 target register depth 0.34133 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-13 source key-from-c4-3 target register depth 0.0386567 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-14 source key-from-ds4-3 target register depth -0.167156 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-15 source key-from-fs4-3 target register depth -0.639837 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-16 source key-from-a4-3 target register depth 0.230768 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-17 source key-from-c5-3 target register depth 0.761631 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-18 source key-from-ds5-3 target register depth -0.334832 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-19 source key-from-fs5-3 target register depth 0.795412 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-20 source key-from-a5-3 target register depth 0.378472 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-21 source key-from-c6-3 target register depth -0.609212 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-22 source key-from-ds6-3 target register depth 0.871894 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-23 source key-from-fs6-1 target register depth -0.558773 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve linear order 0 bypass false
   }
-  graph voice 32 {
-    # A plucked string: a pitch-tuned delay loop with a per-trip loss, a pickup and a body.
-    node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node held math operation add
-    node held-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node held-leak math operation scale amount 1
-    node period-later delay_line mode pitch ratio 1 interpolation linear max_time 0.1s
-    node period math operation subtract
-    node pluck-window shaper curve hard_clip drive 64 bias 0
-    node pluck-noise noise level 1
-    node pluck math operation multiply
-    node pluck-tone lowpass mode lowpass cutoff 1755hz resonance 0.308309 velocity_depth 2535hz
-    node string-in math operation add
-    node string delay_line mode pitch ratio 1 interpolation lagrange3 tune_compensation 1 max_time 0.1s
-    node string-loss linear_phase_lowpass amount 0.1
-    node string-keep math operation scale amount 0.99999
-    node string-pickup delay_line mode pitch ratio 0.4 interpolation linear max_time 0.05s
-    node string-out math operation subtract
-    node gain1 math operation scale amount 0.7
-    node gain2 math operation scale amount 1.73205
-    node string-tone lowpass mode lowpass cutoff 1755hz resonance 0.308309 velocity_depth 2535hz
-    node string-decay math operation add
-    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node string-decay-leak math operation scale amount 0.999990079414
-    node times3 math operation multiply
-    node body4 modal_bank profile small-harp-box max_modes 3 key_track 0 decay_scale $ring brightness 0 level 1
-    node gain5 math operation scale amount 0.25
-    node plus6 math operation add
-    node hi-7 lowpass mode highpass cutoff 32hz resonance 0.308309
-    node register math operation scale amount $key-gain
-    node trim math operation scale amount 0.168553
+  graph voice 58 {
+    # A plucked string: a pitch-tracked loop that loses its upper partials first, then the body.
+    node pluck exciter kind impact contact 0.00471887s hardness 0.2 level 1
+    node scrape noise level 1
+    node scrape-band biquad mode bandpass frequency 1549.19hz q 0.455645
+    node scrape-env envelope mode adsr attack 0.0005s decay 0.006s sustain 0 release 0.006s
+    node scrape-env-audio to_audio
+    node scrape-burst math operation multiply
+    node scrape-level math operation scale amount 0.218054
+    node attack sum max_inputs 2
+    node released onepole mode leak time 0.00378908s
+    node released-dc dc_block cutoff 25hz
+    node finger lowpass mode lowpass cutoff 344.213hz resonance 0.05 velocity_depth 7698.25hz key_track 0.3 key_reference 261.626hz
+    node position delay_line mode pitch ratio 0.264872 interpolation lagrange3 max_time 0.03s
+    node plucked math operation subtract
+    node share math operation scale amount 0.6
+    node string delay_line mode pitch ratio 1 interpolation lagrange3 max_time 0.05s tune_compensation 1 mod_depth 1
+    node twang envelope mode adsr attack 0s decay 0.08s sustain 0 release 0.08s decay_curve -0.6
+    node twang-audio to_audio
+    node twang-velocity math operation multiply
+    node velocity-audio to_audio
+    node twang-amount math operation scale amount -0.00245529
+    node bridge math operation add
+    node loss linear_phase_lowpass amount 1
+    node return math operation scale amount $sustain
+    node share2 math operation scale amount 0.4
+    node string2 delay_line mode pitch ratio 0.99965349 interpolation lagrange3 max_time 0.05s tune_compensation 1 mod_depth 1
+    node bridge2 math operation add
+    node loss2 linear_phase_lowpass amount 1
+    node trim-loss2 math operation scale amount 0.999
+    node return2 math operation scale amount $sustain
+    node strings sum max_inputs 2
+    node bridge-dc dc_block cutoff 20hz
+    node body modal_bank profile small-harp-body max_modes 16 key_track 0 decay_scale 1 brightness 0 level 1
+    node direct math operation scale amount 0.792885
+    node wood math operation scale amount 0.207115
+    node radiated math operation add
+    node knock-env envelope mode adsr attack 0.001s decay 0.255974s sustain 0 release 0.255974s decay_curve -0.7
+    node knock-env-audio to_audio
+    node knock-low biquad mode highpass frequency 150hz q 0.7071
+    node knock-band biquad mode lowpass frequency 2227.03hz q 0.7071
+    node knock-burst math operation multiply
+    node knock-velocity math operation multiply
+    node knock-level math operation scale amount 0
+    node with-knock math operation add
+    node formant1 biquad mode peak frequency 223.407hz q 0.5 gain 12db
+    node formant2 biquad mode peak frequency 2098.23hz q 2 gain -10.9113db
+    node formant3 biquad mode peak frequency 94.3374hz q 0.977478 gain -1.06034db
+    node formant4 biquad mode peak frequency 1117.75hz q 1.40002 gain -12db
+    node formant5 biquad mode peak frequency 361.209hz q 1.60642 gain -10.5082db
+    node formant6 biquad mode peak frequency 5148.53hz q 2 gain -6.94196db
+    node formant7 biquad mode lowshelf frequency 114.784hz q 0.7071 gain -0.410897db
+    node formant8 biquad mode highshelf frequency 5746.48hz q 0.7071 gain -12db
+    node radiation biquad mode highpass frequency 50hz q 0.7071
+    node register-level math operation scale amount $register
+    node dynamics-level math operation scale amount $dynamics
+    node trim math operation scale amount 0.285781
     node level math operation scale amount $level
     node place pan position $pan
     node out output
-    bus note-gate-onset-gate note.gate -> onset.gate
-    bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus held-audio-held-previous-audio held.audio -> held-previous.audio
-    bus onset-audio-held-a onset.audio -> held.a
-    bus held-previous-audio-held-leak-a held-previous.audio -> held-leak.a
-    bus held-leak-audio-held-b held-leak.audio -> held.b
-    bus note-pitch-period-later-pitch note.pitch -> period-later.pitch
-    bus held-audio-period-later-audio held.audio -> period-later.audio
-    bus held-audio-period-a held.audio -> period.a
-    bus period-later-audio-period-b period-later.audio -> period.b
-    bus period-audio-pluck-window-audio period.audio -> pluck-window.audio
-    bus pluck-noise-audio-pluck-a pluck-noise.audio -> pluck.a
-    bus pluck-window-audio-pluck-b pluck-window.audio -> pluck.b
-    bus pluck-audio-pluck-tone-audio pluck.audio -> pluck-tone.audio
-    bus note-velocity-pluck-tone-velocity note.velocity -> pluck-tone.velocity
-    bus pluck-tone-audio-string-in-a pluck-tone.audio -> string-in.a
+    bus note-gate-pluck-gate note.gate -> pluck.gate
+    bus note-velocity-pluck-velocity note.velocity -> pluck.velocity
+    bus scrape-audio-scrape-band-audio scrape.audio -> scrape-band.audio
+    bus note-gate-scrape-env-gate note.gate -> scrape-env.gate
+    bus scrape-env-control-scrape-env-audio-control scrape-env.control -> scrape-env-audio.control
+    bus scrape-band-audio-scrape-burst-a scrape-band.audio -> scrape-burst.a
+    bus scrape-env-audio-audio-scrape-burst-b scrape-env-audio.audio -> scrape-burst.b
+    bus scrape-burst-audio-scrape-level-a scrape-burst.audio -> scrape-level.a
+    bus pluck-audio-attack-inputs pluck.audio -> attack.inputs
+    bus scrape-level-audio-attack-inputs scrape-level.audio -> attack.inputs
+    bus attack-audio-released-audio attack.audio -> released.audio
+    bus released-audio-released-dc-audio released.audio -> released-dc.audio
+    bus released-dc-audio-finger-audio released-dc.audio -> finger.audio
+    bus note-velocity-finger-velocity note.velocity -> finger.velocity
+    bus note-pitch-finger-key note.pitch -> finger.key
+    bus note-pitch-position-pitch note.pitch -> position.pitch
+    bus finger-audio-position-audio finger.audio -> position.audio
+    bus finger-audio-plucked-a finger.audio -> plucked.a
+    bus position-audio-plucked-b position.audio -> plucked.b
+    bus plucked-audio-share-a plucked.audio -> share.a
     bus note-pitch-string-pitch note.pitch -> string.pitch
-    bus string-in-audio-string-audio string-in.audio -> string.audio
-    bus string-audio-string-loss-audio string.audio -> string-loss.audio
-    bus string-loss-audio-string-keep-a string-loss.audio -> string-keep.a
-    bus string-keep-audio-string-in-b string-keep.audio -> string-in.b
-    bus note-pitch-string-pickup-pitch note.pitch -> string-pickup.pitch
-    bus string-audio-string-pickup-audio string.audio -> string-pickup.audio
-    bus string-audio-string-out-a string.audio -> string-out.a
-    bus string-pickup-audio-gain1-a string-pickup.audio -> gain1.a
-    bus gain1-audio-string-out-b gain1.audio -> string-out.b
-    bus string-out-audio-gain2-a string-out.audio -> gain2.a
-    bus gain2-audio-string-tone-audio gain2.audio -> string-tone.audio
-    bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
-    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
-    bus onset-audio-string-decay-a onset.audio -> string-decay.a
-    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
-    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
-    bus string-tone-audio-times3-a string-tone.audio -> times3.a
-    bus string-decay-audio-times3-b string-decay.audio -> times3.b
-    bus times3-audio-body4-audio times3.audio -> body4.audio
-    bus note-pitch-body4-pitch note.pitch -> body4.pitch
-    bus note-gate-body4-gate note.gate -> body4.gate
-    bus body4-audio-gain5-a body4.audio -> gain5.a
-    bus times3-audio-plus6-a times3.audio -> plus6.a
-    bus gain5-audio-plus6-b gain5.audio -> plus6.b
-    bus plus6-audio-hi-7-audio plus6.audio -> hi-7.audio
-    bus hi-7-audio-register-a hi-7.audio -> register.a
-    bus register-audio-trim-a register.audio -> trim.a
+    bus note-gate-twang-gate note.gate -> twang.gate
+    bus twang-control-twang-audio-control twang.control -> twang-audio.control
+    bus twang-audio-audio-twang-velocity-a twang-audio.audio -> twang-velocity.a
+    bus note-velocity-velocity-audio-control note.velocity -> velocity-audio.control
+    bus velocity-audio-audio-twang-velocity-b velocity-audio.audio -> twang-velocity.b
+    bus twang-velocity-audio-twang-amount-a twang-velocity.audio -> twang-amount.a
+    bus twang-amount-audio-string-time-mod twang-amount.audio -> string.time_mod
+    bus share-audio-bridge-a share.audio -> bridge.a
+    bus return-audio-bridge-b return.audio -> bridge.b
+    bus bridge-audio-string-audio bridge.audio -> string.audio
+    bus string-audio-loss-audio string.audio -> loss.audio
+    bus loss-audio-return-a loss.audio -> return.a
+    bus plucked-audio-share2-a plucked.audio -> share2.a
+    bus note-pitch-string2-pitch note.pitch -> string2.pitch
+    bus twang-amount-audio-string2-time-mod twang-amount.audio -> string2.time_mod
+    bus share2-audio-bridge2-a share2.audio -> bridge2.a
+    bus return2-audio-bridge2-b return2.audio -> bridge2.b
+    bus bridge2-audio-string2-audio bridge2.audio -> string2.audio
+    bus string2-audio-loss2-audio string2.audio -> loss2.audio
+    bus loss2-audio-trim-loss2-a loss2.audio -> trim-loss2.a
+    bus trim-loss2-audio-return2-a trim-loss2.audio -> return2.a
+    bus string-audio-strings-inputs string.audio -> strings.inputs
+    bus string2-audio-strings-inputs string2.audio -> strings.inputs
+    bus strings-audio-bridge-dc-audio strings.audio -> bridge-dc.audio
+    bus bridge-dc-audio-body-audio bridge-dc.audio -> body.audio
+    bus note-pitch-body-pitch note.pitch -> body.pitch
+    bus note-gate-body-gate note.gate -> body.gate
+    bus bridge-dc-audio-direct-a bridge-dc.audio -> direct.a
+    bus body-audio-wood-a body.audio -> wood.a
+    bus direct-audio-radiated-a direct.audio -> radiated.a
+    bus wood-audio-radiated-b wood.audio -> radiated.b
+    bus note-gate-knock-env-gate note.gate -> knock-env.gate
+    bus knock-env-control-knock-env-audio-control knock-env.control -> knock-env-audio.control
+    bus scrape-audio-knock-low-audio scrape.audio -> knock-low.audio
+    bus knock-low-audio-knock-band-audio knock-low.audio -> knock-band.audio
+    bus knock-band-audio-knock-burst-a knock-band.audio -> knock-burst.a
+    bus knock-env-audio-audio-knock-burst-b knock-env-audio.audio -> knock-burst.b
+    bus knock-burst-audio-knock-velocity-a knock-burst.audio -> knock-velocity.a
+    bus velocity-audio-audio-knock-velocity-b velocity-audio.audio -> knock-velocity.b
+    bus knock-velocity-audio-knock-level-a knock-velocity.audio -> knock-level.a
+    bus radiated-audio-with-knock-a radiated.audio -> with-knock.a
+    bus knock-level-audio-with-knock-b knock-level.audio -> with-knock.b
+    bus with-knock-audio-formant1-audio with-knock.audio -> formant1.audio
+    bus formant1-audio-formant2-audio formant1.audio -> formant2.audio
+    bus formant2-audio-formant3-audio formant2.audio -> formant3.audio
+    bus formant3-audio-formant4-audio formant3.audio -> formant4.audio
+    bus formant4-audio-formant5-audio formant4.audio -> formant5.audio
+    bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
+    bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
+    bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
+    bus formant8-audio-radiation-audio formant8.audio -> radiation.audio
+    bus radiation-audio-register-level-a radiation.audio -> register-level.a
+    bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a
+    bus dynamics-level-audio-trim-a dynamics-level.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a
     bus level-audio-place-audio level.audio -> place.audio
     bus place-audio-out-audio place.audio -> out.audio
   }
+  graph shared 2 {
+    node room-reverb reverb room 0.35 damping 0.6 mix $room
+    node shared-out output
+    bus voice-sum voice_sum.audio -> room-reverb.audio
+    bus shared-output room-reverb.audio -> shared-out.audio
+  }
 }
-profile small-harp-box {
+profile small-harp-body {
   root 261.626hz
-  mode m0 frequency 190hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
-  mode m1 frequency 410hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
-  mode m2 frequency 850hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m0 frequency 127.4hz decay 0.0315741s gain 0.000844574 after_decay 0.0315741s after_gain 0
+  mode m1 frequency 254.8hz decay 0.0263117s gain 0.00126686 after_decay 0.0263117s after_gain 0
+  mode m2 frequency 305.5hz decay 0.0210494s gain 0.000791788 after_decay 0.0210494s after_gain 0
+  mode m3 frequency 500.5hz decay 0.015787s gain 0.00126686 after_decay 0.015787s after_gain 0
+  mode m4 frequency 572hz decay 0.0126296s gain 0.00131965 after_decay 0.0126296s after_gain 0
+  mode m5 frequency 721.5hz decay 0.0105247s gain 0.00142522 after_decay 0.0105247s after_gain 0
+  mode m6 frequency 845hz decay 0.00947223s gain 0.00140762 after_decay 0.00947223s after_gain 0
+  mode m7 frequency 1027hz decay 0.00841976s gain 0.00138563 after_decay 0.00841976s after_gain 0
+  mode m8 frequency 1202.5hz decay 0.00736729s gain 0.00158358 after_decay 0.00736729s after_gain 0
+  mode m9 frequency 1430hz decay 0.00631482s gain 0.00158358 after_decay 0.00631482s after_gain 0
+  mode m10 frequency 1755hz decay 0.00526235s gain 0.00190029 after_decay 0.00526235s after_gain 0
+  mode m11 frequency 2106hz decay 0.00473611s gain 0.00197067 after_decay 0.00473611s after_gain 0
+  mode m12 frequency 2535hz decay 0.00420988s gain 0.00197947 after_decay 0.00420988s after_gain 0
+  mode m13 frequency 3120hz decay 0.00368364s gain 0.00199078 after_decay 0.00368364s after_gain 0
+  mode m14 frequency 3770hz decay 0.00315741s gain 0.00211144 after_decay 0.00315741s after_gain 0
+  mode m15 frequency 4550hz decay 0.00263117s gain 0.00228035 after_decay 0.00263117s after_gain 0
 }
