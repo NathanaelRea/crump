@@ -11,15 +11,13 @@ instrument conga-open "Conga Open" graph {
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 17 {
+  graph voice 15 {
     # A strike on a drumhead's modes, with slap and wire noise bursts.
     node strike1 exciter kind impact contact 0.00208621s hardness $hardness level 1
     node body2 modal_bank profile conga-open-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
     node hiss3 noise level 1
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall4 math operation add
-    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall4-leak math operation scale amount 0.997687862303
+    node fall4 onepole mode leak time 0.009s
     node times5 math operation multiply
     node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
     node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
@@ -37,10 +35,7 @@ instrument conga-open "Conga Open" graph {
     bus note-gate-body2-gate note.gate -> body2.gate
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
-    bus onset-audio-fall4-a onset.audio -> fall4.a
-    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
-    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus onset-audio-fall4-audio onset.audio -> fall4.audio
     bus hiss3-audio-times5-a hiss3.audio -> times5.a
     bus fall4-audio-times5-b fall4.audio -> times5.b
     bus times5-audio-hi-6-audio times5.audio -> hi-6.audio

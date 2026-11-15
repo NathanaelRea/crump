@@ -13,13 +13,12 @@ instrument motor-vibes "Motor Vibes" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-level note_key per_voice bipolar reference C4 range 12st
-    route key-gain-low source key-level target key-gain depth -0.0594966 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    source key-gain-curve key_curve per_voice unipolar {
+      point c3 key C3 value 1
+      point c4 key C4 value 0
+      point c5 key C5 value 0.298469
     }
-    route key-gain-high source key-level target key-gain depth 0.0177579 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.0594966 map unipolar curve linear order 0 bypass false
   }
   graph voice 13 {
     # A mallet on a tuned bar's modes, optionally through a pickup.

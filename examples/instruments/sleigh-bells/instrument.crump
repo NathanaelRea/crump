@@ -9,20 +9,16 @@ instrument sleigh-bells "Sleigh Bells" graph {
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 24 {
+  graph voice 20 {
     # Beads or jingles: a burst of random contacts through small resonant shells.
     node grains1 exciter kind collisions contact 4e-05s hardness 0.5 rate 2600hz duration 0.16s attack 0.01s level 1
     node body2 modal_bank profile sleigh-bells-shell max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
     node gain3 math operation scale amount 2
     node hiss4 noise level 1
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall5 math operation add
-    node fall5-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall5-leak math operation scale amount 0.999869800143
+    node fall5 onepole mode leak time 0.16s
     node rise6 math operation subtract
-    node fall7 math operation add
-    node fall7-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall7-leak math operation scale amount 0.99778890641
+    node fall7 onepole mode leak time 0.009412s
     node gain8 math operation scale amount 1.26833
     node times9 math operation multiply
     node hi-10 lowpass mode highpass cutoff 1000hz resonance 0.308309
@@ -43,15 +39,9 @@ instrument sleigh-bells "Sleigh Bells" graph {
     bus body2-audio-gain3-a body2.audio -> gain3.a
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall5-audio-fall5-previous-audio fall5.audio -> fall5-previous.audio
-    bus onset-audio-fall5-a onset.audio -> fall5.a
-    bus fall5-previous-audio-fall5-leak-a fall5-previous.audio -> fall5-leak.a
-    bus fall5-leak-audio-fall5-b fall5-leak.audio -> fall5.b
+    bus onset-audio-fall5-audio onset.audio -> fall5.audio
     bus fall5-audio-rise6-a fall5.audio -> rise6.a
-    bus fall7-audio-fall7-previous-audio fall7.audio -> fall7-previous.audio
-    bus onset-audio-fall7-a onset.audio -> fall7.a
-    bus fall7-previous-audio-fall7-leak-a fall7-previous.audio -> fall7-leak.a
-    bus fall7-leak-audio-fall7-b fall7-leak.audio -> fall7.b
+    bus onset-audio-fall7-audio onset.audio -> fall7.audio
     bus fall7-audio-rise6-b fall7.audio -> rise6.b
     bus rise6-audio-gain8-a rise6.audio -> gain8.a
     bus hiss4-audio-times9-a hiss4.audio -> times9.a

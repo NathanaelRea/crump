@@ -13,13 +13,12 @@ instrument glockenspiel "Glockenspiel" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-level note_key per_voice bipolar reference E6 range 12st
-    route key-gain-low source key-level target key-gain depth 0.0353035 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    source key-gain-curve key_curve per_voice bipolar {
+      point e5 key E5 value -0.302378
+      point e6 key E6 value 0
+      point e7 key E7 value 1
     }
-    route key-gain-high source key-level target key-gain depth 0.116753 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.116753 map bipolar curve linear order 0 bypass false
   }
   graph voice 8 {
     # A mallet on a tuned bar's modes, optionally through a pickup.

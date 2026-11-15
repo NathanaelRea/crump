@@ -149,6 +149,7 @@ pub(super) fn authored_node_work_units(instrument: &Instrument, node: &GraphNode
         }
         NodeKind::DelayLine => 4,
         NodeKind::Biquad => 2,
+        NodeKind::BiquadChain => (node.directives.len() as u64).max(1).saturating_mul(2),
         // Binary search over the authored table, plus the interpolation.
         NodeKind::Shaper if !node.directives.is_empty() => {
             1_u64.saturating_add(u64::from((node.directives.len() as u32).max(1).ilog2()) + 1)
@@ -236,6 +237,7 @@ pub(super) fn authored_node_heap_bytes(
                 .clamp(1.0, MAX_SPECTRAL_PEAKS as f64) as usize,
         ),
         NodeKind::StereoFilter => std::mem::size_of::<filter::StereoFilterState>() as u64,
+        NodeKind::BiquadChain => std::mem::size_of::<primitives::BiquadChainState>() as u64,
         NodeKind::DelayLine => primitives::delay_line_state_bytes(primitives::delay_line_capacity(
             authored_node_number(
                 instrument,
@@ -479,10 +481,10 @@ use oscillator::{
     NoiseState, OscillatorConfig, OscillatorState, OscillatorWaveform, UnisonConfig, UnisonState,
 };
 use primitives::{
-    BiquadConfig, BiquadMode, BiquadState, DcBlockConfig, DcBlockState, DelayInterpolation,
-    DelayLineConfig, DelayLineMode, DelayLineState, LinearPhaseLowpassConfig,
-    LinearPhaseLowpassState, MathConfig, MathOperation, OnePoleConfig, OnePoleMode, OnePoleState,
-    ShaperConfig, ShaperCurve,
+    BiquadChainConfig, BiquadChainState, BiquadConfig, BiquadMode, BiquadState, DcBlockConfig,
+    DcBlockState, DelayInterpolation, DelayLineConfig, DelayLineMode, DelayLineState,
+    LinearPhaseLowpassConfig, LinearPhaseLowpassState, MathConfig, MathOperation, OnePoleConfig,
+    OnePoleMode, OnePoleState, ShaperConfig, ShaperCurve,
 };
 use sample_source::{
     GrainEdge, GrainWindow, GranularConfig, GranularState, MultisampleConfig,
@@ -624,6 +626,8 @@ enum NodeProgramKind {
     LinearPhaseLowpass(LinearPhaseLowpassConfig),
     Biquad(BiquadConfig),
     OnePole(OnePoleConfig),
+    BiquadChain(Box<BiquadChainConfig>),
+    Constant(Scalar),
 }
 
 /// Mutable state paired with one [`NodeProgram`] variant at voice creation.
@@ -669,6 +673,7 @@ enum NodeStateKind {
     LinearPhaseLowpass(LinearPhaseLowpassState),
     Biquad(BiquadState),
     OnePole(OnePoleState),
+    BiquadChain(Box<BiquadChainState>),
     Stateless,
 }
 
@@ -1559,27 +1564,24 @@ impl NodeProgram {
                 })
             }
             NodeKind::Biquad => NodeProgramKind::Biquad(BiquadConfig {
-                mode: match text(node, "mode", "lowpass") {
-                    "lowpass" => BiquadMode::Lowpass,
-                    "highpass" => BiquadMode::Highpass,
-                    "bandpass" => BiquadMode::Bandpass,
-                    "notch" => BiquadMode::Notch,
-                    "peak" => BiquadMode::Peak,
-                    "lowshelf" => BiquadMode::LowShelf,
-                    "highshelf" => BiquadMode::HighShelf,
-                    "allpass" => BiquadMode::Allpass,
-                    value => {
-                        return Err(EngineError::Compile(format!(
-                            "unsupported biquad mode `{value}`"
-                        )));
-                    }
-                },
+                mode: BiquadMode::parse(text(node, "mode", "lowpass")).ok_or_else(|| {
+                    EngineError::Compile(format!(
+                        "unsupported biquad mode `{}`",
+                        text(node, "mode", "lowpass")
+                    ))
+                })?,
                 frequency: number("frequency", Unit::Hertz, 1_000.0)?,
                 q: number("q", Unit::Ratio, std::f64::consts::FRAC_1_SQRT_2)?,
                 gain: number("gain", Unit::Decibels, 0.0)?,
                 key_track: number("key_track", Unit::Ratio, 0.0)?,
                 key_reference: number("key_reference", Unit::Hertz, 261.625_565)?,
             }),
+            NodeKind::BiquadChain => {
+                NodeProgramKind::BiquadChain(Box::new(compile_biquad_chain(node)?))
+            }
+            NodeKind::Constant => {
+                NodeProgramKind::Constant(number("frequency", Unit::Hertz, 440.0)?)
+            }
             NodeKind::OnePole => NodeProgramKind::OnePole(OnePoleConfig {
                 mode: match text(node, "mode", "lowpass") {
                     "lowpass" => OnePoleMode::Lowpass,
@@ -1781,6 +1783,7 @@ impl NodeProgram {
                 NodeProgramKind::DcBlock(_) => NodeStateKind::DcBlock(DcBlockState::default()),
                 NodeProgramKind::Biquad(_) => NodeStateKind::Biquad(BiquadState::default()),
                 NodeProgramKind::OnePole(_) => NodeStateKind::OnePole(OnePoleState::default()),
+                NodeProgramKind::BiquadChain(_) => NodeStateKind::BiquadChain(Box::default()),
                 NodeProgramKind::LinearPhaseLowpass(_) => {
                     NodeStateKind::LinearPhaseLowpass(LinearPhaseLowpassState::default())
                 }
@@ -1798,6 +1801,7 @@ impl NodeProgram {
                 | NodeProgramKind::Amplifier(_)
                 | NodeProgramKind::Saturation(_)
                 | NodeProgramKind::Pan(_)
+                | NodeProgramKind::Constant(_)
                 | NodeProgramKind::Output => NodeStateKind::Stateless,
             },
             seed_identity,
@@ -2051,6 +2055,18 @@ impl NodeProgram {
             (NodeProgramKind::OnePole(config), NodeStateKind::OnePole(state)) => {
                 Signal::Mono(config.process(state, inputs.audio.mono(), controls, sample_rate))
             }
+            (NodeProgramKind::BiquadChain(config), NodeStateKind::BiquadChain(state)) => {
+                Signal::Mono(config.process(
+                    state,
+                    inputs.audio.mono(),
+                    inputs.key.control(),
+                    controls,
+                    sample_rate,
+                ))
+            }
+            (NodeProgramKind::Constant(frequency), _) => {
+                Signal::Control(frequency.value(controls) as f32)
+            }
             (
                 NodeProgramKind::LinearPhaseLowpass(config),
                 NodeStateKind::LinearPhaseLowpass(state),
@@ -2151,6 +2167,10 @@ impl NodeProgram {
             | (NodeProgramKind::StereoMath(left), NodeProgramKind::StereoMath(right)) => {
                 left.operation == right.operation
             }
+            // Band values are literals, so any band edit is structural.
+            (NodeProgramKind::BiquadChain(left), NodeProgramKind::BiquadChain(right)) => {
+                left.band_identities().eq(right.band_identities())
+            }
             (NodeProgramKind::Shaper(left), NodeProgramKind::Shaper(right)) => {
                 let count = usize::from(left.point_count);
                 left.curve == right.curve
@@ -2169,6 +2189,7 @@ impl NodeProgram {
             | (NodeProgramKind::DcBlock(_), NodeProgramKind::DcBlock(_))
             | (NodeProgramKind::Biquad(_), NodeProgramKind::Biquad(_))
             | (NodeProgramKind::OnePole(_), NodeProgramKind::OnePole(_))
+            | (NodeProgramKind::Constant(_), NodeProgramKind::Constant(_))
             | (NodeProgramKind::LinearPhaseLowpass(_), NodeProgramKind::LinearPhaseLowpass(_))
             | (NodeProgramKind::Mixer(_), NodeProgramKind::Mixer(_))
             | (NodeProgramKind::MonoToStereo, NodeProgramKind::MonoToStereo)
@@ -2250,6 +2271,7 @@ impl NodeState {
             NodeStateKind::DcBlock(state) => *state = DcBlockState::default(),
             NodeStateKind::Biquad(state) => *state = BiquadState::default(),
             NodeStateKind::OnePole(state) => *state = OnePoleState::default(),
+            NodeStateKind::BiquadChain(state) => **state = BiquadChainState::default(),
             NodeStateKind::LinearPhaseLowpass(state) => *state = LinearPhaseLowpassState::default(),
             NodeStateKind::Stateless => {}
         }
@@ -2278,6 +2300,7 @@ impl NodeState {
             NodeStateKind::DcBlock(state) => *state = DcBlockState::default(),
             NodeStateKind::Biquad(state) => *state = BiquadState::default(),
             NodeStateKind::OnePole(state) => *state = OnePoleState::default(),
+            NodeStateKind::BiquadChain(state) => **state = BiquadChainState::default(),
             NodeStateKind::LinearPhaseLowpass(state) => *state = LinearPhaseLowpassState::default(),
             NodeStateKind::Delay(_) | NodeStateKind::Reverb(_) | NodeStateKind::Stateless => {}
         }
@@ -2309,6 +2332,7 @@ impl NodeState {
             | NodeStateKind::LinearPhaseLowpass(_)
             | NodeStateKind::Biquad(_)
             | NodeStateKind::OnePole(_)
+            | NodeStateKind::BiquadChain(_)
             | NodeStateKind::Stateless => {}
         }
     }
@@ -2343,6 +2367,7 @@ impl NodeState {
             NodeStateKind::Granular(state) => state.allocation_bytes(),
             NodeStateKind::Spectral(state) => state.allocation_bytes(),
             NodeStateKind::StereoFilter(_) => std::mem::size_of::<StereoFilterState>() as u64,
+            NodeStateKind::BiquadChain(_) => std::mem::size_of::<BiquadChainState>() as u64,
             _ => 0,
         }
     }
@@ -2463,6 +2488,47 @@ fn compile_lfo_points(
         ));
     }
     Ok((points, node.directives.len() as u8))
+}
+
+fn compile_biquad_chain(node: &GraphNode) -> Result<BiquadChainConfig, EngineError> {
+    let invalid = || EngineError::Compile(crate::model::BIQUAD_BAND_SYNTAX.to_owned());
+    if !(1..=primitives::MAX_BIQUAD_CHAIN_BANDS).contains(&node.directives.len()) {
+        return Err(EngineError::Compile(format!(
+            "biquad_chain requires 1..={} bands",
+            primitives::MAX_BIQUAD_CHAIN_BANDS
+        )));
+    }
+    let unused = Scalar::constant(0.0);
+    let mut config = BiquadChainConfig {
+        bands: [BiquadConfig {
+            mode: BiquadMode::Lowpass,
+            frequency: unused,
+            q: unused,
+            gain: unused,
+            key_track: unused,
+            key_reference: unused,
+        }; primitives::MAX_BIQUAD_CHAIN_BANDS],
+        tracks_key: [false; primitives::MAX_BIQUAD_CHAIN_BANDS],
+        band_count: node.directives.len() as u8,
+    };
+    for (index, directive) in node.directives.iter().enumerate() {
+        let band = directive.band_clauses().ok_or_else(invalid)?;
+        let value = |token: Option<&crate::model::NodeDirectiveToken>, unit: Unit, default: f64| {
+            token.map_or(Ok(default), |token| {
+                unit.parse_value(&token.value).map_err(|_| invalid())
+            })
+        };
+        config.bands[index] = BiquadConfig {
+            mode: BiquadMode::parse(&band.mode.value).ok_or_else(invalid)?,
+            frequency: Scalar::constant(value(Some(band.frequency), Unit::Hertz, 1_000.0)?),
+            q: Scalar::constant(value(band.q, Unit::Ratio, std::f64::consts::FRAC_1_SQRT_2)?),
+            gain: Scalar::constant(value(band.gain, Unit::Decibels, 0.0)?),
+            key_track: Scalar::constant(value(band.key_track, Unit::Ratio, 0.0)?),
+            key_reference: Scalar::constant(value(band.key_reference, Unit::Hertz, 261.625_565)?),
+        };
+        config.tracks_key[index] = band.key_track.is_some();
+    }
+    Ok(config)
 }
 
 fn compile_shaper_points(

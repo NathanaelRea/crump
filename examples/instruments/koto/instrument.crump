@@ -15,7 +15,7 @@ instrument koto "Koto" graph {
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 23 {
+  graph voice 18 {
     # A plucked string: a pitch-tuned loop with loss and stiffness, then the body.
     node pluck exciter kind impact contact 0.000234598s hardness $hardness level 1
     node step onepole mode leak time 0.02s
@@ -30,12 +30,14 @@ instrument koto "Koto" graph {
     node hold-audio to_audio
     node damp math operation multiply
     node radiate dc_block cutoff 20hz
-    node body1 biquad mode peak frequency 146.832hz q 5.98197 gain -4.30502db
-    node body2 biquad mode peak frequency 326.3hz q 3.28792 gain -11.3746db
-    node body3 biquad mode peak frequency 604.605hz q 4.5779 gain -8.27218db
-    node body4 biquad mode highshelf frequency 304.121hz q 0.7071 gain 4.48984db
-    node radiation biquad mode lowpass frequency 7574.5hz q 0.7071
-    node sub-cut biquad mode highpass frequency 183.138hz q 0.7071 key_track 1 key_reference 261.626hz
+    node body biquad_chain {
+      band body1 mode peak frequency 146.832hz q 5.98197 gain -4.30502db
+      band body2 mode peak frequency 326.3hz q 3.28792 gain -11.3746db
+      band body3 mode peak frequency 604.605hz q 4.5779 gain -8.27218db
+      band body4 mode highshelf frequency 304.121hz q 0.7071 gain 4.48984db
+      band radiation mode lowpass frequency 7574.5hz q 0.7071
+      band sub-cut mode highpass frequency 183.138hz q 0.7071 key_track 1 key_reference 261.626hz
+    }
     node trim math operation scale amount 0.145713
     node level math operation scale amount $level
     node place pan position $pan
@@ -60,14 +62,9 @@ instrument koto "Koto" graph {
     bus hold-audio-audio-damp-b hold-audio.audio -> damp.b
     bus damp-audio-excite-b damp.audio -> excite.b
     bus string-audio-radiate-audio string.audio -> radiate.audio
-    bus radiate-audio-body1-audio radiate.audio -> body1.audio
-    bus body1-audio-body2-audio body1.audio -> body2.audio
-    bus body2-audio-body3-audio body2.audio -> body3.audio
-    bus body3-audio-body4-audio body3.audio -> body4.audio
-    bus body4-audio-radiation-audio body4.audio -> radiation.audio
-    bus radiation-audio-sub-cut-audio radiation.audio -> sub-cut.audio
-    bus note-pitch-sub-cut-key note.pitch -> sub-cut.key
-    bus sub-cut-audio-trim-a sub-cut.audio -> trim.a
+    bus radiate-audio-body-audio radiate.audio -> body.audio
+    bus note-pitch-body-key note.pitch -> body.key
+    bus body-audio-trim-a body.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a
     bus level-audio-place-audio level.audio -> place.audio
     bus place-audio-out-audio place.audio -> out.audio

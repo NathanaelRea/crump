@@ -11,28 +11,22 @@ instrument concert-snare "Concert Snare" graph {
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 29 {
+  graph voice 23 {
     # A stick on a tight head, with snare wires and a click.
     node strike1 exciter kind impact contact 0.000336111s hardness $hardness level 1
     node body2 modal_bank profile concert-snare-head max_modes 6 key_track 0 decay_scale $ring brightness 0 level 1
     node gain3 math operation scale amount 0.251
     node hiss4 noise level 1
-    node fall5 math operation add
-    node fall5-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall5-leak math operation scale amount 0.999835323179
+    node fall5 onepole mode leak time 0.1265s
     node rise6 math operation subtract
-    node fall7 math operation add
-    node fall7-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall7-leak math operation scale amount 0.982626882097
+    node fall7 onepole mode leak time 0.0011887s
     node gain8 math operation scale amount 1.05519
     node times9 math operation multiply
     node hi-10 lowpass mode highpass cutoff 1800hz resonance 0.308309
     node lo-11 lowpass mode lowpass cutoff 12000hz resonance 0.308309
     node gain12 math operation scale amount 0.880406
     node hiss13 noise level 1
-    node fall14 math operation add
-    node fall14-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall14-leak math operation scale amount 0.98278872462
+    node fall14 onepole mode leak time 0.0012s
     node times15 math operation multiply
     node hi-16 lowpass mode highpass cutoff 3500hz resonance 0.308309
     node gain17 math operation scale amount 0.264478
@@ -48,15 +42,9 @@ instrument concert-snare "Concert Snare" graph {
     bus note-pitch-body2-pitch note.pitch -> body2.pitch
     bus note-gate-body2-gate note.gate -> body2.gate
     bus body2-audio-gain3-a body2.audio -> gain3.a
-    bus fall5-audio-fall5-previous-audio fall5.audio -> fall5-previous.audio
-    bus strike1-audio-fall5-a strike1.audio -> fall5.a
-    bus fall5-previous-audio-fall5-leak-a fall5-previous.audio -> fall5-leak.a
-    bus fall5-leak-audio-fall5-b fall5-leak.audio -> fall5.b
+    bus strike1-audio-fall5-audio strike1.audio -> fall5.audio
     bus fall5-audio-rise6-a fall5.audio -> rise6.a
-    bus fall7-audio-fall7-previous-audio fall7.audio -> fall7-previous.audio
-    bus strike1-audio-fall7-a strike1.audio -> fall7.a
-    bus fall7-previous-audio-fall7-leak-a fall7-previous.audio -> fall7-leak.a
-    bus fall7-leak-audio-fall7-b fall7-leak.audio -> fall7.b
+    bus strike1-audio-fall7-audio strike1.audio -> fall7.audio
     bus fall7-audio-rise6-b fall7.audio -> rise6.b
     bus rise6-audio-gain8-a rise6.audio -> gain8.a
     bus hiss4-audio-times9-a hiss4.audio -> times9.a
@@ -64,10 +52,7 @@ instrument concert-snare "Concert Snare" graph {
     bus times9-audio-hi-10-audio times9.audio -> hi-10.audio
     bus hi-10-audio-lo-11-audio hi-10.audio -> lo-11.audio
     bus lo-11-audio-gain12-a lo-11.audio -> gain12.a
-    bus fall14-audio-fall14-previous-audio fall14.audio -> fall14-previous.audio
-    bus strike1-audio-fall14-a strike1.audio -> fall14.a
-    bus fall14-previous-audio-fall14-leak-a fall14-previous.audio -> fall14-leak.a
-    bus fall14-leak-audio-fall14-b fall14-leak.audio -> fall14.b
+    bus strike1-audio-fall14-audio strike1.audio -> fall14.audio
     bus hiss13-audio-times15-a hiss13.audio -> times15.a
     bus fall14-audio-times15-b fall14.audio -> times15.b
     bus times15-audio-hi-16-audio times15.audio -> hi-16.audio

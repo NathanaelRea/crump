@@ -20,20 +20,19 @@ instrument choir-aahs "Choir Aahs" graph {
   modulation {
     source velocity note_velocity per_voice unipolar
     source register note_key per_voice bipolar reference B3 range 8st
-    source key-level note_key per_voice bipolar reference C4 range 12st
+    source key-gain-curve key_curve per_voice unipolar {
+      point c3 key C3 value 1
+      point c4 key C4 value 0
+      point c5 key C5 value 0.783997
+    }
     route attack-velocity source velocity target attack depth -0.75s map unipolar curve linear order 0 bypass false
     route vibrato-depth-velocity source velocity target vibrato-depth depth 0.27272727 map unipolar curve linear order 0 bypass false
     route upper-part-key source register target upper-part depth 0.5 map bipolar curve linear order 0 bypass false
     route lower-part-key source register target lower-part depth -0.5 map bipolar curve linear order 0 bypass false
     route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(1.05) order 0 bypass false
-    route key-gain-low source key-level target key-gain depth -0.225733 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
-    }
-    route key-gain-high source key-level target key-gain depth 0.176974 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.225733 map unipolar curve linear order 0 bypass false
   }
-  graph voice 52 {
+  graph voice 50 {
     # Singers: a glottal saw through vowel formants that follow the voice part.
     node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
     node vibrato lfo waveform sine rate 5.4hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
@@ -48,9 +47,7 @@ instrument choir-aahs "Choir Aahs" graph {
     node drift-audio to_audio
     node gain3 math operation scale amount 0.05
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node scoop math operation add
-    node scoop-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node scoop-leak math operation scale amount 0.999652838052
+    node scoop onepole mode leak time 0.06s
     node gain4 math operation scale amount -0.228261
     node mix5 sum max_inputs 3
     node glottis analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 unison 8 detune 0.12st blend 1 width 0 fm_depth 1st
@@ -100,10 +97,7 @@ instrument choir-aahs "Choir Aahs" graph {
     bus drift-audio-audio-gain3-a drift-audio.audio -> gain3.a
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus scoop-audio-scoop-previous-audio scoop.audio -> scoop-previous.audio
-    bus onset-audio-scoop-a onset.audio -> scoop.a
-    bus scoop-previous-audio-scoop-leak-a scoop-previous.audio -> scoop-leak.a
-    bus scoop-leak-audio-scoop-b scoop-leak.audio -> scoop.b
+    bus onset-audio-scoop-audio onset.audio -> scoop.audio
     bus scoop-audio-gain4-a scoop.audio -> gain4.a
     bus gain2-audio-mix5-inputs gain2.audio -> mix5.inputs
     bus gain3-audio-mix5-inputs gain3.audio -> mix5.inputs

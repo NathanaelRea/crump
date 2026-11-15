@@ -21,13 +21,11 @@ instrument sitar "Sitar" graph {
     control jawari "Jawari" "How far the bridge shortens the string while they touch" maps jawari
     control bridge "Bridge offset" "How far the string must swing before it touches the bridge; nearer zero buzzes sooner" maps bridge
   }
-  graph voice 27 {
+  graph voice 25 {
     # Excitation: a plectrum contact integrated into a released step by a one-frame leaky
     # integrator, then comb-filtered by the plucking point into a pulse one pick position wide.
     node pluck exciter kind impact contact 0.1ms hardness $hardness level 1
-    node integrate math operation add
-    node previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node leak math operation scale amount 0.9995
+    node integrate onepole mode leak time 0.04165s
     node pick-point delay_line mode pitch ratio $pick interpolation linear max_time 0.05s
     node picked math operation subtract
     node centred dc_block cutoff 30hz
@@ -55,10 +53,7 @@ instrument sitar "Sitar" graph {
     node out output
     bus gate note.gate -> pluck.gate
     bus velocity note.velocity -> pluck.velocity
-    bus contact pluck.audio -> integrate.a
-    bus integrated integrate.audio -> previous.audio
-    bus held previous.audio -> leak.a
-    bus leaked leak.audio -> integrate.b
+    bus contact pluck.audio -> integrate.audio
     bus pick-pitch note.pitch -> pick-point.pitch
     bus pick-in integrate.audio -> pick-point.audio
     bus direct integrate.audio -> picked.a

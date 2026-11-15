@@ -13,22 +13,19 @@ instrument felt-afterhours "Felt Afterhours" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-level note_key per_voice bipolar reference C4 range 12st
-    route key-gain-low source key-level target key-gain depth 0.100448 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    source key-gain-curve key_curve per_voice bipolar {
+      point c3 key C3 value -0.384902
+      point c4 key C4 value 0
+      point c5 key C5 value 1
     }
-    route key-gain-high source key-level target key-gain depth 0.26097 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.26097 map bipolar curve linear order 0 bypass false
   }
-  graph voice 20 {
+  graph voice 18 {
     # Hammered strings: stretched partials on two courses.
     node strike1 exciter kind impact contact 0.000648502s hardness $hardness level 1
     node body2 modal_bank profile felt-afterhours-strings max_modes 40 key_track 1 decay_scale $ring brightness 0 level 1
     node hiss3 noise level 1
-    node fall4 math operation add
-    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall4-leak math operation scale amount 0.997399221234
+    node fall4 onepole mode leak time 0.008s
     node times5 math operation multiply
     node lo-6 lowpass mode lowpass cutoff 2600hz resonance 0.308309
     node gain7 math operation scale amount 0.0277128
@@ -48,10 +45,7 @@ instrument felt-afterhours "Felt Afterhours" graph {
     bus strike1-audio-body2-audio strike1.audio -> body2.audio
     bus note-pitch-body2-pitch note.pitch -> body2.pitch
     bus note-gate-body2-gate note.gate -> body2.gate
-    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
-    bus strike1-audio-fall4-a strike1.audio -> fall4.a
-    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
-    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus strike1-audio-fall4-audio strike1.audio -> fall4.audio
     bus hiss3-audio-times5-a hiss3.audio -> times5.a
     bus fall4-audio-times5-b fall4.audio -> times5.b
     bus times5-audio-lo-6-audio times5.audio -> lo-6.audio

@@ -871,6 +871,8 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
                 validate_lfo_directives(node, diagnostics);
             } else if node.kind == NodeKind::Shaper {
                 validate_shaper_directives(node, diagnostics);
+            } else if node.kind == NodeKind::BiquadChain {
+                validate_biquad_chain_directives(node, diagnostics);
             } else if node.kind == NodeKind::Envelope {
                 validate_envelope_mode(node, diagnostics);
             } else if !node.directives.is_empty() {
@@ -1542,6 +1544,33 @@ fn validate_primitive_inputs(
                     );
                 }
             }
+            NodeKind::BiquadChain => {
+                let tracks = node.directives.iter().any(|directive| {
+                    directive
+                        .band_clauses()
+                        .is_some_and(|band| band.key_track.is_some())
+                });
+                if connected(node, "key") != tracks {
+                    error(
+                        node,
+                        format!(
+                            "biquad_chain `{}` {}",
+                            node.id,
+                            if tracks {
+                                "has key-tracked bands but no `key` input"
+                            } else {
+                                "reads `key` only when a band sets `key_track`"
+                            }
+                        ),
+                    );
+                }
+            }
+            NodeKind::Constant if node.setting("frequency").is_none() => {
+                error(
+                    node,
+                    format!("constant `{}` requires a `frequency`", node.id),
+                );
+            }
             NodeKind::OnePole => {
                 let leak = text(node, "mode", "lowpass") == "leak";
                 for (key, used) in [("cutoff", !leak), ("time", leak)] {
@@ -1570,6 +1599,109 @@ fn validate_primitive_inputs(
                 );
             }
             _ => {}
+        }
+    }
+}
+
+fn validate_biquad_chain_directives(node: &crate::model::GraphNode, diagnostics: &mut Diagnostics) {
+    use crate::model::{BIQUAD_BAND_SYNTAX, MAX_BIQUAD_CHAIN_BANDS};
+    if !(1..=MAX_BIQUAD_CHAIN_BANDS).contains(&node.directives.len()) {
+        located_error(
+            diagnostics,
+            "CRV060",
+            format!("biquad_chain requires 1..={MAX_BIQUAD_CHAIN_BANDS} bands"),
+            &node.location,
+        );
+    }
+    let mut ids = BTreeSet::new();
+    for directive in &node.directives {
+        let Some(band) = directive.band_clauses() else {
+            located_error(
+                diagnostics,
+                "CRV060",
+                BIQUAD_BAND_SYNTAX,
+                &directive.location,
+            );
+            continue;
+        };
+        if !valid_id(&band.id.value) || !ids.insert(band.id.value.as_str()) {
+            source_site_error(
+                diagnostics,
+                "CRV060",
+                "biquad_chain band ID is invalid or duplicated",
+                &band.id.site,
+            );
+        }
+        let mode = band.mode.value.as_str();
+        if !matches!(
+            mode,
+            "lowpass"
+                | "highpass"
+                | "bandpass"
+                | "notch"
+                | "peak"
+                | "lowshelf"
+                | "highshelf"
+                | "allpass"
+        ) {
+            source_site_error(
+                diagnostics,
+                "CRV060",
+                format!("unsupported biquad_chain band mode `{mode}`"),
+                &band.mode.site,
+            );
+        }
+        if let Some(gain) = band.gain
+            && !matches!(mode, "peak" | "lowshelf" | "highshelf")
+        {
+            source_site_error(
+                diagnostics,
+                "CRV060",
+                "band `gain` applies only to peak and shelf modes",
+                &gain.site,
+            );
+        }
+        if let Some(reference) = band.key_reference
+            && band.key_track.is_none()
+        {
+            source_site_error(
+                diagnostics,
+                "CRV060",
+                "band `key_reference` applies only with `key_track`",
+                &reference.site,
+            );
+        }
+        for (token, unit, low, high, name) in [
+            (
+                Some(band.frequency),
+                Unit::Hertz,
+                1.0,
+                24_000.0,
+                "frequency",
+            ),
+            (band.q, Unit::Ratio, 0.05, 64.0, "q"),
+            (band.gain, Unit::Decibels, -48.0, 48.0, "gain"),
+            (band.key_track, Unit::Ratio, 0.0, 1.0, "key_track"),
+            (
+                band.key_reference,
+                Unit::Hertz,
+                1.0,
+                24_000.0,
+                "key_reference",
+            ),
+        ] {
+            let Some(token) = token else { continue };
+            if !unit
+                .parse_value(&token.value)
+                .is_ok_and(|value| (low..=high).contains(&value))
+            {
+                source_site_error(
+                    diagnostics,
+                    "CRV060",
+                    format!("band `{name}` must be a literal {unit} value within {low}..={high}"),
+                    &token.site,
+                );
+            }
         }
     }
 }
@@ -2503,9 +2635,9 @@ fn setting_domain(kind: NodeKind, key: &str) -> Option<NumericDomain> {
             Some(NumericDomain::bounded(0.0, 1.0))
         }
         (NodeKind::DcBlock, "cutoff") => Some(NumericDomain::bounded(1.0, 500.0)),
-        (NodeKind::Biquad, "frequency" | "key_reference") | (NodeKind::OnePole, "cutoff") => {
-            Some(NumericDomain::bounded(1.0, 24_000.0))
-        }
+        (NodeKind::Biquad, "frequency" | "key_reference")
+        | (NodeKind::OnePole, "cutoff")
+        | (NodeKind::Constant, "frequency") => Some(NumericDomain::bounded(1.0, 24_000.0)),
         (NodeKind::Biquad, "q") => Some(NumericDomain::bounded(0.05, 64.0)),
         (NodeKind::Biquad, "gain") => Some(NumericDomain::bounded(-48.0, 48.0)),
         (NodeKind::Biquad, "key_track") => Some(NumericDomain::bounded(0.0, 1.0)),
@@ -2671,10 +2803,12 @@ fn node_output(kind: NodeKind, port: &str) -> Option<SignalType> {
             | NodeKind::DcBlock
             | NodeKind::LinearPhaseLowpass
             | NodeKind::Biquad
-            | NodeKind::OnePole,
+            | NodeKind::OnePole
+            | NodeKind::BiquadChain,
             "audio",
         ) => Some(SignalType::AudioMono),
         (NodeKind::StereoMath, "audio") => Some(SignalType::AudioStereo),
+        (NodeKind::Constant, "pitch") => Some(SignalType::Hertz),
         _ => None,
     }
 }
@@ -2726,9 +2860,10 @@ fn node_input(kind: NodeKind, port: &str) -> Option<SignalType> {
             | NodeKind::MonoToStereo,
             "audio",
         ) => Some(SignalType::AudioMono),
-        (NodeKind::Lowpass | NodeKind::StereoFilter | NodeKind::Biquad, "key") => {
-            Some(SignalType::Hertz)
-        }
+        (
+            NodeKind::Lowpass | NodeKind::StereoFilter | NodeKind::Biquad | NodeKind::BiquadChain,
+            "key",
+        ) => Some(SignalType::Hertz),
         (NodeKind::Lowpass | NodeKind::StereoFilter, "mod") => Some(SignalType::Control),
         (NodeKind::Lowpass | NodeKind::StereoFilter, "velocity") => Some(SignalType::Unipolar),
         (NodeKind::Amplifier, "gain") => Some(SignalType::Unipolar),
@@ -2747,7 +2882,8 @@ fn node_input(kind: NodeKind, port: &str) -> Option<SignalType> {
             | NodeKind::DcBlock
             | NodeKind::LinearPhaseLowpass
             | NodeKind::Biquad
-            | NodeKind::OnePole,
+            | NodeKind::OnePole
+            | NodeKind::BiquadChain,
             "audio",
         )
         | (NodeKind::DelayLine, "time_mod")
@@ -2771,7 +2907,7 @@ const fn required_inputs(kind: NodeKind) -> &'static [&'static str] {
         NodeKind::Multisample => &["pitch", "gate", "velocity"],
         NodeKind::Granular => &["pitch", "gate"],
         NodeKind::Spectral => &["pitch"],
-        NodeKind::Noise | NodeKind::Lfo => &[],
+        NodeKind::Noise | NodeKind::Lfo | NodeKind::Constant => &[],
         NodeKind::Envelope => &["gate"],
         NodeKind::Mixer | NodeKind::StereoMixer => &["a"],
         NodeKind::StereoSum | NodeKind::Sum => &["inputs"],
@@ -2790,7 +2926,8 @@ const fn required_inputs(kind: NodeKind) -> &'static [&'static str] {
         | NodeKind::DcBlock
         | NodeKind::LinearPhaseLowpass
         | NodeKind::Biquad
-        | NodeKind::OnePole => &["audio"],
+        | NodeKind::OnePole
+        | NodeKind::BiquadChain => &["audio"],
         NodeKind::Math | NodeKind::StereoMath => &["a"],
         NodeKind::ToAudio => &["control"],
     }
@@ -3631,6 +3768,11 @@ const fn setting_schema(kind: NodeKind) -> &'static [SettingSpec] {
                 kind: Number(Unit::Hertz),
             },
         ],
+        NodeKind::BiquadChain => &[],
+        NodeKind::Constant => &[SettingSpec {
+            key: "frequency",
+            kind: Number(Unit::Hertz),
+        }],
         NodeKind::OnePole => &[
             SettingSpec {
                 key: "mode",
@@ -3751,6 +3893,8 @@ const fn node_kind_name(kind: NodeKind) -> &'static str {
         NodeKind::LinearPhaseLowpass => "linear_phase_lowpass",
         NodeKind::Biquad => "biquad",
         NodeKind::OnePole => "onepole",
+        NodeKind::BiquadChain => "biquad_chain",
+        NodeKind::Constant => "constant",
     }
 }
 

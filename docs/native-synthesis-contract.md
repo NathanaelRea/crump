@@ -36,7 +36,7 @@ Crump does not accept a Node or setting as runnable unless parsing, validation, 
 
 ## Unsupported synthesis boundaries
 
-`analog_oscillator`, `wavetable`, `sample_source`, `multisample`, `granular`, `spectral`, `stereo_filter`, and the generic primitives `delay_line`, `math`, `stereo_math`, `shaper`, `to_audio`, `to_control`, `dc_block`, and `linear_phase_lowpass` are runnable source-v2 Nodes. Graph cycles are valid only through a `delay_line` input ([ADR 0026](adr/0026-feedback-and-waveguide-primitives.md)). Candidate headers such as `2-alpha` remain invalid, and every unknown or malformed Node/setting/directive fails closed rather than becoming a runtime no-op.
+`analog_oscillator`, `wavetable`, `sample_source`, `multisample`, `granular`, `spectral`, `stereo_filter`, and the generic primitives `delay_line`, `math`, `stereo_math`, `shaper`, `to_audio`, `to_control`, `dc_block`, `linear_phase_lowpass`, `biquad`, `onepole`, `biquad_chain`, and `constant` are runnable source-v2 Nodes. Graph cycles are valid only through a `delay_line` input ([ADR 0026](adr/0026-feedback-and-waveguide-primitives.md)). Candidate headers such as `2-alpha` remain invalid, and every unknown or malformed Node/setting/directive fails closed rather than becoming a runtime no-op.
 
 The current runnable model has no:
 

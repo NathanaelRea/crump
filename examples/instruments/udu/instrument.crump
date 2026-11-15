@@ -3,8 +3,6 @@ instrument udu "Udu" graph {
   polyphony 4
   parameter upper-stroke "Upper stroke" ratio 0 1 0 0 modulatable
   parameter lower-stroke "Lower stroke" ratio 0 1 1 1 modulatable
-  parameter hold-tone6 "Fixed pitch" semitones -48st 48st -18.8631st -18.8631st modulatable
-  parameter hold-tone32 "Fixed pitch" semitones -48st 48st -11.1999st -11.1999st modulatable
   parameter ring "Ring" ratio 0.1 4 1 1
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
@@ -15,36 +13,28 @@ instrument udu "Udu" graph {
   }
   modulation {
     source key-step note_key per_voice unipolar reference C4 range 1st
-    source key-position note_key per_voice bipolar reference C4 range 48st
     route key-upper source key-step target upper-stroke depth 1 map unipolar curve linear order 0 bypass false
     route key-lower source key-step target lower-stroke depth -1 map unipolar curve linear order 0 bypass false
-    route hold-tone6-key source key-position target hold-tone6 depth -48st map bipolar curve linear order 0 bypass false
-    route hold-tone32-key source key-position target hold-tone32 depth -48st map bipolar curve linear order 0 bypass false
   }
-  graph voice 55 {
+  graph voice 49 {
     # Layers of simpler models, each peak-normalised.
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall1 math operation add
-    node fall1-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall1-leak math operation scale amount 0.999702425237
-    node fall2 math operation add
-    node fall2-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall2-leak math operation scale amount 0.999861120756
+    node fall1 onepole mode leak time 0.07s
+    node fall2 onepole mode leak time 0.15s
     node fall3 math operation add
     node fall3-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
     node fall3-leak math operation scale amount 1
     node hold4 math operation min
     node gain5 math operation scale amount 1.7046
-    node tone6 analog_oscillator waveform sine coarse $hold-tone6 level 1.41421 fm_depth -7.45786st am_mode ring am_depth 1
+    node tone6-pitch constant frequency 88hz
+    node tone6 analog_oscillator waveform sine level 1.41421 fm_depth -7.45786st am_mode ring am_depth 1
     node tone6-mono stereo_to_mono
     node gain7 math operation scale amount 1
     node gain8 math operation scale amount 1
     node strike9 exciter kind impact contact 0.000672222s hardness 0.3 level 1
     node body10 modal_bank profile udu-bass-l1-body max_modes 3 key_track 0 decay_scale $ring brightness 0 level 1
     node hiss11 noise level 1
-    node fall12 math operation add
-    node fall12-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall12-leak math operation scale amount 0.989637398915
+    node fall12 onepole mode leak time 0.002s
     node times13 math operation multiply
     node hi-14 lowpass mode highpass cutoff 2000hz resonance 0.308309
     node lo-15 lowpass mode lowpass cutoff 12000hz resonance 0.308309
@@ -63,10 +53,9 @@ instrument udu "Udu" graph {
     node gain28 math operation scale amount 1.22605
     node plus29 math operation add
     node gain30 math operation scale amount 0.306328
-    node fall31 math operation add
-    node fall31-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall31-leak math operation scale amount 0.999791688367
-    node tone32 analog_oscillator waveform sine coarse $hold-tone32 level 1.41421 am_mode ring am_depth 1
+    node fall31 onepole mode leak time 0.1s
+    node tone32-pitch constant frequency 137hz
+    node tone32 analog_oscillator waveform sine level 1.41421 am_mode ring am_depth 1
     node tone32-mono stereo_to_mono
     node gain33 math operation scale amount 1
     node gain34 math operation scale amount 0.0254561
@@ -80,14 +69,8 @@ instrument udu "Udu" graph {
     node out output
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall1-audio-fall1-previous-audio fall1.audio -> fall1-previous.audio
-    bus onset-audio-fall1-a onset.audio -> fall1.a
-    bus fall1-previous-audio-fall1-leak-a fall1-previous.audio -> fall1-leak.a
-    bus fall1-leak-audio-fall1-b fall1-leak.audio -> fall1.b
-    bus fall2-audio-fall2-previous-audio fall2.audio -> fall2-previous.audio
-    bus onset-audio-fall2-a onset.audio -> fall2.a
-    bus fall2-previous-audio-fall2-leak-a fall2-previous.audio -> fall2-leak.a
-    bus fall2-leak-audio-fall2-b fall2-leak.audio -> fall2.b
+    bus onset-audio-fall1-audio onset.audio -> fall1.audio
+    bus onset-audio-fall2-audio onset.audio -> fall2.audio
     bus fall3-audio-fall3-previous-audio fall3.audio -> fall3-previous.audio
     bus onset-audio-fall3-a onset.audio -> fall3.a
     bus fall3-previous-audio-fall3-leak-a fall3-previous.audio -> fall3-leak.a
@@ -95,7 +78,7 @@ instrument udu "Udu" graph {
     bus fall3-audio-hold4-a fall3.audio -> hold4.a
     bus fall2-audio-gain5-a fall2.audio -> gain5.a
     bus gain5-audio-hold4-b gain5.audio -> hold4.b
-    bus note-pitch-tone6-pitch note.pitch -> tone6.pitch
+    bus tone6-pitch-pitch-tone6-pitch tone6-pitch.pitch -> tone6.pitch
     bus fall1-audio-tone6-fm fall1.audio -> tone6.fm
     bus hold4-audio-tone6-am hold4.audio -> tone6.am
     bus tone6-audio-tone6-mono-audio tone6.audio -> tone6-mono.audio
@@ -106,10 +89,7 @@ instrument udu "Udu" graph {
     bus strike9-audio-body10-audio strike9.audio -> body10.audio
     bus note-pitch-body10-pitch note.pitch -> body10.pitch
     bus note-gate-body10-gate note.gate -> body10.gate
-    bus fall12-audio-fall12-previous-audio fall12.audio -> fall12-previous.audio
-    bus onset-audio-fall12-a onset.audio -> fall12.a
-    bus fall12-previous-audio-fall12-leak-a fall12-previous.audio -> fall12-leak.a
-    bus fall12-leak-audio-fall12-b fall12-leak.audio -> fall12.b
+    bus onset-audio-fall12-audio onset.audio -> fall12.audio
     bus hiss11-audio-times13-a hiss11.audio -> times13.a
     bus fall12-audio-times13-b fall12.audio -> times13.b
     bus times13-audio-hi-14-audio times13.audio -> hi-14.audio
@@ -135,11 +115,8 @@ instrument udu "Udu" graph {
     bus body23-audio-plus29-a body23.audio -> plus29.a
     bus gain28-audio-plus29-b gain28.audio -> plus29.b
     bus plus29-audio-gain30-a plus29.audio -> gain30.a
-    bus fall31-audio-fall31-previous-audio fall31.audio -> fall31-previous.audio
-    bus onset-audio-fall31-a onset.audio -> fall31.a
-    bus fall31-previous-audio-fall31-leak-a fall31-previous.audio -> fall31-leak.a
-    bus fall31-leak-audio-fall31-b fall31-leak.audio -> fall31.b
-    bus note-pitch-tone32-pitch note.pitch -> tone32.pitch
+    bus onset-audio-fall31-audio onset.audio -> fall31.audio
+    bus tone32-pitch-pitch-tone32-pitch tone32-pitch.pitch -> tone32.pitch
     bus fall31-audio-tone32-am fall31.audio -> tone32.am
     bus tone32-audio-tone32-mono-audio tone32.audio -> tone32-mono.audio
     bus tone32-mono-audio-gain33-a tone32-mono.audio -> gain33.a

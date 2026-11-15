@@ -13,40 +13,31 @@ instrument kit-toms "Kit Toms" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-level note_key per_voice bipolar reference C3 range 12st
-    route key-gain-low source key-level target key-gain depth -0.110825 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    source key-gain-curve key_curve per_voice unipolar {
+      point c2 key C2 value 0.74815
+      point c3 key C3 value 0
+      point c4 key C4 value 1
     }
-    route key-gain-high source key-level target key-gain depth 0.148132 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.148132 map unipolar curve linear order 0 bypass false
   }
-  graph voice 53 {
+  graph voice 39 {
     # Layers of simpler models tuned to the key, each peak-normalised.
     node strike1 exciter kind impact contact 0.00183586s hardness $hardness level 1
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall2 math operation add
-    node fall2-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall2-leak math operation scale amount 0.999940477962
-    node fall3 math operation add
-    node fall3-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall3-leak math operation scale amount 0.99877526041
+    node fall2 onepole mode leak time 0.35s
+    node fall3 onepole mode leak time 0.017s
     node tone4 analog_oscillator waveform sine coarse 0st level 1.41421 fm_depth 3.86314st am_mode ring am_depth 1
     node tone4-mono stereo_to_mono
     node body5 modal_bank profile kit-toms-l0-head max_modes 9 key_track 1 decay_scale $ring brightness 0 level 1
     node hiss6 noise level 1
-    node fall7 math operation add
-    node fall7-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall7-leak math operation scale amount 0.994805206518
+    node fall7 onepole mode leak time 0.004s
     node times8 math operation multiply
     node hi-9 lowpass mode highpass cutoff 600hz resonance 0.308309
     node lo-10 lowpass mode lowpass cutoff 9000hz resonance 0.308309
     node gain11 math operation scale amount 0.207846
     node mix12 sum max_inputs 3
     node gain13 math operation scale amount 0.432381
-    node fall14 math operation add
-    node fall14-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall14-leak math operation scale amount 0.999167013792
+    node fall14 onepole mode leak time 0.025s
     node shape15 shaper {
       curve table
       drive 1
@@ -68,21 +59,15 @@ instrument kit-toms "Kit Toms" graph {
       point p14 input 1.12 output 1.09673
       point p15 input 1.2 output 1.15917
     }
-    node fall16 math operation add
-    node fall16-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall16-leak math operation scale amount 0.999895838758
+    node fall16 onepole mode leak time 0.2s
     node tone17 analog_oscillator waveform sine coarse -6.17488st level 1.41421 fm_depth 7.01955st am_mode ring am_depth 1
     node tone17-mono stereo_to_mono
     node gain18 math operation scale amount 1
     node gain19 math operation scale amount 0.713448
     node hiss20 noise level 1
-    node fall21 math operation add
-    node fall21-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall21-leak math operation scale amount 0.999305796626
+    node fall21 onepole mode leak time 0.03s
     node rise22 math operation subtract
-    node fall23 math operation add
-    node fall23-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall23-leak math operation scale amount 0.958523584552
+    node fall23 onepole mode leak time 0.0004918s
     node gain24 math operation scale amount 1.08876
     node times25 math operation multiply
     node hi-26 lowpass mode highpass cutoff 500hz resonance 0.308309
@@ -100,14 +85,8 @@ instrument kit-toms "Kit Toms" graph {
     bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall2-audio-fall2-previous-audio fall2.audio -> fall2-previous.audio
-    bus onset-audio-fall2-a onset.audio -> fall2.a
-    bus fall2-previous-audio-fall2-leak-a fall2-previous.audio -> fall2-leak.a
-    bus fall2-leak-audio-fall2-b fall2-leak.audio -> fall2.b
-    bus fall3-audio-fall3-previous-audio fall3.audio -> fall3-previous.audio
-    bus onset-audio-fall3-a onset.audio -> fall3.a
-    bus fall3-previous-audio-fall3-leak-a fall3-previous.audio -> fall3-leak.a
-    bus fall3-leak-audio-fall3-b fall3-leak.audio -> fall3.b
+    bus onset-audio-fall2-audio onset.audio -> fall2.audio
+    bus onset-audio-fall3-audio onset.audio -> fall3.audio
     bus note-pitch-tone4-pitch note.pitch -> tone4.pitch
     bus fall3-audio-tone4-fm fall3.audio -> tone4.fm
     bus fall2-audio-tone4-am fall2.audio -> tone4.am
@@ -115,10 +94,7 @@ instrument kit-toms "Kit Toms" graph {
     bus strike1-audio-body5-audio strike1.audio -> body5.audio
     bus note-pitch-body5-pitch note.pitch -> body5.pitch
     bus note-gate-body5-gate note.gate -> body5.gate
-    bus fall7-audio-fall7-previous-audio fall7.audio -> fall7-previous.audio
-    bus onset-audio-fall7-a onset.audio -> fall7.a
-    bus fall7-previous-audio-fall7-leak-a fall7-previous.audio -> fall7-leak.a
-    bus fall7-leak-audio-fall7-b fall7-leak.audio -> fall7.b
+    bus onset-audio-fall7-audio onset.audio -> fall7.audio
     bus hiss6-audio-times8-a hiss6.audio -> times8.a
     bus fall7-audio-times8-b fall7.audio -> times8.b
     bus times8-audio-hi-9-audio times8.audio -> hi-9.audio
@@ -128,30 +104,18 @@ instrument kit-toms "Kit Toms" graph {
     bus body5-audio-mix12-inputs body5.audio -> mix12.inputs
     bus gain11-audio-mix12-inputs gain11.audio -> mix12.inputs
     bus mix12-audio-gain13-a mix12.audio -> gain13.a
-    bus fall14-audio-fall14-previous-audio fall14.audio -> fall14-previous.audio
-    bus onset-audio-fall14-a onset.audio -> fall14.a
-    bus fall14-previous-audio-fall14-leak-a fall14-previous.audio -> fall14-leak.a
-    bus fall14-leak-audio-fall14-b fall14-leak.audio -> fall14.b
+    bus onset-audio-fall14-audio onset.audio -> fall14.audio
     bus fall14-audio-shape15-audio fall14.audio -> shape15.audio
-    bus fall16-audio-fall16-previous-audio fall16.audio -> fall16-previous.audio
-    bus onset-audio-fall16-a onset.audio -> fall16.a
-    bus fall16-previous-audio-fall16-leak-a fall16-previous.audio -> fall16-leak.a
-    bus fall16-leak-audio-fall16-b fall16-leak.audio -> fall16.b
+    bus onset-audio-fall16-audio onset.audio -> fall16.audio
     bus note-pitch-tone17-pitch note.pitch -> tone17.pitch
     bus shape15-audio-tone17-fm shape15.audio -> tone17.fm
     bus fall16-audio-tone17-am fall16.audio -> tone17.am
     bus tone17-audio-tone17-mono-audio tone17.audio -> tone17-mono.audio
     bus tone17-mono-audio-gain18-a tone17-mono.audio -> gain18.a
     bus gain18-audio-gain19-a gain18.audio -> gain19.a
-    bus fall21-audio-fall21-previous-audio fall21.audio -> fall21-previous.audio
-    bus onset-audio-fall21-a onset.audio -> fall21.a
-    bus fall21-previous-audio-fall21-leak-a fall21-previous.audio -> fall21-leak.a
-    bus fall21-leak-audio-fall21-b fall21-leak.audio -> fall21.b
+    bus onset-audio-fall21-audio onset.audio -> fall21.audio
     bus fall21-audio-rise22-a fall21.audio -> rise22.a
-    bus fall23-audio-fall23-previous-audio fall23.audio -> fall23-previous.audio
-    bus onset-audio-fall23-a onset.audio -> fall23.a
-    bus fall23-previous-audio-fall23-leak-a fall23-previous.audio -> fall23-leak.a
-    bus fall23-leak-audio-fall23-b fall23-leak.audio -> fall23.b
+    bus onset-audio-fall23-audio onset.audio -> fall23.audio
     bus fall23-audio-rise22-b fall23.audio -> rise22.b
     bus rise22-audio-gain24-a rise22.audio -> gain24.a
     bus hiss20-audio-times25-a hiss20.audio -> times25.a

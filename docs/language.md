@@ -386,7 +386,7 @@ modulation {
 }
 ```
 
-Source IDs and route IDs are unique within the Instrument. Supported sources are `port NODE.control`, `parameter KEY`, `lfo SCOPE POLARITY sine|triangle|saw|square|sample_hold free RATE|sync PERIOD [phase RATIO] [retrigger note|transport] [loop|one_shot] [forward|reverse|ping_pong]`, `note_velocity`, `note_key ... reference PITCH range SEMITONES`, `note_gate`, `note_age ... duration TIME`, and `random_hold ... rate free RATE|sync PERIOD seed INTEGER`. Graph-port and note-relative sources are `per_voice`; other sources may be `global`, `instrument`, or `per_voice`. A per-voice LFO uses note-relative time and therefore requires `retrigger note`; global and per-Track Instrument LFOs use absolute Song time and require `retrigger transport`. Omitting the token selects that scope-correct behavior. Native Envelope Control Ports are unipolar; native LFO and `to_control` Control Ports are bipolar, so graph-source declarations must use that matching polarity.
+Source IDs and route IDs are unique within the Instrument. Supported sources are `port NODE.control`, `parameter KEY`, `lfo SCOPE POLARITY sine|triangle|saw|square|sample_hold free RATE|sync PERIOD [phase RATIO] [retrigger note|transport] [loop|one_shot] [forward|reverse|ping_pong]`, `note_velocity`, `note_key ... reference PITCH range SEMITONES`, `key_curve` with nested `point` directives, `note_gate`, `note_age ... duration TIME`, and `random_hold ... rate free RATE|sync PERIOD seed INTEGER`. Graph-port and note-relative sources are `per_voice`; other sources may be `global`, `instrument`, or `per_voice`. A per-voice LFO uses note-relative time and therefore requires `retrigger note`; global and per-Track Instrument LFOs use absolute Song time and require `retrigger transport`. Omitting the token selects that scope-correct behavior. Native Envelope Control Ports are unipolar; native LFO and `to_control` Control Ports are bipolar, so graph-source declarations must use that matching polarity.
 
 A `parameter` source must name a `macro` Parameter with exact `ratio 0 1` domain. Macro routes form a validated acyclic same-frame DAG; a broader-scope consumer cannot read a macro produced by a narrower-scope route. Source and auxiliary scopes cannot require narrower state than the route's primary source. A Song-global Parameter source cannot read a macro with a Track-owned Pattern lock, because no singular Track projection exists at global scope; that combination fails validation. Random holds derive repeatable values from Project/Instrument/source identity, authored seed, durable Track or voice/note-event identity as required by scope, and exact hold index; callback grouping does not participate.
 
@@ -467,6 +467,8 @@ Graph Nodes:
 | `linear_phase_lowpass` | mono `audio` | mono `audio` | `amount` |
 | `biquad` | mono `audio`, optional `key` | mono `audio` | `mode`, `frequency`, `q`, `gain`, `key_track`, `key_reference` |
 | `onepole` | mono `audio` | mono `audio` | `mode`, `cutoff`, `time` |
+| `biquad_chain` | mono `audio`, optional `key` | mono `audio` | 1–32 `band` directives |
+| `constant` | — | `pitch` | `frequency` |
 | `output` | stereo `audio` | — | — |
 
 `noise` produces deterministic, centered uniform white noise in `[-1, 1)` before applying `level`; unit-level RMS approaches `1 / sqrt(3)`. A previous unsigned-to-signed scaling bug produced positive-only noise at roughly 1/256 of the intended AC amplitude. Corrected renders therefore change the balance of existing graphs that use this Node. The acoustic `exciter` and `modal_bank` generators do not use that noise path.
@@ -542,6 +544,39 @@ bus back decay.audio -> excite.b
 `math` applies `add`, `subtract`, `multiply`, `min` or `max` to `a` and `b`, or `abs`, `negate`, `offset` (`a + amount`) or `scale` (`a × amount`) to `a` alone. A binary operation requires `b`, a unary one rejects it, and `amount` (−64–64) applies only to offset (default 0) and scale (default 1). `stereo_math` applies the same law to each channel. `shaper` evaluates its curve at `drive × audio + bias` (drive 0–64, default 1; bias −16–16). The curves are `tanh`, `hard_clip` (±1), `soft_clip` (cubic, ±1), `one_sided` (negative values become 0), `asymmetric` (tanh, with the negative side limited to `1 / (1 + 3 × asymmetry)`), and `table`, which interpolates its points linearly and holds the end values beyond them. `to_audio` passes a uni- or bipolar Control into mono Audio, for example an envelope into `analog_oscillator.fm` or `delay_line.time_mod`. `to_control` turns mono Audio into bipolar Control clamped to `-1…1`. Its `control` output may feed Control inputs or an Instrument-owned `port NODE.control per_voice bipolar` Modulation source. `dc_block` is a first-order high-pass (1–500 Hz, default 20 Hz). `linear_phase_lowpass` is the symmetric filter `g·x[n] + (1 − 2g)·x[n−1] + g·x[n−2]` with `g = amount / 4` (default 0.5). Its response is never negative, so it delays every frequency by exactly one frame, and `tune_compensation 1` cancels it.
 
 `biquad` is a second-order filter with the Audio EQ Cookbook responses: `lowpass`, `highpass`, `bandpass` (0 dB at its centre), `notch`, `peak`, `lowshelf`, `highshelf` and `allpass` (default `lowpass`). `frequency` is 1 Hz–24 kHz (default 1 kHz), held below 0.49 of the sample rate; `q` is 0.05–64 (default 0.7071); `gain` (−48–48 dB) applies only to `peak` and the shelves. A connected `key` multiplies the frequency by `(key / key_reference) ^ key_track`, so a body resonance stays fixed with `key_track 0` and a formant or string-stiffness all-pass follows the note with `key_track 1`; `key` requires `key_track`. Coefficients are recomputed only when the frequency, Q or gain changes. An all-pass passes every frequency at unit level, so a chain of them inside a string loop makes the upper partials sharp, as a stiff string does. `onepole` is first order: `lowpass` and `highpass` (complementary, `cutoff` 1 Hz–24 kHz), or `leak`, `y = x + e^(−1 / (time × rate)) × y[n−1]` with `time` 10 μs–60 s. A short strike into a leak becomes an exact exponential decay with e-folding `time`, so one Node replaces an envelope loop; `cutoff` applies only to the filters and `time` only to the leak. Both recover from a non-finite input by resetting.
+
+`biquad_chain` runs 1–32 `biquad` bands in series, for a bank of fitted formants, a set of phase-spreading all-passes, or a high-pass and low-pass that band-limit a noise:
+
+```crump
+node formants biquad_chain {
+  band chest mode peak frequency 472hz q 2.5 gain 15db
+  band bright mode highshelf frequency 2.1khz gain -2.7db
+  band below-note mode highpass frequency 157hz key_track 1
+}
+bus key note.pitch -> formants.key
+```
+
+Each band is `band ID mode MODE frequency HZ` followed by optional `q`, `gain`, `key_track` and `key_reference` clauses in any order, each at most once. Modes, domains and defaults are those of `biquad`, and each band processes exactly as a separate `biquad` Node would, so a chain sounds identical to the Nodes it replaces while counting as one Node. Band values are literals: a band that must follow a Parameter stays a `biquad` Node, and editing any band restarts the Node's state. The chain reads `key` only when at least one band sets `key_track`, and a band with `key_track` requires the connected `key`. Each band costs the work of one `biquad`.
+
+`constant` outputs a fixed `frequency` (1 Hz–24 kHz, Parameter-bindable) on a `pitch` port typed like `note.pitch`. It drives any `pitch` or `key` input that must not follow the played note: a drum machine's oscillators, a drone, or a body resonance:
+
+```crump
+node drone-pitch constant frequency 110hz
+bus drone-pitch drone-pitch.pitch -> drone.pitch
+```
+
+A `key_curve` Modulation source is a piecewise-linear curve over the played key:
+
+```crump
+source register key_curve per_voice bipolar {
+  point low key E3 value 0
+  point mid key A#4 value -1
+  point high key E6 value -0.74
+}
+route register-by-key source register target register depth 0.82 map bipolar curve linear order 0 bypass false
+```
+
+It declares 2–64 `point ID key PITCH value VALUE` directives with unique IDs, strictly increasing keys, and values within the source's polarity (`0…1` unipolar, `-1…1` bipolar). Between points it interpolates linearly in semitones; beyond the end points it holds the end values. It is note-relative, so it requires `per_voice` scope. One `key_curve` route replaces a stack of clamped `note_key` routes that draw a register curve.
 
 Validation bounds a loop's ranges, memory and work, but it cannot prove the loop stable. In a voice or shared runtime that contains a `delay_line`, a non-finite Node output anywhere in the graph, a loop or output sample above +60 dBFS, or a loop or output continuously above +24 dBFS for 50 ms mutes the runtime and resets its state. A muted voice ends, and the next note starts from silence. Runtime telemetry and the render manifest's `feedback_mutes` count mutes, and `crump render` prints a warning when the count is not zero. Each `delay_line` costs four work units and its buffer. The [waveguide examples](../examples/waveguides/README.md) build a plucked string, a sitar and a clarinet this way.
 

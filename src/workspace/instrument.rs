@@ -716,8 +716,10 @@ fn node_section(kind: NodeKind, domain: GraphDomain) -> PresentationSectionKind 
         | NodeKind::DcBlock
         | NodeKind::LinearPhaseLowpass
         | NodeKind::Biquad
-        | NodeKind::OnePole => PresentationSectionKind::Filters,
+        | NodeKind::OnePole
+        | NodeKind::BiquadChain => PresentationSectionKind::Filters,
         NodeKind::DelayLine
+        | NodeKind::Constant
         | NodeKind::Math
         | NodeKind::StereoMath
         | NodeKind::Shaper

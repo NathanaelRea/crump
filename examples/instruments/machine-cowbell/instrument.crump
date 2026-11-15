@@ -1,8 +1,6 @@
 crump-module 2
 instrument machine-cowbell "Machine Cowbell" graph {
   polyphony 4
-  parameter hold-tone1 "Fixed pitch" semitones -48st 48st 12.5455st 12.5455st modulatable
-  parameter hold-tone2 "Fixed pitch" semitones -48st 48st 19.35st 19.35st modulatable
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
   faceplate {
@@ -10,28 +8,23 @@ instrument machine-cowbell "Machine Cowbell" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-position note_key per_voice bipolar reference C4 range 48st
-    route hold-tone1-key source key-position target hold-tone1 depth -48st map bipolar curve linear order 0 bypass false
-    route hold-tone2-key source key-position target hold-tone2 depth -48st map bipolar curve linear order 0 bypass false
   }
-  graph voice 24 {
+  graph voice 22 {
     # A drum-machine voice: swept sine, square clusters, noise and click.
-    node tone1 analog_oscillator waveform square coarse $hold-tone1 level 1.11072
+    node tone1-pitch constant frequency 540hz
+    node tone1 analog_oscillator waveform square level 1.11072
     node tone1-mono stereo_to_mono
-    node tone2 analog_oscillator waveform square coarse $hold-tone2 level 1.11072
+    node tone2-pitch constant frequency 800hz
+    node tone2 analog_oscillator waveform square level 1.11072
     node tone2-mono stereo_to_mono
     node plus3 math operation add
     node hi-4 lowpass mode highpass cutoff 450hz resonance 0.308309
     node lo-5 lowpass mode lowpass cutoff 5000hz resonance 0.308309
     node gain6 math operation scale amount 0.342727
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall7 math operation add
-    node fall7-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall7-leak math operation scale amount 0.999167013792
+    node fall7 onepole mode leak time 0.025s
     node gain8 math operation scale amount 0.65
-    node fall9 math operation add
-    node fall9-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall9-leak math operation scale amount 0.999925598006
+    node fall9 onepole mode leak time 0.28s
     node gain10 math operation scale amount 0.35
     node plus11 math operation add
     node times12 math operation multiply
@@ -40,9 +33,9 @@ instrument machine-cowbell "Machine Cowbell" graph {
     node level math operation scale amount $level
     node place pan position $pan
     node out output
-    bus note-pitch-tone1-pitch note.pitch -> tone1.pitch
+    bus tone1-pitch-pitch-tone1-pitch tone1-pitch.pitch -> tone1.pitch
     bus tone1-audio-tone1-mono-audio tone1.audio -> tone1-mono.audio
-    bus note-pitch-tone2-pitch note.pitch -> tone2.pitch
+    bus tone2-pitch-pitch-tone2-pitch tone2-pitch.pitch -> tone2.pitch
     bus tone2-audio-tone2-mono-audio tone2.audio -> tone2-mono.audio
     bus tone1-mono-audio-plus3-a tone1-mono.audio -> plus3.a
     bus tone2-mono-audio-plus3-b tone2-mono.audio -> plus3.b
@@ -51,15 +44,9 @@ instrument machine-cowbell "Machine Cowbell" graph {
     bus lo-5-audio-gain6-a lo-5.audio -> gain6.a
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall7-audio-fall7-previous-audio fall7.audio -> fall7-previous.audio
-    bus onset-audio-fall7-a onset.audio -> fall7.a
-    bus fall7-previous-audio-fall7-leak-a fall7-previous.audio -> fall7-leak.a
-    bus fall7-leak-audio-fall7-b fall7-leak.audio -> fall7.b
+    bus onset-audio-fall7-audio onset.audio -> fall7.audio
     bus fall7-audio-gain8-a fall7.audio -> gain8.a
-    bus fall9-audio-fall9-previous-audio fall9.audio -> fall9-previous.audio
-    bus onset-audio-fall9-a onset.audio -> fall9.a
-    bus fall9-previous-audio-fall9-leak-a fall9-previous.audio -> fall9-leak.a
-    bus fall9-leak-audio-fall9-b fall9-leak.audio -> fall9.b
+    bus onset-audio-fall9-audio onset.audio -> fall9.audio
     bus fall9-audio-gain10-a fall9.audio -> gain10.a
     bus gain8-audio-plus11-a gain8.audio -> plus11.a
     bus gain10-audio-plus11-b gain10.audio -> plus11.b

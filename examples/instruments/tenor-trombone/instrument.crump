@@ -19,65 +19,30 @@ instrument tenor-trombone "Tenor Trombone" graph {
   }
   modulation {
     source velocity note_velocity per_voice unipolar
-    source key-from-d2-3 note_key per_voice bipolar reference D2 range 3st
-    source key-from-f2-3 note_key per_voice bipolar reference F2 range 3st
-    source key-from-gs2-3 note_key per_voice bipolar reference G#2 range 3st
-    source key-from-b2-3 note_key per_voice bipolar reference B2 range 3st
-    source key-from-d3-3 note_key per_voice bipolar reference D3 range 3st
-    source key-from-f3-3 note_key per_voice bipolar reference F3 range 3st
-    source key-from-gs3-3 note_key per_voice bipolar reference G#3 range 3st
-    source key-from-b3-3 note_key per_voice bipolar reference B3 range 3st
-    source key-from-d4-3 note_key per_voice bipolar reference D4 range 3st
-    source key-from-f4-3 note_key per_voice bipolar reference F4 range 3st
-    source key-from-gs4-3 note_key per_voice bipolar reference G#4 range 3st
-    source key-from-b4-3 note_key per_voice bipolar reference B4 range 3st
-    source key-from-d5-3 note_key per_voice bipolar reference D5 range 3st
-    source key-from-f5-2 note_key per_voice bipolar reference F5 range 2st
+    source register-curve key_curve per_voice bipolar {
+      point d2 key D2 value 0
+      point f2 key F2 value -0.12001
+      point gs2 key G#2 value -0.260756
+      point b2 key B2 value -0.260756
+      point d3 key D3 value -0.452667
+      point f3 key F3 value -0.537627
+      point gs3 key G#3 value -0.637268
+      point b3 key B3 value -0.668252
+      point d4 key D4 value -0.745831
+      point f4 key F4 value -0.808092
+      point gs4 key G#4 value -0.925752
+      point b4 key B4 value -0.967414
+      point d5 key D5 value -0.98719
+      point f5 key F5 value -1
+      point g5 key G5 value -0.98719
+    }
     route attack-velocity source velocity target attack depth -0.0085111s map unipolar curve linear order 0 bypass false
     route vibrato-depth-velocity source velocity target vibrato-depth depth 0.141992 map unipolar curve linear order 0 bypass false
     route noise-velocity source velocity target noise depth -0.147407 map unipolar curve linear order 0 bypass false
-    route register-1 source key-from-d2-3 target register depth -0.136114 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-2 source key-from-f2-3 target register depth -0.159633 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-4 source key-from-b2-3 target register depth -0.217663 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-5 source key-from-d3-3 target register depth -0.096361 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-6 source key-from-f3-3 target register depth -0.113011 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-7 source key-from-gs3-3 target register depth -0.0351422 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-8 source key-from-b3-3 target register depth -0.0879892 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-9 source key-from-d4-3 target register depth -0.0706157 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-10 source key-from-f4-3 target register depth -0.133449 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-11 source key-from-gs4-3 target register depth -0.0472523 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-12 source key-from-b4-3 target register depth -0.02243 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-13 source key-from-d5-3 target register depth -0.0145287 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-14 source key-from-f5-2 target register depth 0.0145287 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route register-by-key source register-curve target register depth 1.13419 map bipolar curve linear order 0 bypass false
     route dynamics-velocity source velocity target dynamics depth 0.642857 map unipolar curve linear order 0 bypass false
   }
-  graph voice 57 {
+  graph voice 43 {
     # A breath-driven tone: an oscillator and breath noise through fixed formants.
     node breath envelope mode adsr attack $attack decay 0.15s sustain 0.9 release $release attack_curve 0.3
     node breath-audio to_audio
@@ -105,28 +70,32 @@ instrument tenor-trombone "Tenor Trombone" graph {
     node tone-drive to_control
     node brightness lowpass mode lowpass cutoff 206.433hz resonance 0.1 mod_depth 2612.83hz velocity_depth 2500hz key_track 0.586037 key_reference 261.626hz
     node brightness2 lowpass mode lowpass cutoff 206.433hz resonance 0.1 mod_depth 2612.83hz velocity_depth 2500hz key_track 0.586037 key_reference 261.626hz
-    node air-low biquad mode highpass frequency 236.032hz q 0.7071
-    node air-band biquad mode lowpass frequency 1500hz q 0.7071
+    node air-filter biquad_chain {
+      band air-low mode highpass frequency 236.032hz q 0.7071
+      band air-band mode lowpass frequency 1500hz q 0.7071
+    }
     node steady-air math operation scale amount 0.5
     node pulsed-air math operation scale amount 1.46478
     node air-drive sum max_inputs 2
     node breath-noise math operation multiply
     node breath-level math operation scale amount $noise
     node voice sum max_inputs 2
-    node formant1 biquad mode peak frequency 101.89hz q 0.5 gain -15db
-    node formant2 biquad mode peak frequency 86.7976hz q 2.19697 gain -10.9843db
-    node formant3 biquad mode peak frequency 1243.74hz q 0.600392 gain 14.9999db
-    node formant4 biquad mode peak frequency 438.687hz q 2.5 gain 7.03533db
-    node formant5 biquad mode peak frequency 3745.74hz q 1.25102 gain 6.3554db
-    node formant6 biquad mode peak frequency 7316.29hz q 1.93932 gain 14.9988db
-    node formant7 biquad mode lowshelf frequency 93.4089hz q 0.7071 gain -7.33814db
-    node formant8 biquad mode highshelf frequency 3284.45hz q 0.7071 gain 4.10952db
-    node formant9 biquad mode peak frequency 112.976hz q 2.4977 gain -2.6933db
-    node formant10 biquad mode peak frequency 78.1462hz q 2.36086 gain -0.790396db
-    node formant11 biquad mode peak frequency 744.735hz q 0.5 gain -2.01227db
-    node formant12 biquad mode peak frequency 6837.83hz q 1.23523 gain -7.26546db
-    node below-note biquad mode highpass frequency 156.975hz q 0.7071 key_track 1 key_reference 261.626hz
-    node radiation biquad mode highpass frequency 40hz q 0.7071
+    node formants biquad_chain {
+      band formant1 mode peak frequency 101.89hz q 0.5 gain -15db
+      band formant2 mode peak frequency 86.7976hz q 2.19697 gain -10.9843db
+      band formant3 mode peak frequency 1243.74hz q 0.600392 gain 14.9999db
+      band formant4 mode peak frequency 438.687hz q 2.5 gain 7.03533db
+      band formant5 mode peak frequency 3745.74hz q 1.25102 gain 6.3554db
+      band formant6 mode peak frequency 7316.29hz q 1.93932 gain 14.9988db
+      band formant7 mode lowshelf frequency 93.4089hz q 0.7071 gain -7.33814db
+      band formant8 mode highshelf frequency 3284.45hz q 0.7071 gain 4.10952db
+      band formant9 mode peak frequency 112.976hz q 2.4977 gain -2.6933db
+      band formant10 mode peak frequency 78.1462hz q 2.36086 gain -0.790396db
+      band formant11 mode peak frequency 744.735hz q 0.5 gain -2.01227db
+      band formant12 mode peak frequency 6837.83hz q 1.23523 gain -7.26546db
+      band below-note mode highpass frequency 156.975hz q 0.7071 key_track 1 key_reference 261.626hz
+      band radiation mode highpass frequency 40hz q 0.7071
+    }
     node shimmer-depth math operation scale amount 1.00987
     node shimmer math operation offset amount 1
     node alive math operation multiply
@@ -173,35 +142,21 @@ instrument tenor-trombone "Tenor Trombone" graph {
     bus tone-drive-control-brightness2-mod tone-drive.control -> brightness2.mod
     bus note-velocity-brightness2-velocity note.velocity -> brightness2.velocity
     bus note-pitch-brightness2-key note.pitch -> brightness2.key
-    bus air-audio-air-low-audio air.audio -> air-low.audio
-    bus air-low-audio-air-band-audio air-low.audio -> air-band.audio
+    bus air-audio-air-filter-audio air.audio -> air-filter.audio
     bus breath-audio-audio-steady-air-a breath-audio.audio -> steady-air.a
     bus reed-mono-audio-pulsed-air-a reed-mono.audio -> pulsed-air.a
     bus steady-air-audio-air-drive-inputs steady-air.audio -> air-drive.inputs
     bus pulsed-air-audio-air-drive-inputs pulsed-air.audio -> air-drive.inputs
-    bus air-band-audio-breath-noise-a air-band.audio -> breath-noise.a
+    bus air-filter-audio-breath-noise-a air-filter.audio -> breath-noise.a
     bus air-drive-audio-breath-noise-b air-drive.audio -> breath-noise.b
     bus breath-noise-audio-breath-level-a breath-noise.audio -> breath-level.a
     bus brightness2-audio-voice-inputs brightness2.audio -> voice.inputs
     bus breath-level-audio-voice-inputs breath-level.audio -> voice.inputs
-    bus voice-audio-formant1-audio voice.audio -> formant1.audio
-    bus formant1-audio-formant2-audio formant1.audio -> formant2.audio
-    bus formant2-audio-formant3-audio formant2.audio -> formant3.audio
-    bus formant3-audio-formant4-audio formant3.audio -> formant4.audio
-    bus formant4-audio-formant5-audio formant4.audio -> formant5.audio
-    bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
-    bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
-    bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
-    bus formant8-audio-formant9-audio formant8.audio -> formant9.audio
-    bus formant9-audio-formant10-audio formant9.audio -> formant10.audio
-    bus formant10-audio-formant11-audio formant10.audio -> formant11.audio
-    bus formant11-audio-formant12-audio formant11.audio -> formant12.audio
-    bus formant12-audio-below-note-audio formant12.audio -> below-note.audio
-    bus note-pitch-below-note-key note.pitch -> below-note.key
-    bus below-note-audio-radiation-audio below-note.audio -> radiation.audio
+    bus voice-audio-formants-audio voice.audio -> formants.audio
+    bus note-pitch-formants-key note.pitch -> formants.key
     bus flutter-audio-shimmer-depth-a flutter.audio -> shimmer-depth.a
     bus shimmer-depth-audio-shimmer-a shimmer-depth.audio -> shimmer.a
-    bus radiation-audio-alive-a radiation.audio -> alive.a
+    bus formants-audio-alive-a formants.audio -> alive.a
     bus shimmer-audio-alive-b shimmer.audio -> alive.b
     bus alive-audio-register-level-a alive.audio -> register-level.a
     bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a

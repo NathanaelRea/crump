@@ -15,117 +15,55 @@ instrument mandolin "Mandolin" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-c4-24 note_key per_voice bipolar reference C4 range 24st
-    source key-from-c1-24 note_key per_voice bipolar reference C1 range 24st
-    source key-from-c3-12 note_key per_voice bipolar reference C3 range 12st
-    source key-from-c4-6 note_key per_voice bipolar reference C4 range 6st
-    source key-from-fs4-6 note_key per_voice bipolar reference F#4 range 6st
-    source key-from-c5-6 note_key per_voice bipolar reference C5 range 6st
-    source key-from-fs5-6 note_key per_voice bipolar reference F#5 range 6st
-    source key-from-c6-6 note_key per_voice bipolar reference C6 range 6st
-    source key-from-fs6-18 note_key per_voice bipolar reference F#6 range 18st
-    source key-from-g3-3 note_key per_voice bipolar reference G3 range 3st
-    source key-from-as3-3 note_key per_voice bipolar reference A#3 range 3st
-    source key-from-cs4-3 note_key per_voice bipolar reference C#4 range 3st
-    source key-from-e4-3 note_key per_voice bipolar reference E4 range 3st
-    source key-from-g4-3 note_key per_voice bipolar reference G4 range 3st
-    source key-from-as4-3 note_key per_voice bipolar reference A#4 range 3st
-    source key-from-cs5-3 note_key per_voice bipolar reference C#5 range 3st
-    source key-from-e5-3 note_key per_voice bipolar reference E5 range 3st
-    source key-from-g5-3 note_key per_voice bipolar reference G5 range 3st
-    source key-from-as5-3 note_key per_voice bipolar reference A#5 range 3st
-    source key-from-cs6-3 note_key per_voice bipolar reference C#6 range 3st
     source velocity note_velocity per_voice unipolar
-    route sustain-low source key-c4-24 target sustain depth 0.00520409 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    source sustain-curve key_curve per_voice bipolar {
+      point c2 key C2 value -1
+      point c4 key C4 value 0
+      point c6 key C6 value 0.294849
     }
-    route sustain-high source key-c4-24 target sustain depth 0.00153442 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
+    source length-curve key_curve per_voice unipolar {
+      point c1 key C1 value 0
+      point c3 key C3 value 0.0494202
+      point c4 key C4 value 0.214132
+      point fs4 key F#4 value 0.451306
+      point c5 key C5 value 1
+      point fs5 key F#5 value 0.978816
+      point c6 key C6 value 0.948805
+      point fs6 key F#6 value 0.906217
+      point c8 key C8 value 0.632092
     }
-    route length-1 source key-from-c1-24 target length depth 0.00047373302 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
+    source length2-curve key_curve per_voice unipolar {
+      point c1 key C1 value 0
+      point c3 key C3 value 0.0494202
+      point c4 key C4 value 0.214132
+      point fs4 key F#4 value 0.451306
+      point c5 key C5 value 1
+      point fs5 key F#5 value 0.978816
+      point c6 key C6 value 0.948805
+      point fs6 key F#6 value 0.906217
+      point c8 key C8 value 0.632092
     }
-    route length-2 source key-from-c3-12 target length depth 0.0015788944 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
+    source register-curve key_curve per_voice bipolar {
+      point g3 key G3 value 0
+      point as3 key A#3 value 0.0175557
+      point cs4 key C#4 value 0.414658
+      point e4 key E4 value 1
+      point g4 key G4 value 0.0532775
+      point as4 key A#4 value -0.000002
+      point cs5 key C#5 value 0.244772
+      point e5 key E5 value -0.101194
+      point g5 key G5 value 0.265163
+      point as5 key A#5 value -0.117389
+      point cs6 key C#6 value 0.16552
+      point e6 key E6 value 0.34911
     }
-    route length-3 source key-from-c4-6 target length depth 0.0022735034 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-4 source key-from-fs4-6 target length depth 0.0052596806 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-5 source key-from-c5-6 target length depth -0.00020306657 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-6 source key-from-fs5-6 target length depth -0.00028767648 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-7 source key-from-c6-6 target length depth -0.00040824673 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-8 source key-from-fs6-18 target length depth -0.0026277102 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-1 source key-from-c1-24 target length2 depth 0.00047291281 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-2 source key-from-c3-12 target length2 depth 0.0015761608 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-3 source key-from-c4-6 target length2 depth 0.0022695671 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-4 source key-from-fs4-6 target length2 depth 0.0052505741 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-5 source key-from-c5-6 target length2 depth -0.00020271498 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-6 source key-from-fs5-6 target length2 depth -0.0002871784 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-7 source key-from-c6-6 target length2 depth -0.0004075399 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-8 source key-from-fs6-18 target length2 depth -0.0026231607 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-1 source key-from-g3-3 target register depth 0.0108066 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-2 source key-from-as3-3 target register depth 0.244441 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-3 source key-from-cs4-3 target register depth 0.360314 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-4 source key-from-e4-3 target register depth -0.582766 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-5 source key-from-g4-3 target register depth -0.0327966 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-6 source key-from-as4-3 target register depth 0.150673 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-7 source key-from-cs5-3 target register depth -0.212963 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-8 source key-from-e5-3 target register depth 0.225515 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-9 source key-from-g5-3 target register depth -0.235484 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-10 source key-from-as5-3 target register depth 0.174148 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-11 source key-from-cs6-3 target register depth 0.113011 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route sustain-by-key source sustain-curve target sustain depth 0.00520409 map bipolar curve linear order 0 bypass false
+    route length-by-key source length-curve target length depth 0.00958581 map unipolar curve linear order 0 bypass false
+    route length2-by-key source length2-curve target length2 depth 0.00956921 map unipolar curve linear order 0 bypass false
+    route register-by-key source register-curve target register depth 0.615562 map bipolar curve linear order 0 bypass false
     route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve linear order 0 bypass false
   }
-  graph voice 64 {
+  graph voice 51 {
     # A plucked string: a pitch-tracked loop that loses its upper partials first, then the body.
     node pluck exciter kind impact contact 0.00271466s hardness 0.6 level 1
     node scrape noise level 1
@@ -166,25 +104,29 @@ instrument mandolin "Mandolin" graph {
     node radiated math operation add
     node knock-env envelope mode adsr attack 0.001s decay 0.4s sustain 0 release 0.4s decay_curve -0.7
     node knock-env-audio to_audio
-    node knock-low biquad mode highpass frequency 150hz q 0.7071
-    node knock-band biquad mode lowpass frequency 2707.13hz q 0.7071
+    node knock-filter biquad_chain {
+      band knock-low mode highpass frequency 150hz q 0.7071
+      band knock-band mode lowpass frequency 2707.13hz q 0.7071
+    }
     node knock-burst math operation multiply
     node knock-velocity math operation multiply
     node knock-level math operation scale amount 0
     node with-knock math operation add
-    node formant1 biquad mode peak frequency 959.937hz q 0.907175 gain 14.926db
-    node formant2 biquad mode peak frequency 409.05hz q 2.5 gain -10.0964db
-    node formant3 biquad mode peak frequency 1738.33hz q 2.45973 gain 8.89384db
-    node formant4 biquad mode peak frequency 3681.52hz q 1.02006 gain -15db
-    node formant5 biquad mode peak frequency 409.224hz q 2.5 gain -10.0963db
-    node formant6 biquad mode peak frequency 9567.68hz q 0.746145 gain 14.9931db
-    node formant7 biquad mode lowshelf frequency 1000hz q 0.7071 gain 9.93689db
-    node formant8 biquad mode highshelf frequency 4566.12hz q 0.7071 gain 14.9976db
-    node formant9 biquad mode peak frequency 2543.76hz q 0.655807 gain 2.48816db
-    node formant10 biquad mode peak frequency 3080.77hz q 2.5 gain -5.84026db
-    node formant11 biquad mode peak frequency 425.208hz q 0.541809 gain 2.6054db
-    node formant12 biquad mode peak frequency 4224.94hz q 2.5 gain 15db
-    node radiation biquad mode highpass frequency 50hz q 0.7071
+    node formants biquad_chain {
+      band formant1 mode peak frequency 959.937hz q 0.907175 gain 14.926db
+      band formant2 mode peak frequency 409.05hz q 2.5 gain -10.0964db
+      band formant3 mode peak frequency 1738.33hz q 2.45973 gain 8.89384db
+      band formant4 mode peak frequency 3681.52hz q 1.02006 gain -15db
+      band formant5 mode peak frequency 409.224hz q 2.5 gain -10.0963db
+      band formant6 mode peak frequency 9567.68hz q 0.746145 gain 14.9931db
+      band formant7 mode lowshelf frequency 1000hz q 0.7071 gain 9.93689db
+      band formant8 mode highshelf frequency 4566.12hz q 0.7071 gain 14.9976db
+      band formant9 mode peak frequency 2543.76hz q 0.655807 gain 2.48816db
+      band formant10 mode peak frequency 3080.77hz q 2.5 gain -5.84026db
+      band formant11 mode peak frequency 425.208hz q 0.541809 gain 2.6054db
+      band formant12 mode peak frequency 4224.94hz q 2.5 gain 15db
+      band radiation mode highpass frequency 50hz q 0.7071
+    }
     node register-level math operation scale amount $register
     node dynamics-level math operation scale amount $dynamics
     node trim math operation scale amount 0.0937384
@@ -249,29 +191,16 @@ instrument mandolin "Mandolin" graph {
     bus wood-audio-radiated-b wood.audio -> radiated.b
     bus note-gate-knock-env-gate note.gate -> knock-env.gate
     bus knock-env-control-knock-env-audio-control knock-env.control -> knock-env-audio.control
-    bus scrape-audio-knock-low-audio scrape.audio -> knock-low.audio
-    bus knock-low-audio-knock-band-audio knock-low.audio -> knock-band.audio
-    bus knock-band-audio-knock-burst-a knock-band.audio -> knock-burst.a
+    bus scrape-audio-knock-filter-audio scrape.audio -> knock-filter.audio
+    bus knock-filter-audio-knock-burst-a knock-filter.audio -> knock-burst.a
     bus knock-env-audio-audio-knock-burst-b knock-env-audio.audio -> knock-burst.b
     bus knock-burst-audio-knock-velocity-a knock-burst.audio -> knock-velocity.a
     bus velocity-audio-audio-knock-velocity-b velocity-audio.audio -> knock-velocity.b
     bus knock-velocity-audio-knock-level-a knock-velocity.audio -> knock-level.a
     bus radiated-audio-with-knock-a radiated.audio -> with-knock.a
     bus knock-level-audio-with-knock-b knock-level.audio -> with-knock.b
-    bus with-knock-audio-formant1-audio with-knock.audio -> formant1.audio
-    bus formant1-audio-formant2-audio formant1.audio -> formant2.audio
-    bus formant2-audio-formant3-audio formant2.audio -> formant3.audio
-    bus formant3-audio-formant4-audio formant3.audio -> formant4.audio
-    bus formant4-audio-formant5-audio formant4.audio -> formant5.audio
-    bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
-    bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
-    bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
-    bus formant8-audio-formant9-audio formant8.audio -> formant9.audio
-    bus formant9-audio-formant10-audio formant9.audio -> formant10.audio
-    bus formant10-audio-formant11-audio formant10.audio -> formant11.audio
-    bus formant11-audio-formant12-audio formant11.audio -> formant12.audio
-    bus formant12-audio-radiation-audio formant12.audio -> radiation.audio
-    bus radiation-audio-register-level-a radiation.audio -> register-level.a
+    bus with-knock-audio-formants-audio with-knock.audio -> formants.audio
+    bus formants-audio-register-level-a formants.audio -> register-level.a
     bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a
     bus dynamics-level-audio-trim-a dynamics-level.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a

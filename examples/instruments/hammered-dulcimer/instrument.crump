@@ -15,149 +15,69 @@ instrument hammered-dulcimer "Hammered Dulcimer" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-c4-24 note_key per_voice bipolar reference C4 range 24st
-    source key-from-c1-24 note_key per_voice bipolar reference C1 range 24st
-    source key-from-c3-12 note_key per_voice bipolar reference C3 range 12st
-    source key-from-c4-6 note_key per_voice bipolar reference C4 range 6st
-    source key-from-fs4-6 note_key per_voice bipolar reference F#4 range 6st
-    source key-from-c5-6 note_key per_voice bipolar reference C5 range 6st
-    source key-from-fs5-6 note_key per_voice bipolar reference F#5 range 6st
-    source key-from-c6-6 note_key per_voice bipolar reference C6 range 6st
-    source key-from-fs6-18 note_key per_voice bipolar reference F#6 range 18st
-    source key-from-d3-3 note_key per_voice bipolar reference D3 range 3st
-    source key-from-f3-3 note_key per_voice bipolar reference F3 range 3st
-    source key-from-gs3-3 note_key per_voice bipolar reference G#3 range 3st
-    source key-from-b3-3 note_key per_voice bipolar reference B3 range 3st
-    source key-from-d4-3 note_key per_voice bipolar reference D4 range 3st
-    source key-from-f4-3 note_key per_voice bipolar reference F4 range 3st
-    source key-from-gs4-3 note_key per_voice bipolar reference G#4 range 3st
-    source key-from-b4-3 note_key per_voice bipolar reference B4 range 3st
-    source key-from-d5-3 note_key per_voice bipolar reference D5 range 3st
-    source key-from-f5-3 note_key per_voice bipolar reference F5 range 3st
-    source key-from-gs5-3 note_key per_voice bipolar reference G#5 range 3st
-    source key-from-b5-3 note_key per_voice bipolar reference B5 range 3st
-    source key-from-d6-2 note_key per_voice bipolar reference D6 range 2st
     source velocity note_velocity per_voice unipolar
-    route sustain-low source key-c4-24 target sustain depth 0.00310398 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    source sustain-curve key_curve per_voice bipolar {
+      point c2 key C2 value -0.498888
+      point c4 key C4 value 0
+      point c6 key C6 value 1
     }
-    route sustain-high source key-c4-24 target sustain depth 0.0062218 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
+    source length-curve key_curve per_voice unipolar {
+      point c1 key C1 value 0
+      point c3 key C3 value 0.0863656
+      point c4 key C4 value 0.38972
+      point fs4 key F#4 value 0.679557
+      point c5 key C5 value 1
+      point fs5 key F#5 value 0.972615
+      point c6 key C6 value 0.933819
+      point fs6 key F#6 value 0.878763
+      point c8 key C8 value 0.524394
     }
-    route length-1 source key-from-c1-24 target length depth 0.00096574299 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
+    source length2-curve key_curve per_voice unipolar {
+      point c1 key C1 value 0
+      point c3 key C3 value 0.0863656
+      point c4 key C4 value 0.38972
+      point fs4 key F#4 value 0.679557
+      point c5 key C5 value 1
+      point fs5 key F#5 value 0.972615
+      point c6 key C6 value 0.933819
+      point fs6 key F#6 value 0.878763
+      point c8 key C8 value 0.524394
     }
-    route length-2 source key-from-c3-12 target length depth 0.0033921139 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
+    source length3-curve key_curve per_voice unipolar {
+      point c1 key C1 value 0
+      point c3 key C3 value 0.0863656
+      point c4 key C4 value 0.38972
+      point fs4 key F#4 value 0.679557
+      point c5 key C5 value 1
+      point fs5 key F#5 value 0.972615
+      point c6 key C6 value 0.933819
+      point fs6 key F#6 value 0.878763
+      point c8 key C8 value 0.524394
     }
-    route length-3 source key-from-c4-6 target length depth 0.0032409693 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
+    source register-curve key_curve per_voice bipolar {
+      point d3 key D3 value 0
+      point f3 key F3 value -0.324049
+      point gs3 key G#3 value 0.0825364
+      point b3 key B3 value 0.0489507
+      point d4 key D4 value 0.574638
+      point f4 key F4 value 0.597421
+      point gs4 key G#4 value 0.764465
+      point b4 key B4 value -0.16569
+      point d5 key D5 value 0.691224
+      point f5 key F5 value 0.972608
+      point gs5 key G#5 value 1
+      point b5 key B5 value 0.360667
+      point d6 key D6 value 0.667367
+      point e6 key E6 value 0.301134
     }
-    route length-4 source key-from-fs4-6 target length depth 0.003583204 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-5 source key-from-c5-6 target length depth -0.00030622307 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-6 source key-from-fs5-6 target length depth -0.00043381425 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-7 source key-from-c6-6 target length depth -0.00061563336 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length-8 source key-from-fs6-18 target length depth -0.0039625668 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-1 source key-from-c1-24 target length2 depth 0.00096485087 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-2 source key-from-c3-12 target length2 depth 0.0033889803 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-3 source key-from-c4-6 target length2 depth 0.0032379753 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-4 source key-from-fs4-6 target length2 depth 0.003579894 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-5 source key-from-c5-6 target length2 depth -0.00030594019 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-6 source key-from-fs5-6 target length2 depth -0.00043341351 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-7 source key-from-c6-6 target length2 depth -0.00061506465 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length2-8 source key-from-fs6-18 target length2 depth -0.0039589063 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length3-1 source key-from-c1-24 target length3 depth 0.00096646845 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length3-2 source key-from-c3-12 target length3 depth 0.003394662 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length3-3 source key-from-c4-6 target length3 depth 0.0032434038 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length3-4 source key-from-fs4-6 target length3 depth 0.0035858957 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length3-5 source key-from-c5-6 target length3 depth -0.0003064531 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length3-6 source key-from-fs5-6 target length3 depth -0.00043414013 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length3-7 source key-from-c6-6 target length3 depth -0.00061609582 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route length3-8 source key-from-fs6-18 target length3 depth -0.0039655434 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-1 source key-from-d3-3 target register depth -0.174454 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-2 source key-from-f3-3 target register depth 0.218888 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-3 source key-from-gs3-3 target register depth -0.0180811 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-4 source key-from-b3-3 target register depth 0.283007 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-5 source key-from-d4-3 target register depth 0.0122656 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-6 source key-from-f4-3 target register depth 0.0899293 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-7 source key-from-gs4-3 target register depth -0.500755 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-8 source key-from-b4-3 target register depth 0.461325 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-9 source key-from-d5-3 target register depth 0.151485 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-10 source key-from-f5-3 target register depth 0.0147465 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-11 source key-from-gs5-3 target register depth -0.344189 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-12 source key-from-b5-3 target register depth 0.165114 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-13 source key-from-d6-2 target register depth -0.197164 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route sustain-by-key source sustain-curve target sustain depth 0.0062218 map bipolar curve linear order 0 bypass false
+    route length-by-key source length-curve target length depth 0.011182 map unipolar curve linear order 0 bypass false
+    route length2-by-key source length2-curve target length2 depth 0.0111717 map unipolar curve linear order 0 bypass false
+    route length3-by-key source length3-curve target length3 depth 0.0111904 map unipolar curve linear order 0 bypass false
+    route register-by-key source register-curve target register depth 0.538356 map bipolar curve linear order 0 bypass false
     route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve linear order 0 bypass false
   }
-  graph voice 56 {
+  graph voice 41 {
     # A plucked string: a pitch-tracked loop that loses its upper partials first, then the body.
     node pluck exciter kind impact contact 0.000304968s hardness 0.7 level 1
     node scrape noise level 1
@@ -173,21 +93,27 @@ instrument hammered-dulcimer "Hammered Dulcimer" graph {
     node share math operation scale amount 0.34
     node string delay_line mode pitch ratio $length interpolation lagrange3 max_time 0.05s
     node bridge math operation add
-    node loss biquad mode lowpass frequency 20930hz q 0.688985 key_track 1 key_reference 261.626hz
-    node stiffness biquad mode allpass frequency 13081.3hz q 0.7 key_track 1 key_reference 261.626hz
+    node loss biquad_chain {
+      band loss mode lowpass frequency 20930hz q 0.688985 key_track 1 key_reference 261.626hz
+      band stiffness mode allpass frequency 13081.3hz q 0.7 key_track 1 key_reference 261.626hz
+    }
     node return math operation scale amount $sustain
     node share2 math operation scale amount 0.33
     node string2 delay_line mode pitch ratio $length2 interpolation lagrange3 max_time 0.05s
     node bridge2 math operation add
-    node loss2 biquad mode lowpass frequency 20930hz q 0.688985 key_track 1 key_reference 261.626hz
-    node stiffness2 biquad mode allpass frequency 13081.3hz q 0.7 key_track 1 key_reference 261.626hz
+    node loss2 biquad_chain {
+      band loss2 mode lowpass frequency 20930hz q 0.688985 key_track 1 key_reference 261.626hz
+      band stiffness2 mode allpass frequency 13081.3hz q 0.7 key_track 1 key_reference 261.626hz
+    }
     node trim-loss2 math operation scale amount 0.9998
     node return2 math operation scale amount $sustain
     node share3 math operation scale amount 0.33
     node string3 delay_line mode pitch ratio $length3 interpolation lagrange3 max_time 0.05s
     node bridge3 math operation add
-    node loss3 biquad mode lowpass frequency 20930hz q 0.688985 key_track 1 key_reference 261.626hz
-    node stiffness3 biquad mode allpass frequency 13081.3hz q 0.7 key_track 1 key_reference 261.626hz
+    node loss3 biquad_chain {
+      band loss3 mode lowpass frequency 20930hz q 0.688985 key_track 1 key_reference 261.626hz
+      band stiffness3 mode allpass frequency 13081.3hz q 0.7 key_track 1 key_reference 261.626hz
+    }
     node trim-loss3 math operation scale amount 0.9997
     node return3 math operation scale amount $sustain
     node strings sum max_inputs 3
@@ -196,19 +122,21 @@ instrument hammered-dulcimer "Hammered Dulcimer" graph {
     node direct math operation scale amount 0.566483
     node wood math operation scale amount 0.433517
     node radiated math operation add
-    node formant1 biquad mode peak frequency 418.908hz q 1.35104 gain 13.3408db
-    node formant2 biquad mode peak frequency 4108.5hz q 2.02781 gain -10.168db
-    node formant3 biquad mode peak frequency 1014.31hz q 2.49992 gain -14.9587db
-    node formant4 biquad mode peak frequency 5618.91hz q 1.21624 gain -9.53281db
-    node formant5 biquad mode peak frequency 8384.34hz q 1.18236 gain -11.7285db
-    node formant6 biquad mode peak frequency 12000hz q 0.500278 gain 9.79558db
-    node formant7 biquad mode lowshelf frequency 572.618hz q 0.7071 gain 13.8593db
-    node formant8 biquad mode highshelf frequency 1903.55hz q 0.7071 gain 14.9944db
-    node formant9 biquad mode peak frequency 2364.44hz q 2.5 gain 7.5038db
-    node formant10 biquad mode peak frequency 544.305hz q 2.5 gain 10.6242db
-    node formant11 biquad mode peak frequency 544.02hz q 2.5 gain 10.2438db
-    node formant12 biquad mode peak frequency 9798.75hz q 0.5 gain 4.26238db
-    node radiation biquad mode highpass frequency 50hz q 0.7071
+    node formants biquad_chain {
+      band formant1 mode peak frequency 418.908hz q 1.35104 gain 13.3408db
+      band formant2 mode peak frequency 4108.5hz q 2.02781 gain -10.168db
+      band formant3 mode peak frequency 1014.31hz q 2.49992 gain -14.9587db
+      band formant4 mode peak frequency 5618.91hz q 1.21624 gain -9.53281db
+      band formant5 mode peak frequency 8384.34hz q 1.18236 gain -11.7285db
+      band formant6 mode peak frequency 12000hz q 0.500278 gain 9.79558db
+      band formant7 mode lowshelf frequency 572.618hz q 0.7071 gain 13.8593db
+      band formant8 mode highshelf frequency 1903.55hz q 0.7071 gain 14.9944db
+      band formant9 mode peak frequency 2364.44hz q 2.5 gain 7.5038db
+      band formant10 mode peak frequency 544.305hz q 2.5 gain 10.6242db
+      band formant11 mode peak frequency 544.02hz q 2.5 gain 10.2438db
+      band formant12 mode peak frequency 9798.75hz q 0.5 gain 4.26238db
+      band radiation mode highpass frequency 50hz q 0.7071
+    }
     node register-level math operation scale amount $register
     node dynamics-level math operation scale amount $dynamics
     node trim math operation scale amount 0.5004
@@ -239,9 +167,7 @@ instrument hammered-dulcimer "Hammered Dulcimer" graph {
     bus bridge-audio-string-audio bridge.audio -> string.audio
     bus string-audio-loss-audio string.audio -> loss.audio
     bus note-pitch-loss-key note.pitch -> loss.key
-    bus loss-audio-stiffness-audio loss.audio -> stiffness.audio
-    bus note-pitch-stiffness-key note.pitch -> stiffness.key
-    bus stiffness-audio-return-a stiffness.audio -> return.a
+    bus loss-audio-return-a loss.audio -> return.a
     bus plucked-audio-share2-a plucked.audio -> share2.a
     bus note-pitch-string2-pitch note.pitch -> string2.pitch
     bus share2-audio-bridge2-a share2.audio -> bridge2.a
@@ -249,9 +175,7 @@ instrument hammered-dulcimer "Hammered Dulcimer" graph {
     bus bridge2-audio-string2-audio bridge2.audio -> string2.audio
     bus string2-audio-loss2-audio string2.audio -> loss2.audio
     bus note-pitch-loss2-key note.pitch -> loss2.key
-    bus loss2-audio-stiffness2-audio loss2.audio -> stiffness2.audio
-    bus note-pitch-stiffness2-key note.pitch -> stiffness2.key
-    bus stiffness2-audio-trim-loss2-a stiffness2.audio -> trim-loss2.a
+    bus loss2-audio-trim-loss2-a loss2.audio -> trim-loss2.a
     bus trim-loss2-audio-return2-a trim-loss2.audio -> return2.a
     bus plucked-audio-share3-a plucked.audio -> share3.a
     bus note-pitch-string3-pitch note.pitch -> string3.pitch
@@ -260,9 +184,7 @@ instrument hammered-dulcimer "Hammered Dulcimer" graph {
     bus bridge3-audio-string3-audio bridge3.audio -> string3.audio
     bus string3-audio-loss3-audio string3.audio -> loss3.audio
     bus note-pitch-loss3-key note.pitch -> loss3.key
-    bus loss3-audio-stiffness3-audio loss3.audio -> stiffness3.audio
-    bus note-pitch-stiffness3-key note.pitch -> stiffness3.key
-    bus stiffness3-audio-trim-loss3-a stiffness3.audio -> trim-loss3.a
+    bus loss3-audio-trim-loss3-a loss3.audio -> trim-loss3.a
     bus trim-loss3-audio-return3-a trim-loss3.audio -> return3.a
     bus string-audio-strings-inputs string.audio -> strings.inputs
     bus string2-audio-strings-inputs string2.audio -> strings.inputs
@@ -275,20 +197,8 @@ instrument hammered-dulcimer "Hammered Dulcimer" graph {
     bus body-audio-wood-a body.audio -> wood.a
     bus direct-audio-radiated-a direct.audio -> radiated.a
     bus wood-audio-radiated-b wood.audio -> radiated.b
-    bus radiated-audio-formant1-audio radiated.audio -> formant1.audio
-    bus formant1-audio-formant2-audio formant1.audio -> formant2.audio
-    bus formant2-audio-formant3-audio formant2.audio -> formant3.audio
-    bus formant3-audio-formant4-audio formant3.audio -> formant4.audio
-    bus formant4-audio-formant5-audio formant4.audio -> formant5.audio
-    bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
-    bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
-    bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
-    bus formant8-audio-formant9-audio formant8.audio -> formant9.audio
-    bus formant9-audio-formant10-audio formant9.audio -> formant10.audio
-    bus formant10-audio-formant11-audio formant10.audio -> formant11.audio
-    bus formant11-audio-formant12-audio formant11.audio -> formant12.audio
-    bus formant12-audio-radiation-audio formant12.audio -> radiation.audio
-    bus radiation-audio-register-level-a radiation.audio -> register-level.a
+    bus radiated-audio-formants-audio radiated.audio -> formants.audio
+    bus formants-audio-register-level-a formants.audio -> register-level.a
     bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a
     bus dynamics-level-audio-trim-a dynamics-level.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a

@@ -1,6 +1,6 @@
 # Waveguide instruments
 
-These three Instruments are written entirely in `.crump`. They use no media, no profiles and no offline generator. Each one is a delay loop built from the generic primitives in [ADR 0026](../../docs/adr/0026-feedback-and-waveguide-primitives.md): `delay_line`, `math`, `shaper`, `to_audio`, `dc_block` and `linear_phase_lowpass`. Open a module to change how the instrument behaves, not only its Faceplate.
+These three Instruments are written entirely in `.crump`. They use no media, no profiles and no offline generator. Each one is a delay loop built from the generic primitives in [ADR 0026](../../docs/adr/0026-feedback-and-waveguide-primitives.md): `delay_line`, `math`, `shaper`, `to_audio`, `dc_block` and `linear_phase_lowpass`, plus a `onepole` leak that integrates the pluck. Open a module to change how the instrument behaves, not only its Faceplate.
 
 | Instrument | Model |
 | --- | --- |

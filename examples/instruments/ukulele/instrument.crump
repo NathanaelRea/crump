@@ -13,54 +13,30 @@ instrument ukulele "Ukulele" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-c4-24 note_key per_voice bipolar reference C4 range 24st
-    source key-from-g3-3 note_key per_voice bipolar reference G3 range 3st
-    source key-from-as3-3 note_key per_voice bipolar reference A#3 range 3st
-    source key-from-cs4-3 note_key per_voice bipolar reference C#4 range 3st
-    source key-from-e4-3 note_key per_voice bipolar reference E4 range 3st
-    source key-from-g4-3 note_key per_voice bipolar reference G4 range 3st
-    source key-from-as4-3 note_key per_voice bipolar reference A#4 range 3st
-    source key-from-cs5-3 note_key per_voice bipolar reference C#5 range 3st
-    source key-from-e5-3 note_key per_voice bipolar reference E5 range 3st
-    source key-from-g5-3 note_key per_voice bipolar reference G5 range 3st
-    source key-from-as5-2 note_key per_voice bipolar reference A#5 range 2st
     source velocity note_velocity per_voice unipolar
-    route sustain-low source key-c4-24 target sustain depth 0.0170582 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    source sustain-curve key_curve per_voice bipolar {
+      point c2 key C2 value -1
+      point c4 key C4 value 0
+      point c6 key C6 value -0.421659
     }
-    route sustain-high source key-c4-24 target sustain depth -0.00719274 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
+    source register-curve key_curve per_voice bipolar {
+      point g3 key G3 value 0
+      point as3 key A#3 value 0.078014
+      point cs4 key C#4 value 0.242363
+      point e4 key E4 value -0.415508
+      point g4 key G4 value -0.352096
+      point as4 key A#4 value 0.15877
+      point cs5 key C#5 value -0.373478
+      point e5 key E5 value -0.124184
+      point g5 key G5 value -0.195333
+      point as5 key A#5 value -0.195333
+      point c6 key C6 value -1
     }
-    route register-1 source key-from-g3-3 target register depth 0.0385326 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-2 source key-from-as3-3 target register depth 0.0811752 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-3 source key-from-cs4-3 target register depth -0.324935 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-4 source key-from-e4-3 target register depth 0.0313205 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-5 source key-from-g4-3 target register depth 0.252326 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-6 source key-from-as4-3 target register depth -0.262887 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-7 source key-from-cs5-3 target register depth 0.123131 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-8 source key-from-e5-3 target register depth -0.0351422 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-10 source key-from-as5-2 target register depth -0.39744 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route sustain-by-key source sustain-curve target sustain depth 0.0170582 map bipolar curve linear order 0 bypass false
+    route register-by-key source register-curve target register depth 0.493919 map bipolar curve linear order 0 bypass false
     route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve linear order 0 bypass false
   }
-  graph voice 58 {
+  graph voice 49 {
     # A plucked string: a pitch-tracked loop that loses its upper partials first, then the body.
     node pluck exciter kind impact contact 0.00251654s hardness 0.2 level 1
     node scrape noise level 1
@@ -99,21 +75,25 @@ instrument ukulele "Ukulele" graph {
     node radiated math operation add
     node knock-env envelope mode adsr attack 0.001s decay 0.279014s sustain 0 release 0.279014s decay_curve -0.7
     node knock-env-audio to_audio
-    node knock-low biquad mode highpass frequency 150hz q 0.7071
-    node knock-band biquad mode lowpass frequency 1500hz q 0.7071
+    node knock-filter biquad_chain {
+      band knock-low mode highpass frequency 150hz q 0.7071
+      band knock-band mode lowpass frequency 1500hz q 0.7071
+    }
     node knock-burst math operation multiply
     node knock-velocity math operation multiply
     node knock-level math operation scale amount 0.189925
     node with-knock math operation add
-    node formant1 biquad mode peak frequency 94.2784hz q 0.5 gain -5.94284db
-    node formant2 biquad mode peak frequency 957.973hz q 2 gain -9.84759db
-    node formant3 biquad mode peak frequency 627.454hz q 2 gain -11.609db
-    node formant4 biquad mode peak frequency 11577.7hz q 1.7532 gain 2.61069db
-    node formant5 biquad mode peak frequency 5707.47hz q 2 gain 8.11749db
-    node formant6 biquad mode peak frequency 7688.02hz q 2 gain 7.35746db
-    node formant7 biquad mode lowshelf frequency 676.211hz q 0.7071 gain 8.00292db
-    node formant8 biquad mode highshelf frequency 1000hz q 0.7071 gain 4.15272db
-    node radiation biquad mode highpass frequency 50hz q 0.7071
+    node formants biquad_chain {
+      band formant1 mode peak frequency 94.2784hz q 0.5 gain -5.94284db
+      band formant2 mode peak frequency 957.973hz q 2 gain -9.84759db
+      band formant3 mode peak frequency 627.454hz q 2 gain -11.609db
+      band formant4 mode peak frequency 11577.7hz q 1.7532 gain 2.61069db
+      band formant5 mode peak frequency 5707.47hz q 2 gain 8.11749db
+      band formant6 mode peak frequency 7688.02hz q 2 gain 7.35746db
+      band formant7 mode lowshelf frequency 676.211hz q 0.7071 gain 8.00292db
+      band formant8 mode highshelf frequency 1000hz q 0.7071 gain 4.15272db
+      band radiation mode highpass frequency 50hz q 0.7071
+    }
     node register-level math operation scale amount $register
     node dynamics-level math operation scale amount $dynamics
     node trim math operation scale amount 0.16186
@@ -174,25 +154,16 @@ instrument ukulele "Ukulele" graph {
     bus wood-audio-radiated-b wood.audio -> radiated.b
     bus note-gate-knock-env-gate note.gate -> knock-env.gate
     bus knock-env-control-knock-env-audio-control knock-env.control -> knock-env-audio.control
-    bus scrape-audio-knock-low-audio scrape.audio -> knock-low.audio
-    bus knock-low-audio-knock-band-audio knock-low.audio -> knock-band.audio
-    bus knock-band-audio-knock-burst-a knock-band.audio -> knock-burst.a
+    bus scrape-audio-knock-filter-audio scrape.audio -> knock-filter.audio
+    bus knock-filter-audio-knock-burst-a knock-filter.audio -> knock-burst.a
     bus knock-env-audio-audio-knock-burst-b knock-env-audio.audio -> knock-burst.b
     bus knock-burst-audio-knock-velocity-a knock-burst.audio -> knock-velocity.a
     bus velocity-audio-audio-knock-velocity-b velocity-audio.audio -> knock-velocity.b
     bus knock-velocity-audio-knock-level-a knock-velocity.audio -> knock-level.a
     bus radiated-audio-with-knock-a radiated.audio -> with-knock.a
     bus knock-level-audio-with-knock-b knock-level.audio -> with-knock.b
-    bus with-knock-audio-formant1-audio with-knock.audio -> formant1.audio
-    bus formant1-audio-formant2-audio formant1.audio -> formant2.audio
-    bus formant2-audio-formant3-audio formant2.audio -> formant3.audio
-    bus formant3-audio-formant4-audio formant3.audio -> formant4.audio
-    bus formant4-audio-formant5-audio formant4.audio -> formant5.audio
-    bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
-    bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
-    bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
-    bus formant8-audio-radiation-audio formant8.audio -> radiation.audio
-    bus radiation-audio-register-level-a radiation.audio -> register-level.a
+    bus with-knock-audio-formants-audio with-knock.audio -> formants.audio
+    bus formants-audio-register-level-a formants.audio -> register-level.a
     bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a
     bus dynamics-level-audio-trim-a dynamics-level.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a

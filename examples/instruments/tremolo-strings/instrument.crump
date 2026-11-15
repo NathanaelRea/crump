@@ -17,16 +17,15 @@ instrument tremolo-strings "Tremolo Strings" graph {
   }
   modulation {
     source velocity note_velocity per_voice unipolar
-    source key-level note_key per_voice bipolar reference C4 range 12st
+    source key-gain-curve key_curve per_voice unipolar {
+      point c3 key C3 value 1
+      point c4 key C4 value 0
+      point c5 key C5 value 0.825226
+    }
     route attack-velocity source velocity target attack depth -0.68181818s map unipolar curve linear order 0 bypass false
     route vibrato-depth-velocity source velocity target vibrato-depth depth 0.068181818 map unipolar curve linear order 0 bypass false
     route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(0.7701) order 0 bypass false
-    route key-gain-low source key-level target key-gain depth -0.467616 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
-    }
-    route key-gain-high source key-level target key-gain depth 0.385889 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.467616 map unipolar curve linear order 0 bypass false
   }
   graph voice 37 {
     # A bowed string: a Helmholtz saw through a jagged body and the instrument's body curve.

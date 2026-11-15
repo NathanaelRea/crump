@@ -1,12 +1,6 @@
 crump-module 2
 instrument machine-open-hat "Machine Open Hat" graph {
   polyphony 4
-  parameter hold-tone1 "Fixed pitch" semitones -48st 48st -4.19724st -4.19724st modulatable
-  parameter hold-tone2 "Fixed pitch" semitones -48st 48st 2.62158st 2.62158st modulatable
-  parameter hold-tone3 "Fixed pitch" semitones -48st 48st 5.98153st 5.98153st modulatable
-  parameter hold-tone4 "Fixed pitch" semitones -48st 48st 11.9818st 11.9818st modulatable
-  parameter hold-tone5 "Fixed pitch" semitones -48st 48st 12.5455st 12.5455st modulatable
-  parameter hold-tone6 "Fixed pitch" semitones -48st 48st 19.35st 19.35st modulatable
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
   faceplate {
@@ -14,27 +8,26 @@ instrument machine-open-hat "Machine Open Hat" graph {
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-position note_key per_voice bipolar reference C4 range 48st
-    route hold-tone1-key source key-position target hold-tone1 depth -48st map bipolar curve linear order 0 bypass false
-    route hold-tone2-key source key-position target hold-tone2 depth -48st map bipolar curve linear order 0 bypass false
-    route hold-tone3-key source key-position target hold-tone3 depth -48st map bipolar curve linear order 0 bypass false
-    route hold-tone4-key source key-position target hold-tone4 depth -48st map bipolar curve linear order 0 bypass false
-    route hold-tone5-key source key-position target hold-tone5 depth -48st map bipolar curve linear order 0 bypass false
-    route hold-tone6-key source key-position target hold-tone6 depth -48st map bipolar curve linear order 0 bypass false
   }
-  graph voice 48 {
+  graph voice 46 {
     # A drum-machine voice: swept sine, square clusters, noise and click.
-    node tone1 analog_oscillator waveform square coarse $hold-tone1 level 1.11072
+    node tone1-pitch constant frequency 205.3hz
+    node tone1 analog_oscillator waveform square level 1.11072
     node tone1-mono stereo_to_mono
-    node tone2 analog_oscillator waveform square coarse $hold-tone2 level 1.11072
+    node tone2-pitch constant frequency 304.4hz
+    node tone2 analog_oscillator waveform square level 1.11072
     node tone2-mono stereo_to_mono
-    node tone3 analog_oscillator waveform square coarse $hold-tone3 level 1.11072
+    node tone3-pitch constant frequency 369.6hz
+    node tone3 analog_oscillator waveform square level 1.11072
     node tone3-mono stereo_to_mono
-    node tone4 analog_oscillator waveform square coarse $hold-tone4 level 1.11072
+    node tone4-pitch constant frequency 522.7hz
+    node tone4 analog_oscillator waveform square level 1.11072
     node tone4-mono stereo_to_mono
-    node tone5 analog_oscillator waveform square coarse $hold-tone5 level 1.11072
+    node tone5-pitch constant frequency 540hz
+    node tone5 analog_oscillator waveform square level 1.11072
     node tone5-mono stereo_to_mono
-    node tone6 analog_oscillator waveform square coarse $hold-tone6 level 1.11072
+    node tone6-pitch constant frequency 800hz
+    node tone6 analog_oscillator waveform square level 1.11072
     node tone6-mono stereo_to_mono
     node mix7 sum max_inputs 6
     node hi-8 lowpass mode highpass cutoff 5000hz resonance 0.308309
@@ -43,24 +36,16 @@ instrument machine-open-hat "Machine Open Hat" graph {
     node lo-11 lowpass mode lowpass cutoff 17000hz resonance 0.308309
     node gain12 math operation scale amount 0.540025
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall13 math operation add
-    node fall13-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall13-leak math operation scale amount 0.999652838052
+    node fall13 onepole mode leak time 0.06s
     node gain14 math operation scale amount 0.5
-    node fall15 math operation add
-    node fall15-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall15-leak math operation scale amount 0.999916670139
+    node fall15 onepole mode leak time 0.25s
     node gain16 math operation scale amount 0.5
     node plus17 math operation add
     node times18 math operation multiply
     node hiss19 noise level 1
-    node fall20 math operation add
-    node fall20-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall20-leak math operation scale amount 0.999826403958
+    node fall20 onepole mode leak time 0.12s
     node rise21 math operation subtract
-    node fall22 math operation add
-    node fall22-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall22-leak math operation scale amount 0.959022945616
+    node fall22 onepole mode leak time 0.0004979s
     node gain23 math operation scale amount 1.02738
     node times24 math operation multiply
     node hi-25 lowpass mode highpass cutoff 8000hz resonance 0.308309
@@ -72,17 +57,17 @@ instrument machine-open-hat "Machine Open Hat" graph {
     node level math operation scale amount $level
     node place pan position $pan
     node out output
-    bus note-pitch-tone1-pitch note.pitch -> tone1.pitch
+    bus tone1-pitch-pitch-tone1-pitch tone1-pitch.pitch -> tone1.pitch
     bus tone1-audio-tone1-mono-audio tone1.audio -> tone1-mono.audio
-    bus note-pitch-tone2-pitch note.pitch -> tone2.pitch
+    bus tone2-pitch-pitch-tone2-pitch tone2-pitch.pitch -> tone2.pitch
     bus tone2-audio-tone2-mono-audio tone2.audio -> tone2-mono.audio
-    bus note-pitch-tone3-pitch note.pitch -> tone3.pitch
+    bus tone3-pitch-pitch-tone3-pitch tone3-pitch.pitch -> tone3.pitch
     bus tone3-audio-tone3-mono-audio tone3.audio -> tone3-mono.audio
-    bus note-pitch-tone4-pitch note.pitch -> tone4.pitch
+    bus tone4-pitch-pitch-tone4-pitch tone4-pitch.pitch -> tone4.pitch
     bus tone4-audio-tone4-mono-audio tone4.audio -> tone4-mono.audio
-    bus note-pitch-tone5-pitch note.pitch -> tone5.pitch
+    bus tone5-pitch-pitch-tone5-pitch tone5-pitch.pitch -> tone5.pitch
     bus tone5-audio-tone5-mono-audio tone5.audio -> tone5-mono.audio
-    bus note-pitch-tone6-pitch note.pitch -> tone6.pitch
+    bus tone6-pitch-pitch-tone6-pitch tone6-pitch.pitch -> tone6.pitch
     bus tone6-audio-tone6-mono-audio tone6.audio -> tone6-mono.audio
     bus tone1-mono-audio-mix7-inputs tone1-mono.audio -> mix7.inputs
     bus tone2-mono-audio-mix7-inputs tone2-mono.audio -> mix7.inputs
@@ -97,29 +82,17 @@ instrument machine-open-hat "Machine Open Hat" graph {
     bus lo-11-audio-gain12-a lo-11.audio -> gain12.a
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall13-audio-fall13-previous-audio fall13.audio -> fall13-previous.audio
-    bus onset-audio-fall13-a onset.audio -> fall13.a
-    bus fall13-previous-audio-fall13-leak-a fall13-previous.audio -> fall13-leak.a
-    bus fall13-leak-audio-fall13-b fall13-leak.audio -> fall13.b
+    bus onset-audio-fall13-audio onset.audio -> fall13.audio
     bus fall13-audio-gain14-a fall13.audio -> gain14.a
-    bus fall15-audio-fall15-previous-audio fall15.audio -> fall15-previous.audio
-    bus onset-audio-fall15-a onset.audio -> fall15.a
-    bus fall15-previous-audio-fall15-leak-a fall15-previous.audio -> fall15-leak.a
-    bus fall15-leak-audio-fall15-b fall15-leak.audio -> fall15.b
+    bus onset-audio-fall15-audio onset.audio -> fall15.audio
     bus fall15-audio-gain16-a fall15.audio -> gain16.a
     bus gain14-audio-plus17-a gain14.audio -> plus17.a
     bus gain16-audio-plus17-b gain16.audio -> plus17.b
     bus gain12-audio-times18-a gain12.audio -> times18.a
     bus plus17-audio-times18-b plus17.audio -> times18.b
-    bus fall20-audio-fall20-previous-audio fall20.audio -> fall20-previous.audio
-    bus onset-audio-fall20-a onset.audio -> fall20.a
-    bus fall20-previous-audio-fall20-leak-a fall20-previous.audio -> fall20-leak.a
-    bus fall20-leak-audio-fall20-b fall20-leak.audio -> fall20.b
+    bus onset-audio-fall20-audio onset.audio -> fall20.audio
     bus fall20-audio-rise21-a fall20.audio -> rise21.a
-    bus fall22-audio-fall22-previous-audio fall22.audio -> fall22-previous.audio
-    bus onset-audio-fall22-a onset.audio -> fall22.a
-    bus fall22-previous-audio-fall22-leak-a fall22-previous.audio -> fall22-leak.a
-    bus fall22-leak-audio-fall22-b fall22-leak.audio -> fall22.b
+    bus onset-audio-fall22-audio onset.audio -> fall22.audio
     bus fall22-audio-rise21-b fall22.audio -> rise21.b
     bus rise21-audio-gain23-a rise21.audio -> gain23.a
     bus hiss19-audio-times24-a hiss19.audio -> times24.a

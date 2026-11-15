@@ -7,6 +7,7 @@
 use std::f64::consts::PI;
 
 use super::Scalar;
+pub(super) use crate::model::MAX_BIQUAD_CHAIN_BANDS;
 
 /// Largest authored `delay_line` buffer.
 pub(super) const MAX_DELAY_LINE_SECONDS: f64 = 2.0;
@@ -368,6 +369,22 @@ pub(super) enum BiquadMode {
     Allpass,
 }
 
+impl BiquadMode {
+    pub(super) fn parse(value: &str) -> Option<Self> {
+        Some(match value {
+            "lowpass" => Self::Lowpass,
+            "highpass" => Self::Highpass,
+            "bandpass" => Self::Bandpass,
+            "notch" => Self::Notch,
+            "peak" => Self::Peak,
+            "lowshelf" => Self::LowShelf,
+            "highshelf" => Self::HighShelf,
+            "allpass" => Self::Allpass,
+            _ => return None,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(super) struct BiquadConfig {
     pub(super) mode: BiquadMode,
@@ -485,6 +502,71 @@ impl BiquadConfig {
             return 0.0;
         }
         output as f32
+    }
+}
+
+/// Fixed bands of a `biquad_chain`, applied in authored order.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct BiquadChainConfig {
+    pub(super) bands: [BiquadConfig; MAX_BIQUAD_CHAIN_BANDS],
+    /// Whether each band follows the chain's `key` input.
+    pub(super) tracks_key: [bool; MAX_BIQUAD_CHAIN_BANDS],
+    pub(super) band_count: u8,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct BiquadChainState {
+    bands: [BiquadState; MAX_BIQUAD_CHAIN_BANDS],
+}
+
+impl Default for BiquadChainState {
+    fn default() -> Self {
+        Self {
+            bands: [BiquadState::default(); MAX_BIQUAD_CHAIN_BANDS],
+        }
+    }
+}
+
+impl BiquadChainConfig {
+    /// Each band's response, key tracking and exact literal values, in order.
+    pub(super) fn band_identities(&self) -> impl Iterator<Item = (BiquadMode, bool, [u64; 5])> {
+        let count = usize::from(self.band_count);
+        self.bands[..count]
+            .iter()
+            .zip(&self.tracks_key[..count])
+            .map(|(band, tracks)| {
+                let values = [
+                    band.frequency,
+                    band.q,
+                    band.gain,
+                    band.key_track,
+                    band.key_reference,
+                ];
+                (
+                    band.mode,
+                    *tracks,
+                    values.map(|value| value.constant.to_bits()),
+                )
+            })
+    }
+
+    /// Runs every band in turn, each exactly as a separate `biquad` Node would.
+    pub(super) fn process(
+        &self,
+        state: &mut BiquadChainState,
+        audio: f32,
+        key: f32,
+        controls: &[f64],
+        sample_rate: f64,
+    ) -> f32 {
+        let count = usize::from(self.band_count);
+        self.bands[..count]
+            .iter()
+            .zip(&self.tracks_key[..count])
+            .zip(&mut state.bands[..count])
+            .fold(audio, |signal, ((band, &tracks), band_state)| {
+                band.process(band_state, signal, key, tracks, controls, sample_rate)
+            })
     }
 }
 

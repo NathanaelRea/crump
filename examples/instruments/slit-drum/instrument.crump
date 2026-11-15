@@ -12,24 +12,21 @@ instrument slit-drum "Slit Drum" graph {
   }
   modulation {
     source key-range note_key per_voice bipolar reference F#3 range 14st
-    source key-level note_key per_voice bipolar reference E3 range 12st
+    source key-gain-curve key_curve per_voice bipolar {
+      point e2 key E2 value -0.164117
+      point e3 key E3 value 0
+      point e4 key E4 value 1
+    }
     route ring-key source key-range target ring depth -0.371568 map bipolar curve linear order 0 bypass false
-    route key-gain-low source key-level target key-gain depth 0.0615422 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
-    }
-    route key-gain-high source key-level target key-gain depth 0.374989 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.374989 map bipolar curve linear order 0 bypass false
   }
-  graph voice 18 {
+  graph voice 16 {
     # A strike on a tuned body with explicit mode ratios, plus a contact tick.
     node strike1 exciter kind impact contact 0.00252083s hardness 0 level 1
     node body2 modal_bank profile slit-drum-body max_modes 7 key_track 1 decay_scale $ring brightness 0 level 1
     node hiss3 noise level 1
     node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node fall4 math operation add
-    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall4-leak math operation scale amount 0.989637398915
+    node fall4 onepole mode leak time 0.002s
     node times5 math operation multiply
     node hi-6 lowpass mode highpass cutoff 2000hz resonance 0.308309
     node lo-7 lowpass mode lowpass cutoff 12000hz resonance 0.308309
@@ -48,10 +45,7 @@ instrument slit-drum "Slit Drum" graph {
     bus note-gate-body2-gate note.gate -> body2.gate
     bus note-gate-onset-gate note.gate -> onset.gate
     bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
-    bus onset-audio-fall4-a onset.audio -> fall4.a
-    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
-    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus onset-audio-fall4-audio onset.audio -> fall4.audio
     bus hiss3-audio-times5-a hiss3.audio -> times5.a
     bus fall4-audio-times5-b fall4.audio -> times5.b
     bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
