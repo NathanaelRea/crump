@@ -217,12 +217,18 @@ def sustain(entry, values, source):
     return None
 
 
-def build(binary, workers):
+def build(binary, workers, only=None):
+    """Render previews for every instrument, or re-render `only` these and keep the rest."""
     entries = json.loads((LIBRARY / "catalog.json").read_text())
     references = json.loads(REFERENCES.read_text()) if REFERENCES.exists() else {"instruments": {}}
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    previous = {}
+    if only and (OUTPUT / "manifest.json").exists():
+        previous = {i["id"]: i["zones"] for i in json.loads((OUTPUT / "manifest.json").read_text())["instruments"]}
+    selected = [e for e in entries if not only or e["id"] in only or e["id"] not in previous]
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        rendered = dict(zip([e["id"] for e in entries], pool.map(lambda e: render_acoustic(e, binary), entries)))
+        rendered = dict(zip([e["id"] for e in selected], pool.map(lambda e: render_acoustic(e, binary), selected)))
+    rendered = previous | rendered
     shutil.rmtree(OUTPUT / "work", ignore_errors=True)
     instruments = []
     for entry in entries:
@@ -275,11 +281,12 @@ def main():
         "--serve-only", action="store_true", help="Serve without rebuilding"
     )
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--only", nargs="+", help="Re-render these instruments and keep the other previews")
     args = parser.parse_args()
     if not args.serve_only:
         if not args.crump.is_file():
             parser.error(f"Build Crump first or pass --crump: {args.crump} is missing")
-        build(args.crump.resolve(), args.workers)
+        build(args.crump.resolve(), args.workers, set(args.only) if args.only else None)
     if args.serve or args.serve_only:
         serve(args.port)
 

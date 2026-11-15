@@ -1,171 +1,72 @@
 crump-module 2
 instrument shamisen "Shamisen" graph {
   polyphony 8
-  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
-  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Pick hardness" ratio 0 1 0.360059 0.360059
+  parameter pick "Pick position" ratio 0.02 0.5 0.204708 0.204708
+  parameter damping "Damping" ratio 0 1 0.211213 0.211213
+  parameter sustain "Sustain" ratio 0.9 0.99999 0.99557219 0.99557219
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Pick hardness" "Brightness of the pluck" maps hardness
+    control pick "Pick position" "Plucking point along the string" maps pick
+    control damping "Damping" "How much faster the upper partials decay" maps damping
+    control sustain "Sustain" "Energy kept on each trip along the string" maps sustain
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
-  modulation {
-    source key-level note_key per_voice bipolar reference D4 range 12st
-    route key-gain-low source key-level target key-gain depth 0.2362 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
-    }
-    route key-gain-high source key-level target key-gain depth -0.226702 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-  }
-  graph voice 58 {
-    # Plucked strings: pitch-tuned delay loops, bridge buzz, sympathetic strings and body.
-    node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node held math operation add
-    node held-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node held-leak math operation scale amount 1
-    node period-later delay_line mode pitch ratio 1 interpolation linear max_time 0.1s
-    node period math operation subtract
-    node pluck-window shaper curve hard_clip drive 64 bias 0
-    node pluck-noise noise level 1
-    node pluck math operation multiply
-    node pluck-tone lowpass mode lowpass cutoff 2475hz resonance 0.308309 velocity_depth 3575hz
-    node string-in math operation add
-    node string delay_line mode pitch ratio 1 interpolation lagrange3 tune_compensation 1 max_time 0.1s
-    node string-loss linear_phase_lowpass amount 0.7
-    node string-keep math operation scale amount 0.99999
-    node string-pickup delay_line mode pitch ratio 0.1 interpolation linear max_time 0.05s
-    node string-out math operation subtract
-    node gain1 math operation scale amount 0.7
-    node gain2 math operation scale amount 1.73205
-    node string-tone lowpass mode lowpass cutoff 2475hz resonance 0.308309 velocity_depth 3575hz
-    node string-decay math operation add
-    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node string-decay-leak math operation scale amount 0.999970238538
-    node times3 math operation multiply
-    node shape4 shaper curve hard_clip drive 4.24328 bias 0
-    node hi-5 lowpass mode highpass cutoff 1800hz resonance 0.308309
-    node lo-6 lowpass mode lowpass cutoff 6000hz resonance 0.308309
-    node fall7 math operation add
-    node fall7-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall7-leak math operation scale amount 0.999947918023
-    node times8 math operation multiply
-    node hi-9 lowpass mode highpass cutoff 600hz resonance 0.308309
-    node lo-10 lowpass mode lowpass cutoff 2200hz resonance 0.308309
-    node gain11 math operation scale amount -1
-    node plus12 math operation add
-    node times13 math operation multiply
-    node plus14 math operation add
-    node gain15 math operation scale amount 1.08696
-    node times16 math operation multiply
-    node gain17 math operation scale amount 0.3535
-    node plus18 math operation add
-    node hiss19 noise level 1
-    node fall20 math operation add
-    node fall20-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall20-leak math operation scale amount 0.998265395058
-    node times21 math operation multiply
-    node hi-22 lowpass mode highpass cutoff 200hz resonance 0.308309
-    node lo-23 lowpass mode lowpass cutoff 4000hz resonance 0.308309
-    node gain24 math operation scale amount 0.973555
-    node plus25 math operation add
-    node body26 modal_bank profile shamisen-box max_modes 3 key_track 0 decay_scale $ring brightness 0 level 1
-    node gain27 math operation scale amount 0.7
-    node plus28 math operation add
-    node hi-29 lowpass mode highpass cutoff 32hz resonance 0.308309
-    node register math operation scale amount $key-gain
-    node trim math operation scale amount 0.145088
+  graph voice 22 {
+    # A plucked string: a pitch-tuned loop with loss and stiffness, then the body.
+    node pluck exciter kind impact contact 0.000399784s hardness $hardness level 1
+    node step onepole mode leak time 0.02s
+    node pick-point delay_line mode pitch ratio $pick interpolation linear max_time 0.05s
+    node pulse math operation subtract
+    node excite math operation add
+    node string delay_line mode pitch interpolation lagrange3 tune_compensation 3.01072 max_time 0.1s
+    node loss linear_phase_lowpass amount $damping
+    node decay math operation scale amount $sustain
+    node hold envelope attack 0ms decay 0ms sustain 1 release 0.4s
+    node hold-audio to_audio
+    node damp math operation multiply
+    node radiate dc_block cutoff 20hz
+    node body1 biquad mode peak frequency 369.994hz q 5.99987 gain -11.0228db
+    node body2 biquad mode peak frequency 785.02hz q 1.39561 gain 9.65841db
+    node body3 biquad mode peak frequency 2582.16hz q 2.66806 gain 6.50659db
+    node body4 biquad mode highshelf frequency 739.989hz q 0.7071 gain 4.10539db
+    node radiation biquad mode lowpass frequency 2962.26hz q 0.7071
+    node sub-cut biquad mode highpass frequency 183.138hz q 0.7071 key_track 1 key_reference 261.626hz
+    node trim math operation scale amount 0.0824087
     node level math operation scale amount $level
     node place pan position $pan
     node out output
-    bus note-gate-onset-gate note.gate -> onset.gate
-    bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus held-audio-held-previous-audio held.audio -> held-previous.audio
-    bus onset-audio-held-a onset.audio -> held.a
-    bus held-previous-audio-held-leak-a held-previous.audio -> held-leak.a
-    bus held-leak-audio-held-b held-leak.audio -> held.b
-    bus note-pitch-period-later-pitch note.pitch -> period-later.pitch
-    bus held-audio-period-later-audio held.audio -> period-later.audio
-    bus held-audio-period-a held.audio -> period.a
-    bus period-later-audio-period-b period-later.audio -> period.b
-    bus period-audio-pluck-window-audio period.audio -> pluck-window.audio
-    bus pluck-noise-audio-pluck-a pluck-noise.audio -> pluck.a
-    bus pluck-window-audio-pluck-b pluck-window.audio -> pluck.b
-    bus pluck-audio-pluck-tone-audio pluck.audio -> pluck-tone.audio
-    bus note-velocity-pluck-tone-velocity note.velocity -> pluck-tone.velocity
-    bus pluck-tone-audio-string-in-a pluck-tone.audio -> string-in.a
+    bus note-gate-pluck-gate note.gate -> pluck.gate
+    bus note-velocity-pluck-velocity note.velocity -> pluck.velocity
+    bus pluck-audio-step-audio pluck.audio -> step.audio
+    bus note-pitch-pick-point-pitch note.pitch -> pick-point.pitch
+    bus step-audio-pick-point-audio step.audio -> pick-point.audio
+    bus step-audio-pulse-a step.audio -> pulse.a
+    bus pick-point-audio-pulse-b pick-point.audio -> pulse.b
+    bus pulse-audio-excite-a pulse.audio -> excite.a
     bus note-pitch-string-pitch note.pitch -> string.pitch
-    bus string-in-audio-string-audio string-in.audio -> string.audio
-    bus string-audio-string-loss-audio string.audio -> string-loss.audio
-    bus string-loss-audio-string-keep-a string-loss.audio -> string-keep.a
-    bus string-keep-audio-string-in-b string-keep.audio -> string-in.b
-    bus note-pitch-string-pickup-pitch note.pitch -> string-pickup.pitch
-    bus string-audio-string-pickup-audio string.audio -> string-pickup.audio
-    bus string-audio-string-out-a string.audio -> string-out.a
-    bus string-pickup-audio-gain1-a string-pickup.audio -> gain1.a
-    bus gain1-audio-string-out-b gain1.audio -> string-out.b
-    bus string-out-audio-gain2-a string-out.audio -> gain2.a
-    bus gain2-audio-string-tone-audio gain2.audio -> string-tone.audio
-    bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
-    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
-    bus onset-audio-string-decay-a onset.audio -> string-decay.a
-    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
-    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
-    bus string-tone-audio-times3-a string-tone.audio -> times3.a
-    bus string-decay-audio-times3-b string-decay.audio -> times3.b
-    bus string-tone-audio-shape4-audio string-tone.audio -> shape4.audio
-    bus shape4-audio-hi-5-audio shape4.audio -> hi-5.audio
-    bus hi-5-audio-lo-6-audio hi-5.audio -> lo-6.audio
-    bus fall7-audio-fall7-previous-audio fall7.audio -> fall7-previous.audio
-    bus onset-audio-fall7-a onset.audio -> fall7.a
-    bus fall7-previous-audio-fall7-leak-a fall7-previous.audio -> fall7-leak.a
-    bus fall7-leak-audio-fall7-b fall7-leak.audio -> fall7.b
-    bus lo-6-audio-times8-a lo-6.audio -> times8.a
-    bus fall7-audio-times8-b fall7.audio -> times8.b
-    bus shape4-audio-hi-9-audio shape4.audio -> hi-9.audio
-    bus hi-9-audio-lo-10-audio hi-9.audio -> lo-10.audio
-    bus fall7-audio-gain11-a fall7.audio -> gain11.a
-    bus held-audio-plus12-a held.audio -> plus12.a
-    bus gain11-audio-plus12-b gain11.audio -> plus12.b
-    bus lo-10-audio-times13-a lo-10.audio -> times13.a
-    bus plus12-audio-times13-b plus12.audio -> times13.b
-    bus times8-audio-plus14-a times8.audio -> plus14.a
-    bus times13-audio-plus14-b times13.audio -> plus14.b
-    bus string-decay-audio-gain15-a string-decay.audio -> gain15.a
-    bus plus14-audio-times16-a plus14.audio -> times16.a
-    bus gain15-audio-times16-b gain15.audio -> times16.b
-    bus times16-audio-gain17-a times16.audio -> gain17.a
-    bus times3-audio-plus18-a times3.audio -> plus18.a
-    bus gain17-audio-plus18-b gain17.audio -> plus18.b
-    bus fall20-audio-fall20-previous-audio fall20.audio -> fall20-previous.audio
-    bus onset-audio-fall20-a onset.audio -> fall20.a
-    bus fall20-previous-audio-fall20-leak-a fall20-previous.audio -> fall20-leak.a
-    bus fall20-leak-audio-fall20-b fall20-leak.audio -> fall20.b
-    bus hiss19-audio-times21-a hiss19.audio -> times21.a
-    bus fall20-audio-times21-b fall20.audio -> times21.b
-    bus times21-audio-hi-22-audio times21.audio -> hi-22.audio
-    bus hi-22-audio-lo-23-audio hi-22.audio -> lo-23.audio
-    bus lo-23-audio-gain24-a lo-23.audio -> gain24.a
-    bus plus18-audio-plus25-a plus18.audio -> plus25.a
-    bus gain24-audio-plus25-b gain24.audio -> plus25.b
-    bus plus25-audio-body26-audio plus25.audio -> body26.audio
-    bus note-pitch-body26-pitch note.pitch -> body26.pitch
-    bus note-gate-body26-gate note.gate -> body26.gate
-    bus body26-audio-gain27-a body26.audio -> gain27.a
-    bus plus25-audio-plus28-a plus25.audio -> plus28.a
-    bus gain27-audio-plus28-b gain27.audio -> plus28.b
-    bus plus28-audio-hi-29-audio plus28.audio -> hi-29.audio
-    bus hi-29-audio-register-a hi-29.audio -> register.a
-    bus register-audio-trim-a register.audio -> trim.a
+    bus excite-audio-string-audio excite.audio -> string.audio
+    bus string-audio-loss-audio string.audio -> loss.audio
+    bus loss-audio-decay-a loss.audio -> decay.a
+    bus note-gate-hold-gate note.gate -> hold.gate
+    bus hold-control-hold-audio-control hold.control -> hold-audio.control
+    bus decay-audio-damp-a decay.audio -> damp.a
+    bus hold-audio-audio-damp-b hold-audio.audio -> damp.b
+    bus damp-audio-excite-b damp.audio -> excite.b
+    bus string-audio-radiate-audio string.audio -> radiate.audio
+    bus radiate-audio-body1-audio radiate.audio -> body1.audio
+    bus body1-audio-body2-audio body1.audio -> body2.audio
+    bus body2-audio-body3-audio body2.audio -> body3.audio
+    bus body3-audio-body4-audio body3.audio -> body4.audio
+    bus body4-audio-radiation-audio body4.audio -> radiation.audio
+    bus radiation-audio-sub-cut-audio radiation.audio -> sub-cut.audio
+    bus note-pitch-sub-cut-key note.pitch -> sub-cut.key
+    bus sub-cut-audio-trim-a sub-cut.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a
     bus level-audio-place-audio level.audio -> place.audio
     bus place-audio-out-audio place.audio -> out.audio
   }
-}
-profile shamisen-box {
-  root 261.626hz
-  mode m0 frequency 350hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
-  mode m1 frequency 800hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
-  mode m2 frequency 1700hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }

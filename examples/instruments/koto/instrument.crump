@@ -1,131 +1,75 @@
 crump-module 2
 instrument koto "Koto" graph {
   polyphony 8
-  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
-  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Pick hardness" ratio 0 1 0.890936 0.890936
+  parameter pick "Pick position" ratio 0.02 0.5 0.135806 0.135806
+  parameter damping "Damping" ratio 0 1 0.323165 0.323165
+  parameter sustain "Sustain" ratio 0.9 0.99999 0.99667336 0.99667336
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Pick hardness" "Brightness of the pluck" maps hardness
+    control pick "Pick position" "Plucking point along the string" maps pick
+    control damping "Damping" "How much faster the upper partials decay" maps damping
+    control sustain "Sustain" "Energy kept on each trip along the string" maps sustain
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
-  modulation {
-    source key-level note_key per_voice bipolar reference E4 range 12st
-    route key-gain-low source key-level target key-gain depth -0.360019 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
-    }
-    route key-gain-high source key-level target key-gain depth 0.311137 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-  }
-  graph voice 41 {
-    # Plucked strings: pitch-tuned delay loops, bridge buzz, sympathetic strings and body.
-    node onset exciter kind impact contact 2e-05s hardness 0 level 1
-    node held math operation add
-    node held-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node held-leak math operation scale amount 1
-    node period-later delay_line mode pitch ratio 1 interpolation linear max_time 0.1s
-    node period math operation subtract
-    node pluck-window shaper curve hard_clip drive 64 bias 0
-    node pluck-noise noise level 1
-    node pluck math operation multiply
-    node pluck-tone lowpass mode lowpass cutoff 1890hz resonance 0.308309 velocity_depth 2730hz
-    node string-in math operation add
-    node string delay_line mode pitch ratio 1 interpolation lagrange3 tune_compensation 1 max_time 0.1s
-    node string-loss linear_phase_lowpass amount 0.45
-    node string-keep math operation scale amount 0.99999
-    node string-pickup delay_line mode pitch ratio 0.08 interpolation linear max_time 0.05s
-    node string-out math operation subtract
-    node gain1 math operation scale amount 0.7
-    node gain2 math operation scale amount 1.73205
-    node string-tone lowpass mode lowpass cutoff 1890hz resonance 0.308309 velocity_depth 2730hz
-    node string-decay math operation add
-    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node string-decay-leak math operation scale amount 0.999988425993
-    node times3 math operation multiply
-    node hiss4 noise level 1
-    node fall5 math operation add
-    node fall5-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
-    node fall5-leak math operation scale amount 0.997918835299
-    node times6 math operation multiply
-    node hi-7 lowpass mode highpass cutoff 150hz resonance 0.308309
-    node lo-8 lowpass mode lowpass cutoff 2500hz resonance 0.308309
-    node gain9 math operation scale amount 0.123211
-    node plus10 math operation add
-    node body11 modal_bank profile koto-box max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
-    node gain12 math operation scale amount 0.5
-    node plus13 math operation add
-    node hi-14 lowpass mode highpass cutoff 32hz resonance 0.308309
-    node register math operation scale amount $key-gain
-    node trim math operation scale amount 0.12242
+  graph voice 23 {
+    # A plucked string: a pitch-tuned loop with loss and stiffness, then the body.
+    node pluck exciter kind impact contact 0.000234598s hardness $hardness level 1
+    node step onepole mode leak time 0.02s
+    node pick-point delay_line mode pitch ratio $pick interpolation linear max_time 0.05s
+    node pulse math operation subtract
+    node excite math operation add
+    node string delay_line mode pitch interpolation lagrange3 tune_compensation 2.61083 max_time 0.1s
+    node loss linear_phase_lowpass amount $damping
+    node stiffness biquad mode allpass frequency 8372.02hz q 0.6 key_track 1 key_reference 261.626hz
+    node decay math operation scale amount $sustain
+    node hold envelope attack 0ms decay 0ms sustain 1 release 0.4s
+    node hold-audio to_audio
+    node damp math operation multiply
+    node radiate dc_block cutoff 20hz
+    node body1 biquad mode peak frequency 146.832hz q 5.98197 gain -4.30502db
+    node body2 biquad mode peak frequency 326.3hz q 3.28792 gain -11.3746db
+    node body3 biquad mode peak frequency 604.605hz q 4.5779 gain -8.27218db
+    node body4 biquad mode highshelf frequency 304.121hz q 0.7071 gain 4.48984db
+    node radiation biquad mode lowpass frequency 7574.5hz q 0.7071
+    node sub-cut biquad mode highpass frequency 183.138hz q 0.7071 key_track 1 key_reference 261.626hz
+    node trim math operation scale amount 0.145713
     node level math operation scale amount $level
     node place pan position $pan
     node out output
-    bus note-gate-onset-gate note.gate -> onset.gate
-    bus note-velocity-onset-velocity note.velocity -> onset.velocity
-    bus held-audio-held-previous-audio held.audio -> held-previous.audio
-    bus onset-audio-held-a onset.audio -> held.a
-    bus held-previous-audio-held-leak-a held-previous.audio -> held-leak.a
-    bus held-leak-audio-held-b held-leak.audio -> held.b
-    bus note-pitch-period-later-pitch note.pitch -> period-later.pitch
-    bus held-audio-period-later-audio held.audio -> period-later.audio
-    bus held-audio-period-a held.audio -> period.a
-    bus period-later-audio-period-b period-later.audio -> period.b
-    bus period-audio-pluck-window-audio period.audio -> pluck-window.audio
-    bus pluck-noise-audio-pluck-a pluck-noise.audio -> pluck.a
-    bus pluck-window-audio-pluck-b pluck-window.audio -> pluck.b
-    bus pluck-audio-pluck-tone-audio pluck.audio -> pluck-tone.audio
-    bus note-velocity-pluck-tone-velocity note.velocity -> pluck-tone.velocity
-    bus pluck-tone-audio-string-in-a pluck-tone.audio -> string-in.a
+    bus note-gate-pluck-gate note.gate -> pluck.gate
+    bus note-velocity-pluck-velocity note.velocity -> pluck.velocity
+    bus pluck-audio-step-audio pluck.audio -> step.audio
+    bus note-pitch-pick-point-pitch note.pitch -> pick-point.pitch
+    bus step-audio-pick-point-audio step.audio -> pick-point.audio
+    bus step-audio-pulse-a step.audio -> pulse.a
+    bus pick-point-audio-pulse-b pick-point.audio -> pulse.b
+    bus pulse-audio-excite-a pulse.audio -> excite.a
     bus note-pitch-string-pitch note.pitch -> string.pitch
-    bus string-in-audio-string-audio string-in.audio -> string.audio
-    bus string-audio-string-loss-audio string.audio -> string-loss.audio
-    bus string-loss-audio-string-keep-a string-loss.audio -> string-keep.a
-    bus string-keep-audio-string-in-b string-keep.audio -> string-in.b
-    bus note-pitch-string-pickup-pitch note.pitch -> string-pickup.pitch
-    bus string-audio-string-pickup-audio string.audio -> string-pickup.audio
-    bus string-audio-string-out-a string.audio -> string-out.a
-    bus string-pickup-audio-gain1-a string-pickup.audio -> gain1.a
-    bus gain1-audio-string-out-b gain1.audio -> string-out.b
-    bus string-out-audio-gain2-a string-out.audio -> gain2.a
-    bus gain2-audio-string-tone-audio gain2.audio -> string-tone.audio
-    bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
-    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
-    bus onset-audio-string-decay-a onset.audio -> string-decay.a
-    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
-    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
-    bus string-tone-audio-times3-a string-tone.audio -> times3.a
-    bus string-decay-audio-times3-b string-decay.audio -> times3.b
-    bus fall5-audio-fall5-previous-audio fall5.audio -> fall5-previous.audio
-    bus onset-audio-fall5-a onset.audio -> fall5.a
-    bus fall5-previous-audio-fall5-leak-a fall5-previous.audio -> fall5-leak.a
-    bus fall5-leak-audio-fall5-b fall5-leak.audio -> fall5.b
-    bus hiss4-audio-times6-a hiss4.audio -> times6.a
-    bus fall5-audio-times6-b fall5.audio -> times6.b
-    bus times6-audio-hi-7-audio times6.audio -> hi-7.audio
-    bus hi-7-audio-lo-8-audio hi-7.audio -> lo-8.audio
-    bus lo-8-audio-gain9-a lo-8.audio -> gain9.a
-    bus times3-audio-plus10-a times3.audio -> plus10.a
-    bus gain9-audio-plus10-b gain9.audio -> plus10.b
-    bus plus10-audio-body11-audio plus10.audio -> body11.audio
-    bus note-pitch-body11-pitch note.pitch -> body11.pitch
-    bus note-gate-body11-gate note.gate -> body11.gate
-    bus body11-audio-gain12-a body11.audio -> gain12.a
-    bus plus10-audio-plus13-a plus10.audio -> plus13.a
-    bus gain12-audio-plus13-b gain12.audio -> plus13.b
-    bus plus13-audio-hi-14-audio plus13.audio -> hi-14.audio
-    bus hi-14-audio-register-a hi-14.audio -> register.a
-    bus register-audio-trim-a register.audio -> trim.a
+    bus excite-audio-string-audio excite.audio -> string.audio
+    bus string-audio-loss-audio string.audio -> loss.audio
+    bus note-pitch-stiffness-key note.pitch -> stiffness.key
+    bus loss-audio-stiffness-audio loss.audio -> stiffness.audio
+    bus stiffness-audio-decay-a stiffness.audio -> decay.a
+    bus note-gate-hold-gate note.gate -> hold.gate
+    bus hold-control-hold-audio-control hold.control -> hold-audio.control
+    bus decay-audio-damp-a decay.audio -> damp.a
+    bus hold-audio-audio-damp-b hold-audio.audio -> damp.b
+    bus damp-audio-excite-b damp.audio -> excite.b
+    bus string-audio-radiate-audio string.audio -> radiate.audio
+    bus radiate-audio-body1-audio radiate.audio -> body1.audio
+    bus body1-audio-body2-audio body1.audio -> body2.audio
+    bus body2-audio-body3-audio body2.audio -> body3.audio
+    bus body3-audio-body4-audio body3.audio -> body4.audio
+    bus body4-audio-radiation-audio body4.audio -> radiation.audio
+    bus radiation-audio-sub-cut-audio radiation.audio -> sub-cut.audio
+    bus note-pitch-sub-cut-key note.pitch -> sub-cut.key
+    bus sub-cut-audio-trim-a sub-cut.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a
     bus level-audio-place-audio level.audio -> place.audio
     bus place-audio-out-audio place.audio -> out.audio
   }
-}
-profile koto-box {
-  root 261.626hz
-  mode m0 frequency 140hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
-  mode m1 frequency 300hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
-  mode m2 frequency 650hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
-  mode m3 frequency 1400hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }
