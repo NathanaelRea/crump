@@ -1979,7 +1979,9 @@ fn runtime_node_output(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> 
             | NodeKind::Shaper
             | NodeKind::ToAudio
             | NodeKind::DcBlock
-            | NodeKind::LinearPhaseLowpass,
+            | NodeKind::LinearPhaseLowpass
+            | NodeKind::Biquad
+            | NodeKind::OnePole,
             "audio",
         ) => Some(RuntimeSignalType::AudioMono),
         (NodeKind::StereoMath, "audio") => Some(RuntimeSignalType::AudioStereo),
@@ -2042,7 +2044,7 @@ fn runtime_node_input(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> {
             | NodeKind::StereoFilter,
             "audio",
         ) => Some(RuntimeSignalType::AudioStereo),
-        (NodeKind::Lowpass | NodeKind::StereoFilter, "key") => Some(RuntimeSignalType::Hertz),
+        (NodeKind::Lowpass | NodeKind::StereoFilter | NodeKind::Biquad, "key") => Some(RuntimeSignalType::Hertz),
         (NodeKind::Lowpass | NodeKind::StereoFilter, "mod") => Some(RuntimeSignalType::Control),
         (NodeKind::Lowpass | NodeKind::StereoFilter, "velocity") => {
             Some(RuntimeSignalType::Unipolar)
@@ -2053,7 +2055,9 @@ fn runtime_node_input(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> {
             | NodeKind::Shaper
             | NodeKind::ToControl
             | NodeKind::DcBlock
-            | NodeKind::LinearPhaseLowpass,
+            | NodeKind::LinearPhaseLowpass
+            | NodeKind::Biquad
+            | NodeKind::OnePole,
             "audio",
         )
         | (NodeKind::DelayLine, "time_mod")
@@ -2094,7 +2098,9 @@ const fn runtime_required_inputs(kind: NodeKind) -> &'static [&'static str] {
         | NodeKind::Shaper
         | NodeKind::ToControl
         | NodeKind::DcBlock
-        | NodeKind::LinearPhaseLowpass => &["audio"],
+        | NodeKind::LinearPhaseLowpass
+        | NodeKind::Biquad
+        | NodeKind::OnePole => &["audio"],
         NodeKind::Math | NodeKind::StereoMath => &["a"],
         NodeKind::ToAudio => &["control"],
     }

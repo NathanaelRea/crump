@@ -1,93 +1,119 @@
 crump-module 2
 instrument crunch-guitar "Crunch Guitar" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z40-soft-0 asset crunch-guitar-40-soft-0 keys E2 G2 velocity 0 0.65 root E2
-      zone z40-hard-0 asset crunch-guitar-40-hard-0 keys E2 G2 velocity 0.65 1 root E2
-      zone z46-soft-0 asset crunch-guitar-46-soft-0 keys G#2 C#3 velocity 0 0.65 root A#2
-      zone z46-hard-0 asset crunch-guitar-46-hard-0 keys G#2 C#3 velocity 0.65 1 root A#2
-      zone z52-soft-0 asset crunch-guitar-52-soft-0 keys D3 G3 velocity 0 0.65 root E3
-      zone z52-hard-0 asset crunch-guitar-52-hard-0 keys D3 G3 velocity 0.65 1 root E3
-      zone z58-soft-0 asset crunch-guitar-58-soft-0 keys G#3 C#4 velocity 0 0.65 root A#3
-      zone z58-hard-0 asset crunch-guitar-58-hard-0 keys G#3 C#4 velocity 0.65 1 root A#3
-      zone z64-soft-0 asset crunch-guitar-64-soft-0 keys D4 G4 velocity 0 0.65 root E4
-      zone z64-hard-0 asset crunch-guitar-64-hard-0 keys D4 G4 velocity 0.65 1 root E4
-      zone z70-soft-0 asset crunch-guitar-70-soft-0 keys G#4 C#5 velocity 0 0.65 root A#4
-      zone z70-hard-0 asset crunch-guitar-70-hard-0 keys G#4 C#5 velocity 0.65 1 root A#4
-      zone z76-soft-0 asset crunch-guitar-76-soft-0 keys D5 G5 velocity 0 0.65 root E5
-      zone z76-hard-0 asset crunch-guitar-76-hard-0 keys D5 G5 velocity 0.65 1 root E5
-      zone z82-soft-0 asset crunch-guitar-82-soft-0 keys G#5 D6 velocity 0 0.65 root A#5
-      zone z82-hard-0 asset crunch-guitar-82-hard-0 keys G#5 D6 velocity 0.65 1 root A#5
+  modulation {
+    source key-level note_key per_voice bipolar reference E3 range 12st
+    route key-gain-low source key-level target key-gain depth -0.176637 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth 0.302456 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 36 {
+    # Plucked strings: pitch-tuned delay loops, bridge buzz, sympathetic strings and body.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node held math operation add
+    node held-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node held-leak math operation scale amount 1
+    node period-later delay_line mode pitch ratio 1 interpolation linear max_time 0.1s
+    node period math operation subtract
+    node pluck-window shaper curve hard_clip drive 64 bias 0
+    node pluck-noise noise level 1
+    node pluck math operation multiply
+    node pluck-tone lowpass mode lowpass cutoff 1710hz resonance 0.308309 velocity_depth 2470hz
+    node string-in math operation add
+    node string delay_line mode pitch ratio 1 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node string-loss linear_phase_lowpass amount 0.45
+    node string-keep math operation scale amount 0.99999
+    node string-pickup delay_line mode pitch ratio 0.1 interpolation linear max_time 0.05s
+    node string-out math operation subtract
+    node gain1 math operation scale amount 0.7
+    node gain2 math operation scale amount 1.73205
+    node string-tone lowpass mode lowpass cutoff 1710hz resonance 0.308309 velocity_depth 2470hz
+    node string-decay math operation add
+    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node string-decay-leak math operation scale amount 0.999991987212
+    node times3 math operation multiply
+    node shape4 shaper curve tanh drive 2.25859 bias 0
+    node lo-5 lowpass mode lowpass cutoff 4200hz resonance 0.308309
+    node lo-6 lowpass mode lowpass cutoff 4200hz resonance 0.308309
+    node hi-7 lowpass mode highpass cutoff 90hz resonance 0.308309
+    node body8 modal_bank profile crunch-guitar-box max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain9 math operation scale amount 0.02
+    node plus10 math operation add
+    node hi-11 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.120527
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus held-audio-held-previous-audio held.audio -> held-previous.audio
+    bus onset-audio-held-a onset.audio -> held.a
+    bus held-previous-audio-held-leak-a held-previous.audio -> held-leak.a
+    bus held-leak-audio-held-b held-leak.audio -> held.b
+    bus note-pitch-period-later-pitch note.pitch -> period-later.pitch
+    bus held-audio-period-later-audio held.audio -> period-later.audio
+    bus held-audio-period-a held.audio -> period.a
+    bus period-later-audio-period-b period-later.audio -> period.b
+    bus period-audio-pluck-window-audio period.audio -> pluck-window.audio
+    bus pluck-noise-audio-pluck-a pluck-noise.audio -> pluck.a
+    bus pluck-window-audio-pluck-b pluck-window.audio -> pluck.b
+    bus pluck-audio-pluck-tone-audio pluck.audio -> pluck-tone.audio
+    bus note-velocity-pluck-tone-velocity note.velocity -> pluck-tone.velocity
+    bus pluck-tone-audio-string-in-a pluck-tone.audio -> string-in.a
+    bus note-pitch-string-pitch note.pitch -> string.pitch
+    bus string-in-audio-string-audio string-in.audio -> string.audio
+    bus string-audio-string-loss-audio string.audio -> string-loss.audio
+    bus string-loss-audio-string-keep-a string-loss.audio -> string-keep.a
+    bus string-keep-audio-string-in-b string-keep.audio -> string-in.b
+    bus note-pitch-string-pickup-pitch note.pitch -> string-pickup.pitch
+    bus string-audio-string-pickup-audio string.audio -> string-pickup.audio
+    bus string-audio-string-out-a string.audio -> string-out.a
+    bus string-pickup-audio-gain1-a string-pickup.audio -> gain1.a
+    bus gain1-audio-string-out-b gain1.audio -> string-out.b
+    bus string-out-audio-gain2-a string-out.audio -> gain2.a
+    bus gain2-audio-string-tone-audio gain2.audio -> string-tone.audio
+    bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
+    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
+    bus onset-audio-string-decay-a onset.audio -> string-decay.a
+    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
+    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
+    bus string-tone-audio-times3-a string-tone.audio -> times3.a
+    bus string-decay-audio-times3-b string-decay.audio -> times3.b
+    bus times3-audio-shape4-audio times3.audio -> shape4.audio
+    bus shape4-audio-lo-5-audio shape4.audio -> lo-5.audio
+    bus lo-5-audio-lo-6-audio lo-5.audio -> lo-6.audio
+    bus lo-6-audio-hi-7-audio lo-6.audio -> hi-7.audio
+    bus hi-7-audio-body8-audio hi-7.audio -> body8.audio
+    bus note-pitch-body8-pitch note.pitch -> body8.pitch
+    bus note-gate-body8-gate note.gate -> body8.gate
+    bus body8-audio-gain9-a body8.audio -> gain9.a
+    bus hi-7-audio-plus10-a hi-7.audio -> plus10.a
+    bus gain9-audio-plus10-b gain9.audio -> plus10.b
+    bus plus10-audio-hi-11-audio plus10.audio -> hi-11.audio
+    bus hi-11-audio-register-a hi-11.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset crunch-guitar-40-soft-0 "Crunch Guitar" wav "media/40-soft-0.wav" sha256 "9b50ad9ac9bb422db7d25d697e33ccf5258eef31d0972d332e65fb94ad5728fd" {
-  usage multisample
-}
-asset crunch-guitar-40-hard-0 "Crunch Guitar" wav "media/40-hard-0.wav" sha256 "889c12ee83ba157396f5f8c088829a88d4eeee451d0020232dcd1904d25973ed" {
-  usage multisample
-}
-asset crunch-guitar-46-soft-0 "Crunch Guitar" wav "media/46-soft-0.wav" sha256 "8ab69c829b2bd9b5a358927410d7036b4b3cde253edab8487896b4d16f8032cb" {
-  usage multisample
-}
-asset crunch-guitar-46-hard-0 "Crunch Guitar" wav "media/46-hard-0.wav" sha256 "30ffb3ba698f8a83dcffbe1ebbd759b6c73e8e5396f632d8669b219c8df8d103" {
-  usage multisample
-}
-asset crunch-guitar-52-soft-0 "Crunch Guitar" wav "media/52-soft-0.wav" sha256 "bd1da13cea4892f5a3fb7c37fab3e19bb861dfb4afc923f606fd828536d10d81" {
-  usage multisample
-}
-asset crunch-guitar-52-hard-0 "Crunch Guitar" wav "media/52-hard-0.wav" sha256 "e35c48adafdac617e1c6877879f1feb0d8c53707efc753ad3da55a77779b3350" {
-  usage multisample
-}
-asset crunch-guitar-58-soft-0 "Crunch Guitar" wav "media/58-soft-0.wav" sha256 "ce76ee42f1cf44d5360b7f521ea330eb7e812b0eee654207d202d0d123db7b38" {
-  usage multisample
-}
-asset crunch-guitar-58-hard-0 "Crunch Guitar" wav "media/58-hard-0.wav" sha256 "f7b2d32d32fcaa0ca23c06b7259771c9ec2441fb9d43529b2a5ed9b5c30b4259" {
-  usage multisample
-}
-asset crunch-guitar-64-soft-0 "Crunch Guitar" wav "media/64-soft-0.wav" sha256 "3ca5c96f8573a9113d867d7c4dcfccaab94b33a28701244b40ab48d10e86152a" {
-  usage multisample
-}
-asset crunch-guitar-64-hard-0 "Crunch Guitar" wav "media/64-hard-0.wav" sha256 "2e54f51e2aea30fddd468a25116dabbd363a28d51206bfa3df16685a55759e4d" {
-  usage multisample
-}
-asset crunch-guitar-70-soft-0 "Crunch Guitar" wav "media/70-soft-0.wav" sha256 "3f2b95a8f496e2ad6c191f40c51ea446a50a3ef8e1f024bf1027843d0800e488" {
-  usage multisample
-}
-asset crunch-guitar-70-hard-0 "Crunch Guitar" wav "media/70-hard-0.wav" sha256 "1acbb71588ede0f28e7389a267ddc561bac7827fe91650885bd2dabb4af26e48" {
-  usage multisample
-}
-asset crunch-guitar-76-soft-0 "Crunch Guitar" wav "media/76-soft-0.wav" sha256 "7c6a5e5c36e98a3c53469963ce9170befb3aeb9f685b5a7b2f7fe39d1421612b" {
-  usage multisample
-}
-asset crunch-guitar-76-hard-0 "Crunch Guitar" wav "media/76-hard-0.wav" sha256 "c7145bf0c14dc2a07ca40d8d2fea9b25316ad09ed6651419bad5b852cbbde7ed" {
-  usage multisample
-}
-asset crunch-guitar-82-soft-0 "Crunch Guitar" wav "media/82-soft-0.wav" sha256 "579c71e7947dcb1020d5522ba5d1f72aafbae28dac6f611376b473ae10fb5d05" {
-  usage multisample
-}
-asset crunch-guitar-82-hard-0 "Crunch Guitar" wav "media/82-hard-0.wav" sha256 "f26fbf4be69348c2c8fc3ce5792d51e0031254f856d8e46ae40b679a6081df23" {
-  usage multisample
+profile crunch-guitar-box {
+  root 261.626hz
+  mode m0 frequency 110hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 220hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 430hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m3 frequency 2100hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }

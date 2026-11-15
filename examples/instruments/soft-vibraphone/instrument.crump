@@ -1,93 +1,53 @@
 crump-module 2
 instrument soft-vibraphone "Soft Vibraphone" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  modulation {
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route key-gain-low source key-level target key-gain depth -0.045092 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
+    }
+    route key-gain-high source key-level target key-gain depth 0.00516947 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
   }
   graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset soft-vibraphone-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
-      zone z36-hard-0 asset soft-vibraphone-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
-      zone z43-soft-0 asset soft-vibraphone-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
-      zone z43-hard-0 asset soft-vibraphone-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
-      zone z48-soft-0 asset soft-vibraphone-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset soft-vibraphone-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
-      zone z55-soft-0 asset soft-vibraphone-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
-      zone z55-hard-0 asset soft-vibraphone-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
-      zone z60-soft-0 asset soft-vibraphone-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
-      zone z60-hard-0 asset soft-vibraphone-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
-      zone z67-soft-0 asset soft-vibraphone-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset soft-vibraphone-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset soft-vibraphone-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset soft-vibraphone-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
-      zone z79-soft-0 asset soft-vibraphone-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
-      zone z79-hard-0 asset soft-vibraphone-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
-    }
+    # A mallet on a tuned bar's modes, optionally through a pickup.
+    node strike1 exciter kind impact contact 9.08893e-05s hardness $hardness level 1
+    node body2 modal_bank profile soft-vibraphone-bar max_modes 4 key_track 1 decay_scale $ring brightness 0 level 1
+    node hi-3 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.106167
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-hi-3-audio body2.audio -> hi-3.audio
+    bus hi-3-audio-register-a hi-3.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset soft-vibraphone-36-soft-0 "Soft Vibraphone" wav "media/36-soft-0.wav" sha256 "883deb2e51e636e345df10519bc7df180fa8670328efb98bc0b9403c74bda84c" {
-  usage multisample
-}
-asset soft-vibraphone-36-hard-0 "Soft Vibraphone" wav "media/36-hard-0.wav" sha256 "05a6fccf96532e9b6f8d3b94b21be6ad884cd1dd51f0dcdd7d5525253626e396" {
-  usage multisample
-}
-asset soft-vibraphone-43-soft-0 "Soft Vibraphone" wav "media/43-soft-0.wav" sha256 "e9047c2be46fabdc26684276f5d7542338387f2fb8547646addb632797b4e161" {
-  usage multisample
-}
-asset soft-vibraphone-43-hard-0 "Soft Vibraphone" wav "media/43-hard-0.wav" sha256 "e2a6b0ccd722b9f5d7e8b1d3850b0f91e0c1ff252b147f7ccc2d6ce226012c06" {
-  usage multisample
-}
-asset soft-vibraphone-48-soft-0 "Soft Vibraphone" wav "media/48-soft-0.wav" sha256 "6b89c8757ba1b15511473f0d1474ddd628ecddc176d84849a1f2dbb623fb540c" {
-  usage multisample
-}
-asset soft-vibraphone-48-hard-0 "Soft Vibraphone" wav "media/48-hard-0.wav" sha256 "efc759eafd564d9207403719626d30c2fda1cb156019fa0edb47e629266ac2b1" {
-  usage multisample
-}
-asset soft-vibraphone-55-soft-0 "Soft Vibraphone" wav "media/55-soft-0.wav" sha256 "b862a8827de7f625ee05f8e49b416ff96a7c7afefb001309313a8c5402500876" {
-  usage multisample
-}
-asset soft-vibraphone-55-hard-0 "Soft Vibraphone" wav "media/55-hard-0.wav" sha256 "1f3181c167e5558c40384b9f460d5227a366ef40535c607b86ef7b3a1725d781" {
-  usage multisample
-}
-asset soft-vibraphone-60-soft-0 "Soft Vibraphone" wav "media/60-soft-0.wav" sha256 "bf52e90c743bea4a3606b94c8722c8a2cd629067fa57e0ec9a3735ace78c7648" {
-  usage multisample
-}
-asset soft-vibraphone-60-hard-0 "Soft Vibraphone" wav "media/60-hard-0.wav" sha256 "7e71c903b76b948b8aa7417dddc8e1caa565112723743f5e7a687bbdc970fd2c" {
-  usage multisample
-}
-asset soft-vibraphone-67-soft-0 "Soft Vibraphone" wav "media/67-soft-0.wav" sha256 "8f09ed5107e1cd9326a0ec441287692ae118f0815f5827d72fd2893609bbc04b" {
-  usage multisample
-}
-asset soft-vibraphone-67-hard-0 "Soft Vibraphone" wav "media/67-hard-0.wav" sha256 "c699440d7da0e99111b734c15712213df47ff464f559229aa6d6d8c045770a5d" {
-  usage multisample
-}
-asset soft-vibraphone-72-soft-0 "Soft Vibraphone" wav "media/72-soft-0.wav" sha256 "0f5bb5f0a86abc6a744f742edd91c2196af056db9076a070f1ffb51fc0842410" {
-  usage multisample
-}
-asset soft-vibraphone-72-hard-0 "Soft Vibraphone" wav "media/72-hard-0.wav" sha256 "8d3f9221fbc2b294b3841e2d6e779b1046e02d308714c86128102ec56c756baa" {
-  usage multisample
-}
-asset soft-vibraphone-79-soft-0 "Soft Vibraphone" wav "media/79-soft-0.wav" sha256 "1f457d469f73bd7e997ec2207426162da145f929fd3a835d8c6f043cfdb5bb6b" {
-  usage multisample
-}
-asset soft-vibraphone-79-hard-0 "Soft Vibraphone" wav "media/79-hard-0.wav" sha256 "62c26ce97c4994064e7b685779bdf5d690a6d10b5a9f348a75ed97a64241e9ff" {
-  usage multisample
+profile soft-vibraphone-bar {
+  root 261.626hz
+  mode m0 frequency 261.626hz decay 3.01498s gain 1 after_decay 3.01498s after_gain 0
+  mode m1 frequency 1046.5hz decay 0.416985s gain 0.231527 after_decay 0.416985s after_gain 0
+  mode m2 frequency 2616.26hz decay 0.112783s gain 0.687046 after_decay 0.112783s after_gain 0
+  mode m3 frequency 4761.59hz decay 0.0479857s gain 0.316995 after_decay 0.0479857s after_gain 0
 }

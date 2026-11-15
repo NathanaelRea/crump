@@ -2584,6 +2584,10 @@ pub enum NodeKind {
     DcBlock,
     /// Three-tap symmetric low-pass with exactly one frame of delay at every frequency.
     LinearPhaseLowpass,
+    /// Second-order filter with cookbook low/high/band-pass, notch, peak, shelf and all-pass responses.
+    Biquad,
+    /// First-order low-pass, high-pass, or leaky integrator.
+    OnePole,
 }
 
 impl NodeKind {
@@ -2642,6 +2646,8 @@ impl FromStr for NodeKind {
             "to_control" => Ok(Self::ToControl),
             "dc_block" => Ok(Self::DcBlock),
             "linear_phase_lowpass" => Ok(Self::LinearPhaseLowpass),
+            "biquad" => Ok(Self::Biquad),
+            "onepole" | "one_pole" => Ok(Self::OnePole),
             _ => Err(ValueError::UnknownNode(value.to_owned())),
         }
     }

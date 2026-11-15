@@ -1,93 +1,53 @@
 crump-module 2
 instrument rosewood-marimba "Rosewood Marimba" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  modulation {
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route key-gain-low source key-level target key-gain depth 0.00572949 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
+    }
+    route key-gain-high source key-level target key-gain depth 0.0426109 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
   }
   graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset rosewood-marimba-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
-      zone z36-hard-0 asset rosewood-marimba-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
-      zone z43-soft-0 asset rosewood-marimba-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
-      zone z43-hard-0 asset rosewood-marimba-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
-      zone z48-soft-0 asset rosewood-marimba-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset rosewood-marimba-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
-      zone z55-soft-0 asset rosewood-marimba-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
-      zone z55-hard-0 asset rosewood-marimba-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
-      zone z60-soft-0 asset rosewood-marimba-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
-      zone z60-hard-0 asset rosewood-marimba-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
-      zone z67-soft-0 asset rosewood-marimba-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset rosewood-marimba-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset rosewood-marimba-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset rosewood-marimba-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
-      zone z79-soft-0 asset rosewood-marimba-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
-      zone z79-hard-0 asset rosewood-marimba-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
-    }
+    # A mallet on a tuned bar's modes, optionally through a pickup.
+    node strike1 exciter kind impact contact 8.53161e-05s hardness $hardness level 1
+    node body2 modal_bank profile rosewood-marimba-bar max_modes 4 key_track 1 decay_scale $ring brightness 0 level 1
+    node hi-3 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.177379
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-hi-3-audio body2.audio -> hi-3.audio
+    bus hi-3-audio-register-a hi-3.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset rosewood-marimba-36-soft-0 "Rosewood Marimba" wav "media/36-soft-0.wav" sha256 "7fb579812912f6023007ce1a6f4066e6dc3505c366f7b5fbda29b97d1b671132" {
-  usage multisample
-}
-asset rosewood-marimba-36-hard-0 "Rosewood Marimba" wav "media/36-hard-0.wav" sha256 "fb722678f8e680a3d22ad6e34b634b371cbaa360d57ba6548e2f47a2a089db4c" {
-  usage multisample
-}
-asset rosewood-marimba-43-soft-0 "Rosewood Marimba" wav "media/43-soft-0.wav" sha256 "08ef1a1bc61a74dae268a310f7b26062d5a721e1a3aee513068dd53cf16129ad" {
-  usage multisample
-}
-asset rosewood-marimba-43-hard-0 "Rosewood Marimba" wav "media/43-hard-0.wav" sha256 "b9dbf65d9cf609174a32a18a26d8ea352e7eafe4864d125336145bd91756e2e9" {
-  usage multisample
-}
-asset rosewood-marimba-48-soft-0 "Rosewood Marimba" wav "media/48-soft-0.wav" sha256 "4dce6d01eced6659ca9858876ceb86a31ed373dc3dc4c898786bed72143101ad" {
-  usage multisample
-}
-asset rosewood-marimba-48-hard-0 "Rosewood Marimba" wav "media/48-hard-0.wav" sha256 "8450466d739b724cda4cf9a4117fbb365abe3a1ff0e75b799b85562f84e5b134" {
-  usage multisample
-}
-asset rosewood-marimba-55-soft-0 "Rosewood Marimba" wav "media/55-soft-0.wav" sha256 "e5522654d2f9f9634c4bc88ec66e2314c9af470fcbf0611dabcb98a2051360de" {
-  usage multisample
-}
-asset rosewood-marimba-55-hard-0 "Rosewood Marimba" wav "media/55-hard-0.wav" sha256 "fa9fa859ff8244e3179b7e16a004ae6f5525d9c2fad5112c3412a283c3484f8e" {
-  usage multisample
-}
-asset rosewood-marimba-60-soft-0 "Rosewood Marimba" wav "media/60-soft-0.wav" sha256 "aba83c5709fd1acf7b4f3812e87742365c7b1044cc2ca15b05d7e2a31075daed" {
-  usage multisample
-}
-asset rosewood-marimba-60-hard-0 "Rosewood Marimba" wav "media/60-hard-0.wav" sha256 "fe82ae27b257e6ca37fa237a62f4e43065df09e3889373f9cf051e3042dcbd5b" {
-  usage multisample
-}
-asset rosewood-marimba-67-soft-0 "Rosewood Marimba" wav "media/67-soft-0.wav" sha256 "0b3f1896ab40b838091f304a55f89eeeeb055b52b793d46875dc749c5eee6c86" {
-  usage multisample
-}
-asset rosewood-marimba-67-hard-0 "Rosewood Marimba" wav "media/67-hard-0.wav" sha256 "3fd0ea3bfda57363f4357ed857b80ca49ca640c9aa2aee7cfd070d60c8ad360a" {
-  usage multisample
-}
-asset rosewood-marimba-72-soft-0 "Rosewood Marimba" wav "media/72-soft-0.wav" sha256 "a5ab405782d71ed672c94ce75acb136c4b1c0a1291fb35fcf5e6a5084da700dd" {
-  usage multisample
-}
-asset rosewood-marimba-72-hard-0 "Rosewood Marimba" wav "media/72-hard-0.wav" sha256 "dca2f21339b56d2799b1dabab50e72d7b4dc81e5ac578a4f93cb64b1119a9f54" {
-  usage multisample
-}
-asset rosewood-marimba-79-soft-0 "Rosewood Marimba" wav "media/79-soft-0.wav" sha256 "abc86ebed09f71dde230f92888ede0ea8826c2a6994afcf984a3fa00db004537" {
-  usage multisample
-}
-asset rosewood-marimba-79-hard-0 "Rosewood Marimba" wav "media/79-hard-0.wav" sha256 "bb7e48c16f0698cee289c68a27e5c884c6841b1ae61fa11e12c08a781c490725" {
-  usage multisample
+profile rosewood-marimba-bar {
+  root 261.626hz
+  mode m0 frequency 262.955hz decay 0.314776s gain 1 after_decay 0.314776s after_gain 0
+  mode m1 frequency 1051.82hz decay 0.0430126s gain 0.180693 after_decay 0.0430126s after_gain 0
+  mode m2 frequency 2603.25hz decay 0.011709s gain 0.0051603 after_decay 0.011709s after_gain 0
+  mode m3 frequency 4628.01hz decay 0.00512578s gain 0.00364965 after_decay 0.00512578s after_gain 0
 }

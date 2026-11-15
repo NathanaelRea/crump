@@ -1,85 +1,124 @@
 crump-module 2
 instrument hammered-dulcimer "Hammered Dulcimer" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 7
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z52-soft-0 asset hammered-dulcimer-52-soft-0 keys D3 G3 velocity 0 0.65 root E3
-      zone z52-hard-0 asset hammered-dulcimer-52-hard-0 keys D3 G3 velocity 0.65 1 root E3
-      zone z58-soft-0 asset hammered-dulcimer-58-soft-0 keys G#3 C#4 velocity 0 0.65 root A#3
-      zone z58-hard-0 asset hammered-dulcimer-58-hard-0 keys G#3 C#4 velocity 0.65 1 root A#3
-      zone z64-soft-0 asset hammered-dulcimer-64-soft-0 keys D4 G4 velocity 0 0.65 root E4
-      zone z64-hard-0 asset hammered-dulcimer-64-hard-0 keys D4 G4 velocity 0.65 1 root E4
-      zone z70-soft-0 asset hammered-dulcimer-70-soft-0 keys G#4 C#5 velocity 0 0.65 root A#4
-      zone z70-hard-0 asset hammered-dulcimer-70-hard-0 keys G#4 C#5 velocity 0.65 1 root A#4
-      zone z76-soft-0 asset hammered-dulcimer-76-soft-0 keys D5 G5 velocity 0 0.65 root E5
-      zone z76-hard-0 asset hammered-dulcimer-76-hard-0 keys D5 G5 velocity 0.65 1 root E5
-      zone z82-soft-0 asset hammered-dulcimer-82-soft-0 keys G#5 C#6 velocity 0 0.65 root A#5
-      zone z82-hard-0 asset hammered-dulcimer-82-hard-0 keys G#5 C#6 velocity 0.65 1 root A#5
-      zone z88-soft-0 asset hammered-dulcimer-88-soft-0 keys D6 E6 velocity 0 0.65 root E6
-      zone z88-hard-0 asset hammered-dulcimer-88-hard-0 keys D6 E6 velocity 0.65 1 root E6
+  modulation {
+    source key-level note_key per_voice bipolar reference E4 range 12st
+    route key-gain-low source key-level target key-gain depth 0.138332 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth 0.422446 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 19 {
+    # Hammered strings: stretched partials on two courses.
+    node strike1 exciter kind impact contact 0.000409014s hardness $hardness level 1
+    node body2 modal_bank profile hammered-dulcimer-strings max_modes 40 key_track 1 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.997399221234
+    node times5 math operation multiply
+    node lo-6 lowpass mode lowpass cutoff 2600hz resonance 0.308309
+    node gain7 math operation scale amount 0.0277128
+    node plus8 math operation add
+    node body9 modal_bank profile hammered-dulcimer-box max_modes 5 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain10 math operation scale amount 0.2
+    node plus11 math operation add
+    node hi-12 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.142996
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus strike1-audio-fall4-a strike1.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-lo-6-audio times5.audio -> lo-6.audio
+    bus lo-6-audio-gain7-a lo-6.audio -> gain7.a
+    bus body2-audio-plus8-a body2.audio -> plus8.a
+    bus gain7-audio-plus8-b gain7.audio -> plus8.b
+    bus plus8-audio-body9-audio plus8.audio -> body9.audio
+    bus note-pitch-body9-pitch note.pitch -> body9.pitch
+    bus note-gate-body9-gate note.gate -> body9.gate
+    bus body9-audio-gain10-a body9.audio -> gain10.a
+    bus plus8-audio-plus11-a plus8.audio -> plus11.a
+    bus gain10-audio-plus11-b gain10.audio -> plus11.b
+    bus plus11-audio-hi-12-audio plus11.audio -> hi-12.audio
+    bus hi-12-audio-register-a hi-12.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset hammered-dulcimer-52-soft-0 "Hammered Dulcimer" wav "media/52-soft-0.wav" sha256 "9449b8589d4e737a6593db052b0b72e2048fe5327560bfdfc85d5f8541cab407" {
-  usage multisample
+profile hammered-dulcimer-strings {
+  root 261.626hz
+  mode m0 frequency 261.165hz decay 2.43478s gain 0.181503 after_decay 2.43478s after_gain 0
+  mode m1 frequency 522.393hz decay 2.06374s gain 0.178355 after_decay 2.06374s after_gain 0
+  mode m2 frequency 783.746hz decay 1.75854s gain 0.161394 after_decay 1.75854s after_gain 0
+  mode m3 frequency 1045.29hz decay 1.51472s gain 0.1355 after_decay 1.51472s after_gain 0
+  mode m4 frequency 1307.08hz decay 1.31981s gain 0.10416 after_decay 1.31981s after_gain 0
+  mode m5 frequency 1569.18hz decay 1.16251s gain 0.0706209 after_decay 1.16251s after_gain 0
+  mode m6 frequency 1831.66hz decay 1.03401s gain 0.0379006 after_decay 1.03401s after_gain 0
+  mode m7 frequency 2094.58hz decay 0.92772s gain 0.00862212 after_decay 0.92772s after_gain 0
+  mode m8 frequency 2357.99hz decay 0.838758s gain 0.0151736 after_decay 0.838758s after_gain 0
+  mode m9 frequency 2621.97hz decay 0.76348s gain 0.0321653 after_decay 0.76348s after_gain 0
+  mode m10 frequency 2886.57hz decay 0.699141s gain 0.0418164 after_decay 0.699141s after_gain 0
+  mode m11 frequency 3151.85hz decay 0.643652s gain 0.0443592 after_decay 0.643652s after_gain 0
+  mode m12 frequency 3417.88hz decay 0.595401s gain 0.0407022 after_decay 0.595401s after_gain 0
+  mode m13 frequency 3684.72hz decay 0.553129s gain 0.0322734 after_decay 0.553129s after_gain 0
+  mode m14 frequency 3952.42hz decay 0.515846s gain 0.0208212 after_decay 0.515846s after_gain 0
+  mode m15 frequency 4221.04hz decay 0.482759s gain 0.00819668 after_decay 0.482759s after_gain 0
+  mode m16 frequency 4490.66hz decay 0.45323s gain 0.00385718 after_decay 0.45323s after_gain 0
+  mode m17 frequency 4761.32hz decay 0.42674s gain 0.013887 after_decay 0.42674s after_gain 0
+  mode m18 frequency 5033.08hz decay 0.402865s gain 0.0208617 after_decay 0.402865s after_gain 0
+  mode m19 frequency 5306hz decay 0.381252s gain 0.0242464 after_decay 0.381252s after_gain 0
+  mode m20 frequency 262.107hz decay 2.43478s gain 0.181503 after_decay 2.43478s after_gain 0
+  mode m21 frequency 524.277hz decay 2.06374s gain 0.178355 after_decay 2.06374s after_gain 0
+  mode m22 frequency 786.572hz decay 1.75854s gain 0.161394 after_decay 1.75854s after_gain 0
+  mode m23 frequency 1049.06hz decay 1.51472s gain 0.1355 after_decay 1.51472s after_gain 0
+  mode m24 frequency 1311.79hz decay 1.31981s gain 0.10416 after_decay 1.31981s after_gain 0
+  mode m25 frequency 1574.84hz decay 1.16251s gain 0.0706209 after_decay 1.16251s after_gain 0
+  mode m26 frequency 1838.27hz decay 1.03401s gain 0.0379006 after_decay 1.03401s after_gain 0
+  mode m27 frequency 2102.13hz decay 0.92772s gain 0.00862212 after_decay 0.92772s after_gain 0
+  mode m28 frequency 2366.5hz decay 0.838758s gain 0.0151736 after_decay 0.838758s after_gain 0
+  mode m29 frequency 2631.43hz decay 0.76348s gain 0.0321653 after_decay 0.76348s after_gain 0
+  mode m30 frequency 2896.98hz decay 0.699141s gain 0.0418164 after_decay 0.699141s after_gain 0
+  mode m31 frequency 3163.22hz decay 0.643652s gain 0.0443592 after_decay 0.643652s after_gain 0
+  mode m32 frequency 3430.21hz decay 0.595401s gain 0.0407022 after_decay 0.595401s after_gain 0
+  mode m33 frequency 3698.01hz decay 0.553129s gain 0.0322734 after_decay 0.553129s after_gain 0
+  mode m34 frequency 3966.67hz decay 0.515846s gain 0.0208212 after_decay 0.515846s after_gain 0
+  mode m35 frequency 4236.27hz decay 0.482759s gain 0.00819668 after_decay 0.482759s after_gain 0
+  mode m36 frequency 4506.85hz decay 0.45323s gain 0.00385718 after_decay 0.45323s after_gain 0
+  mode m37 frequency 4778.49hz decay 0.42674s gain 0.013887 after_decay 0.42674s after_gain 0
+  mode m38 frequency 5051.23hz decay 0.402865s gain 0.0208617 after_decay 0.402865s after_gain 0
+  mode m39 frequency 5325.14hz decay 0.381252s gain 0.0242464 after_decay 0.381252s after_gain 0
 }
-asset hammered-dulcimer-52-hard-0 "Hammered Dulcimer" wav "media/52-hard-0.wav" sha256 "439e8f2ce8db5d37b6b3656015ea36e7ef1f76beafd7fc1d22b68674d83a4c05" {
-  usage multisample
-}
-asset hammered-dulcimer-58-soft-0 "Hammered Dulcimer" wav "media/58-soft-0.wav" sha256 "df48acb08be9dbef07b63a14280019e075f4561f61dbcbed743c74684f615837" {
-  usage multisample
-}
-asset hammered-dulcimer-58-hard-0 "Hammered Dulcimer" wav "media/58-hard-0.wav" sha256 "bd46e4876022ad947420b4ca4a7ec0315dc21b683e691a160376fe61f721efcf" {
-  usage multisample
-}
-asset hammered-dulcimer-64-soft-0 "Hammered Dulcimer" wav "media/64-soft-0.wav" sha256 "b72eab60bf261140fbeef63ee94685c165ca122f3ae09a1c660616d22e5bab34" {
-  usage multisample
-}
-asset hammered-dulcimer-64-hard-0 "Hammered Dulcimer" wav "media/64-hard-0.wav" sha256 "87e562a471aa1585f04d34daec7f1eeeab1dbe84590ba122ffb461ad1c835660" {
-  usage multisample
-}
-asset hammered-dulcimer-70-soft-0 "Hammered Dulcimer" wav "media/70-soft-0.wav" sha256 "a1a01c49dba4db87411ec2caa51da5b4ec3eb66a011557aadae6ada7a0e9ad06" {
-  usage multisample
-}
-asset hammered-dulcimer-70-hard-0 "Hammered Dulcimer" wav "media/70-hard-0.wav" sha256 "1a727c312d603f261471391ff956a099ea0239332d7896302b16ea646179fe53" {
-  usage multisample
-}
-asset hammered-dulcimer-76-soft-0 "Hammered Dulcimer" wav "media/76-soft-0.wav" sha256 "f9517ef70861c365a2bd39b0d6cf0d0878a6b7b3d3dd3d42ee84283e9e7c04b4" {
-  usage multisample
-}
-asset hammered-dulcimer-76-hard-0 "Hammered Dulcimer" wav "media/76-hard-0.wav" sha256 "86f6b919b38154141a87de6e0faafd28774e4494baa57c1338f1da306376bbd9" {
-  usage multisample
-}
-asset hammered-dulcimer-82-soft-0 "Hammered Dulcimer" wav "media/82-soft-0.wav" sha256 "4b318e7bcd00613d6807e96a2a78400622d3293acd4cd4fe94873855f1ceff3f" {
-  usage multisample
-}
-asset hammered-dulcimer-82-hard-0 "Hammered Dulcimer" wav "media/82-hard-0.wav" sha256 "03f9b740f3afe76e9d8a5bede14239308816e9e047fa13d517f2bfde3d4c90ea" {
-  usage multisample
-}
-asset hammered-dulcimer-88-soft-0 "Hammered Dulcimer" wav "media/88-soft-0.wav" sha256 "bef235922e8086ef2f24b7f1e0e638cc86102926278f8b0f3fb31f5892505e0a" {
-  usage multisample
-}
-asset hammered-dulcimer-88-hard-0 "Hammered Dulcimer" wav "media/88-hard-0.wav" sha256 "2034d75c763ff16747ef032e1ea8b8975b42e7bfa18e1fbc4fc3b31658063262" {
-  usage multisample
+profile hammered-dulcimer-box {
+  root 261.626hz
+  mode m0 frequency 95hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 190hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 380hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m3 frequency 740hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m4 frequency 1400hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }

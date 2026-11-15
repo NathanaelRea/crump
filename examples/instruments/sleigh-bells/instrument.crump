@@ -1,81 +1,78 @@
 crump-module 2
 instrument sleigh-bells "Sleigh Bells" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z38-soft-0 asset sleigh-bells-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
-      zone z43-soft-0 asset sleigh-bells-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
-      zone z48-soft-0 asset sleigh-bells-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
-      zone z53-soft-0 asset sleigh-bells-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
-      zone z58-soft-0 asset sleigh-bells-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
-      zone z63-soft-0 asset sleigh-bells-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
-      zone z68-soft-0 asset sleigh-bells-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone z73-soft-0 asset sleigh-bells-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
-      zone z78-soft-0 asset sleigh-bells-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
-      zone z83-soft-0 asset sleigh-bells-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
-      zone z38-hard-0 asset sleigh-bells-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
-      zone z43-hard-0 asset sleigh-bells-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
-      zone z48-hard-0 asset sleigh-bells-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
-      zone z53-hard-0 asset sleigh-bells-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
-      zone z58-hard-0 asset sleigh-bells-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
-      zone z63-hard-0 asset sleigh-bells-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
-      zone z68-hard-0 asset sleigh-bells-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone z73-hard-0 asset sleigh-bells-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
-      zone z78-hard-0 asset sleigh-bells-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
-      zone z83-hard-0 asset sleigh-bells-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
-      zone z38-soft-1 asset sleigh-bells-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
-      zone z43-soft-1 asset sleigh-bells-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
-      zone z48-soft-1 asset sleigh-bells-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
-      zone z53-soft-1 asset sleigh-bells-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
-      zone z58-soft-1 asset sleigh-bells-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
-      zone z63-soft-1 asset sleigh-bells-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
-      zone z68-soft-1 asset sleigh-bells-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone z73-soft-1 asset sleigh-bells-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
-      zone z78-soft-1 asset sleigh-bells-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
-      zone z83-soft-1 asset sleigh-bells-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
-      zone z38-hard-1 asset sleigh-bells-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
-      zone z43-hard-1 asset sleigh-bells-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
-      zone z48-hard-1 asset sleigh-bells-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
-      zone z53-hard-1 asset sleigh-bells-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
-      zone z58-hard-1 asset sleigh-bells-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
-      zone z63-hard-1 asset sleigh-bells-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
-      zone z68-hard-1 asset sleigh-bells-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone z73-hard-1 asset sleigh-bells-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
-      zone z78-hard-1 asset sleigh-bells-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
-      zone z83-hard-1 asset sleigh-bells-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
-    }
+  graph voice 24 {
+    # Beads or jingles: a burst of random contacts through small resonant shells.
+    node grains1 exciter kind collisions contact 4e-05s hardness 0.5 rate 2600hz duration 0.16s attack 0.01s level 1
+    node body2 modal_bank profile sleigh-bells-shell max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain3 math operation scale amount 2
+    node hiss4 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall5 math operation add
+    node fall5-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall5-leak math operation scale amount 0.999869800143
+    node rise6 math operation subtract
+    node fall7 math operation add
+    node fall7-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall7-leak math operation scale amount 0.99778890641
+    node gain8 math operation scale amount 1.26833
+    node times9 math operation multiply
+    node hi-10 lowpass mode highpass cutoff 1000hz resonance 0.308309
+    node lo-11 lowpass mode lowpass cutoff 16000hz resonance 0.308309
+    node gain12 math operation scale amount 0.0866025
+    node plus13 math operation add
+    node hi-14 lowpass mode highpass cutoff 2500hz resonance 0.308309
+    node hi-15 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.0114984
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-grains1-gate note.gate -> grains1.gate
+    bus note-velocity-grains1-velocity note.velocity -> grains1.velocity
+    bus grains1-audio-body2-audio grains1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-gain3-a body2.audio -> gain3.a
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall5-audio-fall5-previous-audio fall5.audio -> fall5-previous.audio
+    bus onset-audio-fall5-a onset.audio -> fall5.a
+    bus fall5-previous-audio-fall5-leak-a fall5-previous.audio -> fall5-leak.a
+    bus fall5-leak-audio-fall5-b fall5-leak.audio -> fall5.b
+    bus fall5-audio-rise6-a fall5.audio -> rise6.a
+    bus fall7-audio-fall7-previous-audio fall7.audio -> fall7-previous.audio
+    bus onset-audio-fall7-a onset.audio -> fall7.a
+    bus fall7-previous-audio-fall7-leak-a fall7-previous.audio -> fall7-leak.a
+    bus fall7-leak-audio-fall7-b fall7-leak.audio -> fall7.b
+    bus fall7-audio-rise6-b fall7.audio -> rise6.b
+    bus rise6-audio-gain8-a rise6.audio -> gain8.a
+    bus hiss4-audio-times9-a hiss4.audio -> times9.a
+    bus gain8-audio-times9-b gain8.audio -> times9.b
+    bus times9-audio-hi-10-audio times9.audio -> hi-10.audio
+    bus hi-10-audio-lo-11-audio hi-10.audio -> lo-11.audio
+    bus lo-11-audio-gain12-a lo-11.audio -> gain12.a
+    bus gain3-audio-plus13-a gain3.audio -> plus13.a
+    bus gain12-audio-plus13-b gain12.audio -> plus13.b
+    bus plus13-audio-hi-14-audio plus13.audio -> hi-14.audio
+    bus hi-14-audio-hi-15-audio hi-14.audio -> hi-15.audio
+    bus hi-15-audio-trim-a hi-15.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset sleigh-bells-60-soft-0 "Sleigh Bells" wav "media/60-soft-0.wav" sha256 "986729e8a9cfb51a04e5b442f547cfd2b2e111366c45a75e0db772186909c1a9" {
-  usage multisample
-}
-asset sleigh-bells-60-hard-0 "Sleigh Bells" wav "media/60-hard-0.wav" sha256 "5f8584df78cf3bd43357afd51b266ee44f67d88dc6708bf239b1ec760982650e" {
-  usage multisample
-}
-asset sleigh-bells-60-soft-1 "Sleigh Bells" wav "media/60-soft-1.wav" sha256 "3eec89cb46c67198ac93d9262b866b8967a1372f63a20fb28c2c2ad2e2e62be4" {
-  usage multisample
-}
-asset sleigh-bells-60-hard-1 "Sleigh Bells" wav "media/60-hard-1.wav" sha256 "0baade34614e90dd4aad02eeaf8eb73f6d0e43c33ca6311fbf552d86cb3e7167" {
-  usage multisample
+profile sleigh-bells-shell {
+  root 261.626hz
+  mode m0 frequency 2600hz decay 0.035s gain 0.4 after_decay 0.035s after_gain 0
+  mode m1 frequency 6050hz decay 0.035s gain 0.4 after_decay 0.035s after_gain 0
+  mode m2 frequency 6900hz decay 0.035s gain 0.4 after_decay 0.035s after_gain 0
+  mode m3 frequency 10600hz decay 0.035s gain 0.4 after_decay 0.035s after_gain 0
 }

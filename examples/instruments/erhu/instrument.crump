@@ -1,92 +1,117 @@
 crump-module 2
 instrument erhu "Erhu" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
-  parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 0.649091s 0.649091s modulatable
   parameter release "Release" seconds 0.02s 4s 0.3s 0.3s
+  parameter vibrato-depth "Vibrato" ratio 0 2 0.0109091 0.0109091 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z62-soft-0 asset erhu-62-soft-0 keys D4 E4 velocity 0 0.65 root D4 loop 48000 125969 crossfade 8160
-      zone z62-hard-0 asset erhu-62-hard-0 keys D4 E4 velocity 0.65 1 root D4 loop 48000 125965 crossfade 8160
-      zone z67-soft-0 asset erhu-67-soft-0 keys F4 A4 velocity 0 0.65 root G4 loop 48000 125988 crossfade 8160
-      zone z67-hard-0 asset erhu-67-hard-0 keys F4 A4 velocity 0.65 1 root G4 loop 48000 125981 crossfade 8160
-      zone z72-soft-0 asset erhu-72-soft-0 keys A#4 D5 velocity 0 0.65 root C5 loop 48000 125608 crossfade 8160
-      zone z72-hard-0 asset erhu-72-hard-0 keys A#4 D5 velocity 0.65 1 root C5 loop 48000 125605 crossfade 8160
-      zone z77-soft-0 asset erhu-77-soft-0 keys D#5 G5 velocity 0 0.65 root F5 loop 48000 124255 crossfade 8160
-      zone z77-hard-0 asset erhu-77-hard-0 keys D#5 G5 velocity 0.65 1 root F5 loop 48000 124323 crossfade 8160
-      zone z82-soft-0 asset erhu-82-soft-0 keys G#5 C6 velocity 0 0.65 root A#5 loop 48000 125982 crossfade 8160
-      zone z82-hard-0 asset erhu-82-hard-0 keys G#5 C6 velocity 0.65 1 root A#5 loop 48000 123951 crossfade 8160
-      zone z87-soft-0 asset erhu-87-soft-0 keys C#6 F6 velocity 0 0.65 root D#6 loop 48000 124086 crossfade 8160
-      zone z87-hard-0 asset erhu-87-hard-0 keys C#6 F6 velocity 0.65 1 root D#6 loop 48000 124050 crossfade 8160
-      zone z92-soft-0 asset erhu-92-soft-0 keys F#6 A6 velocity 0 0.65 root G#6 loop 48000 124776 crossfade 8160
-      zone z92-hard-0 asset erhu-92-hard-0 keys F#6 A6 velocity 0.65 1 root G#6 loop 48000 124961 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-level note_key per_voice bipolar reference A4 range 12st
+    route attack-velocity source velocity target attack depth -0.47727273s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.22727273 map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(0.9602) order 0 bypass false
+    route key-gain-low source key-level target key-gain depth 0.141072 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    route key-gain-high source key-level target key-gain depth 0.0247951 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 30 {
+    # A bowed string: a Helmholtz saw through a jagged body and the instrument's body curve.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node vibrato lfo waveform sine rate 6hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-wait envelope mode ahdsr attack 0s hold 0.25s decay 0.4s sustain 0 release 0.4s
+    node vibrato-wait-audio to_audio
+    node vibrato-ramp math operation scale amount -1
+    node vibrato-in math operation offset amount 1
+    node times1 math operation multiply
+    node gain2 math operation scale amount $vibrato-depth
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain3 math operation scale amount 0.008
+    node plus4 math operation add
+    node bow analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 fm_depth 1st
+    node bow-mono stereo_to_mono
+    node bow-hiss noise level 1
+    node hi-5 lowpass mode highpass cutoff 2000hz resonance 0.308309
+    node bow-amp to_audio
+    node times6 math operation multiply
+    node gain7 math operation scale amount 0.0774417
+    node plus8 math operation add
+    node hi-9 lowpass mode highpass cutoff 400hz resonance 0.308309
+    node body10 modal_bank profile erhu-body-curve max_modes 14 key_track 0 decay_scale 1 brightness 0 level 1
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-11 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.0154952
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-wait-gate note.gate -> vibrato-wait.gate
+    bus vibrato-wait-control-vibrato-wait-audio-control vibrato-wait.control -> vibrato-wait-audio.control
+    bus vibrato-wait-audio-audio-vibrato-ramp-a vibrato-wait-audio.audio -> vibrato-ramp.a
+    bus vibrato-ramp-audio-vibrato-in-a vibrato-ramp.audio -> vibrato-in.a
+    bus vibrato-audio-audio-times1-a vibrato-audio.audio -> times1.a
+    bus vibrato-in-audio-times1-b vibrato-in.audio -> times1.b
+    bus times1-audio-gain2-a times1.audio -> gain2.a
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain3-a drift-audio.audio -> gain3.a
+    bus gain2-audio-plus4-a gain2.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus note-pitch-bow-pitch note.pitch -> bow.pitch
+    bus note-velocity-bow-velocity note.velocity -> bow.velocity
+    bus plus4-audio-bow-fm plus4.audio -> bow.fm
+    bus amplitude-control-bow-gain amplitude.control -> bow.gain
+    bus bow-audio-bow-mono-audio bow.audio -> bow-mono.audio
+    bus bow-hiss-audio-hi-5-audio bow-hiss.audio -> hi-5.audio
+    bus amplitude-control-bow-amp-control amplitude.control -> bow-amp.control
+    bus hi-5-audio-times6-a hi-5.audio -> times6.a
+    bus bow-amp-audio-times6-b bow-amp.audio -> times6.b
+    bus times6-audio-gain7-a times6.audio -> gain7.a
+    bus bow-mono-audio-plus8-a bow-mono.audio -> plus8.a
+    bus gain7-audio-plus8-b gain7.audio -> plus8.b
+    bus plus8-audio-hi-9-audio plus8.audio -> hi-9.audio
+    bus hi-9-audio-body10-audio hi-9.audio -> body10.audio
+    bus note-pitch-body10-pitch note.pitch -> body10.pitch
+    bus note-gate-body10-gate note.gate -> body10.gate
+    bus body10-audio-dynamics-gain-a body10.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-11-audio dynamics-gain.audio -> hi-11.audio
+    bus hi-11-audio-register-a hi-11.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset erhu-62-soft-0 "Erhu" wav "media/62-soft-0.wav" sha256 "ad49e1cace6ed1b0f6e82450f8325731b2306b1b31eefa9e378b0946bc330a78" {
-  usage multisample
-}
-asset erhu-62-hard-0 "Erhu" wav "media/62-hard-0.wav" sha256 "0b8acbbd0f12f9e1259481065f9e8f482f0359339fad199e51f8710a0a4c1dc5" {
-  usage multisample
-}
-asset erhu-67-soft-0 "Erhu" wav "media/67-soft-0.wav" sha256 "6e38f43523ae1c2159c3516ddca17bb857380ebc9c5d65b25b7a72f4419b1a63" {
-  usage multisample
-}
-asset erhu-67-hard-0 "Erhu" wav "media/67-hard-0.wav" sha256 "2f9cf58c78ecf442bb04aeaa3a06013abdfaba242b434dd7bb771d449461bde5" {
-  usage multisample
-}
-asset erhu-72-soft-0 "Erhu" wav "media/72-soft-0.wav" sha256 "2406d961b3bc537de33f04922925ba7ffbd614359e87e1e6dbf1a4358530dc2c" {
-  usage multisample
-}
-asset erhu-72-hard-0 "Erhu" wav "media/72-hard-0.wav" sha256 "2dc40e30a8eca7a24e509478ce2995cfc3df08d7342d6e36957b0c59fdcb016c" {
-  usage multisample
-}
-asset erhu-77-soft-0 "Erhu" wav "media/77-soft-0.wav" sha256 "0551916f61876416f2f7249b5541b5f2d14640bce7fb104e99da0011023b41e9" {
-  usage multisample
-}
-asset erhu-77-hard-0 "Erhu" wav "media/77-hard-0.wav" sha256 "7fe250174ad4bb837df8ae3bba071d92e154eba1eb0264cdc480118e36b52c98" {
-  usage multisample
-}
-asset erhu-82-soft-0 "Erhu" wav "media/82-soft-0.wav" sha256 "2fb5db267fd163a23d3d09285e46c2ce3d87aa189c5f4cb45ba1fb851887b235" {
-  usage multisample
-}
-asset erhu-82-hard-0 "Erhu" wav "media/82-hard-0.wav" sha256 "0ea9977324de126990449646e756ed7139e32b5f28c4cd7805a22a4d4763f21c" {
-  usage multisample
-}
-asset erhu-87-soft-0 "Erhu" wav "media/87-soft-0.wav" sha256 "77f063adca5c4a88479139c932d4f275b836252543d5a1e76a24351905c0570c" {
-  usage multisample
-}
-asset erhu-87-hard-0 "Erhu" wav "media/87-hard-0.wav" sha256 "cd339697772e42c87e4d24a096a92388b9ba7f7b2aec80e312eee05e655132b6" {
-  usage multisample
-}
-asset erhu-92-soft-0 "Erhu" wav "media/92-soft-0.wav" sha256 "de9e9273796279bcec827ab0ea95edd0ab1c37b3d64fd253c86164bd8de02c04" {
-  usage multisample
-}
-asset erhu-92-hard-0 "Erhu" wav "media/92-hard-0.wav" sha256 "621c5855456af67690971c99aaef97764ddc471796a845fbface06ca8e0ab5e6" {
-  usage multisample
+profile erhu-body-curve {
+  root 261.626hz
+  mode m0 frequency 50hz decay 0.0159155s gain 0.31721 after_decay 0.0159155s after_gain 0
+  mode m1 frequency 77.1282hz decay 0.0103176s gain 0.146794 after_decay 0.0103176s after_gain 0
+  mode m2 frequency 118.975hz decay 0.00668859s gain 0.109209 after_decay 0.00668859s after_gain 0
+  mode m3 frequency 183.526hz decay 0.00433602s gain 0.108076 after_decay 0.00433602s after_gain 0
+  mode m4 frequency 283.101hz decay 0.00281092s gain 0.0864328 after_decay 0.00281092s after_gain 0
+  mode m5 frequency 436.701hz decay 0.00182224s gain 0.055936 after_decay 0.00182224s after_gain 0
+  mode m6 frequency 673.64hz decay 0.00118131s gain 0.000865543 after_decay 0.00118131s after_gain 0
+  mode m7 frequency 1039.13hz decay 0.000765808s gain 0.314713 after_decay 0.000765808s after_gain 0
+  mode m8 frequency 1602.93hz decay 0.000496451s gain 0.760657 after_decay 0.000496451s after_gain 0
+  mode m9 frequency 2472.61hz decay 0.000321835s gain 0.718259 after_decay 0.000321835s after_gain 0
+  mode m10 frequency 3814.16hz decay 0.000208637s gain 1 after_decay 0.000208637s after_gain 0
+  mode m11 frequency 5883.59hz decay 0.000135253s gain 0.672875 after_decay 0.000135253s after_gain 0
+  mode m12 frequency 9075.8hz decay 0.0001s gain 0.0747945 after_decay 0.0001s after_gain 0
+  mode m13 frequency 14000hz decay 0.0001s gain 0.143468 after_decay 0.0001s after_gain 0
 }

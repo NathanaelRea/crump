@@ -1,45 +1,67 @@
 crump-module 2
 instrument conga-slap "Conga Slap" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.4785 0.4785
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z60-soft-0 asset conga-slap-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-0 asset conga-slap-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
-      zone z60-soft-1 asset conga-slap-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-1 asset conga-slap-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
-    }
+  graph voice 16 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.000667586s hardness $hardness level 1
+    node body2 modal_bank profile conga-slap-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.997687862303
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 0.519615
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.119328
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus strike1-audio-fall4-a strike1.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-trim-a hi-10.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset conga-slap-60-soft-0 "Conga Slap" wav "media/60-soft-0.wav" sha256 "4650794ed7332b2bd225f6461080850ab77debca1e6228c876c7569490e04b4c" {
-  usage multisample
-}
-asset conga-slap-60-hard-0 "Conga Slap" wav "media/60-hard-0.wav" sha256 "3659e0f20f23b6ca22df6d739b6f4405e4dcdef368c9d288a02967fcd64a4ffb" {
-  usage multisample
-}
-asset conga-slap-60-soft-1 "Conga Slap" wav "media/60-soft-1.wav" sha256 "5cc6d686e08475c67eb8909f9433ebf268b699ed070742bce930b6322b4425f6" {
-  usage multisample
-}
-asset conga-slap-60-hard-1 "Conga Slap" wav "media/60-hard-1.wav" sha256 "f9d43843e9a5b8e09928dc1d90ca4ba6ec002a588d6f33a55194bc595ebb31e2" {
-  usage multisample
+profile conga-slap-head {
+  root 240hz
+  mode m0 frequency 240hz decay 0.09s gain 0.3 after_decay 0.09s after_gain 0
+  mode m1 frequency 382.32hz decay 0.0634718s gain 0.617042 after_decay 0.0634718s after_gain 0
+  mode m2 frequency 512.64hz decay 0.050938s gain 0.416003 after_decay 0.050938s after_gain 0
+  mode m3 frequency 551.04hz decay 0.0482518s gain 0.29967 after_decay 0.0482518s after_gain 0
+  mode m4 frequency 636.72hz decay 0.0432952s gain 0.206022 after_decay 0.0432952s after_gain 0
+  mode m5 frequency 700.32hz decay 0.0403115s gain 0.126929 after_decay 0.0403115s after_gain 0
+  mode m6 frequency 757.44hz decay 0.0380093s gain 0.0971718 after_decay 0.0380093s after_gain 0
+  mode m7 frequency 840.24hz decay 0.035164s gain 0.058025 after_decay 0.035164s after_gain 0
+  mode m8 frequency 864hz decay 0.0344362s gain 0.0481235 after_decay 0.0344362s after_gain 0
+  mode m9 frequency 974.4hz decay 0.0314665s gain 0.023947 after_decay 0.0314665s after_gain 0
 }

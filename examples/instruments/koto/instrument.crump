@@ -1,77 +1,131 @@
 crump-module 2
 instrument koto "Koto" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z52-soft-0 asset koto-52-soft-0 keys D3 G3 velocity 0 0.65 root E3
-      zone z52-hard-0 asset koto-52-hard-0 keys D3 G3 velocity 0.65 1 root E3
-      zone z58-soft-0 asset koto-58-soft-0 keys G#3 C#4 velocity 0 0.65 root A#3
-      zone z58-hard-0 asset koto-58-hard-0 keys G#3 C#4 velocity 0.65 1 root A#3
-      zone z64-soft-0 asset koto-64-soft-0 keys D4 G4 velocity 0 0.65 root E4
-      zone z64-hard-0 asset koto-64-hard-0 keys D4 G4 velocity 0.65 1 root E4
-      zone z70-soft-0 asset koto-70-soft-0 keys G#4 C#5 velocity 0 0.65 root A#4
-      zone z70-hard-0 asset koto-70-hard-0 keys G#4 C#5 velocity 0.65 1 root A#4
-      zone z76-soft-0 asset koto-76-soft-0 keys D5 G5 velocity 0 0.65 root E5
-      zone z76-hard-0 asset koto-76-hard-0 keys D5 G5 velocity 0.65 1 root E5
-      zone z82-soft-0 asset koto-82-soft-0 keys G#5 D6 velocity 0 0.65 root A#5
-      zone z82-hard-0 asset koto-82-hard-0 keys G#5 D6 velocity 0.65 1 root A#5
+  modulation {
+    source key-level note_key per_voice bipolar reference E4 range 12st
+    route key-gain-low source key-level target key-gain depth -0.360019 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth 0.311137 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 41 {
+    # Plucked strings: pitch-tuned delay loops, bridge buzz, sympathetic strings and body.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node held math operation add
+    node held-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node held-leak math operation scale amount 1
+    node period-later delay_line mode pitch ratio 1 interpolation linear max_time 0.1s
+    node period math operation subtract
+    node pluck-window shaper curve hard_clip drive 64 bias 0
+    node pluck-noise noise level 1
+    node pluck math operation multiply
+    node pluck-tone lowpass mode lowpass cutoff 1890hz resonance 0.308309 velocity_depth 2730hz
+    node string-in math operation add
+    node string delay_line mode pitch ratio 1 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node string-loss linear_phase_lowpass amount 0.45
+    node string-keep math operation scale amount 0.99999
+    node string-pickup delay_line mode pitch ratio 0.08 interpolation linear max_time 0.05s
+    node string-out math operation subtract
+    node gain1 math operation scale amount 0.7
+    node gain2 math operation scale amount 1.73205
+    node string-tone lowpass mode lowpass cutoff 1890hz resonance 0.308309 velocity_depth 2730hz
+    node string-decay math operation add
+    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node string-decay-leak math operation scale amount 0.999988425993
+    node times3 math operation multiply
+    node hiss4 noise level 1
+    node fall5 math operation add
+    node fall5-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall5-leak math operation scale amount 0.997918835299
+    node times6 math operation multiply
+    node hi-7 lowpass mode highpass cutoff 150hz resonance 0.308309
+    node lo-8 lowpass mode lowpass cutoff 2500hz resonance 0.308309
+    node gain9 math operation scale amount 0.123211
+    node plus10 math operation add
+    node body11 modal_bank profile koto-box max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain12 math operation scale amount 0.5
+    node plus13 math operation add
+    node hi-14 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.12242
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus held-audio-held-previous-audio held.audio -> held-previous.audio
+    bus onset-audio-held-a onset.audio -> held.a
+    bus held-previous-audio-held-leak-a held-previous.audio -> held-leak.a
+    bus held-leak-audio-held-b held-leak.audio -> held.b
+    bus note-pitch-period-later-pitch note.pitch -> period-later.pitch
+    bus held-audio-period-later-audio held.audio -> period-later.audio
+    bus held-audio-period-a held.audio -> period.a
+    bus period-later-audio-period-b period-later.audio -> period.b
+    bus period-audio-pluck-window-audio period.audio -> pluck-window.audio
+    bus pluck-noise-audio-pluck-a pluck-noise.audio -> pluck.a
+    bus pluck-window-audio-pluck-b pluck-window.audio -> pluck.b
+    bus pluck-audio-pluck-tone-audio pluck.audio -> pluck-tone.audio
+    bus note-velocity-pluck-tone-velocity note.velocity -> pluck-tone.velocity
+    bus pluck-tone-audio-string-in-a pluck-tone.audio -> string-in.a
+    bus note-pitch-string-pitch note.pitch -> string.pitch
+    bus string-in-audio-string-audio string-in.audio -> string.audio
+    bus string-audio-string-loss-audio string.audio -> string-loss.audio
+    bus string-loss-audio-string-keep-a string-loss.audio -> string-keep.a
+    bus string-keep-audio-string-in-b string-keep.audio -> string-in.b
+    bus note-pitch-string-pickup-pitch note.pitch -> string-pickup.pitch
+    bus string-audio-string-pickup-audio string.audio -> string-pickup.audio
+    bus string-audio-string-out-a string.audio -> string-out.a
+    bus string-pickup-audio-gain1-a string-pickup.audio -> gain1.a
+    bus gain1-audio-string-out-b gain1.audio -> string-out.b
+    bus string-out-audio-gain2-a string-out.audio -> gain2.a
+    bus gain2-audio-string-tone-audio gain2.audio -> string-tone.audio
+    bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
+    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
+    bus onset-audio-string-decay-a onset.audio -> string-decay.a
+    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
+    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
+    bus string-tone-audio-times3-a string-tone.audio -> times3.a
+    bus string-decay-audio-times3-b string-decay.audio -> times3.b
+    bus fall5-audio-fall5-previous-audio fall5.audio -> fall5-previous.audio
+    bus onset-audio-fall5-a onset.audio -> fall5.a
+    bus fall5-previous-audio-fall5-leak-a fall5-previous.audio -> fall5-leak.a
+    bus fall5-leak-audio-fall5-b fall5-leak.audio -> fall5.b
+    bus hiss4-audio-times6-a hiss4.audio -> times6.a
+    bus fall5-audio-times6-b fall5.audio -> times6.b
+    bus times6-audio-hi-7-audio times6.audio -> hi-7.audio
+    bus hi-7-audio-lo-8-audio hi-7.audio -> lo-8.audio
+    bus lo-8-audio-gain9-a lo-8.audio -> gain9.a
+    bus times3-audio-plus10-a times3.audio -> plus10.a
+    bus gain9-audio-plus10-b gain9.audio -> plus10.b
+    bus plus10-audio-body11-audio plus10.audio -> body11.audio
+    bus note-pitch-body11-pitch note.pitch -> body11.pitch
+    bus note-gate-body11-gate note.gate -> body11.gate
+    bus body11-audio-gain12-a body11.audio -> gain12.a
+    bus plus10-audio-plus13-a plus10.audio -> plus13.a
+    bus gain12-audio-plus13-b gain12.audio -> plus13.b
+    bus plus13-audio-hi-14-audio plus13.audio -> hi-14.audio
+    bus hi-14-audio-register-a hi-14.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset koto-52-soft-0 "Koto" wav "media/52-soft-0.wav" sha256 "99bb88f87f51db84c212ce817c8d3ed6ef4347b54c631c1b48c4b9ddbd00545e" {
-  usage multisample
-}
-asset koto-52-hard-0 "Koto" wav "media/52-hard-0.wav" sha256 "b50e8d1ff6388916bef021e13c2b78fd062db4705e968a4ae4a81055f9a3dc46" {
-  usage multisample
-}
-asset koto-58-soft-0 "Koto" wav "media/58-soft-0.wav" sha256 "17a1217514601c1bd9750dce471cc3261e207c04ec8247557b4a1f8630e60d3e" {
-  usage multisample
-}
-asset koto-58-hard-0 "Koto" wav "media/58-hard-0.wav" sha256 "f72d2d319498569571d7206b285be9277d5cfa13d9f55c2e3b7c90805fe49354" {
-  usage multisample
-}
-asset koto-64-soft-0 "Koto" wav "media/64-soft-0.wav" sha256 "f5a8ae3ab67edb9da1bda34b45d0001d9f5582ff8997e28930dc68db2366ee78" {
-  usage multisample
-}
-asset koto-64-hard-0 "Koto" wav "media/64-hard-0.wav" sha256 "0c63895bd96ea6f559609df611e9987b0a69a420d8cb15c2eba23814267f5443" {
-  usage multisample
-}
-asset koto-70-soft-0 "Koto" wav "media/70-soft-0.wav" sha256 "be7a56ff2da668d7f0035adc956e3550e5f84cc963de3ca158e92c1a0ae50001" {
-  usage multisample
-}
-asset koto-70-hard-0 "Koto" wav "media/70-hard-0.wav" sha256 "c22ae2016c566e590468d8887dff52dc34132cc05c31dbfb54404f9cf7a72dde" {
-  usage multisample
-}
-asset koto-76-soft-0 "Koto" wav "media/76-soft-0.wav" sha256 "c72b40799533c41ac6dd8d6f470181c533bb16310057efc37db23b4362c5052c" {
-  usage multisample
-}
-asset koto-76-hard-0 "Koto" wav "media/76-hard-0.wav" sha256 "6305b85922edf62e1a6203bfcd51f0c4c3f99e9cbcbdaf43c3a22bda0c3fea25" {
-  usage multisample
-}
-asset koto-82-soft-0 "Koto" wav "media/82-soft-0.wav" sha256 "6c6b8328eb808ed2703cfa07dd46edf7b24ee6dbf2e003d216b207971247381f" {
-  usage multisample
-}
-asset koto-82-hard-0 "Koto" wav "media/82-hard-0.wav" sha256 "0dbcc275e35f7f7a0b2766ab17f52eb961fba295b51e45d1ac02c45f3618b4d8" {
-  usage multisample
+profile koto-box {
+  root 261.626hz
+  mode m0 frequency 140hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 300hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 650hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m3 frequency 1400hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }

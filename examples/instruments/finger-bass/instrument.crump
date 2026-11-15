@@ -1,93 +1,131 @@
 crump-module 2
 instrument finger-bass "Finger Bass" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset finger-bass-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
-      zone z36-hard-0 asset finger-bass-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
-      zone z43-soft-0 asset finger-bass-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
-      zone z43-hard-0 asset finger-bass-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
-      zone z48-soft-0 asset finger-bass-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset finger-bass-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
-      zone z55-soft-0 asset finger-bass-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
-      zone z55-hard-0 asset finger-bass-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
-      zone z60-soft-0 asset finger-bass-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
-      zone z60-hard-0 asset finger-bass-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
-      zone z67-soft-0 asset finger-bass-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset finger-bass-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset finger-bass-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset finger-bass-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
-      zone z79-soft-0 asset finger-bass-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
-      zone z79-hard-0 asset finger-bass-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
+  modulation {
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route key-gain-low source key-level target key-gain depth -0.273392 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth -0.112189 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 41 {
+    # A plucked string: a pitch-tuned delay loop with a per-trip loss, a pickup and a body.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node held math operation add
+    node held-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node held-leak math operation scale amount 1
+    node period-later delay_line mode pitch ratio 1 interpolation linear max_time 0.1s
+    node period math operation subtract
+    node pluck-window shaper curve hard_clip drive 64 bias 0
+    node pluck-noise noise level 1
+    node pluck math operation multiply
+    node pluck-tone lowpass mode lowpass cutoff 765hz resonance 0.308309 velocity_depth 1105hz
+    node string-in math operation add
+    node string delay_line mode pitch ratio 1 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node string-loss linear_phase_lowpass amount 0.25
+    node string-keep math operation scale amount 0.99999
+    node string-pickup delay_line mode pitch ratio 0.27 interpolation linear max_time 0.05s
+    node string-out math operation subtract
+    node gain1 math operation scale amount 0.7
+    node gain2 math operation scale amount 1.73205
+    node string-tone lowpass mode lowpass cutoff 765hz resonance 0.308309 velocity_depth 1105hz
+    node string-decay math operation add
+    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node string-decay-leak math operation scale amount 0.999986111208
+    node times3 math operation multiply
+    node hiss4 noise level 1
+    node fall5 math operation add
+    node fall5-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall5-leak math operation scale amount 0.998612075171
+    node times6 math operation multiply
+    node hi-7 lowpass mode highpass cutoff 1700hz resonance 0.308309
+    node lo-8 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain9 math operation scale amount 0.0225167
+    node plus10 math operation add
+    node body11 modal_bank profile finger-bass-box max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain12 math operation scale amount 0.3
+    node plus13 math operation add
+    node hi-14 lowpass mode highpass cutoff 25hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.266471
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus held-audio-held-previous-audio held.audio -> held-previous.audio
+    bus onset-audio-held-a onset.audio -> held.a
+    bus held-previous-audio-held-leak-a held-previous.audio -> held-leak.a
+    bus held-leak-audio-held-b held-leak.audio -> held.b
+    bus note-pitch-period-later-pitch note.pitch -> period-later.pitch
+    bus held-audio-period-later-audio held.audio -> period-later.audio
+    bus held-audio-period-a held.audio -> period.a
+    bus period-later-audio-period-b period-later.audio -> period.b
+    bus period-audio-pluck-window-audio period.audio -> pluck-window.audio
+    bus pluck-noise-audio-pluck-a pluck-noise.audio -> pluck.a
+    bus pluck-window-audio-pluck-b pluck-window.audio -> pluck.b
+    bus pluck-audio-pluck-tone-audio pluck.audio -> pluck-tone.audio
+    bus note-velocity-pluck-tone-velocity note.velocity -> pluck-tone.velocity
+    bus pluck-tone-audio-string-in-a pluck-tone.audio -> string-in.a
+    bus note-pitch-string-pitch note.pitch -> string.pitch
+    bus string-in-audio-string-audio string-in.audio -> string.audio
+    bus string-audio-string-loss-audio string.audio -> string-loss.audio
+    bus string-loss-audio-string-keep-a string-loss.audio -> string-keep.a
+    bus string-keep-audio-string-in-b string-keep.audio -> string-in.b
+    bus note-pitch-string-pickup-pitch note.pitch -> string-pickup.pitch
+    bus string-audio-string-pickup-audio string.audio -> string-pickup.audio
+    bus string-audio-string-out-a string.audio -> string-out.a
+    bus string-pickup-audio-gain1-a string-pickup.audio -> gain1.a
+    bus gain1-audio-string-out-b gain1.audio -> string-out.b
+    bus string-out-audio-gain2-a string-out.audio -> gain2.a
+    bus gain2-audio-string-tone-audio gain2.audio -> string-tone.audio
+    bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
+    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
+    bus onset-audio-string-decay-a onset.audio -> string-decay.a
+    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
+    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
+    bus string-tone-audio-times3-a string-tone.audio -> times3.a
+    bus string-decay-audio-times3-b string-decay.audio -> times3.b
+    bus fall5-audio-fall5-previous-audio fall5.audio -> fall5-previous.audio
+    bus onset-audio-fall5-a onset.audio -> fall5.a
+    bus fall5-previous-audio-fall5-leak-a fall5-previous.audio -> fall5-leak.a
+    bus fall5-leak-audio-fall5-b fall5-leak.audio -> fall5.b
+    bus hiss4-audio-times6-a hiss4.audio -> times6.a
+    bus fall5-audio-times6-b fall5.audio -> times6.b
+    bus times6-audio-hi-7-audio times6.audio -> hi-7.audio
+    bus hi-7-audio-lo-8-audio hi-7.audio -> lo-8.audio
+    bus lo-8-audio-gain9-a lo-8.audio -> gain9.a
+    bus times3-audio-plus10-a times3.audio -> plus10.a
+    bus gain9-audio-plus10-b gain9.audio -> plus10.b
+    bus plus10-audio-body11-audio plus10.audio -> body11.audio
+    bus note-pitch-body11-pitch note.pitch -> body11.pitch
+    bus note-gate-body11-gate note.gate -> body11.gate
+    bus body11-audio-gain12-a body11.audio -> gain12.a
+    bus plus10-audio-plus13-a plus10.audio -> plus13.a
+    bus gain12-audio-plus13-b gain12.audio -> plus13.b
+    bus plus13-audio-hi-14-audio plus13.audio -> hi-14.audio
+    bus hi-14-audio-register-a hi-14.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset finger-bass-36-soft-0 "Finger Bass" wav "media/36-soft-0.wav" sha256 "464d12abcdd75fb1953f4e662d50226c219e72146553aef899c308be341694ff" {
-  usage multisample
-}
-asset finger-bass-36-hard-0 "Finger Bass" wav "media/36-hard-0.wav" sha256 "3464ee1c31b3ba1efc30627727bc702b14c3710fe758cee9ea9195b5f52c3dd7" {
-  usage multisample
-}
-asset finger-bass-43-soft-0 "Finger Bass" wav "media/43-soft-0.wav" sha256 "9468df7603833d4a002c003617a99bd43e38fde7642719f2a8c77a27e2a045b6" {
-  usage multisample
-}
-asset finger-bass-43-hard-0 "Finger Bass" wav "media/43-hard-0.wav" sha256 "dae27602cc05df1b030e62df1f89b166e1df0b27284b37af188a912e1c3b4b93" {
-  usage multisample
-}
-asset finger-bass-48-soft-0 "Finger Bass" wav "media/48-soft-0.wav" sha256 "ab4fb865cd3688be68d4dfab1d3b9b3d558f35d2d6076aa39a651283b8c0e7b9" {
-  usage multisample
-}
-asset finger-bass-48-hard-0 "Finger Bass" wav "media/48-hard-0.wav" sha256 "b23df982cebc92ce40461f2c9ccb842597609cd73edf997e310719181d76547f" {
-  usage multisample
-}
-asset finger-bass-55-soft-0 "Finger Bass" wav "media/55-soft-0.wav" sha256 "ac62763424c3fe65a9968c2c6090d102366764b6d8f37630d13bddab81ab678d" {
-  usage multisample
-}
-asset finger-bass-55-hard-0 "Finger Bass" wav "media/55-hard-0.wav" sha256 "197c98f3382e23b9391106b0b0039d4c0335551c262f8520465eb93e9e14b72b" {
-  usage multisample
-}
-asset finger-bass-60-soft-0 "Finger Bass" wav "media/60-soft-0.wav" sha256 "ff4ec2d4c48d5d7817355c4c64cfd2b9a53cd435b933d76e260e72756c29b3cc" {
-  usage multisample
-}
-asset finger-bass-60-hard-0 "Finger Bass" wav "media/60-hard-0.wav" sha256 "09c9abccba07f739ba9a7ed3d195a8826464ac9cb18cc08a7b505cb82ad5ea7c" {
-  usage multisample
-}
-asset finger-bass-67-soft-0 "Finger Bass" wav "media/67-soft-0.wav" sha256 "2a9af8692951c3a213223ca786cdd0465e5431144de11ea215e7099d382d4508" {
-  usage multisample
-}
-asset finger-bass-67-hard-0 "Finger Bass" wav "media/67-hard-0.wav" sha256 "3e2c420ec6d75a86a73f9b935263d9fc61e811063df9002c7d23cf3768c2a0c7" {
-  usage multisample
-}
-asset finger-bass-72-soft-0 "Finger Bass" wav "media/72-soft-0.wav" sha256 "fef8be3cecb5337bb0b0086d457a577f1ea6832ddb024388c9830b37df5692ce" {
-  usage multisample
-}
-asset finger-bass-72-hard-0 "Finger Bass" wav "media/72-hard-0.wav" sha256 "dbfae8079d4bd03e6ff2aa8555a257d61848431d99f1bde833d5023087fdd7d6" {
-  usage multisample
-}
-asset finger-bass-79-soft-0 "Finger Bass" wav "media/79-soft-0.wav" sha256 "6ab5e3baf9d0cb64735df88559a447d0c8fe140ceb2fd3713bcdcee4f06fd48e" {
-  usage multisample
-}
-asset finger-bass-79-hard-0 "Finger Bass" wav "media/79-hard-0.wav" sha256 "c091dd68fc2bc945fc83d69f319a52c6ed2c61e24f31cb36576a8a4c93a8551d" {
-  usage multisample
+profile finger-bass-box {
+  root 261.626hz
+  mode m0 frequency 110hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 220hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 430hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m3 frequency 2100hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }

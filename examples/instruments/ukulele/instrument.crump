@@ -1,69 +1,111 @@
 crump-module 2
 instrument ukulele "Ukulele" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z57-soft-0 asset ukulele-57-soft-0 keys G3 C4 velocity 0 0.65 root A3
-      zone z57-hard-0 asset ukulele-57-hard-0 keys G3 C4 velocity 0.65 1 root A3
-      zone z63-soft-0 asset ukulele-63-soft-0 keys C#4 F#4 velocity 0 0.65 root D#4
-      zone z63-hard-0 asset ukulele-63-hard-0 keys C#4 F#4 velocity 0.65 1 root D#4
-      zone z69-soft-0 asset ukulele-69-soft-0 keys G4 C5 velocity 0 0.65 root A4
-      zone z69-hard-0 asset ukulele-69-hard-0 keys G4 C5 velocity 0.65 1 root A4
-      zone z75-soft-0 asset ukulele-75-soft-0 keys C#5 F#5 velocity 0 0.65 root D#5
-      zone z75-hard-0 asset ukulele-75-hard-0 keys C#5 F#5 velocity 0.65 1 root D#5
-      zone z81-soft-0 asset ukulele-81-soft-0 keys G5 C6 velocity 0 0.65 root A5
-      zone z81-hard-0 asset ukulele-81-hard-0 keys G5 C6 velocity 0.65 1 root A5
+  modulation {
+    source key-level note_key per_voice bipolar reference G4 range 12st
+    route key-gain-low source key-level target key-gain depth -0.311884 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth 0.390615 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 32 {
+    # Plucked strings: pitch-tuned delay loops, bridge buzz, sympathetic strings and body.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node held math operation add
+    node held-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node held-leak math operation scale amount 1
+    node period-later delay_line mode pitch ratio 1 interpolation linear max_time 0.1s
+    node period math operation subtract
+    node pluck-window shaper curve hard_clip drive 64 bias 0
+    node pluck-noise noise level 1
+    node pluck math operation multiply
+    node pluck-tone lowpass mode lowpass cutoff 1170hz resonance 0.308309 velocity_depth 1690hz
+    node string-in math operation add
+    node string delay_line mode pitch ratio 1 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node string-loss linear_phase_lowpass amount 0.25
+    node string-keep math operation scale amount 0.99999
+    node string-pickup delay_line mode pitch ratio 0.2 interpolation linear max_time 0.05s
+    node string-out math operation subtract
+    node gain1 math operation scale amount 0.7
+    node gain2 math operation scale amount 1.73205
+    node string-tone lowpass mode lowpass cutoff 1170hz resonance 0.308309 velocity_depth 1690hz
+    node string-decay math operation add
+    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node string-decay-leak math operation scale amount 0.999973958672
+    node times3 math operation multiply
+    node body4 modal_bank profile ukulele-box max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain5 math operation scale amount 0.45
+    node plus6 math operation add
+    node hi-7 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.209127
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus held-audio-held-previous-audio held.audio -> held-previous.audio
+    bus onset-audio-held-a onset.audio -> held.a
+    bus held-previous-audio-held-leak-a held-previous.audio -> held-leak.a
+    bus held-leak-audio-held-b held-leak.audio -> held.b
+    bus note-pitch-period-later-pitch note.pitch -> period-later.pitch
+    bus held-audio-period-later-audio held.audio -> period-later.audio
+    bus held-audio-period-a held.audio -> period.a
+    bus period-later-audio-period-b period-later.audio -> period.b
+    bus period-audio-pluck-window-audio period.audio -> pluck-window.audio
+    bus pluck-noise-audio-pluck-a pluck-noise.audio -> pluck.a
+    bus pluck-window-audio-pluck-b pluck-window.audio -> pluck.b
+    bus pluck-audio-pluck-tone-audio pluck.audio -> pluck-tone.audio
+    bus note-velocity-pluck-tone-velocity note.velocity -> pluck-tone.velocity
+    bus pluck-tone-audio-string-in-a pluck-tone.audio -> string-in.a
+    bus note-pitch-string-pitch note.pitch -> string.pitch
+    bus string-in-audio-string-audio string-in.audio -> string.audio
+    bus string-audio-string-loss-audio string.audio -> string-loss.audio
+    bus string-loss-audio-string-keep-a string-loss.audio -> string-keep.a
+    bus string-keep-audio-string-in-b string-keep.audio -> string-in.b
+    bus note-pitch-string-pickup-pitch note.pitch -> string-pickup.pitch
+    bus string-audio-string-pickup-audio string.audio -> string-pickup.audio
+    bus string-audio-string-out-a string.audio -> string-out.a
+    bus string-pickup-audio-gain1-a string-pickup.audio -> gain1.a
+    bus gain1-audio-string-out-b gain1.audio -> string-out.b
+    bus string-out-audio-gain2-a string-out.audio -> gain2.a
+    bus gain2-audio-string-tone-audio gain2.audio -> string-tone.audio
+    bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
+    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
+    bus onset-audio-string-decay-a onset.audio -> string-decay.a
+    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
+    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
+    bus string-tone-audio-times3-a string-tone.audio -> times3.a
+    bus string-decay-audio-times3-b string-decay.audio -> times3.b
+    bus times3-audio-body4-audio times3.audio -> body4.audio
+    bus note-pitch-body4-pitch note.pitch -> body4.pitch
+    bus note-gate-body4-gate note.gate -> body4.gate
+    bus body4-audio-gain5-a body4.audio -> gain5.a
+    bus times3-audio-plus6-a times3.audio -> plus6.a
+    bus gain5-audio-plus6-b gain5.audio -> plus6.b
+    bus plus6-audio-hi-7-audio plus6.audio -> hi-7.audio
+    bus hi-7-audio-register-a hi-7.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset ukulele-57-soft-0 "Ukulele" wav "media/57-soft-0.wav" sha256 "01f4f009e7f878a58aec27108a23638f64f27a8293a140f17fb0f33b555c7937" {
-  usage multisample
-}
-asset ukulele-57-hard-0 "Ukulele" wav "media/57-hard-0.wav" sha256 "4f23f91dc2232cbed639c4f74b6725eddf7fbbd98af70b27e559b48e23cb54af" {
-  usage multisample
-}
-asset ukulele-63-soft-0 "Ukulele" wav "media/63-soft-0.wav" sha256 "fba4034277aa1bf7703e01d826f8eb3dca8c23ab7ad00474618c535f2df9b321" {
-  usage multisample
-}
-asset ukulele-63-hard-0 "Ukulele" wav "media/63-hard-0.wav" sha256 "1d4e553040ad71a183014ed06a56640b9a7a50bfff8c161743da606727ee7d4f" {
-  usage multisample
-}
-asset ukulele-69-soft-0 "Ukulele" wav "media/69-soft-0.wav" sha256 "24877b12aa731c176c00b729f2b27a094f86027336b40bdfeb968948275b5770" {
-  usage multisample
-}
-asset ukulele-69-hard-0 "Ukulele" wav "media/69-hard-0.wav" sha256 "59dd125354747879e90f6f0647aae483a094caf3693f5d320f6c634c249fa36d" {
-  usage multisample
-}
-asset ukulele-75-soft-0 "Ukulele" wav "media/75-soft-0.wav" sha256 "be5d9176b7002b0265527678937d1c50be0e2d0859c1cff3dda8e2997b6473dd" {
-  usage multisample
-}
-asset ukulele-75-hard-0 "Ukulele" wav "media/75-hard-0.wav" sha256 "b444458c52ed4355d99ab0075703b9a8f4f9972053f649d3b24c4b975f061cd6" {
-  usage multisample
-}
-asset ukulele-81-soft-0 "Ukulele" wav "media/81-soft-0.wav" sha256 "38b6eb97b68782f117a2a988e7d7c1e0590c0bf4f9795217d43b3cb09eb8a8cd" {
-  usage multisample
-}
-asset ukulele-81-hard-0 "Ukulele" wav "media/81-hard-0.wav" sha256 "aad497aa9ff8f4eac7b1396479d5a075ba10536043d960f467347888ab0e9396" {
-  usage multisample
+profile ukulele-box {
+  root 261.626hz
+  mode m0 frequency 260hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 520hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 980hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m3 frequency 2100hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }

@@ -1,77 +1,74 @@
 crump-module 2
 instrument music-box "Music Box" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter ring "Ring" ratio 0.1 4 0.5359 0.5359 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter hardness "Hardness" ratio 0 1 0.5 0.5
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control ring "Ring" "Decay time of the body" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z62-soft-0 asset music-box-62-soft-0 keys C4 F4 velocity 0 0.65 root D4
-      zone z62-hard-0 asset music-box-62-hard-0 keys C4 F4 velocity 0.65 1 root D4
-      zone z68-soft-0 asset music-box-68-soft-0 keys F#4 B4 velocity 0 0.65 root G#4
-      zone z68-hard-0 asset music-box-68-hard-0 keys F#4 B4 velocity 0.65 1 root G#4
-      zone z74-soft-0 asset music-box-74-soft-0 keys C5 F5 velocity 0 0.65 root D5
-      zone z74-hard-0 asset music-box-74-hard-0 keys C5 F5 velocity 0.65 1 root D5
-      zone z80-soft-0 asset music-box-80-soft-0 keys F#5 B5 velocity 0 0.65 root G#5
-      zone z80-hard-0 asset music-box-80-hard-0 keys F#5 B5 velocity 0.65 1 root G#5
-      zone z86-soft-0 asset music-box-86-soft-0 keys C6 F6 velocity 0 0.65 root D6
-      zone z86-hard-0 asset music-box-86-hard-0 keys C6 F6 velocity 0.65 1 root D6
-      zone z92-soft-0 asset music-box-92-soft-0 keys F#6 C7 velocity 0 0.65 root G#6
-      zone z92-hard-0 asset music-box-92-hard-0 keys F#6 C7 velocity 0.65 1 root G#6
+  modulation {
+    source key-range note_key per_voice bipolar reference F#5 range 18st
+    source key-level note_key per_voice bipolar reference G5 range 12st
+    route ring-key source key-range target ring depth -0.334304 map bipolar curve linear order 0 bypass false
+    route key-gain-low source key-level target key-gain depth -0.00402025 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth 0.140891 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 17 {
+    # A strike on a tuned body with explicit mode ratios, plus a contact tick.
+    node strike1 exciter kind impact contact 0.000168056s hardness $hardness level 1
+    node body2 modal_bank profile music-box-body max_modes 3 key_track 1 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.986207116744
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 2500hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 14000hz resonance 0.308309
+    node gain8 math operation scale amount 0.610356
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.215703
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus strike1-audio-fall4-a strike1.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-register-a hi-10.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset music-box-62-soft-0 "Music Box" wav "media/62-soft-0.wav" sha256 "f223c8dcc92e95a1fe6ceacfbbc7a34837cce5e8be21f460b7459311bf1a0cc2" {
-  usage multisample
-}
-asset music-box-62-hard-0 "Music Box" wav "media/62-hard-0.wav" sha256 "f99744bcbae8e56c885b46b318f365202c35f7cf1a5de9291aafd987fd98c506" {
-  usage multisample
-}
-asset music-box-68-soft-0 "Music Box" wav "media/68-soft-0.wav" sha256 "6f4670d6993b30116f18a936b8b726cbd044bfb376aa4a2bbc89f9074f988c39" {
-  usage multisample
-}
-asset music-box-68-hard-0 "Music Box" wav "media/68-hard-0.wav" sha256 "ec7834e1922a3c59a76e692e24ac34eaf3109a185c042194196488f8a47aeefd" {
-  usage multisample
-}
-asset music-box-74-soft-0 "Music Box" wav "media/74-soft-0.wav" sha256 "681aa18c12bf8e2ab6ad23424aa15c555f1acdfea46c817b5c718ab2d34bd7c8" {
-  usage multisample
-}
-asset music-box-74-hard-0 "Music Box" wav "media/74-hard-0.wav" sha256 "2436ae85db2388ee66dc18d2859c6f9101b4fbcfefe5e8069a4b1316768bbbbb" {
-  usage multisample
-}
-asset music-box-80-soft-0 "Music Box" wav "media/80-soft-0.wav" sha256 "e639701ca79edef92348d4121cd3398722a9f57925b112080961b5d75b2aa7cc" {
-  usage multisample
-}
-asset music-box-80-hard-0 "Music Box" wav "media/80-hard-0.wav" sha256 "097898fda8c5c7c673c07654477034072592778d53be509402c3b77b629b9a4f" {
-  usage multisample
-}
-asset music-box-86-soft-0 "Music Box" wav "media/86-soft-0.wav" sha256 "6e4075a114ce791bfcc913dcc0a05b4029fb5dae126d58a8367f35d19df4aa8e" {
-  usage multisample
-}
-asset music-box-86-hard-0 "Music Box" wav "media/86-hard-0.wav" sha256 "8f55c3acf4453d24869dddcc33883667ac0fecad62737e00d888a5eac467ae8c" {
-  usage multisample
-}
-asset music-box-92-soft-0 "Music Box" wav "media/92-soft-0.wav" sha256 "9819188057693e8d59a78c777126bcd37326816ef7b983f89781d908834629e3" {
-  usage multisample
-}
-asset music-box-92-hard-0 "Music Box" wav "media/92-hard-0.wav" sha256 "eadfa7376e108d1f3f8f06e6d4b46a1e3f9a99b156a1f0df1aad921f03d6f610" {
-  usage multisample
+profile music-box-body {
+  root 261.626hz
+  mode m0 frequency 261.626hz decay 0.9s gain 1 after_decay 0.9s after_gain 0
+  mode m1 frequency 1556.67hz decay 0.3s gain 0.0280575 after_decay 0.3s after_gain 0
+  mode m2 frequency 4342.98hz decay 0.1s gain 0.00524814 after_decay 0.1s after_gain 0
 }

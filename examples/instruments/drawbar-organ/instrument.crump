@@ -1,108 +1,157 @@
 crump-module 2
 instrument drawbar-organ "Drawbar Organ" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
-  parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 0.0245455s 0.0245455s modulatable
   parameter release "Release" seconds 0.02s 4s 0.03s 0.03s
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset drawbar-organ-36-soft-0 keys C2 D#2 velocity 0 0.65 root C2 loop 48000 125154 crossfade 8160
-      zone z36-hard-0 asset drawbar-organ-36-hard-0 keys C2 D#2 velocity 0.65 1 root C2 loop 48000 125154 crossfade 8160
-      zone z43-soft-0 asset drawbar-organ-43-soft-0 keys E2 A#2 velocity 0 0.65 root G2 loop 48000 124746 crossfade 8160
-      zone z43-hard-0 asset drawbar-organ-43-hard-0 keys E2 A#2 velocity 0.65 1 root G2 loop 48000 124746 crossfade 8160
-      zone z50-soft-0 asset drawbar-organ-50-soft-0 keys B2 F3 velocity 0 0.65 root D3 loop 48000 125497 crossfade 8160
-      zone z50-hard-0 asset drawbar-organ-50-hard-0 keys B2 F3 velocity 0.65 1 root D3 loop 48000 125497 crossfade 8160
-      zone z57-soft-0 asset drawbar-organ-57-soft-0 keys F#3 C4 velocity 0 0.65 root A3 loop 48000 125089 crossfade 8160
-      zone z57-hard-0 asset drawbar-organ-57-hard-0 keys F#3 C4 velocity 0.65 1 root A3 loop 48000 125089 crossfade 8160
-      zone z64-soft-0 asset drawbar-organ-64-soft-0 keys C#4 G4 velocity 0 0.65 root E4 loop 48000 125421 crossfade 8160
-      zone z64-hard-0 asset drawbar-organ-64-hard-0 keys C#4 G4 velocity 0.65 1 root E4 loop 48000 125421 crossfade 8160
-      zone z71-soft-0 asset drawbar-organ-71-soft-0 keys G#4 D5 velocity 0 0.65 root B4 loop 48000 124825 crossfade 8160
-      zone z71-hard-0 asset drawbar-organ-71-hard-0 keys G#4 D5 velocity 0.65 1 root B4 loop 48000 124825 crossfade 8160
-      zone z78-soft-0 asset drawbar-organ-78-soft-0 keys D#5 A5 velocity 0 0.65 root F#5 loop 48000 125300 crossfade 8160
-      zone z78-hard-0 asset drawbar-organ-78-hard-0 keys D#5 A5 velocity 0.65 1 root F#5 loop 48000 125300 crossfade 8160
-      zone z85-soft-0 asset drawbar-organ-85-soft-0 keys A#5 E6 velocity 0 0.65 root C#6 loop 48000 125262 crossfade 8160
-      zone z85-hard-0 asset drawbar-organ-85-hard-0 keys A#5 E6 velocity 0.65 1 root C#6 loop 48000 125262 crossfade 8160
-      zone z92-soft-0 asset drawbar-organ-92-soft-0 keys F6 C7 velocity 0 0.65 root G#6 loop 48000 125262 crossfade 8160
-      zone z92-hard-0 asset drawbar-organ-92-hard-0 keys F6 C7 velocity 0.65 1 root G#6 loop 48000 125262 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route attack-velocity source velocity target attack depth -0.013636364s map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(1.27) order 0 bypass false
+    route key-gain-low source key-level target key-gain depth -0.0680101 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
-    node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    route key-gain-high source key-level target key-gain depth -0.0411391 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
   }
-}
-asset drawbar-organ-36-soft-0 "Drawbar Organ" wav "media/36-soft-0.wav" sha256 "1c72b60b824fe1c1cc4bec2f98129e2ce4438401ef731a6ca3e61dd55d1c1ffe" {
-  usage multisample
-}
-asset drawbar-organ-36-hard-0 "Drawbar Organ" wav "media/36-hard-0.wav" sha256 "fe4c1d2d03f7d69a37f4752d2b31e7cac1ac02697a1186069845a5124bc4a8ea" {
-  usage multisample
-}
-asset drawbar-organ-43-soft-0 "Drawbar Organ" wav "media/43-soft-0.wav" sha256 "b319038530d305f7812f6ec066ed679ceac3240b3746f78a5f0f24e83acf6f96" {
-  usage multisample
-}
-asset drawbar-organ-43-hard-0 "Drawbar Organ" wav "media/43-hard-0.wav" sha256 "ac328c623db91c1feeb4347275df7382bd453e9cbe0f5a0b22d394f7fb3c1bc3" {
-  usage multisample
-}
-asset drawbar-organ-50-soft-0 "Drawbar Organ" wav "media/50-soft-0.wav" sha256 "a8186a80d7625dafc2e1ee256dc3db77bf7af070b0c87481ca98c5740b0cdafb" {
-  usage multisample
-}
-asset drawbar-organ-50-hard-0 "Drawbar Organ" wav "media/50-hard-0.wav" sha256 "4ab4c3045fb87c8447143b882b309d714d0e2062559e266eaa6f8b154b675454" {
-  usage multisample
-}
-asset drawbar-organ-57-soft-0 "Drawbar Organ" wav "media/57-soft-0.wav" sha256 "3ac1d2106445725dd46b1232229971cacc97bc8c2107920b375f20a650f06333" {
-  usage multisample
-}
-asset drawbar-organ-57-hard-0 "Drawbar Organ" wav "media/57-hard-0.wav" sha256 "baa568d6a8e724e30ab51d7873932d2e6ad4fa294a58dfaa36ee9cecee31aaf7" {
-  usage multisample
-}
-asset drawbar-organ-64-soft-0 "Drawbar Organ" wav "media/64-soft-0.wav" sha256 "9f40e353385f2af2c49cc125f584d87203600dd79954fefa7712b6609e429c35" {
-  usage multisample
-}
-asset drawbar-organ-64-hard-0 "Drawbar Organ" wav "media/64-hard-0.wav" sha256 "29aa1a6bd0394ae8fdc3f9c9d1fa1695881c651a97a4ac01d99370a5d8dde48f" {
-  usage multisample
-}
-asset drawbar-organ-71-soft-0 "Drawbar Organ" wav "media/71-soft-0.wav" sha256 "55f868b0955046abfaf1d5f91f01b105f49d77272d97783239ee37b5dcc3b953" {
-  usage multisample
-}
-asset drawbar-organ-71-hard-0 "Drawbar Organ" wav "media/71-hard-0.wav" sha256 "f8f14e0f4b140569a4d661bfb795055a3088c5f839ddc4b5e13756764a033f4d" {
-  usage multisample
-}
-asset drawbar-organ-78-soft-0 "Drawbar Organ" wav "media/78-soft-0.wav" sha256 "f4c2359adeb36f3dc62e1315632f65489775e49c6bcf8622f252605fdd2d8b6e" {
-  usage multisample
-}
-asset drawbar-organ-78-hard-0 "Drawbar Organ" wav "media/78-hard-0.wav" sha256 "82eb13ef1c1b183fa3a3d0517f3708c0b24e176f51af4b54fe7d0be4d24d3b1d" {
-  usage multisample
-}
-asset drawbar-organ-85-soft-0 "Drawbar Organ" wav "media/85-soft-0.wav" sha256 "4513d0c239521247a82114e0a76c4e0e4174e4a2b078e8eb3f5423678ad294d3" {
-  usage multisample
-}
-asset drawbar-organ-85-hard-0 "Drawbar Organ" wav "media/85-hard-0.wav" sha256 "b6df1d5ebc9ebafe0532a03fb5bae396923f614d6f44a0c16fda76f5e4d3b33d" {
-  usage multisample
-}
-asset drawbar-organ-92-soft-0 "Drawbar Organ" wav "media/92-soft-0.wav" sha256 "49530df528d41f8d2274705f88a0e3544008863ebfce962dfd5a921d55da9232" {
-  usage multisample
-}
-asset drawbar-organ-92-hard-0 "Drawbar Organ" wav "media/92-hard-0.wav" sha256 "05319081626e36f73cf809e4aa4e7544f7b3751d2cfe5d4388989118873286c3" {
-  usage multisample
+  graph voice 52 {
+    # Tonewheel organ: drawbar sines, percussion and key click.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node stop1 analog_oscillator waveform sine coarse -12.0168st level 2.22144 velocity_amount 0
+    node stop1-mono stereo_to_mono
+    node stop2 analog_oscillator waveform sine coarse 7.0373st level 2.22144 velocity_amount 0
+    node stop2-mono stereo_to_mono
+    node stop3 analog_oscillator waveform sine coarse 0.0137787st level 2.22144 velocity_amount 0
+    node stop3-mono stereo_to_mono
+    node stop4 analog_oscillator waveform sine coarse 11.9826st level 2.22144 velocity_amount 0
+    node stop4-mono stereo_to_mono
+    node stop5 analog_oscillator waveform sine coarse 36.0022st level 1.33286 velocity_amount 0
+    node stop5-mono stereo_to_mono
+    node mix1 sum max_inputs 5
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node percussion-decay math operation add
+    node percussion-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node percussion-decay-leak math operation scale amount 0.999916670139
+    node tone2 analog_oscillator waveform sine coarse 19.0196st level 1.41421 am_mode ring am_depth 1
+    node tone2-mono stereo_to_mono
+    node gain3 math operation scale amount 4.14681
+    node plus4 math operation add
+    node hiss5 noise level 1
+    node fall6 math operation add
+    node fall6-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall6-leak math operation scale amount 0.994805206518
+    node times7 math operation multiply
+    node hi-8 lowpass mode highpass cutoff 800hz resonance 0.308309
+    node lo-9 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain10 math operation scale amount 4.15302
+    node plus11 math operation add
+    node lo-12 lowpass mode lowpass cutoff 7000hz resonance 0.308309
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-13 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node horn lfo waveform sine rate 6.25hz depth 1 phase 0 random_phase 0 polarity bipolar retrigger transport
+    node drum lfo waveform sine rate 1.25hz depth 1 phase 0.25 random_phase 0 polarity bipolar retrigger transport
+    node horn-audio to_audio
+    node drum-audio to_audio
+    node hi-14 lowpass mode highpass cutoff 800hz resonance 0.308309
+    node horn-path delay_line mode time time 0.45ms mod_depth 1 interpolation lagrange3 max_time 2ms
+    node horn-gain math operation offset amount 1
+    node gain15 math operation scale amount 0.3
+    node lo-16 lowpass mode lowpass cutoff 800hz resonance 0.308309
+    node drum-gain math operation offset amount 1
+    node gain17 math operation scale amount 0.12
+    node times18 math operation multiply
+    node times19 math operation multiply
+    node plus20 math operation add
+    node gain21 math operation scale amount 0.85
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.0272159
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus note-pitch-stop1-pitch note.pitch -> stop1.pitch
+    bus note-velocity-stop1-velocity note.velocity -> stop1.velocity
+    bus amplitude-control-stop1-gain amplitude.control -> stop1.gain
+    bus stop1-audio-stop1-mono-audio stop1.audio -> stop1-mono.audio
+    bus note-pitch-stop2-pitch note.pitch -> stop2.pitch
+    bus note-velocity-stop2-velocity note.velocity -> stop2.velocity
+    bus amplitude-control-stop2-gain amplitude.control -> stop2.gain
+    bus stop2-audio-stop2-mono-audio stop2.audio -> stop2-mono.audio
+    bus note-pitch-stop3-pitch note.pitch -> stop3.pitch
+    bus note-velocity-stop3-velocity note.velocity -> stop3.velocity
+    bus amplitude-control-stop3-gain amplitude.control -> stop3.gain
+    bus stop3-audio-stop3-mono-audio stop3.audio -> stop3-mono.audio
+    bus note-pitch-stop4-pitch note.pitch -> stop4.pitch
+    bus note-velocity-stop4-velocity note.velocity -> stop4.velocity
+    bus amplitude-control-stop4-gain amplitude.control -> stop4.gain
+    bus stop4-audio-stop4-mono-audio stop4.audio -> stop4-mono.audio
+    bus note-pitch-stop5-pitch note.pitch -> stop5.pitch
+    bus note-velocity-stop5-velocity note.velocity -> stop5.velocity
+    bus amplitude-control-stop5-gain amplitude.control -> stop5.gain
+    bus stop5-audio-stop5-mono-audio stop5.audio -> stop5-mono.audio
+    bus stop1-mono-audio-mix1-inputs stop1-mono.audio -> mix1.inputs
+    bus stop2-mono-audio-mix1-inputs stop2-mono.audio -> mix1.inputs
+    bus stop3-mono-audio-mix1-inputs stop3-mono.audio -> mix1.inputs
+    bus stop4-mono-audio-mix1-inputs stop4-mono.audio -> mix1.inputs
+    bus stop5-mono-audio-mix1-inputs stop5-mono.audio -> mix1.inputs
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus percussion-decay-audio-percussion-decay-previous-audio percussion-decay.audio -> percussion-decay-previous.audio
+    bus onset-audio-percussion-decay-a onset.audio -> percussion-decay.a
+    bus percussion-decay-previous-audio-percussion-decay-leak-a percussion-decay-previous.audio -> percussion-decay-leak.a
+    bus percussion-decay-leak-audio-percussion-decay-b percussion-decay-leak.audio -> percussion-decay.b
+    bus note-pitch-tone2-pitch note.pitch -> tone2.pitch
+    bus percussion-decay-audio-tone2-am percussion-decay.audio -> tone2.am
+    bus tone2-audio-tone2-mono-audio tone2.audio -> tone2-mono.audio
+    bus tone2-mono-audio-gain3-a tone2-mono.audio -> gain3.a
+    bus mix1-audio-plus4-a mix1.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus fall6-audio-fall6-previous-audio fall6.audio -> fall6-previous.audio
+    bus onset-audio-fall6-a onset.audio -> fall6.a
+    bus fall6-previous-audio-fall6-leak-a fall6-previous.audio -> fall6-leak.a
+    bus fall6-leak-audio-fall6-b fall6-leak.audio -> fall6.b
+    bus hiss5-audio-times7-a hiss5.audio -> times7.a
+    bus fall6-audio-times7-b fall6.audio -> times7.b
+    bus times7-audio-hi-8-audio times7.audio -> hi-8.audio
+    bus hi-8-audio-lo-9-audio hi-8.audio -> lo-9.audio
+    bus lo-9-audio-gain10-a lo-9.audio -> gain10.a
+    bus plus4-audio-plus11-a plus4.audio -> plus11.a
+    bus gain10-audio-plus11-b gain10.audio -> plus11.b
+    bus plus11-audio-lo-12-audio plus11.audio -> lo-12.audio
+    bus lo-12-audio-dynamics-gain-a lo-12.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-13-audio dynamics-gain.audio -> hi-13.audio
+    bus horn-control-horn-audio-control horn.control -> horn-audio.control
+    bus drum-control-drum-audio-control drum.control -> drum-audio.control
+    bus hi-13-audio-hi-14-audio hi-13.audio -> hi-14.audio
+    bus hi-14-audio-horn-path-audio hi-14.audio -> horn-path.audio
+    bus horn-audio-audio-horn-path-time-mod horn-audio.audio -> horn-path.time_mod
+    bus horn-audio-audio-gain15-a horn-audio.audio -> gain15.a
+    bus gain15-audio-horn-gain-a gain15.audio -> horn-gain.a
+    bus hi-13-audio-lo-16-audio hi-13.audio -> lo-16.audio
+    bus drum-audio-audio-gain17-a drum-audio.audio -> gain17.a
+    bus gain17-audio-drum-gain-a gain17.audio -> drum-gain.a
+    bus horn-path-audio-times18-a horn-path.audio -> times18.a
+    bus horn-gain-audio-times18-b horn-gain.audio -> times18.b
+    bus lo-16-audio-times19-a lo-16.audio -> times19.a
+    bus drum-gain-audio-times19-b drum-gain.audio -> times19.b
+    bus times18-audio-plus20-a times18.audio -> plus20.a
+    bus times19-audio-plus20-b times19.audio -> plus20.b
+    bus plus20-audio-gain21-a plus20.audio -> gain21.a
+    bus gain21-audio-register-a gain21.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
 }

@@ -1,45 +1,74 @@
 crump-module 2
 instrument palm-snap "Palm Snap" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z60-soft-0 asset palm-snap-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-0 asset palm-snap-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
-      zone z60-soft-1 asset palm-snap-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-1 asset palm-snap-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
-    }
+  graph voice 23 {
+    # Hands clapping a few milliseconds apart: delayed noise bursts.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall1 math operation add
+    node fall1-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall1-leak math operation scale amount 0.998495846982
+    node fall2 math operation add
+    node fall2-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall2-leak math operation scale amount 0.94782194251
+    node gain3 math operation scale amount -1
+    node plus4 math operation add
+    node gain5 math operation scale amount 1.14081
+    node hiss6 noise level 1
+    node times7 math operation multiply
+    node hi-8 lowpass mode highpass cutoff 180.085hz resonance 0.308309
+    node lo-9 lowpass mode lowpass cutoff 4404.73hz resonance 0.308309
+    node gain10 math operation scale amount 1.73205
+    node body11 modal_bank profile palm-snap-box max_modes 3 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain12 math operation scale amount 0.3
+    node plus13 math operation add
+    node hi-14 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.208501
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall1-audio-fall1-previous-audio fall1.audio -> fall1-previous.audio
+    bus onset-audio-fall1-a onset.audio -> fall1.a
+    bus fall1-previous-audio-fall1-leak-a fall1-previous.audio -> fall1-leak.a
+    bus fall1-leak-audio-fall1-b fall1-leak.audio -> fall1.b
+    bus fall2-audio-fall2-previous-audio fall2.audio -> fall2-previous.audio
+    bus onset-audio-fall2-a onset.audio -> fall2.a
+    bus fall2-previous-audio-fall2-leak-a fall2-previous.audio -> fall2-leak.a
+    bus fall2-leak-audio-fall2-b fall2-leak.audio -> fall2.b
+    bus fall2-audio-gain3-a fall2.audio -> gain3.a
+    bus fall1-audio-plus4-a fall1.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus plus4-audio-gain5-a plus4.audio -> gain5.a
+    bus hiss6-audio-times7-a hiss6.audio -> times7.a
+    bus gain5-audio-times7-b gain5.audio -> times7.b
+    bus times7-audio-hi-8-audio times7.audio -> hi-8.audio
+    bus hi-8-audio-lo-9-audio hi-8.audio -> lo-9.audio
+    bus lo-9-audio-gain10-a lo-9.audio -> gain10.a
+    bus gain10-audio-body11-audio gain10.audio -> body11.audio
+    bus note-pitch-body11-pitch note.pitch -> body11.pitch
+    bus note-gate-body11-gate note.gate -> body11.gate
+    bus body11-audio-gain12-a body11.audio -> gain12.a
+    bus gain10-audio-plus13-a gain10.audio -> plus13.a
+    bus gain12-audio-plus13-b gain12.audio -> plus13.b
+    bus plus13-audio-hi-14-audio plus13.audio -> hi-14.audio
+    bus hi-14-audio-trim-a hi-14.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset palm-snap-60-soft-0 "Palm Snap" wav "media/60-soft-0.wav" sha256 "dc83375009c073f2f6a2f52fcdeef7452eca0c0c40314ff1018d644477d0d640" {
-  usage multisample
-}
-asset palm-snap-60-hard-0 "Palm Snap" wav "media/60-hard-0.wav" sha256 "6b35f47a0d2d4566c7d42af7fe3cdcfaaee2fedf43b7481ed0ba95f2cf9d8d93" {
-  usage multisample
-}
-asset palm-snap-60-soft-1 "Palm Snap" wav "media/60-soft-1.wav" sha256 "f418caf4375c0884ee47427cad02c84257d7fe792c8717f70b760798c5b30818" {
-  usage multisample
-}
-asset palm-snap-60-hard-1 "Palm Snap" wav "media/60-hard-1.wav" sha256 "962e15ed612b227d94f3ac6a87d72850e5cb03a1869872c72a7baaa7c28876b2" {
-  usage multisample
+profile palm-snap-box {
+  root 261.626hz
+  mode m0 frequency 950hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 1510hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 2320hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }

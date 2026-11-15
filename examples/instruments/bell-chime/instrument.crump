@@ -1,93 +1,56 @@
 crump-module 2
 instrument bell-chime "Bell Chime" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  modulation {
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route key-gain-low source key-level target key-gain depth -0.041067 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
+    }
+    route key-gain-high source key-level target key-gain depth -0.00159676 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
   }
   graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset bell-chime-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
-      zone z36-hard-0 asset bell-chime-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
-      zone z43-soft-0 asset bell-chime-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
-      zone z43-hard-0 asset bell-chime-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
-      zone z48-soft-0 asset bell-chime-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset bell-chime-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
-      zone z55-soft-0 asset bell-chime-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
-      zone z55-hard-0 asset bell-chime-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
-      zone z60-soft-0 asset bell-chime-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
-      zone z60-hard-0 asset bell-chime-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
-      zone z67-soft-0 asset bell-chime-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset bell-chime-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset bell-chime-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset bell-chime-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
-      zone z79-soft-0 asset bell-chime-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
-      zone z79-hard-0 asset bell-chime-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
-    }
+    # A mallet on a tuned bar's modes, optionally through a pickup.
+    node strike1 exciter kind impact contact 0.000179881s hardness $hardness level 1
+    node body2 modal_bank profile bell-chime-bar max_modes 7 key_track 1 decay_scale $ring brightness 0 level 1
+    node hi-3 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.13412
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-hi-3-audio body2.audio -> hi-3.audio
+    bus hi-3-audio-register-a hi-3.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset bell-chime-36-soft-0 "Bell Chime" wav "media/36-soft-0.wav" sha256 "39562a0549bf4540df5c04dff446b23e682dc170f526dc604b1df43f11b54420" {
-  usage multisample
-}
-asset bell-chime-36-hard-0 "Bell Chime" wav "media/36-hard-0.wav" sha256 "af6d1f97ba42dbb430c3b7e643cf138c30579cccb2df7efea2486b8a098bfd01" {
-  usage multisample
-}
-asset bell-chime-43-soft-0 "Bell Chime" wav "media/43-soft-0.wav" sha256 "48e16266ad79e53dd2e05ec1aaf4802b99fe22bbfeb3231c2e9aeb5df8a631b9" {
-  usage multisample
-}
-asset bell-chime-43-hard-0 "Bell Chime" wav "media/43-hard-0.wav" sha256 "d3da60bec65902b470bc9091b47ec6d8801aa944b62d76d444b40a5fbcd1b549" {
-  usage multisample
-}
-asset bell-chime-48-soft-0 "Bell Chime" wav "media/48-soft-0.wav" sha256 "b866f0ce3fa65730666eec0aa11cdae923845e0112d5fd4b1528212b7fd33eb2" {
-  usage multisample
-}
-asset bell-chime-48-hard-0 "Bell Chime" wav "media/48-hard-0.wav" sha256 "ff95317df38721af09e2ccf0114ec279253333f3c75b76cfd480902e6d7fa0b6" {
-  usage multisample
-}
-asset bell-chime-55-soft-0 "Bell Chime" wav "media/55-soft-0.wav" sha256 "4c59fa776db708a6efbb92eb1915139adecd42ba642f9129a5b9c05e2eddd973" {
-  usage multisample
-}
-asset bell-chime-55-hard-0 "Bell Chime" wav "media/55-hard-0.wav" sha256 "c70af2f081bb012c10734acb9966fa93cedf774c5a3a44e47bacb98d2ca86efc" {
-  usage multisample
-}
-asset bell-chime-60-soft-0 "Bell Chime" wav "media/60-soft-0.wav" sha256 "48d39cc5ae3334bb30f74594063a096dece63aea675689233d9cbb9691763c87" {
-  usage multisample
-}
-asset bell-chime-60-hard-0 "Bell Chime" wav "media/60-hard-0.wav" sha256 "220f583678c327172f7022c8cb9d8d0df33419c8659d1f17f0a4883d07038152" {
-  usage multisample
-}
-asset bell-chime-67-soft-0 "Bell Chime" wav "media/67-soft-0.wav" sha256 "9d45ea1714b3ba8090a34a4ebea720cab38859cb5b1cbaa81621e6001a816e8b" {
-  usage multisample
-}
-asset bell-chime-67-hard-0 "Bell Chime" wav "media/67-hard-0.wav" sha256 "f2888dc9d40011f36b91e5f7c8861edfed4e06cf5c757e866df095b8b06f0826" {
-  usage multisample
-}
-asset bell-chime-72-soft-0 "Bell Chime" wav "media/72-soft-0.wav" sha256 "e48257100f899ef46b13be5f70b05a46e7b7de1a51c79bae3036cf9807d2cae4" {
-  usage multisample
-}
-asset bell-chime-72-hard-0 "Bell Chime" wav "media/72-hard-0.wav" sha256 "0f5425144b388579cd0656d0489904d6db836185fc7b08c3e41adc3df5bad692" {
-  usage multisample
-}
-asset bell-chime-79-soft-0 "Bell Chime" wav "media/79-soft-0.wav" sha256 "ea8216a5e80d289e64f3ac9f2d573b2041632c824456a10bdf3defa2788bc115" {
-  usage multisample
-}
-asset bell-chime-79-hard-0 "Bell Chime" wav "media/79-hard-0.wav" sha256 "3a78f71ec04b309870617c0be473d0e4e9050473cc18c311392c08705c6be2b3" {
-  usage multisample
+profile bell-chime-bar {
+  root 261.626hz
+  mode m0 frequency 196.638hz decay 2.98518s gain 0.25 after_decay 2.98518s after_gain 0
+  mode m1 frequency 510.186hz decay 1.95181s gain 0.450579 after_decay 1.95181s after_gain 0
+  mode m2 frequency 571.373hz decay 1.85573s gain 0.0236608 after_decay 1.85573s after_gain 0
+  mode m3 frequency 315.994hz decay 2.41634s gain 0.553731 after_decay 2.41634s after_gain 0
+  mode m4 frequency 1049.57hz decay 1.4152s gain 0.225371 after_decay 1.4152s after_gain 0
+  mode m5 frequency 760.949hz decay 1.63326s gain 0.391703 after_decay 1.63326s after_gain 0
+  mode m6 frequency 607.863hz decay 1.80522s gain 0.0391465 after_decay 1.80522s after_gain 0
 }

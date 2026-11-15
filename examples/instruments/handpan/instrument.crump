@@ -1,77 +1,55 @@
 crump-module 2
 instrument handpan "Handpan" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter ring "Ring" ratio 0.1 4 0.933 0.933 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "Decay time of the body" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  modulation {
+    source key-range note_key per_voice bipolar reference E4 range 14st
+    source key-level note_key per_voice bipolar reference D4 range 12st
+    route ring-key source key-range target ring depth -0.226355 map bipolar curve linear order 0 bypass false
+    route key-gain-low source key-level target key-gain depth 0.138609 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
+    }
+    route key-gain-high source key-level target key-gain depth 0.387958 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
   }
   graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z52-soft-0 asset handpan-52-soft-0 keys D3 F#3 velocity 0 0.65 root E3
-      zone z52-hard-0 asset handpan-52-hard-0 keys D3 F#3 velocity 0.65 1 root E3
-      zone z57-soft-0 asset handpan-57-soft-0 keys G3 B3 velocity 0 0.65 root A3
-      zone z57-hard-0 asset handpan-57-hard-0 keys G3 B3 velocity 0.65 1 root A3
-      zone z62-soft-0 asset handpan-62-soft-0 keys C4 E4 velocity 0 0.65 root D4
-      zone z62-hard-0 asset handpan-62-hard-0 keys C4 E4 velocity 0.65 1 root D4
-      zone z67-soft-0 asset handpan-67-soft-0 keys F4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset handpan-67-hard-0 keys F4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset handpan-72-soft-0 keys A#4 D5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset handpan-72-hard-0 keys A#4 D5 velocity 0.65 1 root C5
-      zone z77-soft-0 asset handpan-77-soft-0 keys D#5 G5 velocity 0 0.65 root F5
-      zone z77-hard-0 asset handpan-77-hard-0 keys D#5 G5 velocity 0.65 1 root F5
-    }
+    # A strike on a tuned body with explicit mode ratios, plus a contact tick.
+    node strike1 exciter kind impact contact 0.00100833s hardness 0 level 1
+    node body2 modal_bank profile handpan-body max_modes 6 key_track 1 decay_scale $ring brightness 0 level 1
+    node hi-3 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.167745
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-hi-3-audio body2.audio -> hi-3.audio
+    bus hi-3-audio-register-a hi-3.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset handpan-52-soft-0 "Handpan" wav "media/52-soft-0.wav" sha256 "3fb5891a2e4b6b3a71e8a929608302d6060d2a208d880fe028e944879a24d3bd" {
-  usage multisample
-}
-asset handpan-52-hard-0 "Handpan" wav "media/52-hard-0.wav" sha256 "8634fc8b01e8a751471d717d025fa72fdee3cba4d7934fece047060b1d757078" {
-  usage multisample
-}
-asset handpan-57-soft-0 "Handpan" wav "media/57-soft-0.wav" sha256 "6f6969dcad443c3f51e8ae4e87fff8b66cbacae62afbaf94e4ec066646995bfe" {
-  usage multisample
-}
-asset handpan-57-hard-0 "Handpan" wav "media/57-hard-0.wav" sha256 "2b5bfe6f8cbff947a8f448aa70110eb50c3c9f3b398b9f6bc5b84523957622c5" {
-  usage multisample
-}
-asset handpan-62-soft-0 "Handpan" wav "media/62-soft-0.wav" sha256 "d7a51ff65cbef61d829b34e6cc2a36ebd5c2ad1d114a2c9908cbb7bdb35259c2" {
-  usage multisample
-}
-asset handpan-62-hard-0 "Handpan" wav "media/62-hard-0.wav" sha256 "9313a92a5dc1fcab5d6824eb47da1f8aacd199c941001f930fb9331800a635cf" {
-  usage multisample
-}
-asset handpan-67-soft-0 "Handpan" wav "media/67-soft-0.wav" sha256 "835e1ff5a3ee0f3b4ce7969b44695a845e320046d00c652b4e2e3ed317699628" {
-  usage multisample
-}
-asset handpan-67-hard-0 "Handpan" wav "media/67-hard-0.wav" sha256 "217a54f4d88d170bd5890934a311ff0b7037bd851af817f02fa8b660fd4950b8" {
-  usage multisample
-}
-asset handpan-72-soft-0 "Handpan" wav "media/72-soft-0.wav" sha256 "4923c021f4cc51f1974704668fff7c2737e08320f4f92a910db0779866f8daf6" {
-  usage multisample
-}
-asset handpan-72-hard-0 "Handpan" wav "media/72-hard-0.wav" sha256 "1c6100d6721c3adf99353548f59d4fc3e1dbce8a05f1a950b8023cf565fc61b0" {
-  usage multisample
-}
-asset handpan-77-soft-0 "Handpan" wav "media/77-soft-0.wav" sha256 "0f5c21990e364ee678283ec764f221153543c17c0c6eea2f90d1155cc91e93e8" {
-  usage multisample
-}
-asset handpan-77-hard-0 "Handpan" wav "media/77-hard-0.wav" sha256 "f712a4ebaac28580b260a722b6ed0461664610eb1b191eb709413035f986dd89" {
-  usage multisample
+profile handpan-body {
+  root 261.626hz
+  mode m0 frequency 261.495hz decay 0.5s gain 0.65 after_decay 0.5s after_gain 0
+  mode m1 frequency 522.99hz decay 0.45s gain 0.395142 after_decay 0.45s after_gain 0
+  mode m2 frequency 784.484hz decay 0.3s gain 0.227419 after_decay 0.3s after_gain 0
+  mode m3 frequency 261.756hz decay 0.5s gain 0.35 after_decay 0.5s after_gain 0
+  mode m4 frequency 523.513hz decay 0.45s gain 0.212769 after_decay 0.45s after_gain 0
+  mode m5 frequency 785.269hz decay 0.3s gain 0.122457 after_decay 0.3s after_gain 0
 }

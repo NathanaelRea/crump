@@ -1,100 +1,190 @@
 crump-module 2
 instrument french-horn "French Horn" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
-  parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 0.417273s 0.417273s modulatable
   parameter release "Release" seconds 0.02s 4s 0.25s 0.25s
+  parameter vibrato-depth "Vibrato" ratio 0 2 0 0 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z41-soft-0 asset french-horn-41-soft-0 keys D2 G2 velocity 0 0.65 root F2 loop 48000 125991 crossfade 8160
-      zone z41-hard-0 asset french-horn-41-hard-0 keys D2 G2 velocity 0.65 1 root F2 loop 48000 125991 crossfade 8160
-      zone z46-soft-0 asset french-horn-46-soft-0 keys G#2 C3 velocity 0 0.65 root A#2 loop 48000 123665 crossfade 8160
-      zone z46-hard-0 asset french-horn-46-hard-0 keys G#2 C3 velocity 0.65 1 root A#2 loop 48000 125721 crossfade 8160
-      zone z51-soft-0 asset french-horn-51-soft-0 keys C#3 F3 velocity 0 0.65 root D#3 loop 48000 125868 crossfade 8160
-      zone z51-hard-0 asset french-horn-51-hard-0 keys C#3 F3 velocity 0.65 1 root D#3 loop 48000 125867 crossfade 8160
-      zone z56-soft-0 asset french-horn-56-soft-0 keys F#3 A#3 velocity 0 0.65 root G#3 loop 48000 125973 crossfade 8160
-      zone z56-hard-0 asset french-horn-56-hard-0 keys F#3 A#3 velocity 0.65 1 root G#3 loop 48000 125972 crossfade 8160
-      zone z61-soft-0 asset french-horn-61-soft-0 keys B3 D#4 velocity 0 0.65 root C#4 loop 48000 123665 crossfade 8160
-      zone z61-hard-0 asset french-horn-61-hard-0 keys B3 D#4 velocity 0.65 1 root C#4 loop 48000 125909 crossfade 8160
-      zone z66-soft-0 asset french-horn-66-soft-0 keys E4 G#4 velocity 0 0.65 root F#4 loop 48000 123674 crossfade 8160
-      zone z66-hard-0 asset french-horn-66-hard-0 keys E4 G#4 velocity 0.65 1 root F#4 loop 48000 124971 crossfade 8160
-      zone z71-soft-0 asset french-horn-71-soft-0 keys A4 C#5 velocity 0 0.65 root B4 loop 48000 123938 crossfade 8160
-      zone z71-hard-0 asset french-horn-71-hard-0 keys A4 C#5 velocity 0.65 1 root B4 loop 48000 123645 crossfade 8160
-      zone z76-soft-0 asset french-horn-76-soft-0 keys D5 G5 velocity 0 0.65 root E5 loop 48000 123707 crossfade 8160
-      zone z76-hard-0 asset french-horn-76-hard-0 keys D5 G5 velocity 0.65 1 root E5 loop 48000 125965 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-level note_key per_voice bipolar reference F3 range 12st
+    route attack-velocity source velocity target attack depth -0.30681818s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.032608696 map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(2.497) order 0 bypass false
+    route key-gain-low source key-level target key-gain depth -1.04718 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    route key-gain-high source key-level target key-gain depth -0.207728 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 58 {
+    # A blown, bowed or sung tone: a saw through a fixed resonator bank fitted to the body.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node vibrato lfo waveform sine rate 5hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-wait envelope mode ahdsr attack 0s hold 0.5s decay 0.5s sustain 0 release 0.5s
+    node vibrato-wait-audio to_audio
+    node vibrato-ramp math operation scale amount -1
+    node vibrato-in math operation offset amount 1
+    node times1 math operation multiply
+    node gain2 math operation scale amount $vibrato-depth
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain3 math operation scale amount 0.015
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node scoop math operation add
+    node scoop-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node scoop-leak math operation scale amount 0.999479302277
+    node gain4 math operation scale amount -0.304348
+    node mix5 sum max_inputs 3
+    node reed analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 fm_depth 1st
+    node reed-mono stereo_to_mono
+    node velocity-tone lowpass mode lowpass cutoff 30hz resonance 0.308309 velocity_depth 21000hz
+    node breath noise level 1
+    node hi-6 lowpass mode highpass cutoff 300hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 6000hz resonance 0.308309
+    node breath-comb-in math operation add
+    node breath-comb delay_line mode pitch ratio 1 interpolation linear max_time 0.05s
+    node gain8 math operation scale amount 0.7
+    node gain9 math operation scale amount 0.3
+    node gain10 math operation scale amount 0.3
+    node gain11 math operation scale amount 0.7
+    node plus12 math operation add
+    node breath-amp to_audio
+    node gain13 math operation scale amount 1
+    node fall14 math operation add
+    node fall14-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall14-leak math operation scale amount 0.999998958334
+    node fall15 math operation add
+    node fall15-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall15-leak math operation scale amount 0.998264355199
+    node gain16 math operation scale amount -1
+    node plus17 math operation add
+    node gain18 math operation scale amount 44
+    node plus19 math operation add
+    node times20 math operation multiply
+    node gain21 math operation scale amount 0.000662164
+    node plus22 math operation add
+    node body23 modal_bank profile french-horn-body max_modes 6 key_track 0 decay_scale 1 brightness 0 level 1
+    node body24 modal_bank profile french-horn-body-between max_modes 8 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain25 math operation scale amount -1
+    node plus26 math operation add
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-27 lowpass mode highpass cutoff 24hz resonance 0.308309
+    node hi-28 lowpass mode highpass cutoff 140hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.0202001
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-wait-gate note.gate -> vibrato-wait.gate
+    bus vibrato-wait-control-vibrato-wait-audio-control vibrato-wait.control -> vibrato-wait-audio.control
+    bus vibrato-wait-audio-audio-vibrato-ramp-a vibrato-wait-audio.audio -> vibrato-ramp.a
+    bus vibrato-ramp-audio-vibrato-in-a vibrato-ramp.audio -> vibrato-in.a
+    bus vibrato-audio-audio-times1-a vibrato-audio.audio -> times1.a
+    bus vibrato-in-audio-times1-b vibrato-in.audio -> times1.b
+    bus times1-audio-gain2-a times1.audio -> gain2.a
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain3-a drift-audio.audio -> gain3.a
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus scoop-audio-scoop-previous-audio scoop.audio -> scoop-previous.audio
+    bus onset-audio-scoop-a onset.audio -> scoop.a
+    bus scoop-previous-audio-scoop-leak-a scoop-previous.audio -> scoop-leak.a
+    bus scoop-leak-audio-scoop-b scoop-leak.audio -> scoop.b
+    bus scoop-audio-gain4-a scoop.audio -> gain4.a
+    bus gain2-audio-mix5-inputs gain2.audio -> mix5.inputs
+    bus gain3-audio-mix5-inputs gain3.audio -> mix5.inputs
+    bus gain4-audio-mix5-inputs gain4.audio -> mix5.inputs
+    bus note-pitch-reed-pitch note.pitch -> reed.pitch
+    bus note-velocity-reed-velocity note.velocity -> reed.velocity
+    bus mix5-audio-reed-fm mix5.audio -> reed.fm
+    bus amplitude-control-reed-gain amplitude.control -> reed.gain
+    bus reed-audio-reed-mono-audio reed.audio -> reed-mono.audio
+    bus reed-mono-audio-velocity-tone-audio reed-mono.audio -> velocity-tone.audio
+    bus note-velocity-velocity-tone-velocity note.velocity -> velocity-tone.velocity
+    bus breath-audio-hi-6-audio breath.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-breath-comb-in-a lo-7.audio -> breath-comb-in.a
+    bus note-pitch-breath-comb-pitch note.pitch -> breath-comb.pitch
+    bus breath-comb-in-audio-breath-comb-audio breath-comb-in.audio -> breath-comb.audio
+    bus breath-comb-audio-gain8-a breath-comb.audio -> gain8.a
+    bus gain8-audio-breath-comb-in-b gain8.audio -> breath-comb-in.b
+    bus breath-comb-in-audio-gain9-a breath-comb-in.audio -> gain9.a
+    bus lo-7-audio-gain10-a lo-7.audio -> gain10.a
+    bus gain9-audio-gain11-a gain9.audio -> gain11.a
+    bus gain10-audio-plus12-a gain10.audio -> plus12.a
+    bus gain11-audio-plus12-b gain11.audio -> plus12.b
+    bus amplitude-control-breath-amp-control amplitude.control -> breath-amp.control
+    bus breath-amp-audio-gain13-a breath-amp.audio -> gain13.a
+    bus fall14-audio-fall14-previous-audio fall14.audio -> fall14-previous.audio
+    bus onset-audio-fall14-a onset.audio -> fall14.a
+    bus fall14-previous-audio-fall14-leak-a fall14-previous.audio -> fall14-leak.a
+    bus fall14-leak-audio-fall14-b fall14-leak.audio -> fall14.b
+    bus fall15-audio-fall15-previous-audio fall15.audio -> fall15-previous.audio
+    bus onset-audio-fall15-a onset.audio -> fall15.a
+    bus fall15-previous-audio-fall15-leak-a fall15-previous.audio -> fall15-leak.a
+    bus fall15-leak-audio-fall15-b fall15-leak.audio -> fall15.b
+    bus fall15-audio-gain16-a fall15.audio -> gain16.a
+    bus fall14-audio-plus17-a fall14.audio -> plus17.a
+    bus gain16-audio-plus17-b gain16.audio -> plus17.b
+    bus plus17-audio-gain18-a plus17.audio -> gain18.a
+    bus gain13-audio-plus19-a gain13.audio -> plus19.a
+    bus gain18-audio-plus19-b gain18.audio -> plus19.b
+    bus plus12-audio-times20-a plus12.audio -> times20.a
+    bus plus19-audio-times20-b plus19.audio -> times20.b
+    bus times20-audio-gain21-a times20.audio -> gain21.a
+    bus velocity-tone-audio-plus22-a velocity-tone.audio -> plus22.a
+    bus gain21-audio-plus22-b gain21.audio -> plus22.b
+    bus plus22-audio-body23-audio plus22.audio -> body23.audio
+    bus note-pitch-body23-pitch note.pitch -> body23.pitch
+    bus note-gate-body23-gate note.gate -> body23.gate
+    bus plus22-audio-body24-audio plus22.audio -> body24.audio
+    bus note-pitch-body24-pitch note.pitch -> body24.pitch
+    bus note-gate-body24-gate note.gate -> body24.gate
+    bus body24-audio-gain25-a body24.audio -> gain25.a
+    bus body23-audio-plus26-a body23.audio -> plus26.a
+    bus gain25-audio-plus26-b gain25.audio -> plus26.b
+    bus plus26-audio-dynamics-gain-a plus26.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-27-audio dynamics-gain.audio -> hi-27.audio
+    bus hi-27-audio-hi-28-audio hi-27.audio -> hi-28.audio
+    bus hi-28-audio-register-a hi-28.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset french-horn-41-soft-0 "French Horn" wav "media/41-soft-0.wav" sha256 "b2493fc642451c354d019c3a72cd2f06cfdc786028ce13280e0b9a43ce195620" {
-  usage multisample
+profile french-horn-body {
+  root 261.626hz
+  mode m0 frequency 118.975hz decay 0.00668859s gain 0.018724 after_decay 0.00668859s after_gain 0
+  mode m1 frequency 283.101hz decay 0.00281092s gain 0.154671 after_decay 0.00281092s after_gain 0
+  mode m2 frequency 673.64hz decay 0.00118131s gain 0.784118 after_decay 0.00118131s after_gain 0
+  mode m3 frequency 1602.93hz decay 0.000496451s gain 0.801654 after_decay 0.000496451s after_gain 0
+  mode m4 frequency 3814.16hz decay 0.000208637s gain 0.160144 after_decay 0.000208637s after_gain 0
+  mode m5 frequency 9075.8hz decay 0.0001s gain 0.0312368 after_decay 0.0001s after_gain 0
 }
-asset french-horn-41-hard-0 "French Horn" wav "media/41-hard-0.wav" sha256 "ad55aca8374b9cfb0ec0c7957055203c4a3e776116eb96f015d0dbb146d83ff0" {
-  usage multisample
-}
-asset french-horn-46-soft-0 "French Horn" wav "media/46-soft-0.wav" sha256 "48e8d1688d5b48a281841019a9b79bafa3ff206c37e9124737f2e439d8cf6db3" {
-  usage multisample
-}
-asset french-horn-46-hard-0 "French Horn" wav "media/46-hard-0.wav" sha256 "f99b0e1427ef322933fc013820ad4461072688f195710d67ecaf88ec143bca2c" {
-  usage multisample
-}
-asset french-horn-51-soft-0 "French Horn" wav "media/51-soft-0.wav" sha256 "5bae33559661ab0d7bdc7111f59667739d4a02903af761a675ccf321d1ce6452" {
-  usage multisample
-}
-asset french-horn-51-hard-0 "French Horn" wav "media/51-hard-0.wav" sha256 "ff3d4c2795fb5460d0bdca0331a21d942de1d4bfd723c031a2dc7438b461ffc0" {
-  usage multisample
-}
-asset french-horn-56-soft-0 "French Horn" wav "media/56-soft-0.wav" sha256 "24373f618daf1cf9e9ffa1535cb6cf917f0092556247f65150715dca3c86c691" {
-  usage multisample
-}
-asset french-horn-56-hard-0 "French Horn" wav "media/56-hard-0.wav" sha256 "abc519e94279302fee04d45ff045bf2022234c22b3bb3d041f67a67810a842cd" {
-  usage multisample
-}
-asset french-horn-61-soft-0 "French Horn" wav "media/61-soft-0.wav" sha256 "07a7a20717004ba58db91a995b8056b40afd5764e7c164c090749362d60e597f" {
-  usage multisample
-}
-asset french-horn-61-hard-0 "French Horn" wav "media/61-hard-0.wav" sha256 "c1b504bd10ebee700ea78b94edeab4ce3d165d027614df6f616dd40fd25ca69f" {
-  usage multisample
-}
-asset french-horn-66-soft-0 "French Horn" wav "media/66-soft-0.wav" sha256 "8a2025fb065c7a9321749a87c3fd8c293dd16093dffc373f2a783a6bdf190ae5" {
-  usage multisample
-}
-asset french-horn-66-hard-0 "French Horn" wav "media/66-hard-0.wav" sha256 "f8c26d7dfc21673a04483515ffa2aea795a4bfbf4b913a1e95610b624699e833" {
-  usage multisample
-}
-asset french-horn-71-soft-0 "French Horn" wav "media/71-soft-0.wav" sha256 "101e9a6dc5497e1037bf0176456aedcf5db9b5f845ab076ad7ced9dd4741df0c" {
-  usage multisample
-}
-asset french-horn-71-hard-0 "French Horn" wav "media/71-hard-0.wav" sha256 "f89eff8f345ff94585a25c4322059bc6ffe29ba79a25b0ca288d0be2da01d47c" {
-  usage multisample
-}
-asset french-horn-76-soft-0 "French Horn" wav "media/76-soft-0.wav" sha256 "fb733ca5a24fa9dc61b65c41db931a156f0d20dd7edbc6427f167d13671c9f66" {
-  usage multisample
-}
-asset french-horn-76-hard-0 "French Horn" wav "media/76-hard-0.wav" sha256 "332636d8cdc246ebf312c8dd40eef2c003b9184ddc5c5f432ddccbddf8427127" {
-  usage multisample
+profile french-horn-body-between {
+  root 261.626hz
+  mode m0 frequency 50hz decay 0.0159155s gain 0.000433025 after_decay 0.0159155s after_gain 0
+  mode m1 frequency 77.1282hz decay 0.0103176s gain 0.00721464 after_decay 0.0103176s after_gain 0
+  mode m2 frequency 183.526hz decay 0.00433602s gain 0.050476 after_decay 0.00433602s after_gain 0
+  mode m3 frequency 436.701hz decay 0.00182224s gain 0.418648 after_decay 0.00182224s after_gain 0
+  mode m4 frequency 1039.13hz decay 0.000765808s gain 1 after_decay 0.000765808s after_gain 0
+  mode m5 frequency 2472.61hz decay 0.000321835s gain 0.422432 after_decay 0.000321835s after_gain 0
+  mode m6 frequency 5883.59hz decay 0.000135253s gain 0.0643946 after_decay 0.000135253s after_gain 0
+  mode m7 frequency 14000hz decay 0.0001s gain 0.0335192 after_decay 0.0001s after_gain 0
 }

@@ -643,6 +643,14 @@
       "youtube": "0kMsJfea5u0",
       "title": "Tenor saxophone (keyboard preset, isolated notes)",
       "license": "YouTube (local reference only)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/saxophone/saxophone_C4_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
     }
   ],
   "baritone-sax": [
@@ -1015,6 +1023,242 @@
       "youtube": "EWPEZPa04S4",
       "title": "Choir (keyboard preset, isolated notes)",
       "license": "YouTube (local reference only)"
+    }
+  ],
+  "concert-flute": [
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/flute/flute_A4_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/flute/flute_A5_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/flute/flute_D5_15_mezzo-forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    }
+  ],
+  "piccolo": [
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/flute/flute_A6_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/flute/flute_E6_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    }
+  ],
+  "oboe": [
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/oboe/oboe_A4_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/oboe/oboe_A5_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/oboe/oboe_E4_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    }
+  ],
+  "clarinet": [
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/clarinet/clarinet_A3_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/clarinet/clarinet_A4_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/clarinet/clarinet_E5_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    }
+  ],
+  "bassoon": [
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/bassoon/bassoon_A3_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/bassoon/bassoon_A2_15_piano_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Woodwind.zip",
+      "member": "Woodwind/bassoon/bassoon_E3_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    }
+  ],
+  "trumpet": [
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Brass.zip",
+      "member": "Brass/trumpet/trumpet_C5_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Brass.zip",
+      "member": "Brass/trumpet/trumpet_G4_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Brass.zip",
+      "member": "Brass/trumpet/trumpet_E5_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    }
+  ],
+  "french-horn": [
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Brass.zip",
+      "member": "Brass/french horn/french-horn_A3_15_mezzo-forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Brass.zip",
+      "member": "Brass/french horn/french-horn_E4_15_mezzo-forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Brass.zip",
+      "member": "Brass/french horn/french-horn_C4_15_fortissimo_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    }
+  ],
+  "tenor-trombone": [
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Brass.zip",
+      "member": "Brass/trombone/trombone_A3_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Brass.zip",
+      "member": "Brass/trombone/trombone_C4_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Brass.zip",
+      "member": "Brass/trombone/trombone_E3_15_mezzo-forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    }
+  ],
+  "tuba": [
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Brass.zip",
+      "member": "Brass/tuba/tuba_A2_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Brass.zip",
+      "member": "Brass/tuba/tuba_C3_15_forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    },
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Brass.zip",
+      "member": "Brass/tuba/tuba_E2_15_fortissimo_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
+    }
+  ],
+  "euphonium": [
+    {
+      "start": 0,
+      "seconds": 3,
+      "url": "https://philharmonia-assets.s3-eu-west-1.amazonaws.com/uploads/2020/02/12112005/Brass.zip",
+      "member": "Brass/trombone/trombone_A3_15_mezzo-forte_normal.mp3",
+      "page": "https://philharmonia.co.uk/resources/sound-samples/",
+      "license": "Philharmonia Orchestra samples (free use, not for resale)"
     }
   ]
 }

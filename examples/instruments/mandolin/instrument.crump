@@ -1,77 +1,136 @@
 crump-module 2
 instrument mandolin "Mandolin" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z57-soft-0 asset mandolin-57-soft-0 keys G3 C4 velocity 0 0.65 root A3
-      zone z57-hard-0 asset mandolin-57-hard-0 keys G3 C4 velocity 0.65 1 root A3
-      zone z63-soft-0 asset mandolin-63-soft-0 keys C#4 F#4 velocity 0 0.65 root D#4
-      zone z63-hard-0 asset mandolin-63-hard-0 keys C#4 F#4 velocity 0.65 1 root D#4
-      zone z69-soft-0 asset mandolin-69-soft-0 keys G4 C5 velocity 0 0.65 root A4
-      zone z69-hard-0 asset mandolin-69-hard-0 keys G4 C5 velocity 0.65 1 root A4
-      zone z75-soft-0 asset mandolin-75-soft-0 keys C#5 F#5 velocity 0 0.65 root D#5
-      zone z75-hard-0 asset mandolin-75-hard-0 keys C#5 F#5 velocity 0.65 1 root D#5
-      zone z81-soft-0 asset mandolin-81-soft-0 keys G5 C6 velocity 0 0.65 root A5
-      zone z81-hard-0 asset mandolin-81-hard-0 keys G5 C6 velocity 0.65 1 root A5
-      zone z87-soft-0 asset mandolin-87-soft-0 keys C#6 E6 velocity 0 0.65 root D#6
-      zone z87-hard-0 asset mandolin-87-hard-0 keys C#6 E6 velocity 0.65 1 root D#6
+  modulation {
+    source key-level note_key per_voice bipolar reference A4 range 12st
+    route key-gain-low source key-level target key-gain depth 0.111579 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth -0.210864 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 42 {
+    # Plucked strings: pitch-tuned delay loops, bridge buzz, sympathetic strings and body.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node held math operation add
+    node held-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node held-leak math operation scale amount 1
+    node period-later delay_line mode pitch ratio 1 interpolation linear max_time 0.1s
+    node period math operation subtract
+    node pluck-window shaper curve hard_clip drive 64 bias 0
+    node pluck-noise noise level 1
+    node pluck math operation multiply
+    node pluck-tone lowpass mode lowpass cutoff 1575hz resonance 0.308309 velocity_depth 2275hz
+    node course1-in math operation add
+    node course1 delay_line mode pitch ratio 1 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node course1-loss linear_phase_lowpass amount 0.25
+    node course1-keep math operation scale amount 0.99999
+    node course1-pickup delay_line mode pitch ratio 0.14 interpolation linear max_time 0.05s
+    node course1-out math operation subtract
+    node gain1 math operation scale amount 0.7
+    node gain2 math operation scale amount 0.952628
+    node course2-late delay_line mode time time 0.002s interpolation linear max_time 0.004s
+    node course2-in math operation add
+    node course2 delay_line mode pitch ratio 0.99769218 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node course2-loss linear_phase_lowpass amount 0.25
+    node course2-keep math operation scale amount 0.99999
+    node course2-pickup delay_line mode pitch ratio 0.139677 interpolation linear max_time 0.05s
+    node course2-out math operation subtract
+    node gain3 math operation scale amount 0.7
+    node gain4 math operation scale amount 0.866025
+    node plus5 math operation add
+    node string-tone lowpass mode lowpass cutoff 1575hz resonance 0.308309 velocity_depth 2275hz
+    node string-decay math operation add
+    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node string-decay-leak math operation scale amount 0.99997685212
+    node times6 math operation multiply
+    node body7 modal_bank profile mandolin-box max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain8 math operation scale amount 0.5
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.301878
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus held-audio-held-previous-audio held.audio -> held-previous.audio
+    bus onset-audio-held-a onset.audio -> held.a
+    bus held-previous-audio-held-leak-a held-previous.audio -> held-leak.a
+    bus held-leak-audio-held-b held-leak.audio -> held.b
+    bus note-pitch-period-later-pitch note.pitch -> period-later.pitch
+    bus held-audio-period-later-audio held.audio -> period-later.audio
+    bus held-audio-period-a held.audio -> period.a
+    bus period-later-audio-period-b period-later.audio -> period.b
+    bus period-audio-pluck-window-audio period.audio -> pluck-window.audio
+    bus pluck-noise-audio-pluck-a pluck-noise.audio -> pluck.a
+    bus pluck-window-audio-pluck-b pluck-window.audio -> pluck.b
+    bus pluck-audio-pluck-tone-audio pluck.audio -> pluck-tone.audio
+    bus note-velocity-pluck-tone-velocity note.velocity -> pluck-tone.velocity
+    bus pluck-tone-audio-course1-in-a pluck-tone.audio -> course1-in.a
+    bus note-pitch-course1-pitch note.pitch -> course1.pitch
+    bus course1-in-audio-course1-audio course1-in.audio -> course1.audio
+    bus course1-audio-course1-loss-audio course1.audio -> course1-loss.audio
+    bus course1-loss-audio-course1-keep-a course1-loss.audio -> course1-keep.a
+    bus course1-keep-audio-course1-in-b course1-keep.audio -> course1-in.b
+    bus note-pitch-course1-pickup-pitch note.pitch -> course1-pickup.pitch
+    bus course1-audio-course1-pickup-audio course1.audio -> course1-pickup.audio
+    bus course1-audio-course1-out-a course1.audio -> course1-out.a
+    bus course1-pickup-audio-gain1-a course1-pickup.audio -> gain1.a
+    bus gain1-audio-course1-out-b gain1.audio -> course1-out.b
+    bus course1-out-audio-gain2-a course1-out.audio -> gain2.a
+    bus pluck-tone-audio-course2-late-audio pluck-tone.audio -> course2-late.audio
+    bus course2-late-audio-course2-in-a course2-late.audio -> course2-in.a
+    bus note-pitch-course2-pitch note.pitch -> course2.pitch
+    bus course2-in-audio-course2-audio course2-in.audio -> course2.audio
+    bus course2-audio-course2-loss-audio course2.audio -> course2-loss.audio
+    bus course2-loss-audio-course2-keep-a course2-loss.audio -> course2-keep.a
+    bus course2-keep-audio-course2-in-b course2-keep.audio -> course2-in.b
+    bus note-pitch-course2-pickup-pitch note.pitch -> course2-pickup.pitch
+    bus course2-audio-course2-pickup-audio course2.audio -> course2-pickup.audio
+    bus course2-audio-course2-out-a course2.audio -> course2-out.a
+    bus course2-pickup-audio-gain3-a course2-pickup.audio -> gain3.a
+    bus gain3-audio-course2-out-b gain3.audio -> course2-out.b
+    bus course2-out-audio-gain4-a course2-out.audio -> gain4.a
+    bus gain2-audio-plus5-a gain2.audio -> plus5.a
+    bus gain4-audio-plus5-b gain4.audio -> plus5.b
+    bus plus5-audio-string-tone-audio plus5.audio -> string-tone.audio
+    bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
+    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
+    bus onset-audio-string-decay-a onset.audio -> string-decay.a
+    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
+    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
+    bus string-tone-audio-times6-a string-tone.audio -> times6.a
+    bus string-decay-audio-times6-b string-decay.audio -> times6.b
+    bus times6-audio-body7-audio times6.audio -> body7.audio
+    bus note-pitch-body7-pitch note.pitch -> body7.pitch
+    bus note-gate-body7-gate note.gate -> body7.gate
+    bus body7-audio-gain8-a body7.audio -> gain8.a
+    bus times6-audio-plus9-a times6.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-register-a hi-10.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset mandolin-57-soft-0 "Mandolin" wav "media/57-soft-0.wav" sha256 "c03823e271a639df2acfb7a96aee9219f0e41b9810fced43cde1da176f8c2c30" {
-  usage multisample
-}
-asset mandolin-57-hard-0 "Mandolin" wav "media/57-hard-0.wav" sha256 "b5e32447005a243ada114cabd2586652518f2034a1507f0519f3fbafc69dbd06" {
-  usage multisample
-}
-asset mandolin-63-soft-0 "Mandolin" wav "media/63-soft-0.wav" sha256 "533cd648266735d005b89f8124d2dbbbca99c6319d84a22e5ae3d325cb3958a4" {
-  usage multisample
-}
-asset mandolin-63-hard-0 "Mandolin" wav "media/63-hard-0.wav" sha256 "76a80739eb32bb5bbd19b4ea3faeed6f4eaf93d9b6bc9fd2f3e335a3b3fb5ba5" {
-  usage multisample
-}
-asset mandolin-69-soft-0 "Mandolin" wav "media/69-soft-0.wav" sha256 "2a4030778c53d3d3a9f25a2af8305ce3ae0d7c1d2c9650c58129213945ee0655" {
-  usage multisample
-}
-asset mandolin-69-hard-0 "Mandolin" wav "media/69-hard-0.wav" sha256 "1b6e3717b17483f15f8df41e2e1ecaadab002fb119bdeee1414843ea16f2c32d" {
-  usage multisample
-}
-asset mandolin-75-soft-0 "Mandolin" wav "media/75-soft-0.wav" sha256 "5441f5b0d4e18f68554e7a927ac176f6c72aa09a7c2864cee265ef750a8b5cad" {
-  usage multisample
-}
-asset mandolin-75-hard-0 "Mandolin" wav "media/75-hard-0.wav" sha256 "86bc1e7e23b88a865557bfdf7aafe1e03192386708bce34d26e31fd1cce55bc5" {
-  usage multisample
-}
-asset mandolin-81-soft-0 "Mandolin" wav "media/81-soft-0.wav" sha256 "2c901d91f526b9813280d934dc769030bd76aed30aba7ae5f703a4474605661d" {
-  usage multisample
-}
-asset mandolin-81-hard-0 "Mandolin" wav "media/81-hard-0.wav" sha256 "18a8709efbd8527d5584a2bfc49ca5e4ab73a37c5255f3df95970bba786d49cf" {
-  usage multisample
-}
-asset mandolin-87-soft-0 "Mandolin" wav "media/87-soft-0.wav" sha256 "654c60e6561f3b23ca71d5ec04997d36089fb7fa9fa8fa834a93f4a665bdecd7" {
-  usage multisample
-}
-asset mandolin-87-hard-0 "Mandolin" wav "media/87-hard-0.wav" sha256 "4edd5178de8947721a25612715d3b8a28b3ab747af27a0b3c2094bb4c522c015" {
-  usage multisample
+profile mandolin-box {
+  root 261.626hz
+  mode m0 frequency 300hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 590hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 1100hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m3 frequency 2300hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }

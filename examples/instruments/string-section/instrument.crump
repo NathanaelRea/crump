@@ -1,116 +1,127 @@
 crump-module 2
 instrument string-section "String Section" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
-  parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 0.927273s 0.927273s modulatable
   parameter release "Release" seconds 0.02s 4s 0.6s 0.6s
+  parameter vibrato-depth "Vibrato" ratio 0 2 0.0172727 0.0172727 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset string-section-36-soft-0 keys E1 D#2 velocity 0 0.65 root C2 loop 48000 125509 crossfade 8160
-      zone z36-hard-0 asset string-section-36-hard-0 keys E1 D#2 velocity 0.65 1 root C2 loop 48000 125513 crossfade 8160
-      zone z43-soft-0 asset string-section-43-soft-0 keys E2 A#2 velocity 0 0.65 root G2 loop 48000 125736 crossfade 8160
-      zone z43-hard-0 asset string-section-43-hard-0 keys E2 A#2 velocity 0.65 1 root G2 loop 48000 125748 crossfade 8160
-      zone z50-soft-0 asset string-section-50-soft-0 keys B2 F3 velocity 0 0.65 root D3 loop 48000 123643 crossfade 8160
-      zone z50-hard-0 asset string-section-50-hard-0 keys B2 F3 velocity 0.65 1 root D3 loop 48000 124332 crossfade 8160
-      zone z57-soft-0 asset string-section-57-soft-0 keys F#3 C4 velocity 0 0.65 root A3 loop 48000 125863 crossfade 8160
-      zone z57-hard-0 asset string-section-57-hard-0 keys F#3 C4 velocity 0.65 1 root A3 loop 48000 125862 crossfade 8160
-      zone z64-soft-0 asset string-section-64-soft-0 keys C#4 G4 velocity 0 0.65 root E4 loop 48000 124107 crossfade 8160
-      zone z64-hard-0 asset string-section-64-hard-0 keys C#4 G4 velocity 0.65 1 root E4 loop 48000 123663 crossfade 8160
-      zone z71-soft-0 asset string-section-71-soft-0 keys G#4 D5 velocity 0 0.65 root B4 loop 48000 123677 crossfade 8160
-      zone z71-hard-0 asset string-section-71-hard-0 keys G#4 D5 velocity 0.65 1 root B4 loop 48000 123668 crossfade 8160
-      zone z78-soft-0 asset string-section-78-soft-0 keys D#5 A5 velocity 0 0.65 root F#5 loop 48000 124801 crossfade 8160
-      zone z78-hard-0 asset string-section-78-hard-0 keys D#5 A5 velocity 0.65 1 root F#5 loop 48000 124555 crossfade 8160
-      zone z85-soft-0 asset string-section-85-soft-0 keys A#5 E6 velocity 0 0.65 root C#6 loop 48000 123655 crossfade 8160
-      zone z85-hard-0 asset string-section-85-hard-0 keys A#5 E6 velocity 0.65 1 root C#6 loop 48000 125173 crossfade 8160
-      zone z92-soft-0 asset string-section-92-soft-0 keys F6 B6 velocity 0 0.65 root G#6 loop 48000 123856 crossfade 8160
-      zone z92-hard-0 asset string-section-92-hard-0 keys F6 B6 velocity 0.65 1 root G#6 loop 48000 123612 crossfade 8160
-      zone z98-soft-0 asset string-section-98-soft-0 keys C7 D7 velocity 0 0.65 root D7 loop 48000 123619 crossfade 8160
-      zone z98-hard-0 asset string-section-98-hard-0 keys C7 D7 velocity 0.65 1 root D7 loop 48000 125589 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route attack-velocity source velocity target attack depth -0.68181818s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.068181818 map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(0.7) order 0 bypass false
+    route key-gain-low source key-level target key-gain depth -0.290839 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    route key-gain-high source key-level target key-gain depth 0.381243 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 32 {
+    # A bowed string: a Helmholtz saw through a jagged body and the instrument's body curve.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node vibrato lfo waveform sine rate 5.6hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-wait envelope mode ahdsr attack 0s hold 0.15s decay 0.35s sustain 0 release 0.35s
+    node vibrato-wait-audio to_audio
+    node vibrato-ramp math operation scale amount -1
+    node vibrato-in math operation offset amount 1
+    node times1 math operation multiply
+    node gain2 math operation scale amount $vibrato-depth
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain3 math operation scale amount 0.008
+    node plus4 math operation add
+    node bow analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 unison 8 detune 0.06st blend 1 width 0 fm_depth 1st
+    node bow-mono stereo_to_mono
+    node bow-hiss noise level 1
+    node hi-5 lowpass mode highpass cutoff 2200hz resonance 0.308309
+    node bow-amp to_audio
+    node times6 math operation multiply
+    node gain7 math operation scale amount 0.0233056
+    node plus8 math operation add
+    node body9 modal_bank profile string-section-body-curve max_modes 5 key_track 0 decay_scale 1 brightness 0 level 1
+    node body10 modal_bank profile string-section-body-curve-between max_modes 9 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain11 math operation scale amount -1
+    node plus12 math operation add
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-13 lowpass mode highpass cutoff 22hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.0214794
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-wait-gate note.gate -> vibrato-wait.gate
+    bus vibrato-wait-control-vibrato-wait-audio-control vibrato-wait.control -> vibrato-wait-audio.control
+    bus vibrato-wait-audio-audio-vibrato-ramp-a vibrato-wait-audio.audio -> vibrato-ramp.a
+    bus vibrato-ramp-audio-vibrato-in-a vibrato-ramp.audio -> vibrato-in.a
+    bus vibrato-audio-audio-times1-a vibrato-audio.audio -> times1.a
+    bus vibrato-in-audio-times1-b vibrato-in.audio -> times1.b
+    bus times1-audio-gain2-a times1.audio -> gain2.a
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain3-a drift-audio.audio -> gain3.a
+    bus gain2-audio-plus4-a gain2.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus note-pitch-bow-pitch note.pitch -> bow.pitch
+    bus note-velocity-bow-velocity note.velocity -> bow.velocity
+    bus plus4-audio-bow-fm plus4.audio -> bow.fm
+    bus amplitude-control-bow-gain amplitude.control -> bow.gain
+    bus bow-audio-bow-mono-audio bow.audio -> bow-mono.audio
+    bus bow-hiss-audio-hi-5-audio bow-hiss.audio -> hi-5.audio
+    bus amplitude-control-bow-amp-control amplitude.control -> bow-amp.control
+    bus hi-5-audio-times6-a hi-5.audio -> times6.a
+    bus bow-amp-audio-times6-b bow-amp.audio -> times6.b
+    bus times6-audio-gain7-a times6.audio -> gain7.a
+    bus bow-mono-audio-plus8-a bow-mono.audio -> plus8.a
+    bus gain7-audio-plus8-b gain7.audio -> plus8.b
+    bus plus8-audio-body9-audio plus8.audio -> body9.audio
+    bus note-pitch-body9-pitch note.pitch -> body9.pitch
+    bus note-gate-body9-gate note.gate -> body9.gate
+    bus plus8-audio-body10-audio plus8.audio -> body10.audio
+    bus note-pitch-body10-pitch note.pitch -> body10.pitch
+    bus note-gate-body10-gate note.gate -> body10.gate
+    bus body10-audio-gain11-a body10.audio -> gain11.a
+    bus body9-audio-plus12-a body9.audio -> plus12.a
+    bus gain11-audio-plus12-b gain11.audio -> plus12.b
+    bus plus12-audio-dynamics-gain-a plus12.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-13-audio dynamics-gain.audio -> hi-13.audio
+    bus hi-13-audio-register-a hi-13.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset string-section-36-soft-0 "String Section" wav "media/36-soft-0.wav" sha256 "9cf48bb2f36ac77245b67b82ccc93ea6b1cf9fbcc65f2871247127e41b483083" {
-  usage multisample
+profile string-section-body-curve {
+  root 261.626hz
+  mode m0 frequency 77.1282hz decay 0.0103176s gain 0.00180535 after_decay 0.0103176s after_gain 0
+  mode m1 frequency 118.975hz decay 0.00668859s gain 0.00196379 after_decay 0.00668859s after_gain 0
+  mode m2 frequency 283.101hz decay 0.00281092s gain 0.0868573 after_decay 0.00281092s after_gain 0
+  mode m3 frequency 1602.93hz decay 0.000496451s gain 0.478227 after_decay 0.000496451s after_gain 0
+  mode m4 frequency 3814.16hz decay 0.000208637s gain 0.919945 after_decay 0.000208637s after_gain 0
 }
-asset string-section-36-hard-0 "String Section" wav "media/36-hard-0.wav" sha256 "5423db6cbfd39816cecc7dcdac1748d748710da47ba87f67fff2c57ac0c03aeb" {
-  usage multisample
-}
-asset string-section-43-soft-0 "String Section" wav "media/43-soft-0.wav" sha256 "9040773fd7aaf743d8e82bbd1857e68818c99b4f10433b6e07b0179b190fd75b" {
-  usage multisample
-}
-asset string-section-43-hard-0 "String Section" wav "media/43-hard-0.wav" sha256 "f22b48a08062b8cb9f29d1d4a754747f6625680d14f4e94dbb073a86dbe980c0" {
-  usage multisample
-}
-asset string-section-50-soft-0 "String Section" wav "media/50-soft-0.wav" sha256 "9d6e1767c229b93d6043f6914c9687ffb928f1c4644e88e8102cacb84a2d5e26" {
-  usage multisample
-}
-asset string-section-50-hard-0 "String Section" wav "media/50-hard-0.wav" sha256 "dfbcaeec761e5680be0679a1cf4b913e175b461095e5ab68cc919d9f6f88e15e" {
-  usage multisample
-}
-asset string-section-57-soft-0 "String Section" wav "media/57-soft-0.wav" sha256 "286c30ef7ca74d37a8b1ab21d900b1052f3e0e77766f58cf78280090c928be1e" {
-  usage multisample
-}
-asset string-section-57-hard-0 "String Section" wav "media/57-hard-0.wav" sha256 "ddc86f29f28744ad79e8b987dd13ed7bc4909a46a6c649fde0ee287808d3f0ca" {
-  usage multisample
-}
-asset string-section-64-soft-0 "String Section" wav "media/64-soft-0.wav" sha256 "6fe02d7dfeea15fdb1ef3262430b4f52b48eac31cb4799e219f5ea693d8b4555" {
-  usage multisample
-}
-asset string-section-64-hard-0 "String Section" wav "media/64-hard-0.wav" sha256 "fa80d2113bbf09bd597b81316486e811ee37cd7bfbe3fa2d880f72208617b32d" {
-  usage multisample
-}
-asset string-section-71-soft-0 "String Section" wav "media/71-soft-0.wav" sha256 "672c184423531400db732612ce592e7909d7935f61916b6a4f79a906ad47d3c5" {
-  usage multisample
-}
-asset string-section-71-hard-0 "String Section" wav "media/71-hard-0.wav" sha256 "cc54b0f1761c0c855368cd06a6cbad6b58804cbe5c3334c93f291c68f4b0403d" {
-  usage multisample
-}
-asset string-section-78-soft-0 "String Section" wav "media/78-soft-0.wav" sha256 "138538e1ef554c411ba5d0ea2c76082fc6d0923692bb4971b7546f9893d988bf" {
-  usage multisample
-}
-asset string-section-78-hard-0 "String Section" wav "media/78-hard-0.wav" sha256 "0dd122e03f4b35ecc82f3a1fb7c7d5306c4ea7a93e64fb95e26f10a06deea1b5" {
-  usage multisample
-}
-asset string-section-85-soft-0 "String Section" wav "media/85-soft-0.wav" sha256 "175196c5090cfd8337b1b0d71422b3924c553015cee423eb20751440e69ce80f" {
-  usage multisample
-}
-asset string-section-85-hard-0 "String Section" wav "media/85-hard-0.wav" sha256 "39579ebc169ab083371518a00b5d34f0af9410e9a5793ed63c726329124cf1ec" {
-  usage multisample
-}
-asset string-section-92-soft-0 "String Section" wav "media/92-soft-0.wav" sha256 "02da78d292dd77b1cc089ab784b831ba50737684a1144fddef3bbdf68d66f817" {
-  usage multisample
-}
-asset string-section-92-hard-0 "String Section" wav "media/92-hard-0.wav" sha256 "2d741fed6991f22c391cf296dd59bf8d18f9ba05c113f847e80cdd1d65ce248c" {
-  usage multisample
-}
-asset string-section-98-soft-0 "String Section" wav "media/98-soft-0.wav" sha256 "818bc947b41ef52d176443b4901fd1d8c6c1ff01f478bc2fb4ae1934611debcd" {
-  usage multisample
-}
-asset string-section-98-hard-0 "String Section" wav "media/98-hard-0.wav" sha256 "12622be73f2220cc15f625535c5aa872e297c1ba6670c54a8ed41a0fd1f340fc" {
-  usage multisample
+profile string-section-body-curve-between {
+  root 261.626hz
+  mode m0 frequency 50hz decay 0.0159155s gain 0.00152297 after_decay 0.0159155s after_gain 0
+  mode m1 frequency 183.526hz decay 0.00433602s gain 0.0123584 after_decay 0.00433602s after_gain 0
+  mode m2 frequency 436.701hz decay 0.00182224s gain 0.104891 after_decay 0.00182224s after_gain 0
+  mode m3 frequency 673.64hz decay 0.00118131s gain 0.0777543 after_decay 0.00118131s after_gain 0
+  mode m4 frequency 1039.13hz decay 0.000765808s gain 0.0247478 after_decay 0.000765808s after_gain 0
+  mode m5 frequency 2472.61hz decay 0.000321835s gain 1 after_decay 0.000321835s after_gain 0
+  mode m6 frequency 5883.59hz decay 0.000135253s gain 0.101742 after_decay 0.000135253s after_gain 0
+  mode m7 frequency 9075.8hz decay 0.0001s gain 0.0698216 after_decay 0.0001s after_gain 0
+  mode m8 frequency 14000hz decay 0.0001s gain 0.203747 after_decay 0.0001s after_gain 0
 }

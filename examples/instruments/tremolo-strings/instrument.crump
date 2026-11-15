@@ -1,116 +1,150 @@
 crump-module 2
 instrument tremolo-strings "Tremolo Strings" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
-  parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 0.927273s 0.927273s modulatable
   parameter release "Release" seconds 0.02s 4s 0.4s 0.4s
+  parameter vibrato-depth "Vibrato" ratio 0 2 0.0172727 0.0172727 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset tremolo-strings-36-soft-0 keys E1 D#2 velocity 0 0.65 root C2 loop 48000 124021 crossfade 8160
-      zone z36-hard-0 asset tremolo-strings-36-hard-0 keys E1 D#2 velocity 0.65 1 root C2 loop 48000 124028 crossfade 8160
-      zone z43-soft-0 asset tremolo-strings-43-soft-0 keys E2 A#2 velocity 0 0.65 root G2 loop 48000 125756 crossfade 8160
-      zone z43-hard-0 asset tremolo-strings-43-hard-0 keys E2 A#2 velocity 0.65 1 root G2 loop 48000 124006 crossfade 8160
-      zone z50-soft-0 asset tremolo-strings-50-soft-0 keys B2 F3 velocity 0 0.65 root D3 loop 48000 124731 crossfade 8160
-      zone z50-hard-0 asset tremolo-strings-50-hard-0 keys B2 F3 velocity 0.65 1 root D3 loop 48000 125598 crossfade 8160
-      zone z57-soft-0 asset tremolo-strings-57-soft-0 keys F#3 C4 velocity 0 0.65 root A3 loop 48000 125854 crossfade 8160
-      zone z57-hard-0 asset tremolo-strings-57-hard-0 keys F#3 C4 velocity 0.65 1 root A3 loop 48000 123710 crossfade 8160
-      zone z64-soft-0 asset tremolo-strings-64-soft-0 keys C#4 G4 velocity 0 0.65 root E4 loop 48000 125791 crossfade 8160
-      zone z64-hard-0 asset tremolo-strings-64-hard-0 keys C#4 G4 velocity 0.65 1 root E4 loop 48000 124367 crossfade 8160
-      zone z71-soft-0 asset tremolo-strings-71-soft-0 keys G#4 D5 velocity 0 0.65 root B4 loop 48000 123914 crossfade 8160
-      zone z71-hard-0 asset tremolo-strings-71-hard-0 keys G#4 D5 velocity 0.65 1 root B4 loop 48000 125920 crossfade 8160
-      zone z78-soft-0 asset tremolo-strings-78-soft-0 keys D#5 A5 velocity 0 0.65 root F#5 loop 48000 125580 crossfade 8160
-      zone z78-hard-0 asset tremolo-strings-78-hard-0 keys D#5 A5 velocity 0.65 1 root F#5 loop 48000 125996 crossfade 8160
-      zone z85-soft-0 asset tremolo-strings-85-soft-0 keys A#5 E6 velocity 0 0.65 root C#6 loop 48000 125243 crossfade 8160
-      zone z85-hard-0 asset tremolo-strings-85-hard-0 keys A#5 E6 velocity 0.65 1 root C#6 loop 48000 124239 crossfade 8160
-      zone z92-soft-0 asset tremolo-strings-92-soft-0 keys F6 B6 velocity 0 0.65 root G#6 loop 48000 123632 crossfade 8160
-      zone z92-hard-0 asset tremolo-strings-92-hard-0 keys F6 B6 velocity 0.65 1 root G#6 loop 48000 125015 crossfade 8160
-      zone z98-soft-0 asset tremolo-strings-98-soft-0 keys C7 D7 velocity 0 0.65 root D7 loop 48000 125170 crossfade 8160
-      zone z98-hard-0 asset tremolo-strings-98-hard-0 keys C7 D7 velocity 0.65 1 root D7 loop 48000 124416 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route attack-velocity source velocity target attack depth -0.68181818s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.068181818 map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(0.7701) order 0 bypass false
+    route key-gain-low source key-level target key-gain depth -0.467616 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    route key-gain-high source key-level target key-gain depth 0.385889 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 37 {
+    # A bowed string: a Helmholtz saw through a jagged body and the instrument's body curve.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node vibrato lfo waveform sine rate 5.6hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-wait envelope mode ahdsr attack 0s hold 0.15s decay 0.35s sustain 0 release 0.35s
+    node vibrato-wait-audio to_audio
+    node vibrato-ramp math operation scale amount -1
+    node vibrato-in math operation offset amount 1
+    node times1 math operation multiply
+    node gain2 math operation scale amount $vibrato-depth
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain3 math operation scale amount 0.008
+    node plus4 math operation add
+    node bow analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 unison 8 detune 0.06st blend 1 width 0 fm_depth 1st
+    node bow-mono stereo_to_mono
+    node strokes lfo waveform sine rate 6.5hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node strokes-audio to_audio
+    node bow-reversals math operation abs
+    node shape5 shaper {
+      curve table
+      drive 1
+      bias 0
+      point p0 input 0 output 0
+      point p1 input 0.125 output 0.287175
+      point p2 input 0.25 output 0.435275
+      point p3 input 0.375 output 0.555161
+      point p4 input 0.5 output 0.659754
+      point p5 input 0.625 output 0.754272
+      point p6 input 0.75 output 0.841466
+      point p7 input 0.875 output 0.923007
+      point p8 input 1 output 1
+    }
+    node times6 math operation multiply
+    node bow-hiss noise level 1
+    node hi-7 lowpass mode highpass cutoff 2200hz resonance 0.308309
+    node bow-amp to_audio
+    node times8 math operation multiply
+    node gain9 math operation scale amount 0.018405
+    node plus10 math operation add
+    node body11 modal_bank profile tremolo-strings-body-curve max_modes 5 key_track 0 decay_scale 1 brightness 0 level 1
+    node body12 modal_bank profile tremolo-strings-body-curve-between max_modes 9 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain13 math operation scale amount -1
+    node plus14 math operation add
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-15 lowpass mode highpass cutoff 22hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.0275999
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-wait-gate note.gate -> vibrato-wait.gate
+    bus vibrato-wait-control-vibrato-wait-audio-control vibrato-wait.control -> vibrato-wait-audio.control
+    bus vibrato-wait-audio-audio-vibrato-ramp-a vibrato-wait-audio.audio -> vibrato-ramp.a
+    bus vibrato-ramp-audio-vibrato-in-a vibrato-ramp.audio -> vibrato-in.a
+    bus vibrato-audio-audio-times1-a vibrato-audio.audio -> times1.a
+    bus vibrato-in-audio-times1-b vibrato-in.audio -> times1.b
+    bus times1-audio-gain2-a times1.audio -> gain2.a
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain3-a drift-audio.audio -> gain3.a
+    bus gain2-audio-plus4-a gain2.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus note-pitch-bow-pitch note.pitch -> bow.pitch
+    bus note-velocity-bow-velocity note.velocity -> bow.velocity
+    bus plus4-audio-bow-fm plus4.audio -> bow.fm
+    bus amplitude-control-bow-gain amplitude.control -> bow.gain
+    bus bow-audio-bow-mono-audio bow.audio -> bow-mono.audio
+    bus strokes-control-strokes-audio-control strokes.control -> strokes-audio.control
+    bus strokes-audio-audio-bow-reversals-a strokes-audio.audio -> bow-reversals.a
+    bus bow-reversals-audio-shape5-audio bow-reversals.audio -> shape5.audio
+    bus bow-mono-audio-times6-a bow-mono.audio -> times6.a
+    bus shape5-audio-times6-b shape5.audio -> times6.b
+    bus bow-hiss-audio-hi-7-audio bow-hiss.audio -> hi-7.audio
+    bus amplitude-control-bow-amp-control amplitude.control -> bow-amp.control
+    bus hi-7-audio-times8-a hi-7.audio -> times8.a
+    bus bow-amp-audio-times8-b bow-amp.audio -> times8.b
+    bus times8-audio-gain9-a times8.audio -> gain9.a
+    bus times6-audio-plus10-a times6.audio -> plus10.a
+    bus gain9-audio-plus10-b gain9.audio -> plus10.b
+    bus plus10-audio-body11-audio plus10.audio -> body11.audio
+    bus note-pitch-body11-pitch note.pitch -> body11.pitch
+    bus note-gate-body11-gate note.gate -> body11.gate
+    bus plus10-audio-body12-audio plus10.audio -> body12.audio
+    bus note-pitch-body12-pitch note.pitch -> body12.pitch
+    bus note-gate-body12-gate note.gate -> body12.gate
+    bus body12-audio-gain13-a body12.audio -> gain13.a
+    bus body11-audio-plus14-a body11.audio -> plus14.a
+    bus gain13-audio-plus14-b gain13.audio -> plus14.b
+    bus plus14-audio-dynamics-gain-a plus14.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-15-audio dynamics-gain.audio -> hi-15.audio
+    bus hi-15-audio-register-a hi-15.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset tremolo-strings-36-soft-0 "Tremolo Strings" wav "media/36-soft-0.wav" sha256 "e1d96bfc5775eb41a5ad7d350b5e04ab706dde2054426f26115dcfe369553b7f" {
-  usage multisample
+profile tremolo-strings-body-curve {
+  root 261.626hz
+  mode m0 frequency 77.1282hz decay 0.0103176s gain 0.00180535 after_decay 0.0103176s after_gain 0
+  mode m1 frequency 118.975hz decay 0.00668859s gain 0.00196379 after_decay 0.00668859s after_gain 0
+  mode m2 frequency 283.101hz decay 0.00281092s gain 0.0868573 after_decay 0.00281092s after_gain 0
+  mode m3 frequency 1602.93hz decay 0.000496451s gain 0.478227 after_decay 0.000496451s after_gain 0
+  mode m4 frequency 3814.16hz decay 0.000208637s gain 0.919945 after_decay 0.000208637s after_gain 0
 }
-asset tremolo-strings-36-hard-0 "Tremolo Strings" wav "media/36-hard-0.wav" sha256 "ba66268645e39bd49690eee24f8baca3a1d3c7f46a97f79f02d7789c7abeff5e" {
-  usage multisample
-}
-asset tremolo-strings-43-soft-0 "Tremolo Strings" wav "media/43-soft-0.wav" sha256 "f44c1a0c4bb07eec150d97513f5aba45bbd5f1df2c7a45ae5061da3746773a30" {
-  usage multisample
-}
-asset tremolo-strings-43-hard-0 "Tremolo Strings" wav "media/43-hard-0.wav" sha256 "215772405ab2bfd67f583cd40f74895b2caa97011c1dd40e3ce86ded2b16ac67" {
-  usage multisample
-}
-asset tremolo-strings-50-soft-0 "Tremolo Strings" wav "media/50-soft-0.wav" sha256 "f007d9f3debef8e484e49693dc056911a2e275b2603969c3a19e5a1076941984" {
-  usage multisample
-}
-asset tremolo-strings-50-hard-0 "Tremolo Strings" wav "media/50-hard-0.wav" sha256 "fb64fb33777a1458cce44f5cf156ebe1391b38ff909eb6e774d4b324158311f7" {
-  usage multisample
-}
-asset tremolo-strings-57-soft-0 "Tremolo Strings" wav "media/57-soft-0.wav" sha256 "e2a7db63b6130881a8608fdc75838c2155b9103d7154a428da00cbf9c691a1a5" {
-  usage multisample
-}
-asset tremolo-strings-57-hard-0 "Tremolo Strings" wav "media/57-hard-0.wav" sha256 "ca66731baa432b182d40b3b18ef24015d4c6afe1af85dcd6b4545cf9c10ad6b9" {
-  usage multisample
-}
-asset tremolo-strings-64-soft-0 "Tremolo Strings" wav "media/64-soft-0.wav" sha256 "0cc37fd9995ba30a7c30078317c8a20043b690631a23a04b7b1aa07e2c8b942f" {
-  usage multisample
-}
-asset tremolo-strings-64-hard-0 "Tremolo Strings" wav "media/64-hard-0.wav" sha256 "c2787bc6dc9edc2c8d946ea2b1dab16058863c49b30320307ec3fb8bbd2a7b2b" {
-  usage multisample
-}
-asset tremolo-strings-71-soft-0 "Tremolo Strings" wav "media/71-soft-0.wav" sha256 "0780423d22dffbf082a0268bfba1ac166ac213613ebd5c97588d679deb72fc9f" {
-  usage multisample
-}
-asset tremolo-strings-71-hard-0 "Tremolo Strings" wav "media/71-hard-0.wav" sha256 "ecc56d1fd8938c2a3b7cd8d5d8596d54672304742da1a02555cc003bb449b0a2" {
-  usage multisample
-}
-asset tremolo-strings-78-soft-0 "Tremolo Strings" wav "media/78-soft-0.wav" sha256 "e67e86d4eb7cfdfecb91ed5c11bfb0e6f2e3fad86019020be8958858f91fd935" {
-  usage multisample
-}
-asset tremolo-strings-78-hard-0 "Tremolo Strings" wav "media/78-hard-0.wav" sha256 "7fe9faaea7d97eadeb9fa48537f53feea72b617ff020448332e97394c706330c" {
-  usage multisample
-}
-asset tremolo-strings-85-soft-0 "Tremolo Strings" wav "media/85-soft-0.wav" sha256 "c0f8a8c6bc3fcb5364b32e008904c6634d36ae2c59b4b3a5a13ba43a4c210907" {
-  usage multisample
-}
-asset tremolo-strings-85-hard-0 "Tremolo Strings" wav "media/85-hard-0.wav" sha256 "44fb121b74d00fdaf9b5b10973d2dcd7c4cc3e0dedfed3a52ad74b2bafaa55d9" {
-  usage multisample
-}
-asset tremolo-strings-92-soft-0 "Tremolo Strings" wav "media/92-soft-0.wav" sha256 "4e40d5b8d04d71209aa4ba20283af82fd4a2dc07ead093112555b68cb0120ff5" {
-  usage multisample
-}
-asset tremolo-strings-92-hard-0 "Tremolo Strings" wav "media/92-hard-0.wav" sha256 "b685aa324b389862f86561847195117e1391b38c42f9ba15b07cec8d6446b9e6" {
-  usage multisample
-}
-asset tremolo-strings-98-soft-0 "Tremolo Strings" wav "media/98-soft-0.wav" sha256 "15fd3b6c8b87481e1d52198b650a92c7de6c9fb8df90f82ff2cede7b98a5df2d" {
-  usage multisample
-}
-asset tremolo-strings-98-hard-0 "Tremolo Strings" wav "media/98-hard-0.wav" sha256 "71446b21148ef717b70bc1f78a0314323d4a750ec38770930e04c3814a8fbf30" {
-  usage multisample
+profile tremolo-strings-body-curve-between {
+  root 261.626hz
+  mode m0 frequency 50hz decay 0.0159155s gain 0.00152297 after_decay 0.0159155s after_gain 0
+  mode m1 frequency 183.526hz decay 0.00433602s gain 0.0123584 after_decay 0.00433602s after_gain 0
+  mode m2 frequency 436.701hz decay 0.00182224s gain 0.104891 after_decay 0.00182224s after_gain 0
+  mode m3 frequency 673.64hz decay 0.00118131s gain 0.0777543 after_decay 0.00118131s after_gain 0
+  mode m4 frequency 1039.13hz decay 0.000765808s gain 0.0247478 after_decay 0.000765808s after_gain 0
+  mode m5 frequency 2472.61hz decay 0.000321835s gain 1 after_decay 0.000321835s after_gain 0
+  mode m6 frequency 5883.59hz decay 0.000135253s gain 0.101742 after_decay 0.000135253s after_gain 0
+  mode m7 frequency 9075.8hz decay 0.0001s gain 0.0698216 after_decay 0.0001s after_gain 0
+  mode m8 frequency 14000hz decay 0.0001s gain 0.203747 after_decay 0.0001s after_gain 0
 }

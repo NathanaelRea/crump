@@ -1,69 +1,77 @@
 crump-module 2
 instrument gamelan-saron "Gamelan Saron" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter ring "Ring" ratio 0.1 4 0.8123 0.8123 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control ring "Ring" "Decay time of the body" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z62-soft-0 asset gamelan-saron-62-soft-0 keys C4 E4 velocity 0 0.65 root D4
-      zone z62-hard-0 asset gamelan-saron-62-hard-0 keys C4 E4 velocity 0.65 1 root D4
-      zone z67-soft-0 asset gamelan-saron-67-soft-0 keys F4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset gamelan-saron-67-hard-0 keys F4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset gamelan-saron-72-soft-0 keys A#4 D5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset gamelan-saron-72-hard-0 keys A#4 D5 velocity 0.65 1 root C5
-      zone z77-soft-0 asset gamelan-saron-77-soft-0 keys D#5 G5 velocity 0 0.65 root F5
-      zone z77-hard-0 asset gamelan-saron-77-hard-0 keys D#5 G5 velocity 0.65 1 root F5
-      zone z82-soft-0 asset gamelan-saron-82-soft-0 keys G#5 C6 velocity 0 0.65 root A#5
-      zone z82-hard-0 asset gamelan-saron-82-hard-0 keys G#5 C6 velocity 0.65 1 root A#5
+  modulation {
+    source key-range note_key per_voice bipolar reference C5 range 12st
+    source key-level note_key per_voice bipolar reference A4 range 12st
+    route ring-key source key-range target ring depth -0.168903 map bipolar curve linear order 0 bypass false
+    route key-gain-low source key-level target key-gain depth -0.0262546 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth 0.254529 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 17 {
+    # A strike on a tuned body with explicit mode ratios, plus a contact tick.
+    node strike1 exciter kind impact contact 0.000504167s hardness $hardness level 1
+    node body2 modal_bank profile gamelan-saron-body max_modes 6 key_track 1 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.989637398915
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 2000hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 12000hz resonance 0.308309
+    node gain8 math operation scale amount 0.124322
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.19458
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus strike1-audio-fall4-a strike1.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-register-a hi-10.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset gamelan-saron-62-soft-0 "Gamelan Saron" wav "media/62-soft-0.wav" sha256 "0b48bef94f63d5e9eb95c29502b012f29d85ec4cebf6de956d2dc835211f343f" {
-  usage multisample
-}
-asset gamelan-saron-62-hard-0 "Gamelan Saron" wav "media/62-hard-0.wav" sha256 "2f94a96a35ae9f59d5a787d9d3f0b39227e1e1aad7f3759e0f9c45f548a7842e" {
-  usage multisample
-}
-asset gamelan-saron-67-soft-0 "Gamelan Saron" wav "media/67-soft-0.wav" sha256 "f00faad83138d20734ddbf097fa655c4e333413a41e83f2f4e304fd36acdf4a7" {
-  usage multisample
-}
-asset gamelan-saron-67-hard-0 "Gamelan Saron" wav "media/67-hard-0.wav" sha256 "4ead6b767aaac8a1ceff5040d0993914d93f9731cb2f5a4d9db1fc81cb3b06c6" {
-  usage multisample
-}
-asset gamelan-saron-72-soft-0 "Gamelan Saron" wav "media/72-soft-0.wav" sha256 "f9adc801e7d68df43e0b7cf33f2550b375e875fab84b4cc9fb4d3de463eecca8" {
-  usage multisample
-}
-asset gamelan-saron-72-hard-0 "Gamelan Saron" wav "media/72-hard-0.wav" sha256 "d8abe1af8e64fb01e38146d043786f2c0506f5749c129107bfd8d06045dd5117" {
-  usage multisample
-}
-asset gamelan-saron-77-soft-0 "Gamelan Saron" wav "media/77-soft-0.wav" sha256 "3bac619577f9030681c224fbef852147835874ed251c2b5d864e6764d133d76d" {
-  usage multisample
-}
-asset gamelan-saron-77-hard-0 "Gamelan Saron" wav "media/77-hard-0.wav" sha256 "614c9048c883e7a387e7fe787d3cc36e07c22c3827248b6c770e4d755e314d22" {
-  usage multisample
-}
-asset gamelan-saron-82-soft-0 "Gamelan Saron" wav "media/82-soft-0.wav" sha256 "29527c3de978b9865716c4f99eacfd9bdc7b7b84ba2918a75cdf7a9ea1701b42" {
-  usage multisample
-}
-asset gamelan-saron-82-hard-0 "Gamelan Saron" wav "media/82-hard-0.wav" sha256 "23dec5bb81c5f73c384183d57779252f095494986152bd5eb3830bc56ff5b5af" {
-  usage multisample
+profile gamelan-saron-body {
+  root 261.626hz
+  mode m0 frequency 260.972hz decay 0.9s gain 0.65 after_decay 0.9s after_gain 0
+  mode m1 frequency 720.281hz decay 0.3s gain 0.0243165 after_decay 0.3s after_gain 0
+  mode m2 frequency 1323.13hz decay 0.25s gain 0.0682258 after_decay 0.25s after_gain 0
+  mode m3 frequency 262.28hz decay 0.9s gain 0.35 after_decay 0.9s after_gain 0
+  mode m4 frequency 723.892hz decay 0.3s gain 0.0130935 after_decay 0.3s after_gain 0
+  mode m5 frequency 1329.76hz decay 0.25s gain 0.036737 after_decay 0.25s after_gain 0
 }

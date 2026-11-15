@@ -1,76 +1,190 @@
 crump-module 2
 instrument duduk "Duduk" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
-  parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 0.261818s 0.261818s modulatable
   parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  parameter vibrato-depth "Vibrato" ratio 0 2 0 0 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z55-soft-0 asset duduk-55-soft-0 keys G3 A#3 velocity 0 0.65 root G3 loop 48000 124492 crossfade 8160
-      zone z55-hard-0 asset duduk-55-hard-0 keys G3 A#3 velocity 0.65 1 root G3 loop 48000 124247 crossfade 8160
-      zone z61-soft-0 asset duduk-61-soft-0 keys B3 E4 velocity 0 0.65 root C#4 loop 48000 123685 crossfade 8160
-      zone z61-hard-0 asset duduk-61-hard-0 keys B3 E4 velocity 0.65 1 root C#4 loop 48000 125252 crossfade 8160
-      zone z67-soft-0 asset duduk-67-soft-0 keys F4 A#4 velocity 0 0.65 root G4 loop 48000 124480 crossfade 8160
-      zone z67-hard-0 asset duduk-67-hard-0 keys F4 A#4 velocity 0.65 1 root G4 loop 48000 123622 crossfade 8160
-      zone z73-soft-0 asset duduk-73-soft-0 keys B4 E5 velocity 0 0.65 root C#5 loop 48000 125993 crossfade 8160
-      zone z73-hard-0 asset duduk-73-hard-0 keys B4 E5 velocity 0.65 1 root C#5 loop 48000 125992 crossfade 8160
-      zone z79-soft-0 asset duduk-79-soft-0 keys F5 A5 velocity 0 0.65 root G5 loop 48000 125998 crossfade 8160
-      zone z79-hard-0 asset duduk-79-hard-0 keys F5 A5 velocity 0.65 1 root G5 loop 48000 125998 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-level note_key per_voice bipolar reference E4 range 12st
+    route attack-velocity source velocity target attack depth -0.17045455s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.13043478 map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(1.832) order 0 bypass false
+    route key-gain-low source key-level target key-gain depth -0.0183903 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    route key-gain-high source key-level target key-gain depth -0.207389 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 58 {
+    # A blown, bowed or sung tone: a saw through a fixed resonator bank fitted to the body.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node vibrato lfo waveform sine rate 5hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-wait envelope mode ahdsr attack 0s hold 0.4s decay 0.5s sustain 0 release 0.5s
+    node vibrato-wait-audio to_audio
+    node vibrato-ramp math operation scale amount -1
+    node vibrato-in math operation offset amount 1
+    node times1 math operation multiply
+    node gain2 math operation scale amount $vibrato-depth
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain3 math operation scale amount 0.02
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node scoop math operation add
+    node scoop-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node scoop-leak math operation scale amount 0.999479302277
+    node gain4 math operation scale amount -0.152174
+    node mix5 sum max_inputs 3
+    node reed analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 fm_depth 1st
+    node reed-mono stereo_to_mono
+    node velocity-tone lowpass mode lowpass cutoff 30hz resonance 0.308309 velocity_depth 21000hz
+    node breath noise level 1
+    node hi-6 lowpass mode highpass cutoff 400hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 10000hz resonance 0.308309
+    node breath-comb-in math operation add
+    node breath-comb delay_line mode pitch ratio 1 interpolation linear max_time 0.05s
+    node gain8 math operation scale amount 0.7
+    node gain9 math operation scale amount 0.3
+    node gain10 math operation scale amount 0.4
+    node gain11 math operation scale amount 0.6
+    node plus12 math operation add
+    node breath-amp to_audio
+    node gain13 math operation scale amount 1
+    node fall14 math operation add
+    node fall14-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall14-leak math operation scale amount 0.999995535724
+    node fall15 math operation add
+    node fall15-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall15-leak math operation scale amount 0.998260938526
+    node gain16 math operation scale amount -1
+    node plus17 math operation add
+    node gain18 math operation scale amount 10.2667
+    node plus19 math operation add
+    node times20 math operation multiply
+    node gain21 math operation scale amount 0.00876927
+    node plus22 math operation add
+    node body23 modal_bank profile duduk-body max_modes 6 key_track 0 decay_scale 1 brightness 0 level 1
+    node body24 modal_bank profile duduk-body-between max_modes 8 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain25 math operation scale amount -1
+    node plus26 math operation add
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-27 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node hi-28 lowpass mode highpass cutoff 300hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.020245
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-wait-gate note.gate -> vibrato-wait.gate
+    bus vibrato-wait-control-vibrato-wait-audio-control vibrato-wait.control -> vibrato-wait-audio.control
+    bus vibrato-wait-audio-audio-vibrato-ramp-a vibrato-wait-audio.audio -> vibrato-ramp.a
+    bus vibrato-ramp-audio-vibrato-in-a vibrato-ramp.audio -> vibrato-in.a
+    bus vibrato-audio-audio-times1-a vibrato-audio.audio -> times1.a
+    bus vibrato-in-audio-times1-b vibrato-in.audio -> times1.b
+    bus times1-audio-gain2-a times1.audio -> gain2.a
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain3-a drift-audio.audio -> gain3.a
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus scoop-audio-scoop-previous-audio scoop.audio -> scoop-previous.audio
+    bus onset-audio-scoop-a onset.audio -> scoop.a
+    bus scoop-previous-audio-scoop-leak-a scoop-previous.audio -> scoop-leak.a
+    bus scoop-leak-audio-scoop-b scoop-leak.audio -> scoop.b
+    bus scoop-audio-gain4-a scoop.audio -> gain4.a
+    bus gain2-audio-mix5-inputs gain2.audio -> mix5.inputs
+    bus gain3-audio-mix5-inputs gain3.audio -> mix5.inputs
+    bus gain4-audio-mix5-inputs gain4.audio -> mix5.inputs
+    bus note-pitch-reed-pitch note.pitch -> reed.pitch
+    bus note-velocity-reed-velocity note.velocity -> reed.velocity
+    bus mix5-audio-reed-fm mix5.audio -> reed.fm
+    bus amplitude-control-reed-gain amplitude.control -> reed.gain
+    bus reed-audio-reed-mono-audio reed.audio -> reed-mono.audio
+    bus reed-mono-audio-velocity-tone-audio reed-mono.audio -> velocity-tone.audio
+    bus note-velocity-velocity-tone-velocity note.velocity -> velocity-tone.velocity
+    bus breath-audio-hi-6-audio breath.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-breath-comb-in-a lo-7.audio -> breath-comb-in.a
+    bus note-pitch-breath-comb-pitch note.pitch -> breath-comb.pitch
+    bus breath-comb-in-audio-breath-comb-audio breath-comb-in.audio -> breath-comb.audio
+    bus breath-comb-audio-gain8-a breath-comb.audio -> gain8.a
+    bus gain8-audio-breath-comb-in-b gain8.audio -> breath-comb-in.b
+    bus breath-comb-in-audio-gain9-a breath-comb-in.audio -> gain9.a
+    bus lo-7-audio-gain10-a lo-7.audio -> gain10.a
+    bus gain9-audio-gain11-a gain9.audio -> gain11.a
+    bus gain10-audio-plus12-a gain10.audio -> plus12.a
+    bus gain11-audio-plus12-b gain11.audio -> plus12.b
+    bus amplitude-control-breath-amp-control amplitude.control -> breath-amp.control
+    bus breath-amp-audio-gain13-a breath-amp.audio -> gain13.a
+    bus fall14-audio-fall14-previous-audio fall14.audio -> fall14-previous.audio
+    bus onset-audio-fall14-a onset.audio -> fall14.a
+    bus fall14-previous-audio-fall14-leak-a fall14-previous.audio -> fall14-leak.a
+    bus fall14-leak-audio-fall14-b fall14-leak.audio -> fall14.b
+    bus fall15-audio-fall15-previous-audio fall15.audio -> fall15-previous.audio
+    bus onset-audio-fall15-a onset.audio -> fall15.a
+    bus fall15-previous-audio-fall15-leak-a fall15-previous.audio -> fall15-leak.a
+    bus fall15-leak-audio-fall15-b fall15-leak.audio -> fall15.b
+    bus fall15-audio-gain16-a fall15.audio -> gain16.a
+    bus fall14-audio-plus17-a fall14.audio -> plus17.a
+    bus gain16-audio-plus17-b gain16.audio -> plus17.b
+    bus plus17-audio-gain18-a plus17.audio -> gain18.a
+    bus gain13-audio-plus19-a gain13.audio -> plus19.a
+    bus gain18-audio-plus19-b gain18.audio -> plus19.b
+    bus plus12-audio-times20-a plus12.audio -> times20.a
+    bus plus19-audio-times20-b plus19.audio -> times20.b
+    bus times20-audio-gain21-a times20.audio -> gain21.a
+    bus velocity-tone-audio-plus22-a velocity-tone.audio -> plus22.a
+    bus gain21-audio-plus22-b gain21.audio -> plus22.b
+    bus plus22-audio-body23-audio plus22.audio -> body23.audio
+    bus note-pitch-body23-pitch note.pitch -> body23.pitch
+    bus note-gate-body23-gate note.gate -> body23.gate
+    bus plus22-audio-body24-audio plus22.audio -> body24.audio
+    bus note-pitch-body24-pitch note.pitch -> body24.pitch
+    bus note-gate-body24-gate note.gate -> body24.gate
+    bus body24-audio-gain25-a body24.audio -> gain25.a
+    bus body23-audio-plus26-a body23.audio -> plus26.a
+    bus gain25-audio-plus26-b gain25.audio -> plus26.b
+    bus plus26-audio-dynamics-gain-a plus26.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-27-audio dynamics-gain.audio -> hi-27.audio
+    bus hi-27-audio-hi-28-audio hi-27.audio -> hi-28.audio
+    bus hi-28-audio-register-a hi-28.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset duduk-55-soft-0 "Duduk" wav "media/55-soft-0.wav" sha256 "db008076e7d8fc5e33d41ddcfc8629399ae449ef66bab644034a5bf532e00307" {
-  usage multisample
+profile duduk-body {
+  root 261.626hz
+  mode m0 frequency 118.975hz decay 0.00668859s gain 0.0262438 after_decay 0.00668859s after_gain 0
+  mode m1 frequency 283.101hz decay 0.00281092s gain 0.176211 after_decay 0.00281092s after_gain 0
+  mode m2 frequency 673.64hz decay 0.00118131s gain 0.836891 after_decay 0.00118131s after_gain 0
+  mode m3 frequency 1602.93hz decay 0.000496451s gain 0.970408 after_decay 0.000496451s after_gain 0
+  mode m4 frequency 3814.16hz decay 0.000208637s gain 0.235782 after_decay 0.000208637s after_gain 0
+  mode m5 frequency 9075.8hz decay 0.0001s gain 0.0477802 after_decay 0.0001s after_gain 0
 }
-asset duduk-55-hard-0 "Duduk" wav "media/55-hard-0.wav" sha256 "2aa84c6f2a8b9c19b9f1df36fe977f5b19cac8e64e816879802332c1e3b033ad" {
-  usage multisample
-}
-asset duduk-61-soft-0 "Duduk" wav "media/61-soft-0.wav" sha256 "da1aae5855b32209b0145effba413cf75358bb590f971e761f153e8e6d727f17" {
-  usage multisample
-}
-asset duduk-61-hard-0 "Duduk" wav "media/61-hard-0.wav" sha256 "d9430abefbb1400a2287fe7d38ced389e47a50af36917a1b75421069a044c5fe" {
-  usage multisample
-}
-asset duduk-67-soft-0 "Duduk" wav "media/67-soft-0.wav" sha256 "1708294b91ed1c887035622a4c24a4634f7ac875a8fe2aefe58067ce7a392d1f" {
-  usage multisample
-}
-asset duduk-67-hard-0 "Duduk" wav "media/67-hard-0.wav" sha256 "f158f04ff1d8c16227df2bc6058daa8b90b7b0c0c08d1299abbc1f78a4ac42f6" {
-  usage multisample
-}
-asset duduk-73-soft-0 "Duduk" wav "media/73-soft-0.wav" sha256 "69c5812f71cee025f0a402bf6f74e314edbd6a200574be3dc7347c48ea1792ba" {
-  usage multisample
-}
-asset duduk-73-hard-0 "Duduk" wav "media/73-hard-0.wav" sha256 "af1e5f757b1adaa3199d96f95dbe19213fdb54c28492aa366b07a8b26645019d" {
-  usage multisample
-}
-asset duduk-79-soft-0 "Duduk" wav "media/79-soft-0.wav" sha256 "cddaeff9a5a27ec12cf3dccab6f5aaf408490d5bb7c3d7d117bd20c9880df4d7" {
-  usage multisample
-}
-asset duduk-79-hard-0 "Duduk" wav "media/79-hard-0.wav" sha256 "df4b13f6c4cf8082caf8f07c958155a9465bbb103ee112aaf947b6bb2e7412da" {
-  usage multisample
+profile duduk-body-between {
+  root 261.626hz
+  mode m0 frequency 50hz decay 0.0159155s gain 0.00161864 after_decay 0.0159155s after_gain 0
+  mode m1 frequency 77.1282hz decay 0.0103176s gain 0.0113509 after_decay 0.0103176s after_gain 0
+  mode m2 frequency 183.526hz decay 0.00433602s gain 0.0630004 after_decay 0.00433602s after_gain 0
+  mode m3 frequency 436.701hz decay 0.00182224s gain 0.495636 after_decay 0.00182224s after_gain 0
+  mode m4 frequency 1039.13hz decay 0.000765808s gain 1 after_decay 0.000765808s after_gain 0
+  mode m5 frequency 2472.61hz decay 0.000321835s gain 0.598281 after_decay 0.000321835s after_gain 0
+  mode m6 frequency 5883.59hz decay 0.000135253s gain 0.105205 after_decay 0.000135253s after_gain 0
+  mode m7 frequency 14000hz decay 0.0001s gain 0.0447374 after_decay 0.0001s after_gain 0
 }

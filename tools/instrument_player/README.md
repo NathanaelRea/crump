@@ -4,7 +4,6 @@ A browser page for playing every [example instrument](../../examples/instruments
 
 ```bash
 cargo build --release --locked --bin crump
-uv run tools/instrument_assets/build.py --setup
 uv run tools/instrument_player/build.py --serve
 ```
 
@@ -12,9 +11,7 @@ Open the printed address, `http://127.0.0.1:8765/tools/instrument_player/` by de
 
 ## What you hear
 
-Multisample instruments play their exact example media. The page reads zones, sustain loops, round-robin groups, Level, Touch and the Attack/Release envelope from each Instrument Module. Loops use the engine's linear crossfade; a released looped note keeps looping under its release fade rather than playing the sample's own tail. It mirrors the engine's gain law, `Level × ((1 − Touch) + Touch × velocity)`. One-shot banks ignore Note Off, as in Crump.
-
-Native acoustic instruments and synths have no media, so the build renders them through Crump. It plays isolated notes every half octave at two velocities, then slices the result into a preview bank. Synths are rendered as held notes: sustaining patches loop part of the hold and fade with their Release on Note Off, and the mono basses play without glide. Between rendered velocities, level scales linearly.
+Every instrument is a native graph with no media, so the build renders it through Crump. It plays isolated notes every half octave at two velocities, then slices the result into a preview bank. Unpitched instruments play two takes of each stroke; a split instrument such as the cajón has one stroke per key range. Synths and sustained acoustic instruments (winds, brass, bowed strings, voices and organs) are rendered as held notes: they loop part of the hold and fade with their Release on Note Off, and the mono basses play without glide. Struck and plucked instruments ring out. Between rendered velocities, level scales linearly.
 
 The browser repitches with its own resampler, not the engine's interpolator. The Room control is a player-only convolution hall, not part of any Project. The audition phrase button plays the notes from each example's `project.crump`.
 

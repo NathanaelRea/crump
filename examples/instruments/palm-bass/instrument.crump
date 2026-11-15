@@ -1,93 +1,131 @@
 crump-module 2
 instrument palm-bass "Palm Bass" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset palm-bass-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
-      zone z36-hard-0 asset palm-bass-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
-      zone z43-soft-0 asset palm-bass-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
-      zone z43-hard-0 asset palm-bass-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
-      zone z48-soft-0 asset palm-bass-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset palm-bass-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
-      zone z55-soft-0 asset palm-bass-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
-      zone z55-hard-0 asset palm-bass-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
-      zone z60-soft-0 asset palm-bass-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
-      zone z60-hard-0 asset palm-bass-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
-      zone z67-soft-0 asset palm-bass-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset palm-bass-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset palm-bass-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset palm-bass-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
-      zone z79-soft-0 asset palm-bass-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
-      zone z79-hard-0 asset palm-bass-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
+  modulation {
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route key-gain-low source key-level target key-gain depth 0.555563 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth 0.175762 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 41 {
+    # A plucked string: a pitch-tuned delay loop with a per-trip loss, a pickup and a body.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node held math operation add
+    node held-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node held-leak math operation scale amount 1
+    node period-later delay_line mode pitch ratio 1 interpolation linear max_time 0.1s
+    node period math operation subtract
+    node pluck-window shaper curve hard_clip drive 64 bias 0
+    node pluck-noise noise level 1
+    node pluck math operation multiply
+    node pluck-tone lowpass mode lowpass cutoff 382.5hz resonance 0.308309 velocity_depth 552.5hz
+    node string-in math operation add
+    node string delay_line mode pitch ratio 1 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node string-loss linear_phase_lowpass amount 0.45
+    node string-keep math operation scale amount 0.99999
+    node string-pickup delay_line mode pitch ratio 0.3 interpolation linear max_time 0.05s
+    node string-out math operation subtract
+    node gain1 math operation scale amount 0.7
+    node gain2 math operation scale amount 1.73205
+    node string-tone lowpass mode lowpass cutoff 382.5hz resonance 0.308309 velocity_depth 552.5hz
+    node string-decay math operation add
+    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node string-decay-leak math operation scale amount 0.999916670139
+    node times3 math operation multiply
+    node hiss4 noise level 1
+    node fall5 math operation add
+    node fall5-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall5-leak math operation scale amount 0.998612075171
+    node times6 math operation multiply
+    node hi-7 lowpass mode highpass cutoff 1700hz resonance 0.308309
+    node lo-8 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain9 math operation scale amount 0.0259808
+    node plus10 math operation add
+    node body11 modal_bank profile palm-bass-box max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain12 math operation scale amount 0.3
+    node plus13 math operation add
+    node hi-14 lowpass mode highpass cutoff 25hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.614072
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus held-audio-held-previous-audio held.audio -> held-previous.audio
+    bus onset-audio-held-a onset.audio -> held.a
+    bus held-previous-audio-held-leak-a held-previous.audio -> held-leak.a
+    bus held-leak-audio-held-b held-leak.audio -> held.b
+    bus note-pitch-period-later-pitch note.pitch -> period-later.pitch
+    bus held-audio-period-later-audio held.audio -> period-later.audio
+    bus held-audio-period-a held.audio -> period.a
+    bus period-later-audio-period-b period-later.audio -> period.b
+    bus period-audio-pluck-window-audio period.audio -> pluck-window.audio
+    bus pluck-noise-audio-pluck-a pluck-noise.audio -> pluck.a
+    bus pluck-window-audio-pluck-b pluck-window.audio -> pluck.b
+    bus pluck-audio-pluck-tone-audio pluck.audio -> pluck-tone.audio
+    bus note-velocity-pluck-tone-velocity note.velocity -> pluck-tone.velocity
+    bus pluck-tone-audio-string-in-a pluck-tone.audio -> string-in.a
+    bus note-pitch-string-pitch note.pitch -> string.pitch
+    bus string-in-audio-string-audio string-in.audio -> string.audio
+    bus string-audio-string-loss-audio string.audio -> string-loss.audio
+    bus string-loss-audio-string-keep-a string-loss.audio -> string-keep.a
+    bus string-keep-audio-string-in-b string-keep.audio -> string-in.b
+    bus note-pitch-string-pickup-pitch note.pitch -> string-pickup.pitch
+    bus string-audio-string-pickup-audio string.audio -> string-pickup.audio
+    bus string-audio-string-out-a string.audio -> string-out.a
+    bus string-pickup-audio-gain1-a string-pickup.audio -> gain1.a
+    bus gain1-audio-string-out-b gain1.audio -> string-out.b
+    bus string-out-audio-gain2-a string-out.audio -> gain2.a
+    bus gain2-audio-string-tone-audio gain2.audio -> string-tone.audio
+    bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
+    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
+    bus onset-audio-string-decay-a onset.audio -> string-decay.a
+    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
+    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
+    bus string-tone-audio-times3-a string-tone.audio -> times3.a
+    bus string-decay-audio-times3-b string-decay.audio -> times3.b
+    bus fall5-audio-fall5-previous-audio fall5.audio -> fall5-previous.audio
+    bus onset-audio-fall5-a onset.audio -> fall5.a
+    bus fall5-previous-audio-fall5-leak-a fall5-previous.audio -> fall5-leak.a
+    bus fall5-leak-audio-fall5-b fall5-leak.audio -> fall5.b
+    bus hiss4-audio-times6-a hiss4.audio -> times6.a
+    bus fall5-audio-times6-b fall5.audio -> times6.b
+    bus times6-audio-hi-7-audio times6.audio -> hi-7.audio
+    bus hi-7-audio-lo-8-audio hi-7.audio -> lo-8.audio
+    bus lo-8-audio-gain9-a lo-8.audio -> gain9.a
+    bus times3-audio-plus10-a times3.audio -> plus10.a
+    bus gain9-audio-plus10-b gain9.audio -> plus10.b
+    bus plus10-audio-body11-audio plus10.audio -> body11.audio
+    bus note-pitch-body11-pitch note.pitch -> body11.pitch
+    bus note-gate-body11-gate note.gate -> body11.gate
+    bus body11-audio-gain12-a body11.audio -> gain12.a
+    bus plus10-audio-plus13-a plus10.audio -> plus13.a
+    bus gain12-audio-plus13-b gain12.audio -> plus13.b
+    bus plus13-audio-hi-14-audio plus13.audio -> hi-14.audio
+    bus hi-14-audio-register-a hi-14.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset palm-bass-36-soft-0 "Palm Bass" wav "media/36-soft-0.wav" sha256 "5cc0e38927174d42d562cbe70a27d55d1a45a9d35dfa2fb1f8b6b51b70ef65ed" {
-  usage multisample
-}
-asset palm-bass-36-hard-0 "Palm Bass" wav "media/36-hard-0.wav" sha256 "2f7cc8234be48417130e3994694a5f5e419448001864a402cdc59b3507a46d67" {
-  usage multisample
-}
-asset palm-bass-43-soft-0 "Palm Bass" wav "media/43-soft-0.wav" sha256 "950a9d6a7c8b822b3373840213c434a353f0b5d96c6bbfe09d473605a0088657" {
-  usage multisample
-}
-asset palm-bass-43-hard-0 "Palm Bass" wav "media/43-hard-0.wav" sha256 "141029e96bf1d6f4cac9023abd380e7a612ce1297007c38d52f0d346855af6e1" {
-  usage multisample
-}
-asset palm-bass-48-soft-0 "Palm Bass" wav "media/48-soft-0.wav" sha256 "0ed0fcc464dd6db36eda05d924473a1e58c389f71c93b9f7a8c943cd1f0ba023" {
-  usage multisample
-}
-asset palm-bass-48-hard-0 "Palm Bass" wav "media/48-hard-0.wav" sha256 "d7dc9429d15ea70a11e28e84679ebcaeb7aff737d1526e43a4944b06258ad63d" {
-  usage multisample
-}
-asset palm-bass-55-soft-0 "Palm Bass" wav "media/55-soft-0.wav" sha256 "69dd774a2786a3645727a1794052aec77ae679548fb732f50a8d851d97b2b1e0" {
-  usage multisample
-}
-asset palm-bass-55-hard-0 "Palm Bass" wav "media/55-hard-0.wav" sha256 "09108bcc892324d750c3319828a41deb0cac82401a5c1d49c720e22d87d07653" {
-  usage multisample
-}
-asset palm-bass-60-soft-0 "Palm Bass" wav "media/60-soft-0.wav" sha256 "e4d2665bab684c8ed3b072744f88d9afd06d7dec34726157e0d0e94c2ec3b3a6" {
-  usage multisample
-}
-asset palm-bass-60-hard-0 "Palm Bass" wav "media/60-hard-0.wav" sha256 "e9a65041a7b4c99f32c53e1978f26ba1dd8c0a64fc2dccd4153c632cab462b9f" {
-  usage multisample
-}
-asset palm-bass-67-soft-0 "Palm Bass" wav "media/67-soft-0.wav" sha256 "7213a4cc8e07a5d5ef06ec90132f59df44111da3440f9a772f43be2ca48e21fa" {
-  usage multisample
-}
-asset palm-bass-67-hard-0 "Palm Bass" wav "media/67-hard-0.wav" sha256 "844bb9ab68eda349f3b8e297374ad0824c6165dd8a293b8b5b318affe78d6e07" {
-  usage multisample
-}
-asset palm-bass-72-soft-0 "Palm Bass" wav "media/72-soft-0.wav" sha256 "ff9b6f39350e78ecde929077e7b365d530bc1e8968ae2edddc7cbe90eab1c3d1" {
-  usage multisample
-}
-asset palm-bass-72-hard-0 "Palm Bass" wav "media/72-hard-0.wav" sha256 "6369e33db83d7fd2518800d6062cfbc02cd8f780a8687eed053d2ba464cb2120" {
-  usage multisample
-}
-asset palm-bass-79-soft-0 "Palm Bass" wav "media/79-soft-0.wav" sha256 "a7da35642057b5cd2b91e91c189594585420abc1c740c4ac48432011d34dd4e4" {
-  usage multisample
-}
-asset palm-bass-79-hard-0 "Palm Bass" wav "media/79-hard-0.wav" sha256 "2d8dae4394c597f4364e04aacebef263ea829e51478d300cfa39f47f91c6370c" {
-  usage multisample
+profile palm-bass-box {
+  root 261.626hz
+  mode m0 frequency 110hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 220hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 430hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m3 frequency 2100hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }

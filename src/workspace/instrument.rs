@@ -714,7 +714,9 @@ fn node_section(kind: NodeKind, domain: GraphDomain) -> PresentationSectionKind 
         NodeKind::Lowpass
         | NodeKind::StereoFilter
         | NodeKind::DcBlock
-        | NodeKind::LinearPhaseLowpass => PresentationSectionKind::Filters,
+        | NodeKind::LinearPhaseLowpass
+        | NodeKind::Biquad
+        | NodeKind::OnePole => PresentationSectionKind::Filters,
         NodeKind::DelayLine
         | NodeKind::Math
         | NodeKind::StereoMath

@@ -1,93 +1,65 @@
 crump-module 2
 instrument warm-tines "Warm Tines" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset warm-tines-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
-      zone z36-hard-0 asset warm-tines-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
-      zone z43-soft-0 asset warm-tines-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
-      zone z43-hard-0 asset warm-tines-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
-      zone z48-soft-0 asset warm-tines-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset warm-tines-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
-      zone z55-soft-0 asset warm-tines-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
-      zone z55-hard-0 asset warm-tines-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
-      zone z60-soft-0 asset warm-tines-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
-      zone z60-hard-0 asset warm-tines-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
-      zone z67-soft-0 asset warm-tines-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset warm-tines-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset warm-tines-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset warm-tines-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
-      zone z79-soft-0 asset warm-tines-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
-      zone z79-hard-0 asset warm-tines-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
+  modulation {
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route key-gain-low source key-level target key-gain depth 0.0224677 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth -0.0321852 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 13 {
+    # A mallet on a tuned bar's modes, optionally through a pickup.
+    node strike1 exciter kind impact contact 0.000164038s hardness $hardness level 1
+    node body2 modal_bank profile warm-tines-bar max_modes 4 key_track 1 decay_scale $ring brightness 0 level 1
+    node shape3 shaper curve tanh drive 1.77227 bias 0
+    node gain4 math operation scale amount 0.564248
+    node times5 math operation multiply
+    node gain6 math operation scale amount 0.18
+    node plus7 math operation add
+    node hi-8 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.317847
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-shape3-audio body2.audio -> shape3.audio
+    bus shape3-audio-gain4-a shape3.audio -> gain4.a
+    bus body2-audio-times5-a body2.audio -> times5.a
+    bus body2-audio-times5-b body2.audio -> times5.b
+    bus times5-audio-gain6-a times5.audio -> gain6.a
+    bus gain4-audio-plus7-a gain4.audio -> plus7.a
+    bus gain6-audio-plus7-b gain6.audio -> plus7.b
+    bus plus7-audio-hi-8-audio plus7.audio -> hi-8.audio
+    bus hi-8-audio-register-a hi-8.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset warm-tines-36-soft-0 "Warm Tines" wav "media/36-soft-0.wav" sha256 "fd55d2c411833c0d79311217b7e484fdda857d50938ea500b46c144b1aedfe62" {
-  usage multisample
-}
-asset warm-tines-36-hard-0 "Warm Tines" wav "media/36-hard-0.wav" sha256 "df603b7bacd894b7ec38dbc941ed05b95721deb9193f68848bb802198450d918" {
-  usage multisample
-}
-asset warm-tines-43-soft-0 "Warm Tines" wav "media/43-soft-0.wav" sha256 "e89fb0d11224a32684f05bfae673ef76f1440017be2634fe5c238484096e61d1" {
-  usage multisample
-}
-asset warm-tines-43-hard-0 "Warm Tines" wav "media/43-hard-0.wav" sha256 "d8248ba066ad46674bb293e6c7b9c4d288359306abc5ed11e8aa0f7fea189d37" {
-  usage multisample
-}
-asset warm-tines-48-soft-0 "Warm Tines" wav "media/48-soft-0.wav" sha256 "9c00cf5e6be6e2c1fc0f7b0820d0741cd84fa7622482608167782a1e157b79c8" {
-  usage multisample
-}
-asset warm-tines-48-hard-0 "Warm Tines" wav "media/48-hard-0.wav" sha256 "97ef65158c3b9d1c6ffb116e78442d9ee2f043199423f394ed5f1bf3a77f9078" {
-  usage multisample
-}
-asset warm-tines-55-soft-0 "Warm Tines" wav "media/55-soft-0.wav" sha256 "b9f1f24ec97a1c9fd1747dfbec378911ef5503f5f12a6f5f663017fa9aa964d7" {
-  usage multisample
-}
-asset warm-tines-55-hard-0 "Warm Tines" wav "media/55-hard-0.wav" sha256 "f146745868d9486a384e940a56f950764aa39c73cf904259f5e566685566f405" {
-  usage multisample
-}
-asset warm-tines-60-soft-0 "Warm Tines" wav "media/60-soft-0.wav" sha256 "94cd7f38baaca86b79875d8477034d2b57f93127a3080bc8435b1e9108d04cdb" {
-  usage multisample
-}
-asset warm-tines-60-hard-0 "Warm Tines" wav "media/60-hard-0.wav" sha256 "4fe91406714b6eef1c21d0072ede41a8d92b06929dc2b3c4ca910f6ea9265d5e" {
-  usage multisample
-}
-asset warm-tines-67-soft-0 "Warm Tines" wav "media/67-soft-0.wav" sha256 "b9b2cf58528a3ba1f2e86108a52546b659906e773006caeb4d5a25b4545a6877" {
-  usage multisample
-}
-asset warm-tines-67-hard-0 "Warm Tines" wav "media/67-hard-0.wav" sha256 "dbaf15662ec36dff14b1750d24dfb01b525f65fbb28af1a20bf9a24da73b2ae2" {
-  usage multisample
-}
-asset warm-tines-72-soft-0 "Warm Tines" wav "media/72-soft-0.wav" sha256 "306a6d39cc9888026a8247fa8074ee83deff8005874ed46b27d3dfe53a5107ca" {
-  usage multisample
-}
-asset warm-tines-72-hard-0 "Warm Tines" wav "media/72-hard-0.wav" sha256 "a4eff1196a0b896171951bc5578763de5444d182d7a95d207d2cd396c10d45d2" {
-  usage multisample
-}
-asset warm-tines-79-soft-0 "Warm Tines" wav "media/79-soft-0.wav" sha256 "a60f4985fd1a3031d48be8bb1a1f04da1bfd82d098d5747b1e4692ba48051de6" {
-  usage multisample
-}
-asset warm-tines-79-hard-0 "Warm Tines" wav "media/79-hard-0.wav" sha256 "b8a978bb19d6755e133dec7968ff28956873daff96a9b6fe10464cb425933139" {
-  usage multisample
+profile warm-tines-bar {
+  root 261.626hz
+  mode m0 frequency 261.834hz decay 1.94641s gain 1 after_decay 1.94641s after_gain 0
+  mode m1 frequency 523.669hz decay 0.578456s gain 0.106328 after_decay 0.578456s after_gain 0
+  mode m2 frequency 1640.92hz decay 0.0783343s gain 0.0658898 after_decay 0.0783343s after_gain 0
+  mode m3 frequency 4595.19hz decay 0.0129146s gain 0.0203185 after_decay 0.0129146s after_gain 0
 }

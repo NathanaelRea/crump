@@ -1,81 +1,74 @@
 crump-module 2
 instrument machine-cowbell "Machine Cowbell" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter hold-tone1 "Fixed pitch" semitones -48st 48st 12.5455st 12.5455st modulatable
+  parameter hold-tone2 "Fixed pitch" semitones -48st 48st 19.35st 19.35st modulatable
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z38-soft-0 asset machine-cowbell-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
-      zone z43-soft-0 asset machine-cowbell-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
-      zone z48-soft-0 asset machine-cowbell-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
-      zone z53-soft-0 asset machine-cowbell-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
-      zone z58-soft-0 asset machine-cowbell-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
-      zone z63-soft-0 asset machine-cowbell-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
-      zone z68-soft-0 asset machine-cowbell-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone z73-soft-0 asset machine-cowbell-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
-      zone z78-soft-0 asset machine-cowbell-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
-      zone z83-soft-0 asset machine-cowbell-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
-      zone z38-hard-0 asset machine-cowbell-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
-      zone z43-hard-0 asset machine-cowbell-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
-      zone z48-hard-0 asset machine-cowbell-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
-      zone z53-hard-0 asset machine-cowbell-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
-      zone z58-hard-0 asset machine-cowbell-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
-      zone z63-hard-0 asset machine-cowbell-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
-      zone z68-hard-0 asset machine-cowbell-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone z73-hard-0 asset machine-cowbell-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
-      zone z78-hard-0 asset machine-cowbell-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
-      zone z83-hard-0 asset machine-cowbell-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
-      zone z38-soft-1 asset machine-cowbell-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
-      zone z43-soft-1 asset machine-cowbell-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
-      zone z48-soft-1 asset machine-cowbell-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
-      zone z53-soft-1 asset machine-cowbell-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
-      zone z58-soft-1 asset machine-cowbell-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
-      zone z63-soft-1 asset machine-cowbell-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
-      zone z68-soft-1 asset machine-cowbell-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone z73-soft-1 asset machine-cowbell-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
-      zone z78-soft-1 asset machine-cowbell-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
-      zone z83-soft-1 asset machine-cowbell-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
-      zone z38-hard-1 asset machine-cowbell-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
-      zone z43-hard-1 asset machine-cowbell-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
-      zone z48-hard-1 asset machine-cowbell-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
-      zone z53-hard-1 asset machine-cowbell-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
-      zone z58-hard-1 asset machine-cowbell-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
-      zone z63-hard-1 asset machine-cowbell-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
-      zone z68-hard-1 asset machine-cowbell-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone z73-hard-1 asset machine-cowbell-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
-      zone z78-hard-1 asset machine-cowbell-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
-      zone z83-hard-1 asset machine-cowbell-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
-    }
+  modulation {
+    source key-position note_key per_voice bipolar reference C4 range 48st
+    route hold-tone1-key source key-position target hold-tone1 depth -48st map bipolar curve linear order 0 bypass false
+    route hold-tone2-key source key-position target hold-tone2 depth -48st map bipolar curve linear order 0 bypass false
+  }
+  graph voice 24 {
+    # A drum-machine voice: swept sine, square clusters, noise and click.
+    node tone1 analog_oscillator waveform square coarse $hold-tone1 level 1.11072
+    node tone1-mono stereo_to_mono
+    node tone2 analog_oscillator waveform square coarse $hold-tone2 level 1.11072
+    node tone2-mono stereo_to_mono
+    node plus3 math operation add
+    node hi-4 lowpass mode highpass cutoff 450hz resonance 0.308309
+    node lo-5 lowpass mode lowpass cutoff 5000hz resonance 0.308309
+    node gain6 math operation scale amount 0.342727
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall7 math operation add
+    node fall7-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall7-leak math operation scale amount 0.999167013792
+    node gain8 math operation scale amount 0.65
+    node fall9 math operation add
+    node fall9-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall9-leak math operation scale amount 0.999925598006
+    node gain10 math operation scale amount 0.35
+    node plus11 math operation add
+    node times12 math operation multiply
+    node hi-13 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.293435
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-pitch-tone1-pitch note.pitch -> tone1.pitch
+    bus tone1-audio-tone1-mono-audio tone1.audio -> tone1-mono.audio
+    bus note-pitch-tone2-pitch note.pitch -> tone2.pitch
+    bus tone2-audio-tone2-mono-audio tone2.audio -> tone2-mono.audio
+    bus tone1-mono-audio-plus3-a tone1-mono.audio -> plus3.a
+    bus tone2-mono-audio-plus3-b tone2-mono.audio -> plus3.b
+    bus plus3-audio-hi-4-audio plus3.audio -> hi-4.audio
+    bus hi-4-audio-lo-5-audio hi-4.audio -> lo-5.audio
+    bus lo-5-audio-gain6-a lo-5.audio -> gain6.a
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall7-audio-fall7-previous-audio fall7.audio -> fall7-previous.audio
+    bus onset-audio-fall7-a onset.audio -> fall7.a
+    bus fall7-previous-audio-fall7-leak-a fall7-previous.audio -> fall7-leak.a
+    bus fall7-leak-audio-fall7-b fall7-leak.audio -> fall7.b
+    bus fall7-audio-gain8-a fall7.audio -> gain8.a
+    bus fall9-audio-fall9-previous-audio fall9.audio -> fall9-previous.audio
+    bus onset-audio-fall9-a onset.audio -> fall9.a
+    bus fall9-previous-audio-fall9-leak-a fall9-previous.audio -> fall9-leak.a
+    bus fall9-leak-audio-fall9-b fall9-leak.audio -> fall9.b
+    bus fall9-audio-gain10-a fall9.audio -> gain10.a
+    bus gain8-audio-plus11-a gain8.audio -> plus11.a
+    bus gain10-audio-plus11-b gain10.audio -> plus11.b
+    bus gain6-audio-times12-a gain6.audio -> times12.a
+    bus plus11-audio-times12-b plus11.audio -> times12.b
+    bus times12-audio-hi-13-audio times12.audio -> hi-13.audio
+    bus hi-13-audio-trim-a hi-13.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
-}
-asset machine-cowbell-60-soft-0 "Machine Cowbell" wav "media/60-soft-0.wav" sha256 "b8e6bcd1fa0553811c5d16b1b6b2ca87f84610a36f9fe81a61bee2f957350594" {
-  usage multisample
-}
-asset machine-cowbell-60-hard-0 "Machine Cowbell" wav "media/60-hard-0.wav" sha256 "dc02b7373fcd39fef5299a030dc2fd5d7189ff68e5986304cb511dd7ac8abb34" {
-  usage multisample
-}
-asset machine-cowbell-60-soft-1 "Machine Cowbell" wav "media/60-soft-1.wav" sha256 "feac82d20e347f5e1208556a4ca2ea81e6cf43aee941c2c253b97100721482ab" {
-  usage multisample
-}
-asset machine-cowbell-60-hard-1 "Machine Cowbell" wav "media/60-hard-1.wav" sha256 "08692fa9e6317b4de2c5dce49458944d99b7a1cbb5f0e7a54be99ccd86cf9c92" {
-  usage multisample
 }

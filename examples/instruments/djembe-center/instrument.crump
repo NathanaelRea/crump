@@ -1,45 +1,68 @@
 crump-module 2
 instrument djembe-center "Djembe Center" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z60-soft-0 asset djembe-center-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-0 asset djembe-center-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
-      zone z60-soft-1 asset djembe-center-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-1 asset djembe-center-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
-    }
+  graph voice 17 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.00292069s hardness 0 level 1
+    node body2 modal_bank profile djembe-center-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.997687862303
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 0.138564
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.166449
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus onset-audio-fall4-a onset.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-trim-a hi-10.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset djembe-center-60-soft-0 "Djembe Center" wav "media/60-soft-0.wav" sha256 "31f58bc1111f25ee74106c390f2915257438b2dd7470d2e4632f17f17ffbf464" {
-  usage multisample
-}
-asset djembe-center-60-hard-0 "Djembe Center" wav "media/60-hard-0.wav" sha256 "9e75bc5323772261c093f9aad5a576f0cda1390eb7a2b49ba287719dfe94b59b" {
-  usage multisample
-}
-asset djembe-center-60-soft-1 "Djembe Center" wav "media/60-soft-1.wav" sha256 "f415ea1431adc9b322d3b30ba569a81be2fa5a7c7cb59e382fdd3a008b787b78" {
-  usage multisample
-}
-asset djembe-center-60-hard-1 "Djembe Center" wav "media/60-hard-1.wav" sha256 "9427b44ef7cdf0105f7eab758616b1d913d4d1ee80036702924f7cb1ddbb167e" {
-  usage multisample
+profile djembe-center-head {
+  root 112hz
+  mode m0 frequency 112hz decay 0.24s gain 1 after_decay 0.24s after_gain 0
+  mode m1 frequency 178.416hz decay 0.169258s gain 0.510116 after_decay 0.169258s after_gain 0
+  mode m2 frequency 239.232hz decay 0.135835s gain 0.203084 after_decay 0.135835s after_gain 0
+  mode m3 frequency 257.152hz decay 0.128671s gain 0.105824 after_decay 0.128671s after_gain 0
+  mode m4 frequency 297.136hz decay 0.115454s gain 0.0687386 after_decay 0.115454s after_gain 0
+  mode m5 frequency 326.816hz decay 0.107497s gain 0.0490151 after_decay 0.107497s after_gain 0
+  mode m6 frequency 353.472hz decay 0.101358s gain 0.0310216 after_decay 0.101358s after_gain 0
+  mode m7 frequency 392.112hz decay 0.0937707s gain 0.0153142 after_decay 0.0937707s after_gain 0
+  mode m8 frequency 403.2hz decay 0.09183s gain 0.0105 after_decay 0.09183s after_gain 0
+  mode m9 frequency 454.72hz decay 0.0839106s gain 0.00431953 after_decay 0.0839106s after_gain 0
 }

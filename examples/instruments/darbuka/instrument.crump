@@ -1,93 +1,181 @@
 crump-module 2
 instrument darbuka "Darbuka" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter upper-stroke "Upper stroke" ratio 0 1 0 0 modulatable
+  parameter lower-stroke "Lower stroke" ratio 0 1 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone zdoum-38-soft-0 asset darbuka-doum-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
-      zone zdoum-43-soft-0 asset darbuka-doum-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
-      zone zdoum-48-soft-0 asset darbuka-doum-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
-      zone zdoum-53-soft-0 asset darbuka-doum-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
-      zone zdoum-58-soft-0 asset darbuka-doum-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
-      zone zdoum-38-hard-0 asset darbuka-doum-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
-      zone zdoum-43-hard-0 asset darbuka-doum-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
-      zone zdoum-48-hard-0 asset darbuka-doum-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
-      zone zdoum-53-hard-0 asset darbuka-doum-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
-      zone zdoum-58-hard-0 asset darbuka-doum-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
-      zone zdoum-38-soft-1 asset darbuka-doum-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
-      zone zdoum-43-soft-1 asset darbuka-doum-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
-      zone zdoum-48-soft-1 asset darbuka-doum-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
-      zone zdoum-53-soft-1 asset darbuka-doum-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
-      zone zdoum-58-soft-1 asset darbuka-doum-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
-      zone zdoum-38-hard-1 asset darbuka-doum-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
-      zone zdoum-43-hard-1 asset darbuka-doum-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
-      zone zdoum-48-hard-1 asset darbuka-doum-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
-      zone zdoum-53-hard-1 asset darbuka-doum-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
-      zone zdoum-58-hard-1 asset darbuka-doum-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
-      zone ztek-63-soft-0 asset darbuka-tek-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
-      zone ztek-68-soft-0 asset darbuka-tek-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone ztek-73-soft-0 asset darbuka-tek-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
-      zone ztek-78-soft-0 asset darbuka-tek-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
-      zone ztek-83-soft-0 asset darbuka-tek-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
-      zone ztek-63-hard-0 asset darbuka-tek-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
-      zone ztek-68-hard-0 asset darbuka-tek-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone ztek-73-hard-0 asset darbuka-tek-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
-      zone ztek-78-hard-0 asset darbuka-tek-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
-      zone ztek-83-hard-0 asset darbuka-tek-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
-      zone ztek-63-soft-1 asset darbuka-tek-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
-      zone ztek-68-soft-1 asset darbuka-tek-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone ztek-73-soft-1 asset darbuka-tek-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
-      zone ztek-78-soft-1 asset darbuka-tek-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
-      zone ztek-83-soft-1 asset darbuka-tek-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
-      zone ztek-63-hard-1 asset darbuka-tek-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
-      zone ztek-68-hard-1 asset darbuka-tek-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone ztek-73-hard-1 asset darbuka-tek-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
-      zone ztek-78-hard-1 asset darbuka-tek-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
-      zone ztek-83-hard-1 asset darbuka-tek-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
-    }
+  modulation {
+    source key-step note_key per_voice unipolar reference C4 range 1st
+    route key-upper source key-step target upper-stroke depth 1 map unipolar curve linear order 0 bypass false
+    route key-lower source key-step target lower-stroke depth -1 map unipolar curve linear order 0 bypass false
+  }
+  graph voice 58 {
+    # Layers of simpler models, each peak-normalised.
+    node strike1 exciter kind impact contact 0.00252083s hardness 0 level 1
+    node body2 modal_bank profile darbuka-doum-l0-body max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain3 math operation scale amount 1.07716
+    node hiss4 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall5 math operation add
+    node fall5-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall5-leak math operation scale amount 0.997918835299
+    node rise6 math operation subtract
+    node fall7 math operation add
+    node fall7-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall7-leak math operation scale amount 0.95719322587
+    node gain8 math operation scale amount 1.22264
+    node times9 math operation multiply
+    node hi-10 lowpass mode highpass cutoff 400hz resonance 0.308309
+    node lo-11 lowpass mode lowpass cutoff 2500hz resonance 0.308309
+    node gain12 math operation scale amount 2.15856
+    node gain13 math operation scale amount 0.543477
+    node plus14 math operation add
+    node hi-15 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node gain16 math operation scale amount $lower-stroke
+    node strike17 exciter kind impact contact 0.000840278s hardness 0.1 level 1
+    node body18 modal_bank profile darbuka-tek-l0-body max_modes 1 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain19 math operation scale amount 0.0516292
+    node strike20 exciter kind impact contact 0.000336111s hardness 0.4 level 1
+    node body21 modal_bank profile darbuka-tek-l1-body max_modes 7 key_track 0 decay_scale 1 brightness 0 level 1
+    node hiss22 noise level 1
+    node fall23 math operation add
+    node fall23-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall23-leak math operation scale amount 0.989637398915
+    node times24 math operation multiply
+    node hi-25 lowpass mode highpass cutoff 2000hz resonance 0.308309
+    node lo-26 lowpass mode lowpass cutoff 12000hz resonance 0.308309
+    node gain27 math operation scale amount 1.15612
+    node plus28 math operation add
+    node gain29 math operation scale amount 0.296408
+    node hiss30 noise level 1
+    node fall31 math operation add
+    node fall31-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall31-leak math operation scale amount 0.99895887568
+    node rise32 math operation subtract
+    node fall33 math operation add
+    node fall33-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall33-leak math operation scale amount 0.958190821638
+    node gain34 math operation scale amount 1.12472
+    node times35 math operation multiply
+    node hi-36 lowpass mode highpass cutoff 300hz resonance 0.308309
+    node lo-37 lowpass mode lowpass cutoff 3000hz resonance 0.308309
+    node gain38 math operation scale amount 1.839
+    node gain39 math operation scale amount 0.543478
+    node mix40 sum max_inputs 3
+    node hi-41 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node gain42 math operation scale amount $upper-stroke
+    node plus43 math operation add
+    node trim math operation scale amount 0.189397
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-gain3-a body2.audio -> gain3.a
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall5-audio-fall5-previous-audio fall5.audio -> fall5-previous.audio
+    bus onset-audio-fall5-a onset.audio -> fall5.a
+    bus fall5-previous-audio-fall5-leak-a fall5-previous.audio -> fall5-leak.a
+    bus fall5-leak-audio-fall5-b fall5-leak.audio -> fall5.b
+    bus fall5-audio-rise6-a fall5.audio -> rise6.a
+    bus fall7-audio-fall7-previous-audio fall7.audio -> fall7-previous.audio
+    bus onset-audio-fall7-a onset.audio -> fall7.a
+    bus fall7-previous-audio-fall7-leak-a fall7-previous.audio -> fall7-leak.a
+    bus fall7-leak-audio-fall7-b fall7-leak.audio -> fall7.b
+    bus fall7-audio-rise6-b fall7.audio -> rise6.b
+    bus rise6-audio-gain8-a rise6.audio -> gain8.a
+    bus hiss4-audio-times9-a hiss4.audio -> times9.a
+    bus gain8-audio-times9-b gain8.audio -> times9.b
+    bus times9-audio-hi-10-audio times9.audio -> hi-10.audio
+    bus hi-10-audio-lo-11-audio hi-10.audio -> lo-11.audio
+    bus lo-11-audio-gain12-a lo-11.audio -> gain12.a
+    bus gain12-audio-gain13-a gain12.audio -> gain13.a
+    bus gain3-audio-plus14-a gain3.audio -> plus14.a
+    bus gain13-audio-plus14-b gain13.audio -> plus14.b
+    bus plus14-audio-hi-15-audio plus14.audio -> hi-15.audio
+    bus hi-15-audio-gain16-a hi-15.audio -> gain16.a
+    bus note-gate-strike17-gate note.gate -> strike17.gate
+    bus note-velocity-strike17-velocity note.velocity -> strike17.velocity
+    bus strike17-audio-body18-audio strike17.audio -> body18.audio
+    bus note-pitch-body18-pitch note.pitch -> body18.pitch
+    bus note-gate-body18-gate note.gate -> body18.gate
+    bus body18-audio-gain19-a body18.audio -> gain19.a
+    bus note-gate-strike20-gate note.gate -> strike20.gate
+    bus note-velocity-strike20-velocity note.velocity -> strike20.velocity
+    bus strike20-audio-body21-audio strike20.audio -> body21.audio
+    bus note-pitch-body21-pitch note.pitch -> body21.pitch
+    bus note-gate-body21-gate note.gate -> body21.gate
+    bus fall23-audio-fall23-previous-audio fall23.audio -> fall23-previous.audio
+    bus onset-audio-fall23-a onset.audio -> fall23.a
+    bus fall23-previous-audio-fall23-leak-a fall23-previous.audio -> fall23-leak.a
+    bus fall23-leak-audio-fall23-b fall23-leak.audio -> fall23.b
+    bus hiss22-audio-times24-a hiss22.audio -> times24.a
+    bus fall23-audio-times24-b fall23.audio -> times24.b
+    bus times24-audio-hi-25-audio times24.audio -> hi-25.audio
+    bus hi-25-audio-lo-26-audio hi-25.audio -> lo-26.audio
+    bus lo-26-audio-gain27-a lo-26.audio -> gain27.a
+    bus body21-audio-plus28-a body21.audio -> plus28.a
+    bus gain27-audio-plus28-b gain27.audio -> plus28.b
+    bus plus28-audio-gain29-a plus28.audio -> gain29.a
+    bus fall31-audio-fall31-previous-audio fall31.audio -> fall31-previous.audio
+    bus onset-audio-fall31-a onset.audio -> fall31.a
+    bus fall31-previous-audio-fall31-leak-a fall31-previous.audio -> fall31-leak.a
+    bus fall31-leak-audio-fall31-b fall31-leak.audio -> fall31.b
+    bus fall31-audio-rise32-a fall31.audio -> rise32.a
+    bus fall33-audio-fall33-previous-audio fall33.audio -> fall33-previous.audio
+    bus onset-audio-fall33-a onset.audio -> fall33.a
+    bus fall33-previous-audio-fall33-leak-a fall33-previous.audio -> fall33-leak.a
+    bus fall33-leak-audio-fall33-b fall33-leak.audio -> fall33.b
+    bus fall33-audio-rise32-b fall33.audio -> rise32.b
+    bus rise32-audio-gain34-a rise32.audio -> gain34.a
+    bus hiss30-audio-times35-a hiss30.audio -> times35.a
+    bus gain34-audio-times35-b gain34.audio -> times35.b
+    bus times35-audio-hi-36-audio times35.audio -> hi-36.audio
+    bus hi-36-audio-lo-37-audio hi-36.audio -> lo-37.audio
+    bus lo-37-audio-gain38-a lo-37.audio -> gain38.a
+    bus gain38-audio-gain39-a gain38.audio -> gain39.a
+    bus gain19-audio-mix40-inputs gain19.audio -> mix40.inputs
+    bus gain29-audio-mix40-inputs gain29.audio -> mix40.inputs
+    bus gain39-audio-mix40-inputs gain39.audio -> mix40.inputs
+    bus mix40-audio-hi-41-audio mix40.audio -> hi-41.audio
+    bus hi-41-audio-gain42-a hi-41.audio -> gain42.a
+    bus gain16-audio-plus43-a gain16.audio -> plus43.a
+    bus gain42-audio-plus43-b gain42.audio -> plus43.b
+    bus plus43-audio-trim-a plus43.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset darbuka-doum-60-soft-0 "Darbuka" wav "media/doum-60-soft-0.wav" sha256 "fe5a408f691a30cd1bb2ffaf9546bcc05e4f13c1ca29736b0326c03239d7c66d" {
-  usage multisample
+profile darbuka-doum-l0-body {
+  root 125hz
+  mode m0 frequency 125hz decay 0.17s gain 1 after_decay 0.17s after_gain 0
+  mode m1 frequency 200hz decay 0.05s gain 0.0280575 after_decay 0.05s after_gain 0
+  mode m2 frequency 287.5hz decay 0.04s gain 0.0174938 after_decay 0.04s after_gain 0
+  mode m3 frequency 425hz decay 0.03s gain 0.0122708 after_decay 0.03s after_gain 0
 }
-asset darbuka-doum-60-hard-0 "Darbuka" wav "media/doum-60-hard-0.wav" sha256 "ed74356d2ca8fe616d9a2fda4107e907dedba4c1ab5750ee05c63a55140c9cdb" {
-  usage multisample
+profile darbuka-tek-l0-body {
+  root 125hz
+  mode m0 frequency 125hz decay 0.08s gain 1 after_decay 0.08s after_gain 0
 }
-asset darbuka-doum-60-soft-1 "Darbuka" wav "media/doum-60-soft-1.wav" sha256 "6dd31a497eff84dd4f540e9d26a6980c0f8c7327325e49dc67f8b6c1183965a5" {
-  usage multisample
-}
-asset darbuka-doum-60-hard-1 "Darbuka" wav "media/doum-60-hard-1.wav" sha256 "205910947fe043a0b0273a76988f1114397be741d7d1aec803d5af0e67b3327b" {
-  usage multisample
-}
-asset darbuka-tek-60-soft-0 "Darbuka" wav "media/tek-60-soft-0.wav" sha256 "8189fbc2676a22aede198666ea7e38ef03cebfa6b5d5c9a2b4681b1ccb921878" {
-  usage multisample
-}
-asset darbuka-tek-60-hard-0 "Darbuka" wav "media/tek-60-hard-0.wav" sha256 "024d563c2d3bf8e909d91972dd29aa18d6e3ce4bff85912b0436cc9e1de78b4a" {
-  usage multisample
-}
-asset darbuka-tek-60-soft-1 "Darbuka" wav "media/tek-60-soft-1.wav" sha256 "bc2d229c5fc4638352c63029cf3b5549af7649f9ec405001aa8f00259d05d034" {
-  usage multisample
-}
-asset darbuka-tek-60-hard-1 "Darbuka" wav "media/tek-60-hard-1.wav" sha256 "1bbfe2ddfa48eb2f11d914f260b9d6a9e0679ee18a43488575a41eedae620cca" {
-  usage multisample
+profile darbuka-tek-l1-body {
+  root 730hz
+  mode m0 frequency 730hz decay 0.05s gain 0.7 after_decay 0.05s after_gain 0
+  mode m1 frequency 1073.1hz decay 0.0374526s gain 0.935248 after_decay 0.0374526s after_gain 0
+  mode m2 frequency 1387hz decay 0.0308962s gain 0.524814 after_decay 0.0308962s after_gain 0
+  mode m3 frequency 1511.1hz decay 0.0289729s gain 0.572637 after_decay 0.0289729s after_gain 0
+  mode m4 frequency 1679hz decay 0.0267716s gain 0.765082 after_decay 0.0267716s after_gain 0
+  mode m5 frequency 1971hz decay 0.0237382s gain 0.429325 after_decay 0.0237382s after_gain 0
+  mode m6 frequency 2263hz decay 0.0214017s gain 0.334605 after_decay 0.0214017s after_gain 0
 }

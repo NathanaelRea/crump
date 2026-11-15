@@ -1,100 +1,172 @@
 crump-module 2
 instrument bassoon "Bassoon" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
-  parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 0.215455s 0.215455s modulatable
   parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  parameter vibrato-depth "Vibrato" ratio 0 2 0.0172727 0.0172727 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z34-soft-0 asset bassoon-34-soft-0 keys A1 C2 velocity 0 0.65 root A#1 loop 48000 123639 crossfade 8160
-      zone z34-hard-0 asset bassoon-34-hard-0 keys A1 C2 velocity 0.65 1 root A#1 loop 48000 123639 crossfade 8160
-      zone z39-soft-0 asset bassoon-39-soft-0 keys C#2 F2 velocity 0 0.65 root D#2 loop 48000 124035 crossfade 8160
-      zone z39-hard-0 asset bassoon-39-hard-0 keys C#2 F2 velocity 0.65 1 root D#2 loop 48000 124035 crossfade 8160
-      zone z44-soft-0 asset bassoon-44-soft-0 keys F#2 B2 velocity 0 0.65 root G#2 loop 48000 125509 crossfade 8160
-      zone z44-hard-0 asset bassoon-44-hard-0 keys F#2 B2 velocity 0.65 1 root G#2 loop 48000 125509 crossfade 8160
-      zone z50-soft-0 asset bassoon-50-soft-0 keys C3 F3 velocity 0 0.65 root D3 loop 48000 125834 crossfade 8160
-      zone z50-hard-0 asset bassoon-50-hard-0 keys C3 F3 velocity 0.65 1 root D3 loop 48000 125833 crossfade 8160
-      zone z56-soft-0 asset bassoon-56-soft-0 keys F#3 B3 velocity 0 0.65 root G#3 loop 48000 123812 crossfade 8160
-      zone z56-hard-0 asset bassoon-56-hard-0 keys F#3 B3 velocity 0.65 1 root G#3 loop 48000 123812 crossfade 8160
-      zone z62-soft-0 asset bassoon-62-soft-0 keys C4 F4 velocity 0 0.65 root D4 loop 48000 125967 crossfade 8160
-      zone z62-hard-0 asset bassoon-62-hard-0 keys C4 F4 velocity 0.65 1 root D4 loop 48000 125966 crossfade 8160
-      zone z68-soft-0 asset bassoon-68-soft-0 keys F#4 B4 velocity 0 0.65 root G#4 loop 48000 125386 crossfade 8160
-      zone z68-hard-0 asset bassoon-68-hard-0 keys F#4 B4 velocity 0.65 1 root G#4 loop 48000 125962 crossfade 8160
-      zone z74-soft-0 asset bassoon-74-soft-0 keys C5 F5 velocity 0 0.65 root D5 loop 48000 123612 crossfade 8160
-      zone z74-hard-0 asset bassoon-74-hard-0 keys C5 F5 velocity 0.65 1 root D5 loop 48000 123611 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-level note_key per_voice bipolar reference C3 range 12st
+    route attack-velocity source velocity target attack depth -0.13636364s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.068181818 map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(2.203) order 0 bypass false
+    route key-gain-low source key-level target key-gain depth 0.0310399 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    route key-gain-high source key-level target key-gain depth -0.277832 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 53 {
+    # A blown, bowed or sung tone: a saw through a fixed resonator bank fitted to the body.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node vibrato lfo waveform sine rate 4.9hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-wait envelope mode ahdsr attack 0s hold 0.3s decay 0.4s sustain 0 release 0.4s
+    node vibrato-wait-audio to_audio
+    node vibrato-ramp math operation scale amount -1
+    node vibrato-in math operation offset amount 1
+    node times1 math operation multiply
+    node gain2 math operation scale amount $vibrato-depth
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain3 math operation scale amount 0.02
+    node plus4 math operation add
+    node reed analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 fm_depth 1st
+    node reed-mono stereo_to_mono
+    node velocity-tone lowpass mode lowpass cutoff 30hz resonance 0.308309 velocity_depth 21000hz
+    node breath noise level 1
+    node hi-5 lowpass mode highpass cutoff 400hz resonance 0.308309
+    node lo-6 lowpass mode lowpass cutoff 10000hz resonance 0.308309
+    node breath-comb-in math operation add
+    node breath-comb delay_line mode pitch ratio 1 interpolation linear max_time 0.05s
+    node gain7 math operation scale amount 0.7
+    node gain8 math operation scale amount 0.3
+    node gain9 math operation scale amount 0.4
+    node gain10 math operation scale amount 0.6
+    node plus11 math operation add
+    node breath-amp to_audio
+    node gain12 math operation scale amount 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall13 math operation add
+    node fall13-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall13-leak math operation scale amount 0.999998958334
+    node fall14 math operation add
+    node fall14-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall14-leak math operation scale amount 0.998264355199
+    node gain15 math operation scale amount -1
+    node plus16 math operation add
+    node gain17 math operation scale amount 44
+    node plus18 math operation add
+    node times19 math operation multiply
+    node gain20 math operation scale amount 0.000709524
+    node plus21 math operation add
+    node hi-22 lowpass mode highpass cutoff 800hz resonance 0.308309
+    node lo-23 lowpass mode lowpass cutoff 5000hz resonance 0.308309
+    node body24 modal_bank profile bassoon-body max_modes 14 key_track 0 decay_scale 1 brightness 0 level 1
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-25 lowpass mode highpass cutoff 20hz resonance 0.308309
+    node hi-26 lowpass mode highpass cutoff 180hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.0331201
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-wait-gate note.gate -> vibrato-wait.gate
+    bus vibrato-wait-control-vibrato-wait-audio-control vibrato-wait.control -> vibrato-wait-audio.control
+    bus vibrato-wait-audio-audio-vibrato-ramp-a vibrato-wait-audio.audio -> vibrato-ramp.a
+    bus vibrato-ramp-audio-vibrato-in-a vibrato-ramp.audio -> vibrato-in.a
+    bus vibrato-audio-audio-times1-a vibrato-audio.audio -> times1.a
+    bus vibrato-in-audio-times1-b vibrato-in.audio -> times1.b
+    bus times1-audio-gain2-a times1.audio -> gain2.a
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain3-a drift-audio.audio -> gain3.a
+    bus gain2-audio-plus4-a gain2.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus note-pitch-reed-pitch note.pitch -> reed.pitch
+    bus note-velocity-reed-velocity note.velocity -> reed.velocity
+    bus plus4-audio-reed-fm plus4.audio -> reed.fm
+    bus amplitude-control-reed-gain amplitude.control -> reed.gain
+    bus reed-audio-reed-mono-audio reed.audio -> reed-mono.audio
+    bus reed-mono-audio-velocity-tone-audio reed-mono.audio -> velocity-tone.audio
+    bus note-velocity-velocity-tone-velocity note.velocity -> velocity-tone.velocity
+    bus breath-audio-hi-5-audio breath.audio -> hi-5.audio
+    bus hi-5-audio-lo-6-audio hi-5.audio -> lo-6.audio
+    bus lo-6-audio-breath-comb-in-a lo-6.audio -> breath-comb-in.a
+    bus note-pitch-breath-comb-pitch note.pitch -> breath-comb.pitch
+    bus breath-comb-in-audio-breath-comb-audio breath-comb-in.audio -> breath-comb.audio
+    bus breath-comb-audio-gain7-a breath-comb.audio -> gain7.a
+    bus gain7-audio-breath-comb-in-b gain7.audio -> breath-comb-in.b
+    bus breath-comb-in-audio-gain8-a breath-comb-in.audio -> gain8.a
+    bus lo-6-audio-gain9-a lo-6.audio -> gain9.a
+    bus gain8-audio-gain10-a gain8.audio -> gain10.a
+    bus gain9-audio-plus11-a gain9.audio -> plus11.a
+    bus gain10-audio-plus11-b gain10.audio -> plus11.b
+    bus amplitude-control-breath-amp-control amplitude.control -> breath-amp.control
+    bus breath-amp-audio-gain12-a breath-amp.audio -> gain12.a
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall13-audio-fall13-previous-audio fall13.audio -> fall13-previous.audio
+    bus onset-audio-fall13-a onset.audio -> fall13.a
+    bus fall13-previous-audio-fall13-leak-a fall13-previous.audio -> fall13-leak.a
+    bus fall13-leak-audio-fall13-b fall13-leak.audio -> fall13.b
+    bus fall14-audio-fall14-previous-audio fall14.audio -> fall14-previous.audio
+    bus onset-audio-fall14-a onset.audio -> fall14.a
+    bus fall14-previous-audio-fall14-leak-a fall14-previous.audio -> fall14-leak.a
+    bus fall14-leak-audio-fall14-b fall14-leak.audio -> fall14.b
+    bus fall14-audio-gain15-a fall14.audio -> gain15.a
+    bus fall13-audio-plus16-a fall13.audio -> plus16.a
+    bus gain15-audio-plus16-b gain15.audio -> plus16.b
+    bus plus16-audio-gain17-a plus16.audio -> gain17.a
+    bus gain12-audio-plus18-a gain12.audio -> plus18.a
+    bus gain17-audio-plus18-b gain17.audio -> plus18.b
+    bus plus11-audio-times19-a plus11.audio -> times19.a
+    bus plus18-audio-times19-b plus18.audio -> times19.b
+    bus times19-audio-gain20-a times19.audio -> gain20.a
+    bus velocity-tone-audio-plus21-a velocity-tone.audio -> plus21.a
+    bus gain20-audio-plus21-b gain20.audio -> plus21.b
+    bus plus21-audio-hi-22-audio plus21.audio -> hi-22.audio
+    bus hi-22-audio-lo-23-audio hi-22.audio -> lo-23.audio
+    bus lo-23-audio-body24-audio lo-23.audio -> body24.audio
+    bus note-pitch-body24-pitch note.pitch -> body24.pitch
+    bus note-gate-body24-gate note.gate -> body24.gate
+    bus body24-audio-dynamics-gain-a body24.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-25-audio dynamics-gain.audio -> hi-25.audio
+    bus hi-25-audio-hi-26-audio hi-25.audio -> hi-26.audio
+    bus hi-26-audio-register-a hi-26.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset bassoon-34-soft-0 "Bassoon" wav "media/34-soft-0.wav" sha256 "a0a6744da896ac73f69eb8930a2eb8cdeb0f2b507c5e0ddd1537f55916a64bc7" {
-  usage multisample
-}
-asset bassoon-34-hard-0 "Bassoon" wav "media/34-hard-0.wav" sha256 "d2ab589e92eeed81810009cfd5cb0126c2317c5b2a8b4136b5b8ef061de3efd3" {
-  usage multisample
-}
-asset bassoon-39-soft-0 "Bassoon" wav "media/39-soft-0.wav" sha256 "24d48867e916545b0ee885a000e8d1a322703172e3a7fa31a23d38eee57f4f78" {
-  usage multisample
-}
-asset bassoon-39-hard-0 "Bassoon" wav "media/39-hard-0.wav" sha256 "266c8e85db78eacdc8988184424618551a7f310903a9832b6f48849678324643" {
-  usage multisample
-}
-asset bassoon-44-soft-0 "Bassoon" wav "media/44-soft-0.wav" sha256 "d92bbdc2838dbcf64800b0c5936789f05aa5e7e28087060db8907cd0c736bac9" {
-  usage multisample
-}
-asset bassoon-44-hard-0 "Bassoon" wav "media/44-hard-0.wav" sha256 "a4c6b8b01ec8a5f83cc860f3c5dbe1002ce952c5a35b8c1a184f2931362e986f" {
-  usage multisample
-}
-asset bassoon-50-soft-0 "Bassoon" wav "media/50-soft-0.wav" sha256 "632539de207ece0931a86a1816c88eed216096645e7c8331948ea85f0542cc6f" {
-  usage multisample
-}
-asset bassoon-50-hard-0 "Bassoon" wav "media/50-hard-0.wav" sha256 "6fe92b7ee955e9b44d124bbae0010a8e1a2fd39c2877d20a9aa6c50f1a87f724" {
-  usage multisample
-}
-asset bassoon-56-soft-0 "Bassoon" wav "media/56-soft-0.wav" sha256 "37c50bd577deed7606d14cffc945cd4f6c7aa00340703cf4a8d778111b36d556" {
-  usage multisample
-}
-asset bassoon-56-hard-0 "Bassoon" wav "media/56-hard-0.wav" sha256 "4a9f31cb5ca340d73c88c81d2031a59d8dd3539decc89adbd14462d4f125ecc2" {
-  usage multisample
-}
-asset bassoon-62-soft-0 "Bassoon" wav "media/62-soft-0.wav" sha256 "14d2eb690632ef5bbc6064d17b896d615f9563c2a1b81dba41dd7560beb79211" {
-  usage multisample
-}
-asset bassoon-62-hard-0 "Bassoon" wav "media/62-hard-0.wav" sha256 "ec7391bea468cd3857893f2b3507857f69a1d9f6389b25ebb55ce55596ff0d70" {
-  usage multisample
-}
-asset bassoon-68-soft-0 "Bassoon" wav "media/68-soft-0.wav" sha256 "61698fbcc701eb6e529e3b69608f005f8df6d6f3c072dc93bfffedd54e966884" {
-  usage multisample
-}
-asset bassoon-68-hard-0 "Bassoon" wav "media/68-hard-0.wav" sha256 "416f5167298355829a9092881b4a09eef3a62b9a6d18334a3a86ae73457056ba" {
-  usage multisample
-}
-asset bassoon-74-soft-0 "Bassoon" wav "media/74-soft-0.wav" sha256 "f6267456216001054b670403fd81e4ad9e2e427fa783f2fa5204d74c498ccac2" {
-  usage multisample
-}
-asset bassoon-74-hard-0 "Bassoon" wav "media/74-hard-0.wav" sha256 "65e92cab5fc0cbb00839c78b492dd459fbf49d45515c41d0baecff37783382fc" {
-  usage multisample
+profile bassoon-body {
+  root 261.626hz
+  mode m0 frequency 50hz decay 0.0159155s gain 0.213344 after_decay 0.0159155s after_gain 0
+  mode m1 frequency 77.1282hz decay 0.0103176s gain 0.217031 after_decay 0.0103176s after_gain 0
+  mode m2 frequency 118.975hz decay 0.00668859s gain 0.213224 after_decay 0.00668859s after_gain 0
+  mode m3 frequency 183.526hz decay 0.00433602s gain 0.221579 after_decay 0.00433602s after_gain 0
+  mode m4 frequency 283.101hz decay 0.00281092s gain 0.151694 after_decay 0.00281092s after_gain 0
+  mode m5 frequency 436.701hz decay 0.00182224s gain 1 after_decay 0.00182224s after_gain 0
+  mode m6 frequency 673.64hz decay 0.00118131s gain 0.283106 after_decay 0.00118131s after_gain 0
+  mode m7 frequency 1039.13hz decay 0.000765808s gain 0.60878 after_decay 0.000765808s after_gain 0
+  mode m8 frequency 1602.93hz decay 0.000496451s gain 0.586028 after_decay 0.000496451s after_gain 0
+  mode m9 frequency 2472.61hz decay 0.000321835s gain 0.613252 after_decay 0.000321835s after_gain 0
+  mode m10 frequency 3814.16hz decay 0.000208637s gain 0.0265379 after_decay 0.000208637s after_gain 0
+  mode m11 frequency 5883.59hz decay 0.000135253s gain 0.0857621 after_decay 0.000135253s after_gain 0
+  mode m12 frequency 9075.8hz decay 0.0001s gain 0.115984 after_decay 0.0001s after_gain 0
+  mode m13 frequency 14000hz decay 0.0001s gain 0.188971 after_decay 0.0001s after_gain 0
 }

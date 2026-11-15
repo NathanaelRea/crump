@@ -1517,6 +1517,46 @@ fn validate_primitive_inputs(
                     );
                 }
             }
+            NodeKind::Biquad => {
+                let mode = text(node, "mode", "lowpass");
+                if node.setting("gain").is_some()
+                    && !matches!(mode.as_str(), "peak" | "lowshelf" | "highshelf")
+                {
+                    error(
+                        node,
+                        format!(
+                            "biquad `{}` setting `gain` applies only to peak and shelf modes",
+                            node.id
+                        ),
+                    );
+                }
+                if connected(node, "key") != node.setting("key_track").is_some()
+                    && connected(node, "key")
+                {
+                    error(
+                        node,
+                        format!(
+                            "biquad `{}` reads `key` only with `key_track`; set how far its frequency follows the key",
+                            node.id
+                        ),
+                    );
+                }
+            }
+            NodeKind::OnePole => {
+                let leak = text(node, "mode", "lowpass") == "leak";
+                for (key, used) in [("cutoff", !leak), ("time", leak)] {
+                    if !used && node.setting(key).is_some() {
+                        error(
+                            node,
+                            format!(
+                                "onepole `{}` setting `{key}` applies only in {} mode",
+                                node.id,
+                                if leak { "lowpass and highpass" } else { "leak" }
+                            ),
+                        );
+                    }
+                }
+            }
             NodeKind::Shaper
                 if node.setting("asymmetry").is_some()
                     && text(node, "curve", "tanh") != "asymmetric" =>
@@ -2463,6 +2503,13 @@ fn setting_domain(kind: NodeKind, key: &str) -> Option<NumericDomain> {
             Some(NumericDomain::bounded(0.0, 1.0))
         }
         (NodeKind::DcBlock, "cutoff") => Some(NumericDomain::bounded(1.0, 500.0)),
+        (NodeKind::Biquad, "frequency" | "key_reference") | (NodeKind::OnePole, "cutoff") => {
+            Some(NumericDomain::bounded(1.0, 24_000.0))
+        }
+        (NodeKind::Biquad, "q") => Some(NumericDomain::bounded(0.05, 64.0)),
+        (NodeKind::Biquad, "gain") => Some(NumericDomain::bounded(-48.0, 48.0)),
+        (NodeKind::Biquad, "key_track") => Some(NumericDomain::bounded(0.0, 1.0)),
+        (NodeKind::OnePole, "time") => Some(NumericDomain::bounded(0.000_01, 60.0)),
         _ => None,
     }
 }
@@ -2622,7 +2669,9 @@ fn node_output(kind: NodeKind, port: &str) -> Option<SignalType> {
             | NodeKind::Shaper
             | NodeKind::ToAudio
             | NodeKind::DcBlock
-            | NodeKind::LinearPhaseLowpass,
+            | NodeKind::LinearPhaseLowpass
+            | NodeKind::Biquad
+            | NodeKind::OnePole,
             "audio",
         ) => Some(SignalType::AudioMono),
         (NodeKind::StereoMath, "audio") => Some(SignalType::AudioStereo),
@@ -2677,7 +2726,7 @@ fn node_input(kind: NodeKind, port: &str) -> Option<SignalType> {
             | NodeKind::MonoToStereo,
             "audio",
         ) => Some(SignalType::AudioMono),
-        (NodeKind::Lowpass | NodeKind::StereoFilter, "key") => Some(SignalType::Hertz),
+        (NodeKind::Lowpass | NodeKind::StereoFilter | NodeKind::Biquad, "key") => Some(SignalType::Hertz),
         (NodeKind::Lowpass | NodeKind::StereoFilter, "mod") => Some(SignalType::Control),
         (NodeKind::Lowpass | NodeKind::StereoFilter, "velocity") => Some(SignalType::Unipolar),
         (NodeKind::Amplifier, "gain") => Some(SignalType::Unipolar),
@@ -2694,7 +2743,9 @@ fn node_input(kind: NodeKind, port: &str) -> Option<SignalType> {
             | NodeKind::Shaper
             | NodeKind::ToControl
             | NodeKind::DcBlock
-            | NodeKind::LinearPhaseLowpass,
+            | NodeKind::LinearPhaseLowpass
+            | NodeKind::Biquad
+            | NodeKind::OnePole,
             "audio",
         )
         | (NodeKind::DelayLine, "time_mod")
@@ -2735,7 +2786,9 @@ const fn required_inputs(kind: NodeKind) -> &'static [&'static str] {
         | NodeKind::Shaper
         | NodeKind::ToControl
         | NodeKind::DcBlock
-        | NodeKind::LinearPhaseLowpass => &["audio"],
+        | NodeKind::LinearPhaseLowpass
+        | NodeKind::Biquad
+        | NodeKind::OnePole => &["audio"],
         NodeKind::Math | NodeKind::StereoMath => &["a"],
         NodeKind::ToAudio => &["control"],
     }
@@ -3541,6 +3594,49 @@ const fn setting_schema(kind: NodeKind) -> &'static [SettingSpec] {
             key: "amount",
             kind: Number(Unit::Ratio),
         }],
+        NodeKind::Biquad => &[
+            SettingSpec {
+                key: "mode",
+                kind: Text(&[
+                    "lowpass", "highpass", "bandpass", "notch", "peak", "lowshelf", "highshelf",
+                    "allpass",
+                ]),
+            },
+            SettingSpec {
+                key: "frequency",
+                kind: Number(Unit::Hertz),
+            },
+            SettingSpec {
+                key: "q",
+                kind: Number(Unit::Ratio),
+            },
+            SettingSpec {
+                key: "gain",
+                kind: Number(Unit::Decibels),
+            },
+            SettingSpec {
+                key: "key_track",
+                kind: Number(Unit::Ratio),
+            },
+            SettingSpec {
+                key: "key_reference",
+                kind: Number(Unit::Hertz),
+            },
+        ],
+        NodeKind::OnePole => &[
+            SettingSpec {
+                key: "mode",
+                kind: Text(&["lowpass", "highpass", "leak"]),
+            },
+            SettingSpec {
+                key: "cutoff",
+                kind: Number(Unit::Hertz),
+            },
+            SettingSpec {
+                key: "time",
+                kind: Number(Unit::Seconds),
+            },
+        ],
         NodeKind::Spectral => &[
             SettingSpec {
                 key: "asset",
@@ -3645,6 +3741,8 @@ const fn node_kind_name(kind: NodeKind) -> &'static str {
         NodeKind::ToControl => "to_control",
         NodeKind::DcBlock => "dc_block",
         NodeKind::LinearPhaseLowpass => "linear_phase_lowpass",
+        NodeKind::Biquad => "biquad",
+        NodeKind::OnePole => "onepole",
     }
 }
 

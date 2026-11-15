@@ -1,45 +1,82 @@
 crump-module 2
 instrument three-hands "Three Hands" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z60-soft-0 asset three-hands-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-0 asset three-hands-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
-      zone z60-soft-1 asset three-hands-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-1 asset three-hands-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
-    }
+  graph voice 26 {
+    # Hands clapping a few milliseconds apart: delayed noise bursts.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall1 math operation add
+    node fall1-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall1-leak math operation scale amount 0.999167013792
+    node fall2 math operation add
+    node fall2-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall2-leak math operation scale amount 0.948459047443
+    node gain3 math operation scale amount -1
+    node plus4 math operation add
+    node gain5 math operation scale amount 1.08577
+    node hand6 delay_line mode time time 0.00778249s interpolation linear max_time 0.0116737s
+    node hand7 delay_line mode time time 0.0147657s interpolation linear max_time 0.0221486s
+    node mix8 sum max_inputs 3
+    node hiss9 noise level 1
+    node times10 math operation multiply
+    node hi-11 lowpass mode highpass cutoff 650hz resonance 0.308309
+    node lo-12 lowpass mode lowpass cutoff 6800hz resonance 0.308309
+    node gain13 math operation scale amount 1
+    node body14 modal_bank profile three-hands-box max_modes 3 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain15 math operation scale amount 0.3
+    node plus16 math operation add
+    node hi-17 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.139199
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall1-audio-fall1-previous-audio fall1.audio -> fall1-previous.audio
+    bus onset-audio-fall1-a onset.audio -> fall1.a
+    bus fall1-previous-audio-fall1-leak-a fall1-previous.audio -> fall1-leak.a
+    bus fall1-leak-audio-fall1-b fall1-leak.audio -> fall1.b
+    bus fall2-audio-fall2-previous-audio fall2.audio -> fall2-previous.audio
+    bus onset-audio-fall2-a onset.audio -> fall2.a
+    bus fall2-previous-audio-fall2-leak-a fall2-previous.audio -> fall2-leak.a
+    bus fall2-leak-audio-fall2-b fall2-leak.audio -> fall2.b
+    bus fall2-audio-gain3-a fall2.audio -> gain3.a
+    bus fall1-audio-plus4-a fall1.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus plus4-audio-gain5-a plus4.audio -> gain5.a
+    bus gain5-audio-hand6-audio gain5.audio -> hand6.audio
+    bus gain5-audio-hand7-audio gain5.audio -> hand7.audio
+    bus gain5-audio-mix8-inputs gain5.audio -> mix8.inputs
+    bus hand6-audio-mix8-inputs hand6.audio -> mix8.inputs
+    bus hand7-audio-mix8-inputs hand7.audio -> mix8.inputs
+    bus hiss9-audio-times10-a hiss9.audio -> times10.a
+    bus mix8-audio-times10-b mix8.audio -> times10.b
+    bus times10-audio-hi-11-audio times10.audio -> hi-11.audio
+    bus hi-11-audio-lo-12-audio hi-11.audio -> lo-12.audio
+    bus lo-12-audio-gain13-a lo-12.audio -> gain13.a
+    bus gain13-audio-body14-audio gain13.audio -> body14.audio
+    bus note-pitch-body14-pitch note.pitch -> body14.pitch
+    bus note-gate-body14-gate note.gate -> body14.gate
+    bus body14-audio-gain15-a body14.audio -> gain15.a
+    bus gain13-audio-plus16-a gain13.audio -> plus16.a
+    bus gain15-audio-plus16-b gain15.audio -> plus16.b
+    bus plus16-audio-hi-17-audio plus16.audio -> hi-17.audio
+    bus hi-17-audio-trim-a hi-17.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset three-hands-60-soft-0 "Three Hands" wav "media/60-soft-0.wav" sha256 "d2ff23f577e3755056bcc3eede62f406355181166c240f7e96390eb2aa764302" {
-  usage multisample
-}
-asset three-hands-60-hard-0 "Three Hands" wav "media/60-hard-0.wav" sha256 "11a82298823233b58c0fdaf81614e35454cbd9d112734c053732777ef197be21" {
-  usage multisample
-}
-asset three-hands-60-soft-1 "Three Hands" wav "media/60-soft-1.wav" sha256 "7244f38a0b4b84584fad382e7f117b77f9cad6a8056a61f64722b5ebfda2a0d0" {
-  usage multisample
-}
-asset three-hands-60-hard-1 "Three Hands" wav "media/60-hard-1.wav" sha256 "522ba60a64299f9e8c0827002f6ac9ca6d1a92b75c5bdfa517b68953a3004c79" {
-  usage multisample
+profile three-hands-box {
+  root 261.626hz
+  mode m0 frequency 950hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 1510hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 2320hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }

@@ -1,100 +1,115 @@
 crump-module 2
 instrument contrabass "Contrabass" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
-  parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 0.992727s 0.992727s modulatable
   parameter release "Release" seconds 0.02s 4s 0.5s 0.5s
+  parameter vibrato-depth "Vibrato" ratio 0 2 0.00818182 0.00818182 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z28-soft-0 asset contrabass-28-soft-0 keys D1 F#1 velocity 0 0.65 root E1 loop 48000 123741 crossfade 8160
-      zone z28-hard-0 asset contrabass-28-hard-0 keys D1 F#1 velocity 0.65 1 root E1 loop 48000 123740 crossfade 8160
-      zone z33-soft-0 asset contrabass-33-soft-0 keys G1 B1 velocity 0 0.65 root A1 loop 48000 125948 crossfade 8160
-      zone z33-hard-0 asset contrabass-33-hard-0 keys G1 B1 velocity 0.65 1 root A1 loop 48000 125948 crossfade 8160
-      zone z38-soft-0 asset contrabass-38-soft-0 keys C2 E2 velocity 0 0.65 root D2 loop 48000 124119 crossfade 8160
-      zone z38-hard-0 asset contrabass-38-hard-0 keys C2 E2 velocity 0.65 1 root D2 loop 48000 124775 crossfade 8160
-      zone z43-soft-0 asset contrabass-43-soft-0 keys F2 A2 velocity 0 0.65 root G2 loop 48000 123744 crossfade 8160
-      zone z43-hard-0 asset contrabass-43-hard-0 keys F2 A2 velocity 0.65 1 root G2 loop 48000 123747 crossfade 8160
-      zone z48-soft-0 asset contrabass-48-soft-0 keys A#2 D3 velocity 0 0.65 root C3 loop 48000 125874 crossfade 8160
-      zone z48-hard-0 asset contrabass-48-hard-0 keys A#2 D3 velocity 0.65 1 root C3 loop 48000 125877 crossfade 8160
-      zone z53-soft-0 asset contrabass-53-soft-0 keys D#3 G#3 velocity 0 0.65 root F3 loop 48000 125721 crossfade 8160
-      zone z53-hard-0 asset contrabass-53-hard-0 keys D#3 G#3 velocity 0.65 1 root F3 loop 48000 125447 crossfade 8160
-      zone z59-soft-0 asset contrabass-59-soft-0 keys A3 C#4 velocity 0 0.65 root B3 loop 48000 125147 crossfade 8160
-      zone z59-hard-0 asset contrabass-59-hard-0 keys A3 C#4 velocity 0.65 1 root B3 loop 48000 124758 crossfade 8160
-      zone z64-soft-0 asset contrabass-64-soft-0 keys D4 G4 velocity 0 0.65 root E4 loop 48000 125918 crossfade 8160
-      zone z64-hard-0 asset contrabass-64-hard-0 keys D4 G4 velocity 0.65 1 root E4 loop 48000 125917 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-level note_key per_voice bipolar reference C2 range 12st
+    route attack-velocity source velocity target attack depth -0.81818182s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.045454545 map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(0.8057) order 0 bypass false
+    route key-gain-low source key-level target key-gain depth 0.18317 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    route key-gain-high source key-level target key-gain depth 0.173211 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 31 {
+    # A bowed string: a Helmholtz saw through a jagged body and the instrument's body curve.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node vibrato lfo waveform sine rate 4.9hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-wait envelope mode ahdsr attack 0s hold 0.35s decay 0.5s sustain 0 release 0.5s
+    node vibrato-wait-audio to_audio
+    node vibrato-ramp math operation scale amount -1
+    node vibrato-in math operation offset amount 1
+    node times1 math operation multiply
+    node gain2 math operation scale amount $vibrato-depth
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain3 math operation scale amount 0.008
+    node plus4 math operation add
+    node bow analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 fm_depth 1st
+    node bow-mono stereo_to_mono
+    node bow-hiss noise level 1
+    node hi-5 lowpass mode highpass cutoff 800hz resonance 0.308309
+    node bow-amp to_audio
+    node times6 math operation multiply
+    node gain7 math operation scale amount 4.37829
+    node plus8 math operation add
+    node hi-9 lowpass mode highpass cutoff 100hz resonance 0.308309
+    node lo-10 lowpass mode lowpass cutoff 5000hz resonance 0.308309
+    node body11 modal_bank profile contrabass-body-curve max_modes 10 key_track 0 decay_scale 1 brightness 0 level 1
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-12 lowpass mode highpass cutoff 20hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.00782427
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-wait-gate note.gate -> vibrato-wait.gate
+    bus vibrato-wait-control-vibrato-wait-audio-control vibrato-wait.control -> vibrato-wait-audio.control
+    bus vibrato-wait-audio-audio-vibrato-ramp-a vibrato-wait-audio.audio -> vibrato-ramp.a
+    bus vibrato-ramp-audio-vibrato-in-a vibrato-ramp.audio -> vibrato-in.a
+    bus vibrato-audio-audio-times1-a vibrato-audio.audio -> times1.a
+    bus vibrato-in-audio-times1-b vibrato-in.audio -> times1.b
+    bus times1-audio-gain2-a times1.audio -> gain2.a
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain3-a drift-audio.audio -> gain3.a
+    bus gain2-audio-plus4-a gain2.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus note-pitch-bow-pitch note.pitch -> bow.pitch
+    bus note-velocity-bow-velocity note.velocity -> bow.velocity
+    bus plus4-audio-bow-fm plus4.audio -> bow.fm
+    bus amplitude-control-bow-gain amplitude.control -> bow.gain
+    bus bow-audio-bow-mono-audio bow.audio -> bow-mono.audio
+    bus bow-hiss-audio-hi-5-audio bow-hiss.audio -> hi-5.audio
+    bus amplitude-control-bow-amp-control amplitude.control -> bow-amp.control
+    bus hi-5-audio-times6-a hi-5.audio -> times6.a
+    bus bow-amp-audio-times6-b bow-amp.audio -> times6.b
+    bus times6-audio-gain7-a times6.audio -> gain7.a
+    bus bow-mono-audio-plus8-a bow-mono.audio -> plus8.a
+    bus gain7-audio-plus8-b gain7.audio -> plus8.b
+    bus plus8-audio-hi-9-audio plus8.audio -> hi-9.audio
+    bus hi-9-audio-lo-10-audio hi-9.audio -> lo-10.audio
+    bus lo-10-audio-body11-audio lo-10.audio -> body11.audio
+    bus note-pitch-body11-pitch note.pitch -> body11.pitch
+    bus note-gate-body11-gate note.gate -> body11.gate
+    bus body11-audio-dynamics-gain-a body11.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-12-audio dynamics-gain.audio -> hi-12.audio
+    bus hi-12-audio-register-a hi-12.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset contrabass-28-soft-0 "Contrabass" wav "media/28-soft-0.wav" sha256 "6278b0dea85190c49dd859ffd4fae38f44df52df05c030f090d25426659178a2" {
-  usage multisample
-}
-asset contrabass-28-hard-0 "Contrabass" wav "media/28-hard-0.wav" sha256 "fe8521b4ea8762f135a149eb03ca574e58b2a00b3ea126745e028ee4f7503897" {
-  usage multisample
-}
-asset contrabass-33-soft-0 "Contrabass" wav "media/33-soft-0.wav" sha256 "65a8bc9dc94103ea54a7313df6e2233a85c4c35b761bd60f99df0ff12ef35e35" {
-  usage multisample
-}
-asset contrabass-33-hard-0 "Contrabass" wav "media/33-hard-0.wav" sha256 "60f4365dc4d6b91770655ce0fb91f2567aa1af4eafec3bbeebbe0133346224c7" {
-  usage multisample
-}
-asset contrabass-38-soft-0 "Contrabass" wav "media/38-soft-0.wav" sha256 "d4e992771ff3284cf11dd5d5b0f8f16d233e2b062f487fe8537ec5a17d732184" {
-  usage multisample
-}
-asset contrabass-38-hard-0 "Contrabass" wav "media/38-hard-0.wav" sha256 "b47c85e63fc87f8e8d6837c1018c43ef2fd77f82029e506c8e7deeea3f097af8" {
-  usage multisample
-}
-asset contrabass-43-soft-0 "Contrabass" wav "media/43-soft-0.wav" sha256 "e4f06be414e237b3aecf30619819f3eefc61e2251d2b1c9440a547fb89772f64" {
-  usage multisample
-}
-asset contrabass-43-hard-0 "Contrabass" wav "media/43-hard-0.wav" sha256 "1adcb9c8b91ef5b7dddecffb6c7eb1d5c810767278df4617133769fb9030e1dd" {
-  usage multisample
-}
-asset contrabass-48-soft-0 "Contrabass" wav "media/48-soft-0.wav" sha256 "917f672f07d0eb97cab210921b75973a16160545890902af94f1d1e595395dd3" {
-  usage multisample
-}
-asset contrabass-48-hard-0 "Contrabass" wav "media/48-hard-0.wav" sha256 "55091a65f7704babed2826d70e9d0eba7ec735bb73cd0fc9f6c0b00e4915e948" {
-  usage multisample
-}
-asset contrabass-53-soft-0 "Contrabass" wav "media/53-soft-0.wav" sha256 "b47e389138f3a177804df336dd5443c6695532c1556d5c45a5627c7fd11d385c" {
-  usage multisample
-}
-asset contrabass-53-hard-0 "Contrabass" wav "media/53-hard-0.wav" sha256 "eb2bbedf484f99506e763165a040af77d9e533d2b1a0b721c6cfed7e22ba7106" {
-  usage multisample
-}
-asset contrabass-59-soft-0 "Contrabass" wav "media/59-soft-0.wav" sha256 "f0c702a0298b61048c52268b4618d5ce482d71e3f6367ee36fe66bd515d4dcd9" {
-  usage multisample
-}
-asset contrabass-59-hard-0 "Contrabass" wav "media/59-hard-0.wav" sha256 "65e0f3b5b4ef8bfe93c41cac9ab490c9fab6ac3d6b96d4db4c89960ad9d5d706" {
-  usage multisample
-}
-asset contrabass-64-soft-0 "Contrabass" wav "media/64-soft-0.wav" sha256 "dc506b4e064b1e6972192af9a9ca95e6311c84ddfc6d643a476aa105652c986d" {
-  usage multisample
-}
-asset contrabass-64-hard-0 "Contrabass" wav "media/64-hard-0.wav" sha256 "614e5e527eb8444ccf7f694c25b23a5da43eae1d9ecb742a58d42cb62d08e7a5" {
-  usage multisample
+profile contrabass-body-curve {
+  root 261.626hz
+  mode m0 frequency 77.1282hz decay 0.0103176s gain 0.18751 after_decay 0.0103176s after_gain 0
+  mode m1 frequency 118.975hz decay 0.00668859s gain 0.191882 after_decay 0.00668859s after_gain 0
+  mode m2 frequency 183.526hz decay 0.00433602s gain 0.0481529 after_decay 0.00433602s after_gain 0
+  mode m3 frequency 436.701hz decay 0.00182224s gain 0.0769826 after_decay 0.00182224s after_gain 0
+  mode m4 frequency 673.64hz decay 0.00118131s gain 0.0348614 after_decay 0.00118131s after_gain 0
+  mode m5 frequency 1039.13hz decay 0.000765808s gain 0.167486 after_decay 0.000765808s after_gain 0
+  mode m6 frequency 1602.93hz decay 0.000496451s gain 0.0797955 after_decay 0.000496451s after_gain 0
+  mode m7 frequency 2472.61hz decay 0.000321835s gain 0.0225114 after_decay 0.000321835s after_gain 0
+  mode m8 frequency 3814.16hz decay 0.000208637s gain 0.0388155 after_decay 0.000208637s after_gain 0
+  mode m9 frequency 14000hz decay 0.0001s gain 1 after_decay 0.0001s after_gain 0
 }

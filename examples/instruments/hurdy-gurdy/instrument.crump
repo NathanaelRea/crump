@@ -1,84 +1,119 @@
 crump-module 2
 instrument hurdy-gurdy "Hurdy-Gurdy" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
-  parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 0.245455s 0.245455s modulatable
   parameter release "Release" seconds 0.02s 4s 0.25s 0.25s
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z55-soft-0 asset hurdy-gurdy-55-soft-0 keys G3 A#3 velocity 0 0.65 root G3 loop 48000 125715 crossfade 8160
-      zone z55-hard-0 asset hurdy-gurdy-55-hard-0 keys G3 A#3 velocity 0.65 1 root G3 loop 48000 125716 crossfade 8160
-      zone z61-soft-0 asset hurdy-gurdy-61-soft-0 keys B3 E4 velocity 0 0.65 root C#4 loop 48000 124041 crossfade 8160
-      zone z61-hard-0 asset hurdy-gurdy-61-hard-0 keys B3 E4 velocity 0.65 1 root C#4 loop 48000 124039 crossfade 8160
-      zone z67-soft-0 asset hurdy-gurdy-67-soft-0 keys F4 A#4 velocity 0 0.65 root G4 loop 48000 125737 crossfade 8160
-      zone z67-hard-0 asset hurdy-gurdy-67-hard-0 keys F4 A#4 velocity 0.65 1 root G4 loop 48000 125740 crossfade 8160
-      zone z73-soft-0 asset hurdy-gurdy-73-soft-0 keys B4 E5 velocity 0 0.65 root C#5 loop 48000 123606 crossfade 8160
-      zone z73-hard-0 asset hurdy-gurdy-73-hard-0 keys B4 E5 velocity 0.65 1 root C#5 loop 48000 125514 crossfade 8160
-      zone z79-soft-0 asset hurdy-gurdy-79-soft-0 keys F5 A5 velocity 0 0.65 root G5 loop 48000 125309 crossfade 8160
-      zone z79-hard-0 asset hurdy-gurdy-79-hard-0 keys F5 A5 velocity 0.65 1 root G5 loop 48000 125310 crossfade 8160
-      zone z84-soft-0 asset hurdy-gurdy-84-soft-0 keys A#5 D6 velocity 0 0.65 root C6 loop 48000 123681 crossfade 8160
-      zone z84-hard-0 asset hurdy-gurdy-84-hard-0 keys A#5 D6 velocity 0.65 1 root C6 loop 48000 125971 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-level note_key per_voice bipolar reference G4 range 12st
+    route attack-velocity source velocity target attack depth -0.13636364s map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(1.092) order 0 bypass false
+    route key-gain-low source key-level target key-gain depth -0.134213 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    route key-gain-high source key-level target key-gain depth 0.04328 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 31 {
+    # A wheel-bowed melody string over drones, through the body.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain1 math operation scale amount 0.008
+    node bow analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 fm_depth 1st
+    node bow-mono stereo_to_mono
+    node drone1 analog_oscillator waveform saw coarse -12st level 0.565685 velocity_amount 0
+    node drone1-mono stereo_to_mono
+    node drone2 analog_oscillator waveform saw coarse -17st level 0.424264 velocity_amount 0
+    node drone2-mono stereo_to_mono
+    node mix2 sum max_inputs 3
+    node bow-hiss noise level 1
+    node hi-3 lowpass mode highpass cutoff 2000hz resonance 0.308309
+    node bow-amp to_audio
+    node times4 math operation multiply
+    node gain5 math operation scale amount 0.0743974
+    node plus6 math operation add
+    node hi-7 lowpass mode highpass cutoff 200hz resonance 0.308309
+    node body8 modal_bank profile hurdy-gurdy-body-curve max_modes 11 key_track 0 decay_scale 1 brightness 0 level 1
+    node shape9 shaper curve hard_clip drive 12 bias 0
+    node hi-10 lowpass mode highpass cutoff 2000hz resonance 0.308309
+    node lo-11 lowpass mode lowpass cutoff 6000hz resonance 0.308309
+    node gain12 math operation scale amount 0.0075
+    node plus13 math operation add
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-14 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.0122502
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain1-a drift-audio.audio -> gain1.a
+    bus note-pitch-bow-pitch note.pitch -> bow.pitch
+    bus note-velocity-bow-velocity note.velocity -> bow.velocity
+    bus gain1-audio-bow-fm gain1.audio -> bow.fm
+    bus amplitude-control-bow-gain amplitude.control -> bow.gain
+    bus bow-audio-bow-mono-audio bow.audio -> bow-mono.audio
+    bus note-pitch-drone1-pitch note.pitch -> drone1.pitch
+    bus note-velocity-drone1-velocity note.velocity -> drone1.velocity
+    bus amplitude-control-drone1-gain amplitude.control -> drone1.gain
+    bus drone1-audio-drone1-mono-audio drone1.audio -> drone1-mono.audio
+    bus note-pitch-drone2-pitch note.pitch -> drone2.pitch
+    bus note-velocity-drone2-velocity note.velocity -> drone2.velocity
+    bus amplitude-control-drone2-gain amplitude.control -> drone2.gain
+    bus drone2-audio-drone2-mono-audio drone2.audio -> drone2-mono.audio
+    bus bow-mono-audio-mix2-inputs bow-mono.audio -> mix2.inputs
+    bus drone1-mono-audio-mix2-inputs drone1-mono.audio -> mix2.inputs
+    bus drone2-mono-audio-mix2-inputs drone2-mono.audio -> mix2.inputs
+    bus bow-hiss-audio-hi-3-audio bow-hiss.audio -> hi-3.audio
+    bus amplitude-control-bow-amp-control amplitude.control -> bow-amp.control
+    bus hi-3-audio-times4-a hi-3.audio -> times4.a
+    bus bow-amp-audio-times4-b bow-amp.audio -> times4.b
+    bus times4-audio-gain5-a times4.audio -> gain5.a
+    bus mix2-audio-plus6-a mix2.audio -> plus6.a
+    bus gain5-audio-plus6-b gain5.audio -> plus6.b
+    bus plus6-audio-hi-7-audio plus6.audio -> hi-7.audio
+    bus hi-7-audio-body8-audio hi-7.audio -> body8.audio
+    bus note-pitch-body8-pitch note.pitch -> body8.pitch
+    bus note-gate-body8-gate note.gate -> body8.gate
+    bus body8-audio-shape9-audio body8.audio -> shape9.audio
+    bus shape9-audio-hi-10-audio shape9.audio -> hi-10.audio
+    bus hi-10-audio-lo-11-audio hi-10.audio -> lo-11.audio
+    bus lo-11-audio-gain12-a lo-11.audio -> gain12.a
+    bus body8-audio-plus13-a body8.audio -> plus13.a
+    bus gain12-audio-plus13-b gain12.audio -> plus13.b
+    bus plus13-audio-dynamics-gain-a plus13.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-14-audio dynamics-gain.audio -> hi-14.audio
+    bus hi-14-audio-register-a hi-14.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset hurdy-gurdy-55-soft-0 "Hurdy-Gurdy" wav "media/55-soft-0.wav" sha256 "9bbf3627082d4044c854a7d5bd91c7e1d9e45d4de69da0a9534ef983c18e23be" {
-  usage multisample
-}
-asset hurdy-gurdy-55-hard-0 "Hurdy-Gurdy" wav "media/55-hard-0.wav" sha256 "72abffbc98cbf64709650c66a1a333bfa6d9c70d4ddf8669b5d8bc23d5b8f462" {
-  usage multisample
-}
-asset hurdy-gurdy-61-soft-0 "Hurdy-Gurdy" wav "media/61-soft-0.wav" sha256 "e93703a9e729e3e9fd5d2d8f2668fad7103db3f4fc9193dcf356052cba4b217c" {
-  usage multisample
-}
-asset hurdy-gurdy-61-hard-0 "Hurdy-Gurdy" wav "media/61-hard-0.wav" sha256 "994a4720c86e6af470dbc3fbac786ee9addac08f2dcf37e658081e9142324def" {
-  usage multisample
-}
-asset hurdy-gurdy-67-soft-0 "Hurdy-Gurdy" wav "media/67-soft-0.wav" sha256 "99430e621431eced96f8fbc5f6555d039f48902cf51975626f5e1b0de7ac0c2c" {
-  usage multisample
-}
-asset hurdy-gurdy-67-hard-0 "Hurdy-Gurdy" wav "media/67-hard-0.wav" sha256 "3d0f6e751d993e6973c44c2ae6ddb71903838a9688ae37cd07853556732d98c4" {
-  usage multisample
-}
-asset hurdy-gurdy-73-soft-0 "Hurdy-Gurdy" wav "media/73-soft-0.wav" sha256 "1e856ac5a57d0a6b316040aa5eee27bcb18995b789abb72795702f6c339a9244" {
-  usage multisample
-}
-asset hurdy-gurdy-73-hard-0 "Hurdy-Gurdy" wav "media/73-hard-0.wav" sha256 "34975b3d5e4658b813b3c618540148585a3732f698c915a5e58dd67461cd3e89" {
-  usage multisample
-}
-asset hurdy-gurdy-79-soft-0 "Hurdy-Gurdy" wav "media/79-soft-0.wav" sha256 "116ed1ceecf3013de521dae1fa4695ae91852d4ae9351428c846179757950311" {
-  usage multisample
-}
-asset hurdy-gurdy-79-hard-0 "Hurdy-Gurdy" wav "media/79-hard-0.wav" sha256 "4926379a52606bed36e9a61e6e3b9edd04b9580885871b670b9006eaf2c77138" {
-  usage multisample
-}
-asset hurdy-gurdy-84-soft-0 "Hurdy-Gurdy" wav "media/84-soft-0.wav" sha256 "5be8dd793559ecb8448339c47c5efb4df2df223f7075a6b901f08d44a0869fc2" {
-  usage multisample
-}
-asset hurdy-gurdy-84-hard-0 "Hurdy-Gurdy" wav "media/84-hard-0.wav" sha256 "6de4d04f8e2e61d1f371fe2b29e7a76269cbc1e791a961d6fad97b3415038581" {
-  usage multisample
+profile hurdy-gurdy-body-curve {
+  root 261.626hz
+  mode m0 frequency 50hz decay 0.0159155s gain 0.092228 after_decay 0.0159155s after_gain 0
+  mode m1 frequency 77.1282hz decay 0.0103176s gain 0.0465045 after_decay 0.0103176s after_gain 0
+  mode m2 frequency 118.975hz decay 0.00668859s gain 0.0293705 after_decay 0.00668859s after_gain 0
+  mode m3 frequency 183.526hz decay 0.00433602s gain 0.0230114 after_decay 0.00433602s after_gain 0
+  mode m4 frequency 283.101hz decay 0.00281092s gain 0.00324183 after_decay 0.00281092s after_gain 0
+  mode m5 frequency 1602.93hz decay 0.000496451s gain 0.517484 after_decay 0.000496451s after_gain 0
+  mode m6 frequency 2472.61hz decay 0.000321835s gain 0.937523 after_decay 0.000321835s after_gain 0
+  mode m7 frequency 3814.16hz decay 0.000208637s gain 1 after_decay 0.000208637s after_gain 0
+  mode m8 frequency 5883.59hz decay 0.000135253s gain 0.654837 after_decay 0.000135253s after_gain 0
+  mode m9 frequency 9075.8hz decay 0.0001s gain 0.440845 after_decay 0.0001s after_gain 0
+  mode m10 frequency 14000hz decay 0.0001s gain 0.571716 after_decay 0.0001s after_gain 0
 }

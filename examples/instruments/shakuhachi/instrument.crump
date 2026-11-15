@@ -1,84 +1,178 @@
 crump-module 2
 instrument shakuhachi "Shakuhachi" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
-  parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 0.129273s 0.129273s modulatable
   parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
+  parameter vibrato-depth "Vibrato" ratio 0 2 0 0 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z52-soft-0 asset shakuhachi-52-soft-0 keys E3 G3 velocity 0 0.65 root E3 loop 48000 125463 crossfade 8160
-      zone z52-hard-0 asset shakuhachi-52-hard-0 keys E3 G3 velocity 0.65 1 root E3 loop 48000 124881 crossfade 8160
-      zone z58-soft-0 asset shakuhachi-58-soft-0 keys G#3 C#4 velocity 0 0.65 root A#3 loop 48000 123894 crossfade 8160
-      zone z58-hard-0 asset shakuhachi-58-hard-0 keys G#3 C#4 velocity 0.65 1 root A#3 loop 48000 124101 crossfade 8160
-      zone z64-soft-0 asset shakuhachi-64-soft-0 keys D4 G4 velocity 0 0.65 root E4 loop 48000 125914 crossfade 8160
-      zone z64-hard-0 asset shakuhachi-64-hard-0 keys D4 G4 velocity 0.65 1 root E4 loop 48000 125905 crossfade 8160
-      zone z70-soft-0 asset shakuhachi-70-soft-0 keys G#4 C#5 velocity 0 0.65 root A#4 loop 48000 123608 crossfade 8160
-      zone z70-hard-0 asset shakuhachi-70-hard-0 keys G#4 C#5 velocity 0.65 1 root A#4 loop 48000 123698 crossfade 8160
-      zone z76-soft-0 asset shakuhachi-76-soft-0 keys D5 G5 velocity 0 0.65 root E5 loop 48000 123822 crossfade 8160
-      zone z76-hard-0 asset shakuhachi-76-hard-0 keys D5 G5 velocity 0.65 1 root E5 loop 48000 123600 crossfade 8160
-      zone z82-soft-0 asset shakuhachi-82-soft-0 keys G#5 C6 velocity 0 0.65 root A#5 loop 48000 125972 crossfade 8160
-      zone z82-hard-0 asset shakuhachi-82-hard-0 keys G#5 C6 velocity 0.65 1 root A#5 loop 48000 125970 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-level note_key per_voice bipolar reference D4 range 12st
+    route attack-velocity source velocity target attack depth -0.081818182s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.19565217 map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(1.508) order 0 bypass false
+    route key-gain-low source key-level target key-gain depth 0.30179 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    route key-gain-high source key-level target key-gain depth 0.363852 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 53 {
+    # A blown, bowed or sung tone: a saw through a fixed resonator bank fitted to the body.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node vibrato lfo waveform sine rate 4.5hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-wait envelope mode ahdsr attack 0s hold 0.5s decay 0.6s sustain 0 release 0.6s
+    node vibrato-wait-audio to_audio
+    node vibrato-ramp math operation scale amount -1
+    node vibrato-in math operation offset amount 1
+    node times1 math operation multiply
+    node gain2 math operation scale amount $vibrato-depth
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain3 math operation scale amount 0.02
+    node plus4 math operation add
+    node reed analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 fm_depth 1st
+    node reed-mono stereo_to_mono
+    node velocity-tone lowpass mode lowpass cutoff 30hz resonance 0.308309 velocity_depth 21000hz
+    node breath noise level 1
+    node hi-5 lowpass mode highpass cutoff 800hz resonance 0.308309
+    node lo-6 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node breath-comb-in math operation add
+    node breath-comb delay_line mode pitch ratio 1 interpolation linear max_time 0.05s
+    node gain7 math operation scale amount 0.7
+    node gain8 math operation scale amount 0.3
+    node gain9 math operation scale amount 0.45
+    node gain10 math operation scale amount 0.55
+    node plus11 math operation add
+    node breath-amp to_audio
+    node gain12 math operation scale amount 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall13 math operation add
+    node fall13-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall13-leak math operation scale amount 0.999995000012
+    node fall14 math operation add
+    node fall14-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall14-leak math operation scale amount 0.998260403744
+    node gain15 math operation scale amount -1
+    node plus16 math operation add
+    node gain17 math operation scale amount 9.16667
+    node plus18 math operation add
+    node times19 math operation multiply
+    node gain20 math operation scale amount 0.0684724
+    node plus21 math operation add
+    node body22 modal_bank profile shakuhachi-body max_modes 7 key_track 0 decay_scale 1 brightness 0 level 1
+    node body23 modal_bank profile shakuhachi-body-between max_modes 7 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain24 math operation scale amount -1
+    node plus25 math operation add
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-26 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.00803849
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-wait-gate note.gate -> vibrato-wait.gate
+    bus vibrato-wait-control-vibrato-wait-audio-control vibrato-wait.control -> vibrato-wait-audio.control
+    bus vibrato-wait-audio-audio-vibrato-ramp-a vibrato-wait-audio.audio -> vibrato-ramp.a
+    bus vibrato-ramp-audio-vibrato-in-a vibrato-ramp.audio -> vibrato-in.a
+    bus vibrato-audio-audio-times1-a vibrato-audio.audio -> times1.a
+    bus vibrato-in-audio-times1-b vibrato-in.audio -> times1.b
+    bus times1-audio-gain2-a times1.audio -> gain2.a
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain3-a drift-audio.audio -> gain3.a
+    bus gain2-audio-plus4-a gain2.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus note-pitch-reed-pitch note.pitch -> reed.pitch
+    bus note-velocity-reed-velocity note.velocity -> reed.velocity
+    bus plus4-audio-reed-fm plus4.audio -> reed.fm
+    bus amplitude-control-reed-gain amplitude.control -> reed.gain
+    bus reed-audio-reed-mono-audio reed.audio -> reed-mono.audio
+    bus reed-mono-audio-velocity-tone-audio reed-mono.audio -> velocity-tone.audio
+    bus note-velocity-velocity-tone-velocity note.velocity -> velocity-tone.velocity
+    bus breath-audio-hi-5-audio breath.audio -> hi-5.audio
+    bus hi-5-audio-lo-6-audio hi-5.audio -> lo-6.audio
+    bus lo-6-audio-breath-comb-in-a lo-6.audio -> breath-comb-in.a
+    bus note-pitch-breath-comb-pitch note.pitch -> breath-comb.pitch
+    bus breath-comb-in-audio-breath-comb-audio breath-comb-in.audio -> breath-comb.audio
+    bus breath-comb-audio-gain7-a breath-comb.audio -> gain7.a
+    bus gain7-audio-breath-comb-in-b gain7.audio -> breath-comb-in.b
+    bus breath-comb-in-audio-gain8-a breath-comb-in.audio -> gain8.a
+    bus lo-6-audio-gain9-a lo-6.audio -> gain9.a
+    bus gain8-audio-gain10-a gain8.audio -> gain10.a
+    bus gain9-audio-plus11-a gain9.audio -> plus11.a
+    bus gain10-audio-plus11-b gain10.audio -> plus11.b
+    bus amplitude-control-breath-amp-control amplitude.control -> breath-amp.control
+    bus breath-amp-audio-gain12-a breath-amp.audio -> gain12.a
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall13-audio-fall13-previous-audio fall13.audio -> fall13-previous.audio
+    bus onset-audio-fall13-a onset.audio -> fall13.a
+    bus fall13-previous-audio-fall13-leak-a fall13-previous.audio -> fall13-leak.a
+    bus fall13-leak-audio-fall13-b fall13-leak.audio -> fall13.b
+    bus fall14-audio-fall14-previous-audio fall14.audio -> fall14-previous.audio
+    bus onset-audio-fall14-a onset.audio -> fall14.a
+    bus fall14-previous-audio-fall14-leak-a fall14-previous.audio -> fall14-leak.a
+    bus fall14-leak-audio-fall14-b fall14-leak.audio -> fall14.b
+    bus fall14-audio-gain15-a fall14.audio -> gain15.a
+    bus fall13-audio-plus16-a fall13.audio -> plus16.a
+    bus gain15-audio-plus16-b gain15.audio -> plus16.b
+    bus plus16-audio-gain17-a plus16.audio -> gain17.a
+    bus gain12-audio-plus18-a gain12.audio -> plus18.a
+    bus gain17-audio-plus18-b gain17.audio -> plus18.b
+    bus plus11-audio-times19-a plus11.audio -> times19.a
+    bus plus18-audio-times19-b plus18.audio -> times19.b
+    bus times19-audio-gain20-a times19.audio -> gain20.a
+    bus velocity-tone-audio-plus21-a velocity-tone.audio -> plus21.a
+    bus gain20-audio-plus21-b gain20.audio -> plus21.b
+    bus plus21-audio-body22-audio plus21.audio -> body22.audio
+    bus note-pitch-body22-pitch note.pitch -> body22.pitch
+    bus note-gate-body22-gate note.gate -> body22.gate
+    bus plus21-audio-body23-audio plus21.audio -> body23.audio
+    bus note-pitch-body23-pitch note.pitch -> body23.pitch
+    bus note-gate-body23-gate note.gate -> body23.gate
+    bus body23-audio-gain24-a body23.audio -> gain24.a
+    bus body22-audio-plus25-a body22.audio -> plus25.a
+    bus gain24-audio-plus25-b gain24.audio -> plus25.b
+    bus plus25-audio-dynamics-gain-a plus25.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-26-audio dynamics-gain.audio -> hi-26.audio
+    bus hi-26-audio-register-a hi-26.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset shakuhachi-52-soft-0 "Shakuhachi" wav "media/52-soft-0.wav" sha256 "831671995c655bf19282b82216b6f1cef16c5e38a685e2fa3ecf3212bf207d2d" {
-  usage multisample
+profile shakuhachi-body {
+  root 261.626hz
+  mode m0 frequency 50hz decay 0.0159155s gain 0.253491 after_decay 0.0159155s after_gain 0
+  mode m1 frequency 118.975hz decay 0.00668859s gain 0.375939 after_decay 0.00668859s after_gain 0
+  mode m2 frequency 283.101hz decay 0.00281092s gain 0.508899 after_decay 0.00281092s after_gain 0
+  mode m3 frequency 673.64hz decay 0.00118131s gain 0.763237 after_decay 0.00118131s after_gain 0
+  mode m4 frequency 1602.93hz decay 0.000496451s gain 0.960406 after_decay 0.000496451s after_gain 0
+  mode m5 frequency 3814.16hz decay 0.000208637s gain 0.187333 after_decay 0.000208637s after_gain 0
+  mode m6 frequency 9075.8hz decay 0.0001s gain 0.14896 after_decay 0.0001s after_gain 0
 }
-asset shakuhachi-52-hard-0 "Shakuhachi" wav "media/52-hard-0.wav" sha256 "25e8d6dd6bfd66e62719a2c91c8c8e7075bfeddc22b71ec4e7cc539c7301e8f3" {
-  usage multisample
-}
-asset shakuhachi-58-soft-0 "Shakuhachi" wav "media/58-soft-0.wav" sha256 "4aa27e8717a189cb12b4e1ab64428b3379ae185683df2d4f5b2ec5e71c111efb" {
-  usage multisample
-}
-asset shakuhachi-58-hard-0 "Shakuhachi" wav "media/58-hard-0.wav" sha256 "7b75fafae4301918b8549ea1a0ff96875099f68e6577c4386620844fe91f6d16" {
-  usage multisample
-}
-asset shakuhachi-64-soft-0 "Shakuhachi" wav "media/64-soft-0.wav" sha256 "79130ee75ab393c9c8317c25fb74732a7da8494f199266ba1c027ec5e84ff661" {
-  usage multisample
-}
-asset shakuhachi-64-hard-0 "Shakuhachi" wav "media/64-hard-0.wav" sha256 "8517f89891377dd20e0fa9eb32b018431774d0cc49282f05b8890bd1bc7a3318" {
-  usage multisample
-}
-asset shakuhachi-70-soft-0 "Shakuhachi" wav "media/70-soft-0.wav" sha256 "a0956f31a8c9c0890a4dab0ad917595ef134ab67a3f34f8851e0f9fa91e492fd" {
-  usage multisample
-}
-asset shakuhachi-70-hard-0 "Shakuhachi" wav "media/70-hard-0.wav" sha256 "c66d6bb7b15bc49c802e2cc990c5ddb03399d94bb5c4e3cac9d083a0e3bd188d" {
-  usage multisample
-}
-asset shakuhachi-76-soft-0 "Shakuhachi" wav "media/76-soft-0.wav" sha256 "a1d6b2a7ee665d01f40c94347ae1f7987bf700b82ac57097d1a2e092b9d6bf16" {
-  usage multisample
-}
-asset shakuhachi-76-hard-0 "Shakuhachi" wav "media/76-hard-0.wav" sha256 "0630a1fb3ada9f925e55694c6c5fe2874191d063a48ea20f0e7fccd505c42860" {
-  usage multisample
-}
-asset shakuhachi-82-soft-0 "Shakuhachi" wav "media/82-soft-0.wav" sha256 "636b188220f0cceae701fd7eb00ea9f0de1eebfef2bf8690e4aa962a28020683" {
-  usage multisample
-}
-asset shakuhachi-82-hard-0 "Shakuhachi" wav "media/82-hard-0.wav" sha256 "247ab92b3445e70965856e4fc791abeeb3777ca98f1dadd0fbfbe6a7cc35d1af" {
-  usage multisample
+profile shakuhachi-body-between {
+  root 261.626hz
+  mode m0 frequency 77.1282hz decay 0.0103176s gain 0.308631 after_decay 0.0103176s after_gain 0
+  mode m1 frequency 183.526hz decay 0.00433602s gain 0.41636 after_decay 0.00433602s after_gain 0
+  mode m2 frequency 436.701hz decay 0.00182224s gain 0.595111 after_decay 0.00182224s after_gain 0
+  mode m3 frequency 1039.13hz decay 0.000765808s gain 1 after_decay 0.000765808s after_gain 0
+  mode m4 frequency 2472.61hz decay 0.000321835s gain 0.571017 after_decay 0.000321835s after_gain 0
+  mode m5 frequency 5883.59hz decay 0.000135253s gain 0.113461 after_decay 0.000135253s after_gain 0
+  mode m6 frequency 14000hz decay 0.0001s gain 0.178165 after_decay 0.0001s after_gain 0
 }

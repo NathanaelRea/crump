@@ -1,69 +1,79 @@
 crump-module 2
 instrument slit-drum "Slit Drum" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter ring "Ring" ratio 0.1 4 1.1487 1.1487 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "Decay time of the body" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z42-soft-0 asset slit-drum-42-soft-0 keys E2 A2 velocity 0 0.65 root F#2
-      zone z42-hard-0 asset slit-drum-42-hard-0 keys E2 A2 velocity 0.65 1 root F#2
-      zone z48-soft-0 asset slit-drum-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset slit-drum-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
-      zone z54-soft-0 asset slit-drum-54-soft-0 keys E3 A3 velocity 0 0.65 root F#3
-      zone z54-hard-0 asset slit-drum-54-hard-0 keys E3 A3 velocity 0.65 1 root F#3
-      zone z60-soft-0 asset slit-drum-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
-      zone z60-hard-0 asset slit-drum-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
-      zone z66-soft-0 asset slit-drum-66-soft-0 keys E4 A4 velocity 0 0.65 root F#4
-      zone z66-hard-0 asset slit-drum-66-hard-0 keys E4 A4 velocity 0.65 1 root F#4
+  modulation {
+    source key-range note_key per_voice bipolar reference F#3 range 14st
+    source key-level note_key per_voice bipolar reference E3 range 12st
+    route ring-key source key-range target ring depth -0.371568 map bipolar curve linear order 0 bypass false
+    route key-gain-low source key-level target key-gain depth 0.0615422 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth 0.374989 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 18 {
+    # A strike on a tuned body with explicit mode ratios, plus a contact tick.
+    node strike1 exciter kind impact contact 0.00252083s hardness 0 level 1
+    node body2 modal_bank profile slit-drum-body max_modes 7 key_track 1 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.989637398915
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 2000hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 12000hz resonance 0.308309
+    node gain8 math operation scale amount 0.301473
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.247508
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus onset-audio-fall4-a onset.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-register-a hi-10.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset slit-drum-42-soft-0 "Slit Drum" wav "media/42-soft-0.wav" sha256 "6130d4d6df1c980cce9000d1dbadaadda6e38fe59ef7368938b2326c0fbfde5c" {
-  usage multisample
-}
-asset slit-drum-42-hard-0 "Slit Drum" wav "media/42-hard-0.wav" sha256 "c5cf1630c178e61edd4a58eb5fac3f65f0ff969e3a9cfdf36e64f18ab92586d1" {
-  usage multisample
-}
-asset slit-drum-48-soft-0 "Slit Drum" wav "media/48-soft-0.wav" sha256 "b4e5d0108212352146d5613ab519602baa9022933a4a95cccac4e92b19ac8324" {
-  usage multisample
-}
-asset slit-drum-48-hard-0 "Slit Drum" wav "media/48-hard-0.wav" sha256 "3fd6c3c405e9587029d895cdb425d809c6e81ce862934a0dfb21e623e84e4d4f" {
-  usage multisample
-}
-asset slit-drum-54-soft-0 "Slit Drum" wav "media/54-soft-0.wav" sha256 "ff8a02f36b9aa5759fcddf544c59f015bac8396b4ac1a0b1e29f84408260d96e" {
-  usage multisample
-}
-asset slit-drum-54-hard-0 "Slit Drum" wav "media/54-hard-0.wav" sha256 "8467520437c83d82519eef83c20fb914be540f05ba433c5cc69ddcb02ae1f490" {
-  usage multisample
-}
-asset slit-drum-60-soft-0 "Slit Drum" wav "media/60-soft-0.wav" sha256 "02bbe401541bf7e7cfc2706b45e8abc211079ad6369df76b20555f7442d1f841" {
-  usage multisample
-}
-asset slit-drum-60-hard-0 "Slit Drum" wav "media/60-hard-0.wav" sha256 "6be22e4bc5e22f5de36701f065b755fe3884d785b021732360c6a2b4c0cf8491" {
-  usage multisample
-}
-asset slit-drum-66-soft-0 "Slit Drum" wav "media/66-soft-0.wav" sha256 "4b4e56f6387d7dfddba77e84cbe00d54f26f7ec9dce81a9f348a1567382b7749" {
-  usage multisample
-}
-asset slit-drum-66-hard-0 "Slit Drum" wav "media/66-hard-0.wav" sha256 "5bfd413281275c9159888b91fcb954d371a4a74026c6b362701edfe533d2965b" {
-  usage multisample
+profile slit-drum-body {
+  root 261.626hz
+  mode m0 frequency 261.626hz decay 0.15s gain 1 after_decay 0.15s after_gain 0
+  mode m1 frequency 379.357hz decay 0.08s gain 0.140287 after_decay 0.08s after_gain 0
+  mode m2 frequency 439.531hz decay 0.08s gain 0.174938 after_decay 0.08s after_gain 0
+  mode m3 frequency 523.251hz decay 0.07s gain 0.122708 after_decay 0.07s after_gain 0
+  mode m4 frequency 771.795hz decay 0.05s gain 0.0765082 after_decay 0.05s after_gain 0
+  mode m5 frequency 1020.34hz decay 0.04s gain 0.0572433 after_decay 0.04s after_gain 0
+  mode m6 frequency 1438.94hz decay 0.03s gain 0.0401526 after_decay 0.03s after_gain 0
 }

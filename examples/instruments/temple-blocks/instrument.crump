@@ -1,61 +1,72 @@
 crump-module 2
 instrument temple-blocks "Temple Blocks" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z62-soft-0 asset temple-blocks-62-soft-0 keys C4 F4 velocity 0 0.65 root D4
-      zone z62-hard-0 asset temple-blocks-62-hard-0 keys C4 F4 velocity 0.65 1 root D4
-      zone z68-soft-0 asset temple-blocks-68-soft-0 keys F#4 B4 velocity 0 0.65 root G#4
-      zone z68-hard-0 asset temple-blocks-68-hard-0 keys F#4 B4 velocity 0.65 1 root G#4
-      zone z74-soft-0 asset temple-blocks-74-soft-0 keys C5 F5 velocity 0 0.65 root D5
-      zone z74-hard-0 asset temple-blocks-74-hard-0 keys C5 F5 velocity 0.65 1 root D5
-      zone z80-soft-0 asset temple-blocks-80-soft-0 keys F#5 C6 velocity 0 0.65 root G#5
-      zone z80-hard-0 asset temple-blocks-80-hard-0 keys F#5 C6 velocity 0.65 1 root G#5
+  modulation {
+    source key-level note_key per_voice bipolar reference C5 range 12st
+    route key-gain-low source key-level target key-gain depth 0.036031 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth -0.0272016 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 17 {
+    # A strike on a tuned body with explicit mode ratios, plus a contact tick.
+    node strike1 exciter kind impact contact 0.000420139s hardness $hardness level 1
+    node body2 modal_bank profile temple-blocks-body max_modes 3 key_track 1 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.989637398915
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 1500hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 8000hz resonance 0.308309
+    node gain8 math operation scale amount 0.526443
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.186524
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus strike1-audio-fall4-a strike1.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-register-a hi-10.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset temple-blocks-62-soft-0 "Temple Blocks" wav "media/62-soft-0.wav" sha256 "0ddbdcc63d5df1ba9beceb0acffcef384fce59aa6a18684aa56e6a308aa7a0fa" {
-  usage multisample
-}
-asset temple-blocks-62-hard-0 "Temple Blocks" wav "media/62-hard-0.wav" sha256 "30fe3a5b4fb604e63a5e0eb69240a7018e0afbdc22a22c57a484ce2952095bfa" {
-  usage multisample
-}
-asset temple-blocks-68-soft-0 "Temple Blocks" wav "media/68-soft-0.wav" sha256 "370c2721774efeedf82e1624bbffba6573c7744d1f2f1080b2ccde49423cebac" {
-  usage multisample
-}
-asset temple-blocks-68-hard-0 "Temple Blocks" wav "media/68-hard-0.wav" sha256 "3637ca4d5efd99200f1334826a957c7c88ad8e3481f9694bfcf71e8df91b56bc" {
-  usage multisample
-}
-asset temple-blocks-74-soft-0 "Temple Blocks" wav "media/74-soft-0.wav" sha256 "e17e28ca5afbb40a5aa2a94b35dc8ed61d40fa2790a53de03b24fbf5292108ec" {
-  usage multisample
-}
-asset temple-blocks-74-hard-0 "Temple Blocks" wav "media/74-hard-0.wav" sha256 "e95b088c6f51529c8c9e540419dda7c06037c8761696b75787553c22c5e7b277" {
-  usage multisample
-}
-asset temple-blocks-80-soft-0 "Temple Blocks" wav "media/80-soft-0.wav" sha256 "bce3e0e57cb75c910cbd9347501459178fb1b0510836b4f9e437a9fb60dd0197" {
-  usage multisample
-}
-asset temple-blocks-80-hard-0 "Temple Blocks" wav "media/80-hard-0.wav" sha256 "697e190bdf2fcb752e7f066e3aa1201ecb3d2bd0a419b46f58caaa0b81a05e0b" {
-  usage multisample
+profile temple-blocks-body {
+  root 261.626hz
+  mode m0 frequency 261.626hz decay 0.09s gain 1 after_decay 0.09s after_gain 0
+  mode m1 frequency 640.983hz decay 0.04s gain 0.233812 after_decay 0.04s after_gain 0
+  mode m2 frequency 1072.66hz decay 0.02s gain 0.0699752 after_decay 0.02s after_gain 0
 }

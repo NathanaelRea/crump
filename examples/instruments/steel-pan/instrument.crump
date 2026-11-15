@@ -1,77 +1,83 @@
 crump-module 2
 instrument steel-pan "Steel Pan" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter ring "Ring" ratio 0.1 4 0.6674 0.6674 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter hardness "Hardness" ratio 0 1 0.1 0.1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control ring "Ring" "Decay time of the body" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z62-soft-0 asset steel-pan-62-soft-0 keys C4 E4 velocity 0 0.65 root D4
-      zone z62-hard-0 asset steel-pan-62-hard-0 keys C4 E4 velocity 0.65 1 root D4
-      zone z67-soft-0 asset steel-pan-67-soft-0 keys F4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset steel-pan-67-hard-0 keys F4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset steel-pan-72-soft-0 keys A#4 D5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset steel-pan-72-hard-0 keys A#4 D5 velocity 0.65 1 root C5
-      zone z77-soft-0 asset steel-pan-77-soft-0 keys D#5 G5 velocity 0 0.65 root F5
-      zone z77-hard-0 asset steel-pan-77-hard-0 keys D#5 G5 velocity 0.65 1 root F5
-      zone z82-soft-0 asset steel-pan-82-soft-0 keys G#5 C6 velocity 0 0.65 root A#5
-      zone z82-hard-0 asset steel-pan-82-hard-0 keys G#5 C6 velocity 0.65 1 root A#5
-      zone z87-soft-0 asset steel-pan-87-soft-0 keys C#6 F6 velocity 0 0.65 root D#6
-      zone z87-hard-0 asset steel-pan-87-hard-0 keys C#6 F6 velocity 0.65 1 root D#6
+  modulation {
+    source key-range note_key per_voice bipolar reference D5 range 14st
+    source key-level note_key per_voice bipolar reference C5 range 12st
+    route ring-key source key-range target ring depth -0.269862 map bipolar curve linear order 0 bypass false
+    route key-gain-low source key-level target key-gain depth 0.0573723 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth 0.375209 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 17 {
+    # A strike on a tuned body with explicit mode ratios, plus a contact tick.
+    node strike1 exciter kind impact contact 0.000336111s hardness $hardness level 1
+    node body2 modal_bank profile steel-pan-body max_modes 12 key_track 1 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.989637398915
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 2000hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 12000hz resonance 0.308309
+    node gain8 math operation scale amount 0.427252
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.137169
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus strike1-audio-fall4-a strike1.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-register-a hi-10.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset steel-pan-62-soft-0 "Steel Pan" wav "media/62-soft-0.wav" sha256 "6071f8b30ba30cb39159ed38ace8b29bc8601fe250893d83bd3fba55000c32d1" {
-  usage multisample
-}
-asset steel-pan-62-hard-0 "Steel Pan" wav "media/62-hard-0.wav" sha256 "8657471e38f5279f37da8c92b2e38c4c0c466446be8338d8e02ec4ef44a20c3a" {
-  usage multisample
-}
-asset steel-pan-67-soft-0 "Steel Pan" wav "media/67-soft-0.wav" sha256 "0626b938e85f9c82ec7bda7084a813fe9c008f0d5da5bb9f0a810ed97ee73088" {
-  usage multisample
-}
-asset steel-pan-67-hard-0 "Steel Pan" wav "media/67-hard-0.wav" sha256 "7eeccf67d8eab93e4af5129af79ba4e676a375ba6d6b4a145bfc83925f9f20a1" {
-  usage multisample
-}
-asset steel-pan-72-soft-0 "Steel Pan" wav "media/72-soft-0.wav" sha256 "a54111cdc28cbaef28765a327f9b7884a12abaa12da95b1e724cecf54d22f7ee" {
-  usage multisample
-}
-asset steel-pan-72-hard-0 "Steel Pan" wav "media/72-hard-0.wav" sha256 "f2b7ae31567d42898484c0bb0d1015583fb41376c5961fcfeba92f9774b85522" {
-  usage multisample
-}
-asset steel-pan-77-soft-0 "Steel Pan" wav "media/77-soft-0.wav" sha256 "43bddfe14c3f15c552bcca1c11a67e64eb3c08286e664cb87bed23b3a561195c" {
-  usage multisample
-}
-asset steel-pan-77-hard-0 "Steel Pan" wav "media/77-hard-0.wav" sha256 "298dc08a6fe56b78b161585300d18ea377473e79da91711c25d3e6864e5f471f" {
-  usage multisample
-}
-asset steel-pan-82-soft-0 "Steel Pan" wav "media/82-soft-0.wav" sha256 "fae58f06e8da8279296c6b9850eeb469635e58fe7192cf37093f04a19373ab1f" {
-  usage multisample
-}
-asset steel-pan-82-hard-0 "Steel Pan" wav "media/82-hard-0.wav" sha256 "1335f33576c09cdffe0aae215c1ea56a7f74ec9c190e5f7b656cb2f955f46ca2" {
-  usage multisample
-}
-asset steel-pan-87-soft-0 "Steel Pan" wav "media/87-soft-0.wav" sha256 "04adffe0a37672aeaf7d41cc01acac0b39907de40dc2aaa83a9f8d4e0e1a433f" {
-  usage multisample
-}
-asset steel-pan-87-hard-0 "Steel Pan" wav "media/87-hard-0.wav" sha256 "8611ce7fba564435b2f3143b14e214dd8b6434156abdd471a41258d00fc25e95" {
-  usage multisample
+profile steel-pan-body {
+  root 261.626hz
+  mode m0 frequency 261.416hz decay 0.25s gain 0.325 after_decay 0.25s after_gain 0
+  mode m1 frequency 522.833hz decay 0.18s gain 0.607911 after_decay 0.18s after_gain 0
+  mode m2 frequency 784.249hz decay 0.09s gain 0.170564 after_decay 0.09s after_gain 0
+  mode m3 frequency 1045.67hz decay 0.09s gain 0.425387 after_decay 0.09s after_gain 0
+  mode m4 frequency 1568.5hz decay 0.05s gain 0.149191 after_decay 0.05s after_gain 0
+  mode m5 frequency 2091.33hz decay 0.04s gain 0.0930204 after_decay 0.04s after_gain 0
+  mode m6 frequency 261.835hz decay 0.25s gain 0.175 after_decay 0.25s after_gain 0
+  mode m7 frequency 523.67hz decay 0.18s gain 0.327337 after_decay 0.18s after_gain 0
+  mode m8 frequency 785.505hz decay 0.09s gain 0.0918424 after_decay 0.09s after_gain 0
+  mode m9 frequency 1047.34hz decay 0.09s gain 0.229055 after_decay 0.09s after_gain 0
+  mode m10 frequency 1571.01hz decay 0.05s gain 0.0803336 after_decay 0.05s after_gain 0
+  mode m11 frequency 2094.68hz decay 0.04s gain 0.0500879 after_decay 0.04s after_gain 0
 }

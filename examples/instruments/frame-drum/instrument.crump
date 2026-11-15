@@ -1,93 +1,117 @@
 crump-module 2
 instrument frame-drum "Frame Drum" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter upper-stroke "Upper stroke" ratio 0 1 0 0 modulatable
+  parameter lower-stroke "Lower stroke" ratio 0 1 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone zbass-38-soft-0 asset frame-drum-bass-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
-      zone zbass-43-soft-0 asset frame-drum-bass-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
-      zone zbass-48-soft-0 asset frame-drum-bass-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
-      zone zbass-53-soft-0 asset frame-drum-bass-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
-      zone zbass-58-soft-0 asset frame-drum-bass-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
-      zone zbass-38-hard-0 asset frame-drum-bass-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
-      zone zbass-43-hard-0 asset frame-drum-bass-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
-      zone zbass-48-hard-0 asset frame-drum-bass-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
-      zone zbass-53-hard-0 asset frame-drum-bass-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
-      zone zbass-58-hard-0 asset frame-drum-bass-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
-      zone zbass-38-soft-1 asset frame-drum-bass-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
-      zone zbass-43-soft-1 asset frame-drum-bass-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
-      zone zbass-48-soft-1 asset frame-drum-bass-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
-      zone zbass-53-soft-1 asset frame-drum-bass-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
-      zone zbass-58-soft-1 asset frame-drum-bass-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
-      zone zbass-38-hard-1 asset frame-drum-bass-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
-      zone zbass-43-hard-1 asset frame-drum-bass-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
-      zone zbass-48-hard-1 asset frame-drum-bass-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
-      zone zbass-53-hard-1 asset frame-drum-bass-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
-      zone zbass-58-hard-1 asset frame-drum-bass-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
-      zone zrim-63-soft-0 asset frame-drum-rim-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
-      zone zrim-68-soft-0 asset frame-drum-rim-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone zrim-73-soft-0 asset frame-drum-rim-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
-      zone zrim-78-soft-0 asset frame-drum-rim-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
-      zone zrim-83-soft-0 asset frame-drum-rim-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
-      zone zrim-63-hard-0 asset frame-drum-rim-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
-      zone zrim-68-hard-0 asset frame-drum-rim-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone zrim-73-hard-0 asset frame-drum-rim-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
-      zone zrim-78-hard-0 asset frame-drum-rim-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
-      zone zrim-83-hard-0 asset frame-drum-rim-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
-      zone zrim-63-soft-1 asset frame-drum-rim-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
-      zone zrim-68-soft-1 asset frame-drum-rim-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone zrim-73-soft-1 asset frame-drum-rim-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
-      zone zrim-78-soft-1 asset frame-drum-rim-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
-      zone zrim-83-soft-1 asset frame-drum-rim-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
-      zone zrim-63-hard-1 asset frame-drum-rim-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
-      zone zrim-68-hard-1 asset frame-drum-rim-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone zrim-73-hard-1 asset frame-drum-rim-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
-      zone zrim-78-hard-1 asset frame-drum-rim-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
-      zone zrim-83-hard-1 asset frame-drum-rim-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
-    }
+  modulation {
+    source key-step note_key per_voice unipolar reference C4 range 1st
+    route key-upper source key-step target upper-stroke depth 1 map unipolar curve linear order 0 bypass false
+    route key-lower source key-step target lower-stroke depth -1 map unipolar curve linear order 0 bypass false
+  }
+  graph voice 29 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.0050069s hardness 0 level 1
+    node body2 modal_bank profile frame-drum-bass-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.997687862303
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 0.034641
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node gain11 math operation scale amount $lower-stroke
+    node strike12 exciter kind impact contact 0.000667586s hardness 0.427 level 1
+    node body13 modal_bank profile frame-drum-rim-head max_modes 10 key_track 0 decay_scale 1 brightness 0 level 1
+    node hiss14 noise level 1
+    node times15 math operation multiply
+    node hi-16 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-17 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain18 math operation scale amount 0.173205
+    node plus19 math operation add
+    node hi-20 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node gain21 math operation scale amount $upper-stroke
+    node plus22 math operation add
+    node trim math operation scale amount 0.166625
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus onset-audio-fall4-a onset.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-gain11-a hi-10.audio -> gain11.a
+    bus note-gate-strike12-gate note.gate -> strike12.gate
+    bus note-velocity-strike12-velocity note.velocity -> strike12.velocity
+    bus strike12-audio-body13-audio strike12.audio -> body13.audio
+    bus note-pitch-body13-pitch note.pitch -> body13.pitch
+    bus note-gate-body13-gate note.gate -> body13.gate
+    bus hiss14-audio-times15-a hiss14.audio -> times15.a
+    bus fall4-audio-times15-b fall4.audio -> times15.b
+    bus times15-audio-hi-16-audio times15.audio -> hi-16.audio
+    bus hi-16-audio-lo-17-audio hi-16.audio -> lo-17.audio
+    bus lo-17-audio-gain18-a lo-17.audio -> gain18.a
+    bus body13-audio-plus19-a body13.audio -> plus19.a
+    bus gain18-audio-plus19-b gain18.audio -> plus19.b
+    bus plus19-audio-hi-20-audio plus19.audio -> hi-20.audio
+    bus hi-20-audio-gain21-a hi-20.audio -> gain21.a
+    bus gain11-audio-plus22-a gain11.audio -> plus22.a
+    bus gain21-audio-plus22-b gain21.audio -> plus22.b
+    bus plus22-audio-trim-a plus22.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset frame-drum-bass-60-soft-0 "Frame Drum" wav "media/bass-60-soft-0.wav" sha256 "ee0dc96a9353caf2b6681e30ea4d68257cf3ac2b3eec3893f4e35146338325cb" {
-  usage multisample
+profile frame-drum-bass-head {
+  root 75hz
+  mode m0 frequency 75hz decay 0.18s gain 1 after_decay 0.18s after_gain 0
+  mode m1 frequency 119.475hz decay 0.126944s gain 0.437968 after_decay 0.126944s after_gain 0
+  mode m2 frequency 160.2hz decay 0.101876s gain 0.1497 after_decay 0.101876s after_gain 0
+  mode m3 frequency 172.2hz decay 0.0965036s gain 0.066974 after_decay 0.0965036s after_gain 0
+  mode m4 frequency 198.975hz decay 0.0865904s gain 0.0373503 after_decay 0.0865904s after_gain 0
+  mode m5 frequency 218.85hz decay 0.0806229s gain 0.0228664 after_decay 0.0806229s after_gain 0
+  mode m6 frequency 236.7hz decay 0.0760186s gain 0.0124252 after_decay 0.0760186s after_gain 0
+  mode m7 frequency 262.575hz decay 0.070328s gain 0.00526631 after_decay 0.070328s after_gain 0
+  mode m8 frequency 270hz decay 0.0688725s gain 0.0031001 after_decay 0.0688725s after_gain 0
+  mode m9 frequency 304.5hz decay 0.0629329s gain 0.00109496 after_decay 0.0629329s after_gain 0
 }
-asset frame-drum-bass-60-hard-0 "Frame Drum" wav "media/bass-60-hard-0.wav" sha256 "e601c55d994721c20ecf83b4c7a1b11e776641b461d5e83dbd9d741f097a0cd0" {
-  usage multisample
-}
-asset frame-drum-bass-60-soft-1 "Frame Drum" wav "media/bass-60-soft-1.wav" sha256 "e9c3b060307d26904e5bd38ef70c9c632d13c2ddad33a70348b475a992222ebb" {
-  usage multisample
-}
-asset frame-drum-bass-60-hard-1 "Frame Drum" wav "media/bass-60-hard-1.wav" sha256 "22921f583d1536f7a992823c8a74bd2fb3fa580c49501c8fdc6ebdb7b2a6d8e3" {
-  usage multisample
-}
-asset frame-drum-rim-60-soft-0 "Frame Drum" wav "media/rim-60-soft-0.wav" sha256 "a56664f3801d80120e6e93eaa485433989cafb1b2b3579aff2f2511cce9ed256" {
-  usage multisample
-}
-asset frame-drum-rim-60-hard-0 "Frame Drum" wav "media/rim-60-hard-0.wav" sha256 "a54d6ae614966f862b52a7afc6165e1b706bceb11c1a0ba1a2f10d8d6a098858" {
-  usage multisample
-}
-asset frame-drum-rim-60-soft-1 "Frame Drum" wav "media/rim-60-soft-1.wav" sha256 "11482b3790211924391ba11bbfc63ac18e7774784b2b3cd46411874419e4e49d" {
-  usage multisample
-}
-asset frame-drum-rim-60-hard-1 "Frame Drum" wav "media/rim-60-hard-1.wav" sha256 "c71126bb0d2d477a75a1c5b5bdeb4b382f988491acf9760b12c58c07601034e5" {
-  usage multisample
+profile frame-drum-rim-head {
+  root 420hz
+  mode m0 frequency 420hz decay 0.05s gain 0.3 after_decay 0.05s after_gain 0
+  mode m1 frequency 669.06hz decay 0.0352621s gain 0.609746 after_decay 0.0352621s after_gain 0
+  mode m2 frequency 897.12hz decay 0.0282989s gain 0.406223 after_decay 0.0282989s after_gain 0
+  mode m3 frequency 964.32hz decay 0.0268066s gain 0.289165 after_decay 0.0268066s after_gain 0
+  mode m4 frequency 1114.26hz decay 0.0240529s gain 0.196449 after_decay 0.0240529s after_gain 0
+  mode m5 frequency 1225.56hz decay 0.0223953s gain 0.1196 after_decay 0.0223953s after_gain 0
+  mode m6 frequency 1325.52hz decay 0.0211163s gain 0.0904785 after_decay 0.0211163s after_gain 0
+  mode m7 frequency 1470.42hz decay 0.0195356s gain 0.0533893 after_decay 0.0195356s after_gain 0
+  mode m8 frequency 1512hz decay 0.0191312s gain 0.0437553 after_decay 0.0191312s after_gain 0
+  mode m9 frequency 1705.2hz decay 0.0174814s gain 0.0215158 after_decay 0.0174814s after_gain 0
 }

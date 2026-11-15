@@ -1,108 +1,129 @@
 crump-module 2
 instrument viola "Viola" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
-  parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 0.681818s 0.681818s modulatable
   parameter release "Release" seconds 0.02s 4s 0.4s 0.4s
+  parameter vibrato-depth "Vibrato" ratio 0 2 0.0181818 0.0181818 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z48-soft-0 asset viola-48-soft-0 keys C3 D3 velocity 0 0.65 root C3 loop 48000 125895 crossfade 8160
-      zone z48-hard-0 asset viola-48-hard-0 keys C3 D3 velocity 0.65 1 root C3 loop 48000 125895 crossfade 8160
-      zone z53-soft-0 asset viola-53-soft-0 keys D#3 G3 velocity 0 0.65 root F3 loop 48000 125958 crossfade 8160
-      zone z53-hard-0 asset viola-53-hard-0 keys D#3 G3 velocity 0.65 1 root F3 loop 48000 125960 crossfade 8160
-      zone z58-soft-0 asset viola-58-soft-0 keys G#3 C4 velocity 0 0.65 root A#3 loop 48000 123724 crossfade 8160
-      zone z58-hard-0 asset viola-58-hard-0 keys G#3 C4 velocity 0.65 1 root A#3 loop 48000 123723 crossfade 8160
-      zone z63-soft-0 asset viola-63-soft-0 keys C#4 F4 velocity 0 0.65 root D#4 loop 48000 123707 crossfade 8160
-      zone z63-hard-0 asset viola-63-hard-0 keys C#4 F4 velocity 0.65 1 root D#4 loop 48000 123707 crossfade 8160
-      zone z68-soft-0 asset viola-68-soft-0 keys F#4 B4 velocity 0 0.65 root G#4 loop 48000 123648 crossfade 8160
-      zone z68-hard-0 asset viola-68-hard-0 keys F#4 B4 velocity 0.65 1 root G#4 loop 48000 125961 crossfade 8160
-      zone z74-soft-0 asset viola-74-soft-0 keys C5 E5 velocity 0 0.65 root D5 loop 48000 125933 crossfade 8160
-      zone z74-hard-0 asset viola-74-hard-0 keys C5 E5 velocity 0.65 1 root D5 loop 48000 125934 crossfade 8160
-      zone z79-soft-0 asset viola-79-soft-0 keys F5 A5 velocity 0 0.65 root G5 loop 48000 123618 crossfade 8160
-      zone z79-hard-0 asset viola-79-hard-0 keys F5 A5 velocity 0.65 1 root G5 loop 48000 123617 crossfade 8160
-      zone z84-soft-0 asset viola-84-soft-0 keys A#5 D6 velocity 0 0.65 root C6 loop 48000 125762 crossfade 8160
-      zone z84-hard-0 asset viola-84-hard-0 keys A#5 D6 velocity 0.65 1 root C6 loop 48000 125581 crossfade 8160
-      zone z88-soft-0 asset viola-88-soft-0 keys D#6 E6 velocity 0 0.65 root E6 loop 48000 123628 crossfade 8160
-      zone z88-hard-0 asset viola-88-hard-0 keys D#6 E6 velocity 0.65 1 root E6 loop 48000 123628 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route attack-velocity source velocity target attack depth -0.54545455s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.045454545 map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(0.9997) order 0 bypass false
+    route key-gain-low source key-level target key-gain depth -0.0799355 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    route key-gain-high source key-level target key-gain depth 0.191305 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 33 {
+    # A bowed string: a Helmholtz saw through a jagged body and the instrument's body curve.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node vibrato lfo waveform sine rate 5.4hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-wait envelope mode ahdsr attack 0s hold 0.3s decay 0.45s sustain 0 release 0.45s
+    node vibrato-wait-audio to_audio
+    node vibrato-ramp math operation scale amount -1
+    node vibrato-in math operation offset amount 1
+    node times1 math operation multiply
+    node gain2 math operation scale amount $vibrato-depth
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain3 math operation scale amount 0.008
+    node plus4 math operation add
+    node bow analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 fm_depth 1st
+    node bow-mono stereo_to_mono
+    node bow-hiss noise level 1
+    node hi-5 lowpass mode highpass cutoff 2200hz resonance 0.308309
+    node bow-amp to_audio
+    node times6 math operation multiply
+    node gain7 math operation scale amount 0.0484475
+    node plus8 math operation add
+    node hi-9 lowpass mode highpass cutoff 200hz resonance 0.308309
+    node body10 modal_bank profile viola-body-curve max_modes 6 key_track 0 decay_scale 1 brightness 0 level 1
+    node body11 modal_bank profile viola-body-curve-between max_modes 8 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain12 math operation scale amount -1
+    node plus13 math operation add
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-14 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.0323941
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-wait-gate note.gate -> vibrato-wait.gate
+    bus vibrato-wait-control-vibrato-wait-audio-control vibrato-wait.control -> vibrato-wait-audio.control
+    bus vibrato-wait-audio-audio-vibrato-ramp-a vibrato-wait-audio.audio -> vibrato-ramp.a
+    bus vibrato-ramp-audio-vibrato-in-a vibrato-ramp.audio -> vibrato-in.a
+    bus vibrato-audio-audio-times1-a vibrato-audio.audio -> times1.a
+    bus vibrato-in-audio-times1-b vibrato-in.audio -> times1.b
+    bus times1-audio-gain2-a times1.audio -> gain2.a
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain3-a drift-audio.audio -> gain3.a
+    bus gain2-audio-plus4-a gain2.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus note-pitch-bow-pitch note.pitch -> bow.pitch
+    bus note-velocity-bow-velocity note.velocity -> bow.velocity
+    bus plus4-audio-bow-fm plus4.audio -> bow.fm
+    bus amplitude-control-bow-gain amplitude.control -> bow.gain
+    bus bow-audio-bow-mono-audio bow.audio -> bow-mono.audio
+    bus bow-hiss-audio-hi-5-audio bow-hiss.audio -> hi-5.audio
+    bus amplitude-control-bow-amp-control amplitude.control -> bow-amp.control
+    bus hi-5-audio-times6-a hi-5.audio -> times6.a
+    bus bow-amp-audio-times6-b bow-amp.audio -> times6.b
+    bus times6-audio-gain7-a times6.audio -> gain7.a
+    bus bow-mono-audio-plus8-a bow-mono.audio -> plus8.a
+    bus gain7-audio-plus8-b gain7.audio -> plus8.b
+    bus plus8-audio-hi-9-audio plus8.audio -> hi-9.audio
+    bus hi-9-audio-body10-audio hi-9.audio -> body10.audio
+    bus note-pitch-body10-pitch note.pitch -> body10.pitch
+    bus note-gate-body10-gate note.gate -> body10.gate
+    bus hi-9-audio-body11-audio hi-9.audio -> body11.audio
+    bus note-pitch-body11-pitch note.pitch -> body11.pitch
+    bus note-gate-body11-gate note.gate -> body11.gate
+    bus body11-audio-gain12-a body11.audio -> gain12.a
+    bus body10-audio-plus13-a body10.audio -> plus13.a
+    bus gain12-audio-plus13-b gain12.audio -> plus13.b
+    bus plus13-audio-dynamics-gain-a plus13.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-14-audio dynamics-gain.audio -> hi-14.audio
+    bus hi-14-audio-register-a hi-14.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset viola-48-soft-0 "Viola" wav "media/48-soft-0.wav" sha256 "c369286d5e98f3872d009c6d49dfea7036d8ef2604c6706b48d55a2d169655fd" {
-  usage multisample
+profile viola-body-curve {
+  root 261.626hz
+  mode m0 frequency 50hz decay 0.0159155s gain 0.0176869 after_decay 0.0159155s after_gain 0
+  mode m1 frequency 77.1282hz decay 0.0103176s gain 0.00756777 after_decay 0.0103176s after_gain 0
+  mode m2 frequency 118.975hz decay 0.00668859s gain 0.00513475 after_decay 0.00668859s after_gain 0
+  mode m3 frequency 283.101hz decay 0.00281092s gain 0.108121 after_decay 0.00281092s after_gain 0
+  mode m4 frequency 1602.93hz decay 0.000496451s gain 0.509132 after_decay 0.000496451s after_gain 0
+  mode m5 frequency 3814.16hz decay 0.000208637s gain 0.832669 after_decay 0.000208637s after_gain 0
 }
-asset viola-48-hard-0 "Viola" wav "media/48-hard-0.wav" sha256 "ff01232d19d7dd575190e0bbc518d40221faad5d430819cd6372d80568f8bb28" {
-  usage multisample
-}
-asset viola-53-soft-0 "Viola" wav "media/53-soft-0.wav" sha256 "08a1fe65d30f02713123b7bf68258c731d61f17a198595001d0411d7ec93fa9c" {
-  usage multisample
-}
-asset viola-53-hard-0 "Viola" wav "media/53-hard-0.wav" sha256 "4cf891eb7fec1e8e2d58a0fe043c1140ffca6ba8843a319dffedc304a81274da" {
-  usage multisample
-}
-asset viola-58-soft-0 "Viola" wav "media/58-soft-0.wav" sha256 "eb9799edd4108d86f08ed9487b3edb41018141313d4542b51e4617f2bf5ca43b" {
-  usage multisample
-}
-asset viola-58-hard-0 "Viola" wav "media/58-hard-0.wav" sha256 "3ac548cba2cd215dbbb0885c1435efd34ae093e33dfd02b124bdc68d20258485" {
-  usage multisample
-}
-asset viola-63-soft-0 "Viola" wav "media/63-soft-0.wav" sha256 "2ece160881bc79fae07082e59ef258b3a6461d51d5638cb1d2d098ce8f2292b9" {
-  usage multisample
-}
-asset viola-63-hard-0 "Viola" wav "media/63-hard-0.wav" sha256 "94f73b65f106b29759b45654cb066b9ef5f401dfd4d5570e5f0ea94a54733ecf" {
-  usage multisample
-}
-asset viola-68-soft-0 "Viola" wav "media/68-soft-0.wav" sha256 "5d9e03576903809b864fd111d5e949b38cf322db6acf9ce26552a521ad1071b8" {
-  usage multisample
-}
-asset viola-68-hard-0 "Viola" wav "media/68-hard-0.wav" sha256 "af2080cbdd5d7b282cd25959dad59b326d5d079c022b27aff4cb055d35dd5476" {
-  usage multisample
-}
-asset viola-74-soft-0 "Viola" wav "media/74-soft-0.wav" sha256 "82db9f8492f4caea02d7038be72a54f45f34ec3083efd508e33227994345cd22" {
-  usage multisample
-}
-asset viola-74-hard-0 "Viola" wav "media/74-hard-0.wav" sha256 "135cbec441ad0e8a8c3cc7021b700fdb1d052304d1c8c644aa4134397599e4fb" {
-  usage multisample
-}
-asset viola-79-soft-0 "Viola" wav "media/79-soft-0.wav" sha256 "f60729e53612b3d78599af7cc3eba26a4c8c28b419d2dc3ffac248736957fb59" {
-  usage multisample
-}
-asset viola-79-hard-0 "Viola" wav "media/79-hard-0.wav" sha256 "822e8f693d2093ad0696375c9476b48de7f221e5f87651027043e8eb715f87a8" {
-  usage multisample
-}
-asset viola-84-soft-0 "Viola" wav "media/84-soft-0.wav" sha256 "7fb5c9bee98c763dcd8a3683db0d840c329ad1c0ea92a8e37319e6ee8b42e116" {
-  usage multisample
-}
-asset viola-84-hard-0 "Viola" wav "media/84-hard-0.wav" sha256 "8ee628adc4004812662bbe2341fdcd228256114cfda88f9f29990f27b49aad51" {
-  usage multisample
-}
-asset viola-88-soft-0 "Viola" wav "media/88-soft-0.wav" sha256 "02ea0a7d14df46c5e64e7c5b271a78618011171f7a2e38da56c31ad8461c8ef4" {
-  usage multisample
-}
-asset viola-88-hard-0 "Viola" wav "media/88-hard-0.wav" sha256 "2c8a877d2cdeb89c2df3017d0c7cb581cd0fd05facd13981256c706a2c8b71c7" {
-  usage multisample
+profile viola-body-curve-between {
+  root 261.626hz
+  mode m0 frequency 183.526hz decay 0.00433602s gain 0.00780643 after_decay 0.00433602s after_gain 0
+  mode m1 frequency 436.701hz decay 0.00182224s gain 0.0867071 after_decay 0.00182224s after_gain 0
+  mode m2 frequency 673.64hz decay 0.00118131s gain 0.0865246 after_decay 0.00118131s after_gain 0
+  mode m3 frequency 1039.13hz decay 0.000765808s gain 0.0406542 after_decay 0.000765808s after_gain 0
+  mode m4 frequency 2472.61hz decay 0.000321835s gain 1 after_decay 0.000321835s after_gain 0
+  mode m5 frequency 5883.59hz decay 0.000135253s gain 0.0501815 after_decay 0.000135253s after_gain 0
+  mode m6 frequency 9075.8hz decay 0.0001s gain 0.0411585 after_decay 0.0001s after_gain 0
+  mode m7 frequency 14000hz decay 0.0001s gain 0.209454 after_decay 0.0001s after_gain 0
 }

@@ -1,16 +1,6 @@
 # Example instruments
 
-184 instruments, each with a readable Instrument Module and an audition Project: 60 house instruments, a 32-piece orchestra, and 92 synths, drum machines and world and band instruments ([why these](../../docs/research/instrument-library-expansion.md)). Acoustic and synth instruments generate sound in the native graph. Multisample instruments include key/velocity mappings and the recipes that generate their original procedural PCM banks. No downloaded reference recordings are included.
-
-## Setup
-
-The multisample WAVs are generated rather than committed. From the repository root, generate them once after cloning, and again after pulling instrument changes:
-
-```bash
-uv run tools/instrument_assets/build.py --setup
-```
-
-It needs [uv](https://docs.astral.sh/uv/), which installs the pinned NumPy and SciPy, and checks every sample against the hash in its `assets.json`. Acoustic and synth instruments need no media.
+184 instruments, each with a readable Instrument Module and an audition Project: 60 house instruments, a 32-piece orchestra, and 92 synths, drum machines and world and band instruments ([why these](../../docs/research/instrument-library-expansion.md)). Every one is a native graph written in its `instrument.crump`: there are no samples, recipes or generated media, and nothing to set up. Open a module to change how the instrument behaves, not only its Faceplate. No downloaded reference recordings are included.
 
 ## Audition
 
@@ -32,116 +22,121 @@ The destination must use `crump 2`. This helper requires only Python's standard 
 python3 examples/instruments/copy_instrument.py hollow-block /path/to/my-song
 ```
 
-It copies the module and its media into `instruments/hollow-block/` and prints the one `import` line to add before `project`. Multisample modules declare their own media, with paths relative to the module folder, so nothing else is pasted. It refuses to replace an existing instrument folder. The helper does not edit or publish your Project. Assign `instrument hollow-block` to a Track, then validate and publish through the normal Project workflow. Copying a folder by hand works the same way.
+It copies the module into `instruments/hollow-block/` and prints the one `import` line to add before `project`. Each module carries its own profiles, so nothing else is pasted. It refuses to replace an existing instrument folder. The helper does not edit or publish your Project. Assign `instrument hollow-block` to a Track, then validate and publish through the normal Project workflow. Copying a folder by hand works the same way.
 
-Acoustic modules embed their profiles and require no media. They can also be exported or installed with the [module commands](../../docs/cli-and-agents.md). A personal-library module is one file, so multisample modules, which own media, are imported from inside a Project instead.
+Modules can also be exported or installed with the [module commands](../../docs/cli-and-agents.md).
 
 ## Playing and editing
 
-Start with the default Faceplate settings and a Track at 0 dB. House pitched multisamples cover MIDI 24–91 with eight roots and two velocity layers. Orchestral multisamples cover each instrument's playable range at sounding pitch with five to ten roots and two velocity layers. House percussion banks map all keys, use two velocity layers and two round robins; C4 plays their original pitch. Orchestral percussion instead stays within two semitones of its original pitch on every key from C2 to C#6. Native percussion ignores key tracking, while native keys and mallets track pitch.
+Start with the default Faceplate settings and a Track at 0 dB. Pitched instruments play across their range; a hidden register route evens out their loudness from low to high. Unpitched percussion sounds the same on every key. Two-stroke hand drums and effects (Cajón, Darbuka, Frame Drum, Taiko, Udu, Agogô, Guiro, Cuíca, Mark Tree) play one stroke up to C4 and the other from C#4; each catalog entry's `about` names them and `strokes` gives a key for each. A `note_key` modulation route switches between the two sub-graphs. The bagpipes drone on fixed pitches (A) under every note; the hurdy-gurdy's drones follow the played note.
 
-Synth patches are native graphs with no media. Their Faceplates expose the few controls that define each patch; the deeper settings are in the module. The mono basses (Acid Line, Sub Sine, Reese Bass, Wobble Bass) glide between overlapping notes. Unpitched drum-machine voices and expansion percussion stay within two semitones of their original pitch, as the orchestral percussion does. Two-stroke hand drums and effects (Cajón, Darbuka, Frame Drum, Taiko, Udu, Agogô, Guiro, Cuíca, Mark Tree) play one stroke from C2 to C4 and the other from C#4 to C#6; each catalog entry's `about` names them. The hurdy-gurdy and bagpipes drone on fixed pitches (C and G; A) under every note.
+The graphs are built from a few patterns, named in a comment at the top of each module:
 
-Bowed, blown, sung and organ instruments loop their sustain for as long as a note is held, then play a natural release; their zones use multisample `loop` regions. Note Off also starts an amplitude envelope whose Attack and Release are on their Faceplates. Other one-shot banks retain their natural decay after Note Off. Native bodies also ring independently of the gate. Voice stealing, the 30-second release ceiling and the Project's render range still bound tails. Raise polyphony only within resource admission. Dense chords or extreme control settings may need a lower Level.
+- **Struck bodies** (drums, bars, bells, cymbals, pianos): an `exciter` strike into a `modal_bank` whose profile follows the module. Noise layers are a `noise` source times an exponential envelope, a one-frame leaky loop through `delay_line`. Pitch bends (kicks, toms, talking drum, opera gong) use an oscillator's `fm` port or a delay whose length changes.
+- **Plucked strings**: a pitch-tuned `delay_line` loop with a `linear_phase_lowpass` loss, excited by a one-period noise burst, with a pickup tap and body resonances. The sitar is the [waveguide example](../waveguides/README.md) sitar.
+- **Sustained tones** (winds, brass, bowed strings, voices, organs): a saw, or a saw/square mix for odd-harmonic reeds, whose pitch moves with vibrato, drift and an onset scoop, through a fixed resonator bank fitted to the instrument's measured spectral envelope, plus breath or bow noise. Vibrato therefore moves each harmonic through the same body peaks. Velocity routes set the attack and the loudness.
+- **Drum machines**: swept sines and square clusters. Oscillators that must not follow the key hold their pitch with a `note_key` route on `coarse`.
 
-The [acoustic model reference](../../docs/native-acoustics.md) explains the native controls and profiles. [`tools/instrument_assets`](../../tools/instrument_assets/README.md) regenerates the PCM banks from numerical recipes with deterministic seeds. `assets.json` records file hashes, generator identity, roots, velocity, seeds and gain; `recipe.json` retains the source model and treatment. The bowed strings' recipes extend a shared family and name shared body curves in [`tools/instrument_assets/shared`](../../tools/instrument_assets/shared), whose hashes `assets.json` also records.
+Struck and plucked instruments ring out after Note Off. Sustained ones hold while the key is down and fade with their Faceplate Release. Voice stealing, the 30-second release ceiling and the Project's render range still bound tails. Polyphony is sized so each instrument stays near 12,000 work units per frame; raise it only within resource admission. Dense chords or extreme control settings may need a lower Level.
+
+The [acoustic model reference](../../docs/native-acoustics.md) explains `exciter`, `modal_bank` and profiles, and the [language reference](../../docs/language.md#feedback-loops) explains delay loops, `math`, `shaper` and signal conversion. [`tools/instrument_assets`](../../tools/instrument_assets/README.md) compares the instruments against reference recordings.
 
 ## Catalog
 
 | Instrument | Category | Source |
 | --- | --- | --- |
-| [Felt Floor](felt-floor/instrument.crump) | Kicks | Procedural multisample |
-| [Warehouse Skin](warehouse-skin/instrument.crump) | Kicks | Procedural multisample |
-| [Disco Beater](disco-beater/instrument.crump) | Kicks | Procedural multisample |
-| [Deep Pillow](deep-pillow/instrument.crump) | Kicks | Procedural multisample |
-| [Dry Birch](dry-birch/instrument.crump) | Backbeats | Procedural multisample |
-| [Disco Wire](disco-wire/instrument.crump) | Backbeats | Procedural multisample |
-| [Brush Ghost](brush-ghost/instrument.crump) | Backbeats | Procedural multisample |
-| [Three Hands](three-hands/instrument.crump) | Backbeats | Procedural multisample |
-| [Basement Crowd](basement-crowd/instrument.crump) | Backbeats | Procedural multisample |
-| [Palm Snap](palm-snap/instrument.crump) | Backbeats | Procedural multisample |
-| [Brass Tick](brass-tick/instrument.crump) | Hats and metal | Procedural multisample |
-| [Dark Closed](dark-closed/instrument.crump) | Hats and metal | Procedural multisample |
-| [Offbeat Sizzle](offbeat-sizzle/instrument.crump) | Hats and metal | Procedural multisample |
-| [Pedal Chick](pedal-chick/instrument.crump) | Hats and metal | Procedural multisample |
+| [Felt Floor](felt-floor/instrument.crump) | Kicks | Acoustic graph |
+| [Warehouse Skin](warehouse-skin/instrument.crump) | Kicks | Acoustic graph |
+| [Disco Beater](disco-beater/instrument.crump) | Kicks | Acoustic graph |
+| [Deep Pillow](deep-pillow/instrument.crump) | Kicks | Acoustic graph |
+| [Dry Birch](dry-birch/instrument.crump) | Backbeats | Acoustic graph |
+| [Disco Wire](disco-wire/instrument.crump) | Backbeats | Acoustic graph |
+| [Brush Ghost](brush-ghost/instrument.crump) | Backbeats | Acoustic graph |
+| [Three Hands](three-hands/instrument.crump) | Backbeats | Acoustic graph |
+| [Basement Crowd](basement-crowd/instrument.crump) | Backbeats | Acoustic graph |
+| [Palm Snap](palm-snap/instrument.crump) | Backbeats | Acoustic graph |
+| [Brass Tick](brass-tick/instrument.crump) | Hats and metal | Acoustic graph |
+| [Dark Closed](dark-closed/instrument.crump) | Hats and metal | Acoustic graph |
+| [Offbeat Sizzle](offbeat-sizzle/instrument.crump) | Hats and metal | Acoustic graph |
+| [Pedal Chick](pedal-chick/instrument.crump) | Hats and metal | Acoustic graph |
 | [Ride Shoulder](ride-shoulder/instrument.crump) | Hats and metal | Acoustic graph |
 | [Thin Crash](thin-crash/instrument.crump) | Hats and metal | Acoustic graph |
-| [Conga Open](conga-open/instrument.crump) | Hand percussion | Procedural multisample |
-| [Conga Mute](conga-mute/instrument.crump) | Hand percussion | Procedural multisample |
-| [Conga Slap](conga-slap/instrument.crump) | Hand percussion | Procedural multisample |
-| [Bongo High](bongo-high/instrument.crump) | Hand percussion | Procedural multisample |
-| [Bongo Low](bongo-low/instrument.crump) | Hand percussion | Procedural multisample |
-| [Djembe Center](djembe-center/instrument.crump) | Hand percussion | Procedural multisample |
-| [Tabla Sketch](tabla-sketch/instrument.crump) | Hand percussion | Procedural multisample |
+| [Conga Open](conga-open/instrument.crump) | Hand percussion | Acoustic graph |
+| [Conga Mute](conga-mute/instrument.crump) | Hand percussion | Acoustic graph |
+| [Conga Slap](conga-slap/instrument.crump) | Hand percussion | Acoustic graph |
+| [Bongo High](bongo-high/instrument.crump) | Hand percussion | Acoustic graph |
+| [Bongo Low](bongo-low/instrument.crump) | Hand percussion | Acoustic graph |
+| [Djembe Center](djembe-center/instrument.crump) | Hand percussion | Acoustic graph |
+| [Tabla Sketch](tabla-sketch/instrument.crump) | Hand percussion | Acoustic graph |
 | [Wood Rim](wood-rim/instrument.crump) | Hand percussion | Acoustic graph |
 | [Cuban Clave](cuban-clave/instrument.crump) | Hand percussion | Acoustic graph |
 | [Hollow Block](hollow-block/instrument.crump) | Hand percussion | Acoustic graph |
-| [Egg Shaker](egg-shaker/instrument.crump) | Shakers | Procedural multisample |
-| [Gourd Maraca](gourd-maraca/instrument.crump) | Shakers | Procedural multisample |
-| [Cabasa Turn](cabasa-turn/instrument.crump) | Shakers | Procedural multisample |
+| [Egg Shaker](egg-shaker/instrument.crump) | Shakers | Acoustic graph |
+| [Gourd Maraca](gourd-maraca/instrument.crump) | Shakers | Acoustic graph |
+| [Cabasa Turn](cabasa-turn/instrument.crump) | Shakers | Acoustic graph |
 | [Tambourine Shake](tambourine-shake/instrument.crump) | Shakers | Acoustic graph |
-| [Finger Bass](finger-bass/instrument.crump) | Bass | Procedural multisample |
-| [Palm Bass](palm-bass/instrument.crump) | Bass | Procedural multisample |
-| [Pick Bass](pick-bass/instrument.crump) | Bass | Procedural multisample |
-| [Upright Pluck](upright-pluck/instrument.crump) | Bass | Procedural multisample |
-| [Slap String](slap-string/instrument.crump) | Bass | Procedural multisample |
-| [Deep Rubber](deep-rubber/instrument.crump) | Bass | Procedural multisample |
+| [Finger Bass](finger-bass/instrument.crump) | Bass | Acoustic graph |
+| [Palm Bass](palm-bass/instrument.crump) | Bass | Acoustic graph |
+| [Pick Bass](pick-bass/instrument.crump) | Bass | Acoustic graph |
+| [Upright Pluck](upright-pluck/instrument.crump) | Bass | Acoustic graph |
+| [Slap String](slap-string/instrument.crump) | Bass | Acoustic graph |
+| [Deep Rubber](deep-rubber/instrument.crump) | Bass | Acoustic graph |
 | [House Grand](house-grand/instrument.crump) | Keys | Acoustic graph |
 | [Sunday Upright](sunday-upright/instrument.crump) | Keys | Acoustic graph |
-| [Felt Afterhours](felt-afterhours/instrument.crump) | Keys | Procedural multisample |
+| [Felt Afterhours](felt-afterhours/instrument.crump) | Keys | Acoustic graph |
 | [Tack Keys](tack-keys/instrument.crump) | Keys | Acoustic graph |
-| [Warm Tines](warm-tines/instrument.crump) | Keys | Procedural multisample |
-| [Barking Tines](barking-tines/instrument.crump) | Keys | Procedural multisample |
-| [Reed Keys](reed-keys/instrument.crump) | Keys | Procedural multisample |
-| [Clav Pluck](clav-pluck/instrument.crump) | Keys | Procedural multisample |
-| [Nylon Thumb](nylon-thumb/instrument.crump) | Guitar | Procedural multisample |
-| [Disco Mute](disco-mute/instrument.crump) | Guitar | Procedural multisample |
-| [Steel Finger](steel-finger/instrument.crump) | Guitar | Procedural multisample |
-| [Small Harp](small-harp/instrument.crump) | Guitar | Procedural multisample |
-| [Rosewood Marimba](rosewood-marimba/instrument.crump) | Mallets | Procedural multisample |
-| [Soft Vibraphone](soft-vibraphone/instrument.crump) | Mallets | Procedural multisample |
-| [Thumb Kalimba](thumb-kalimba/instrument.crump) | Mallets | Procedural multisample |
+| [Warm Tines](warm-tines/instrument.crump) | Keys | Acoustic graph |
+| [Barking Tines](barking-tines/instrument.crump) | Keys | Acoustic graph |
+| [Reed Keys](reed-keys/instrument.crump) | Keys | Acoustic graph |
+| [Clav Pluck](clav-pluck/instrument.crump) | Keys | Acoustic graph |
+| [Nylon Thumb](nylon-thumb/instrument.crump) | Guitar | Acoustic graph |
+| [Disco Mute](disco-mute/instrument.crump) | Guitar | Acoustic graph |
+| [Steel Finger](steel-finger/instrument.crump) | Guitar | Acoustic graph |
+| [Small Harp](small-harp/instrument.crump) | Guitar | Acoustic graph |
+| [Rosewood Marimba](rosewood-marimba/instrument.crump) | Mallets | Acoustic graph |
+| [Soft Vibraphone](soft-vibraphone/instrument.crump) | Mallets | Acoustic graph |
+| [Thumb Kalimba](thumb-kalimba/instrument.crump) | Mallets | Acoustic graph |
 | [Buzz Balafon](buzz-balafon/instrument.crump) | Mallets | Acoustic graph |
-| [Glass Drop](glass-drop/instrument.crump) | Mallets | Procedural multisample |
-| [Bell Chime](bell-chime/instrument.crump) | Mallets | Procedural multisample |
+| [Glass Drop](glass-drop/instrument.crump) | Mallets | Acoustic graph |
+| [Bell Chime](bell-chime/instrument.crump) | Mallets | Acoustic graph |
 | [Piano Cut](piano-cut/instrument.crump) | Resampling | Acoustic graph |
-| [Dusty Keys](dusty-keys/instrument.crump) | Resampling | Procedural multisample |
-| [Dub Tines](dub-tines/instrument.crump) | Resampling | Procedural multisample |
-| [Reverse Nylon](reverse-nylon/instrument.crump) | Resampling | Procedural multisample |
-| [Motor Vibes](motor-vibes/instrument.crump) | Resampling | Procedural multisample |
-| [Room Chop](room-chop/instrument.crump) | Resampling | Procedural multisample |
-| [Solo Violin](solo-violin/instrument.crump) | Strings | Procedural multisample |
-| [Viola](viola/instrument.crump) | Strings | Procedural multisample |
-| [Cello](cello/instrument.crump) | Strings | Procedural multisample |
-| [Contrabass](contrabass/instrument.crump) | Strings | Procedural multisample |
-| [String Section](string-section/instrument.crump) | Strings | Procedural multisample |
-| [Pizzicato Strings](pizzicato-strings/instrument.crump) | Strings | Procedural multisample |
-| [Concert Harp](concert-harp/instrument.crump) | Strings | Procedural multisample |
-| [Piccolo](piccolo/instrument.crump) | Woodwinds | Procedural multisample |
-| [Concert Flute](concert-flute/instrument.crump) | Woodwinds | Procedural multisample |
-| [Oboe](oboe/instrument.crump) | Woodwinds | Procedural multisample |
-| [Clarinet](clarinet/instrument.crump) | Woodwinds | Procedural multisample |
-| [Bassoon](bassoon/instrument.crump) | Woodwinds | Procedural multisample |
-| [Trumpet](trumpet/instrument.crump) | Brass | Procedural multisample |
-| [French Horn](french-horn/instrument.crump) | Brass | Procedural multisample |
-| [Tenor Trombone](tenor-trombone/instrument.crump) | Brass | Procedural multisample |
-| [Tuba](tuba/instrument.crump) | Brass | Procedural multisample |
-| [Brass Section](brass-section/instrument.crump) | Brass | Procedural multisample |
-| [Timpani](timpani/instrument.crump) | Orchestral percussion | Procedural multisample |
-| [Concert Bass Drum](concert-bass-drum/instrument.crump) | Orchestral percussion | Procedural multisample |
-| [Concert Snare](concert-snare/instrument.crump) | Orchestral percussion | Procedural multisample |
-| [Clash Cymbals](clash-cymbals/instrument.crump) | Orchestral percussion | Procedural multisample |
-| [Suspended Cymbal](suspended-cymbal/instrument.crump) | Orchestral percussion | Procedural multisample |
-| [Tam-tam](tam-tam/instrument.crump) | Orchestral percussion | Procedural multisample |
-| [Triangle](triangle/instrument.crump) | Orchestral percussion | Procedural multisample |
-| [Castanets](castanets/instrument.crump) | Orchestral percussion | Procedural multisample |
-| [Glockenspiel](glockenspiel/instrument.crump) | Tuned percussion | Procedural multisample |
-| [Xylophone](xylophone/instrument.crump) | Tuned percussion | Procedural multisample |
-| [Tubular Bells](tubular-bells/instrument.crump) | Tuned percussion | Procedural multisample |
-| [Celesta](celesta/instrument.crump) | Orchestral keys | Procedural multisample |
-| [Pipe Organ](pipe-organ/instrument.crump) | Orchestral keys | Procedural multisample |
-| [Harpsichord](harpsichord/instrument.crump) | Orchestral keys | Procedural multisample |
-| [Choir Aahs](choir-aahs/instrument.crump) | Voices | Procedural multisample |
+| [Dusty Keys](dusty-keys/instrument.crump) | Resampling | Acoustic graph |
+| [Dub Tines](dub-tines/instrument.crump) | Resampling | Acoustic graph |
+| [Reverse Nylon](reverse-nylon/instrument.crump) | Resampling | Acoustic graph |
+| [Motor Vibes](motor-vibes/instrument.crump) | Resampling | Acoustic graph |
+| [Room Chop](room-chop/instrument.crump) | Resampling | Acoustic graph |
+| [Solo Violin](solo-violin/instrument.crump) | Strings | Acoustic graph |
+| [Viola](viola/instrument.crump) | Strings | Acoustic graph |
+| [Cello](cello/instrument.crump) | Strings | Acoustic graph |
+| [Contrabass](contrabass/instrument.crump) | Strings | Acoustic graph |
+| [String Section](string-section/instrument.crump) | Strings | Acoustic graph |
+| [Pizzicato Strings](pizzicato-strings/instrument.crump) | Strings | Acoustic graph |
+| [Concert Harp](concert-harp/instrument.crump) | Strings | Acoustic graph |
+| [Piccolo](piccolo/instrument.crump) | Woodwinds | Acoustic graph |
+| [Concert Flute](concert-flute/instrument.crump) | Woodwinds | Acoustic graph |
+| [Oboe](oboe/instrument.crump) | Woodwinds | Acoustic graph |
+| [Clarinet](clarinet/instrument.crump) | Woodwinds | Acoustic graph |
+| [Bassoon](bassoon/instrument.crump) | Woodwinds | Acoustic graph |
+| [Trumpet](trumpet/instrument.crump) | Brass | Acoustic graph |
+| [French Horn](french-horn/instrument.crump) | Brass | Acoustic graph |
+| [Tenor Trombone](tenor-trombone/instrument.crump) | Brass | Acoustic graph |
+| [Tuba](tuba/instrument.crump) | Brass | Acoustic graph |
+| [Brass Section](brass-section/instrument.crump) | Brass | Acoustic graph |
+| [Timpani](timpani/instrument.crump) | Orchestral percussion | Acoustic graph |
+| [Concert Bass Drum](concert-bass-drum/instrument.crump) | Orchestral percussion | Acoustic graph |
+| [Concert Snare](concert-snare/instrument.crump) | Orchestral percussion | Acoustic graph |
+| [Clash Cymbals](clash-cymbals/instrument.crump) | Orchestral percussion | Acoustic graph |
+| [Suspended Cymbal](suspended-cymbal/instrument.crump) | Orchestral percussion | Acoustic graph |
+| [Tam-tam](tam-tam/instrument.crump) | Orchestral percussion | Acoustic graph |
+| [Triangle](triangle/instrument.crump) | Orchestral percussion | Acoustic graph |
+| [Castanets](castanets/instrument.crump) | Orchestral percussion | Acoustic graph |
+| [Glockenspiel](glockenspiel/instrument.crump) | Tuned percussion | Acoustic graph |
+| [Xylophone](xylophone/instrument.crump) | Tuned percussion | Acoustic graph |
+| [Tubular Bells](tubular-bells/instrument.crump) | Tuned percussion | Acoustic graph |
+| [Celesta](celesta/instrument.crump) | Orchestral keys | Acoustic graph |
+| [Pipe Organ](pipe-organ/instrument.crump) | Orchestral keys | Acoustic graph |
+| [Harpsichord](harpsichord/instrument.crump) | Orchestral keys | Acoustic graph |
+| [Choir Aahs](choir-aahs/instrument.crump) | Voices | Acoustic graph |
 | [Acid Line](acid-line/instrument.crump) | Synth bass | Native synth graph |
 | [Sub Sine](sub-sine/instrument.crump) | Synth bass | Native synth graph |
 | [Reese Bass](reese-bass/instrument.crump) | Synth bass | Native synth graph |
@@ -158,79 +153,79 @@ The [acoustic model reference](../../docs/native-acoustics.md) explains the nati
 | [FM Tines](fm-tines/instrument.crump) | Synth pads and keys | Native synth graph |
 | [Rave Stab](rave-stab/instrument.crump) | Synth pads and keys | Native synth graph |
 | [Noise Riser](noise-riser/instrument.crump) | Synth FX | Native synth graph |
-| [Boom Kick](boom-kick/instrument.crump) | Drum machines | Procedural multisample |
-| [Punch Kick](punch-kick/instrument.crump) | Drum machines | Procedural multisample |
-| [Machine Snare](machine-snare/instrument.crump) | Drum machines | Procedural multisample |
-| [Snap Snare](snap-snare/instrument.crump) | Drum machines | Procedural multisample |
-| [Machine Clap](machine-clap/instrument.crump) | Drum machines | Procedural multisample |
-| [Machine Cowbell](machine-cowbell/instrument.crump) | Drum machines | Procedural multisample |
-| [Machine Hat](machine-hat/instrument.crump) | Drum machines | Procedural multisample |
-| [Machine Open Hat](machine-open-hat/instrument.crump) | Drum machines | Procedural multisample |
-| [Machine Tom](machine-tom/instrument.crump) | Drum machines | Procedural multisample |
-| [Kit Toms](kit-toms/instrument.crump) | Drum kit | Procedural multisample |
-| [China Cymbal](china-cymbal/instrument.crump) | Drum kit | Procedural multisample |
-| [Ride Bell](ride-bell/instrument.crump) | Drum kit | Procedural multisample |
-| [Cajón](cajon/instrument.crump) | World percussion | Procedural multisample |
-| [Darbuka](darbuka/instrument.crump) | World percussion | Procedural multisample |
-| [Frame Drum](frame-drum/instrument.crump) | World percussion | Procedural multisample |
-| [Taiko](taiko/instrument.crump) | World percussion | Procedural multisample |
-| [Udu](udu/instrument.crump) | World percussion | Procedural multisample |
-| [Talking Drum](talking-drum/instrument.crump) | World percussion | Procedural multisample |
-| [Agogô](agogo/instrument.crump) | World percussion | Procedural multisample |
-| [Guiro](guiro/instrument.crump) | World percussion | Procedural multisample |
-| [Cuíca](cuica/instrument.crump) | World percussion | Procedural multisample |
-| [Sleigh Bells](sleigh-bells/instrument.crump) | World percussion | Procedural multisample |
-| [Temple Blocks](temple-blocks/instrument.crump) | World percussion | Procedural multisample |
-| [Slit Drum](slit-drum/instrument.crump) | World percussion | Procedural multisample |
-| [Vibraslap](vibraslap/instrument.crump) | World percussion | Procedural multisample |
-| [Mark Tree](mark-tree/instrument.crump) | World percussion | Procedural multisample |
-| [Steel Pan](steel-pan/instrument.crump) | World mallets | Procedural multisample |
-| [Handpan](handpan/instrument.crump) | World mallets | Procedural multisample |
-| [Singing Bowl](singing-bowl/instrument.crump) | World mallets | Procedural multisample |
-| [Gamelan Saron](gamelan-saron/instrument.crump) | World mallets | Procedural multisample |
-| [Gamelan Bonang](gamelan-bonang/instrument.crump) | World mallets | Procedural multisample |
-| [Music Box](music-box/instrument.crump) | World mallets | Procedural multisample |
-| [Opera Gong](opera-gong/instrument.crump) | World mallets | Procedural multisample |
-| [Banjo](banjo/instrument.crump) | Guitar | Procedural multisample |
-| [Mandolin](mandolin/instrument.crump) | Guitar | Procedural multisample |
-| [Ukulele](ukulele/instrument.crump) | Guitar | Procedural multisample |
-| [Clean Electric](clean-electric/instrument.crump) | Guitar | Procedural multisample |
-| [Crunch Guitar](crunch-guitar/instrument.crump) | Guitar | Procedural multisample |
-| [Fretless Bass](fretless-bass/instrument.crump) | Bass | Procedural multisample |
-| [Sitar](sitar/instrument.crump) | World strings | Procedural multisample |
-| [Koto](koto/instrument.crump) | World strings | Procedural multisample |
-| [Shamisen](shamisen/instrument.crump) | World strings | Procedural multisample |
-| [Oud](oud/instrument.crump) | World strings | Procedural multisample |
-| [Hammered Dulcimer](hammered-dulcimer/instrument.crump) | World strings | Procedural multisample |
-| [Erhu](erhu/instrument.crump) | World strings | Procedural multisample |
-| [Hurdy-Gurdy](hurdy-gurdy/instrument.crump) | World strings | Procedural multisample |
-| [Tremolo Strings](tremolo-strings/instrument.crump) | Strings | Procedural multisample |
-| [Alto Sax](alto-sax/instrument.crump) | Saxophones | Procedural multisample |
-| [Tenor Sax](tenor-sax/instrument.crump) | Saxophones | Procedural multisample |
-| [Baritone Sax](baritone-sax/instrument.crump) | Saxophones | Procedural multisample |
-| [English Horn](english-horn/instrument.crump) | Woodwinds | Procedural multisample |
-| [Bass Clarinet](bass-clarinet/instrument.crump) | Woodwinds | Procedural multisample |
-| [Contrabassoon](contrabassoon/instrument.crump) | Woodwinds | Procedural multisample |
-| [Recorder](recorder/instrument.crump) | World winds | Procedural multisample |
-| [Pan Flute](pan-flute/instrument.crump) | World winds | Procedural multisample |
-| [Shakuhachi](shakuhachi/instrument.crump) | World winds | Procedural multisample |
-| [Bansuri](bansuri/instrument.crump) | World winds | Procedural multisample |
-| [Ocarina](ocarina/instrument.crump) | World winds | Procedural multisample |
-| [Duduk](duduk/instrument.crump) | World winds | Procedural multisample |
-| [Harmonica](harmonica/instrument.crump) | World winds | Procedural multisample |
-| [Accordion](accordion/instrument.crump) | World winds | Procedural multisample |
-| [Bagpipes](bagpipes/instrument.crump) | World winds | Procedural multisample |
-| [Didgeridoo](didgeridoo/instrument.crump) | World winds | Procedural multisample |
-| [Flugelhorn](flugelhorn/instrument.crump) | Brass | Procedural multisample |
-| [Muted Trumpet](muted-trumpet/instrument.crump) | Brass | Procedural multisample |
-| [Euphonium](euphonium/instrument.crump) | Brass | Procedural multisample |
-| [Bass Trombone](bass-trombone/instrument.crump) | Brass | Procedural multisample |
-| [Drawbar Organ](drawbar-organ/instrument.crump) | Keys | Procedural multisample |
-| [Tape Flute](tape-flute/instrument.crump) | Keys | Procedural multisample |
-| [Tape Strings](tape-strings/instrument.crump) | Keys | Procedural multisample |
-| [Glass Harmonica](glass-harmonica/instrument.crump) | Keys | Procedural multisample |
-| [Honky-Tonk](honky-tonk/instrument.crump) | Keys | Procedural multisample |
-| [Prepared Piano](prepared-piano/instrument.crump) | Keys | Procedural multisample |
-| [Choir Oohs](choir-oohs/instrument.crump) | Voices | Procedural multisample |
-| [Soprano Voice](soprano-voice/instrument.crump) | Voices | Procedural multisample |
-| [Bass Voice](bass-voice/instrument.crump) | Voices | Procedural multisample |
+| [Boom Kick](boom-kick/instrument.crump) | Drum machines | Acoustic graph |
+| [Punch Kick](punch-kick/instrument.crump) | Drum machines | Acoustic graph |
+| [Machine Snare](machine-snare/instrument.crump) | Drum machines | Acoustic graph |
+| [Snap Snare](snap-snare/instrument.crump) | Drum machines | Acoustic graph |
+| [Machine Clap](machine-clap/instrument.crump) | Drum machines | Acoustic graph |
+| [Machine Cowbell](machine-cowbell/instrument.crump) | Drum machines | Acoustic graph |
+| [Machine Hat](machine-hat/instrument.crump) | Drum machines | Acoustic graph |
+| [Machine Open Hat](machine-open-hat/instrument.crump) | Drum machines | Acoustic graph |
+| [Machine Tom](machine-tom/instrument.crump) | Drum machines | Acoustic graph |
+| [Kit Toms](kit-toms/instrument.crump) | Drum kit | Acoustic graph |
+| [China Cymbal](china-cymbal/instrument.crump) | Drum kit | Acoustic graph |
+| [Ride Bell](ride-bell/instrument.crump) | Drum kit | Acoustic graph |
+| [Cajón](cajon/instrument.crump) | World percussion | Acoustic graph |
+| [Darbuka](darbuka/instrument.crump) | World percussion | Acoustic graph |
+| [Frame Drum](frame-drum/instrument.crump) | World percussion | Acoustic graph |
+| [Taiko](taiko/instrument.crump) | World percussion | Acoustic graph |
+| [Udu](udu/instrument.crump) | World percussion | Acoustic graph |
+| [Talking Drum](talking-drum/instrument.crump) | World percussion | Acoustic graph |
+| [Agogô](agogo/instrument.crump) | World percussion | Acoustic graph |
+| [Guiro](guiro/instrument.crump) | World percussion | Acoustic graph |
+| [Cuíca](cuica/instrument.crump) | World percussion | Acoustic graph |
+| [Sleigh Bells](sleigh-bells/instrument.crump) | World percussion | Acoustic graph |
+| [Temple Blocks](temple-blocks/instrument.crump) | World percussion | Acoustic graph |
+| [Slit Drum](slit-drum/instrument.crump) | World percussion | Acoustic graph |
+| [Vibraslap](vibraslap/instrument.crump) | World percussion | Acoustic graph |
+| [Mark Tree](mark-tree/instrument.crump) | World percussion | Acoustic graph |
+| [Steel Pan](steel-pan/instrument.crump) | World mallets | Acoustic graph |
+| [Handpan](handpan/instrument.crump) | World mallets | Acoustic graph |
+| [Singing Bowl](singing-bowl/instrument.crump) | World mallets | Acoustic graph |
+| [Gamelan Saron](gamelan-saron/instrument.crump) | World mallets | Acoustic graph |
+| [Gamelan Bonang](gamelan-bonang/instrument.crump) | World mallets | Acoustic graph |
+| [Music Box](music-box/instrument.crump) | World mallets | Acoustic graph |
+| [Opera Gong](opera-gong/instrument.crump) | World mallets | Acoustic graph |
+| [Banjo](banjo/instrument.crump) | Guitar | Acoustic graph |
+| [Mandolin](mandolin/instrument.crump) | Guitar | Acoustic graph |
+| [Ukulele](ukulele/instrument.crump) | Guitar | Acoustic graph |
+| [Clean Electric](clean-electric/instrument.crump) | Guitar | Acoustic graph |
+| [Crunch Guitar](crunch-guitar/instrument.crump) | Guitar | Acoustic graph |
+| [Fretless Bass](fretless-bass/instrument.crump) | Bass | Acoustic graph |
+| [Sitar](sitar/instrument.crump) | World strings | Acoustic graph |
+| [Koto](koto/instrument.crump) | World strings | Acoustic graph |
+| [Shamisen](shamisen/instrument.crump) | World strings | Acoustic graph |
+| [Oud](oud/instrument.crump) | World strings | Acoustic graph |
+| [Hammered Dulcimer](hammered-dulcimer/instrument.crump) | World strings | Acoustic graph |
+| [Erhu](erhu/instrument.crump) | World strings | Acoustic graph |
+| [Hurdy-Gurdy](hurdy-gurdy/instrument.crump) | World strings | Acoustic graph |
+| [Tremolo Strings](tremolo-strings/instrument.crump) | Strings | Acoustic graph |
+| [Alto Sax](alto-sax/instrument.crump) | Saxophones | Acoustic graph |
+| [Tenor Sax](tenor-sax/instrument.crump) | Saxophones | Acoustic graph |
+| [Baritone Sax](baritone-sax/instrument.crump) | Saxophones | Acoustic graph |
+| [English Horn](english-horn/instrument.crump) | Woodwinds | Acoustic graph |
+| [Bass Clarinet](bass-clarinet/instrument.crump) | Woodwinds | Acoustic graph |
+| [Contrabassoon](contrabassoon/instrument.crump) | Woodwinds | Acoustic graph |
+| [Recorder](recorder/instrument.crump) | World winds | Acoustic graph |
+| [Pan Flute](pan-flute/instrument.crump) | World winds | Acoustic graph |
+| [Shakuhachi](shakuhachi/instrument.crump) | World winds | Acoustic graph |
+| [Bansuri](bansuri/instrument.crump) | World winds | Acoustic graph |
+| [Ocarina](ocarina/instrument.crump) | World winds | Acoustic graph |
+| [Duduk](duduk/instrument.crump) | World winds | Acoustic graph |
+| [Harmonica](harmonica/instrument.crump) | World winds | Acoustic graph |
+| [Accordion](accordion/instrument.crump) | World winds | Acoustic graph |
+| [Bagpipes](bagpipes/instrument.crump) | World winds | Acoustic graph |
+| [Didgeridoo](didgeridoo/instrument.crump) | World winds | Acoustic graph |
+| [Flugelhorn](flugelhorn/instrument.crump) | Brass | Acoustic graph |
+| [Muted Trumpet](muted-trumpet/instrument.crump) | Brass | Acoustic graph |
+| [Euphonium](euphonium/instrument.crump) | Brass | Acoustic graph |
+| [Bass Trombone](bass-trombone/instrument.crump) | Brass | Acoustic graph |
+| [Drawbar Organ](drawbar-organ/instrument.crump) | Keys | Acoustic graph |
+| [Tape Flute](tape-flute/instrument.crump) | Keys | Acoustic graph |
+| [Tape Strings](tape-strings/instrument.crump) | Keys | Acoustic graph |
+| [Glass Harmonica](glass-harmonica/instrument.crump) | Keys | Acoustic graph |
+| [Honky-Tonk](honky-tonk/instrument.crump) | Keys | Acoustic graph |
+| [Prepared Piano](prepared-piano/instrument.crump) | Keys | Acoustic graph |
+| [Choir Oohs](choir-oohs/instrument.crump) | Voices | Acoustic graph |
+| [Soprano Voice](soprano-voice/instrument.crump) | Voices | Acoustic graph |
+| [Bass Voice](bass-voice/instrument.crump) | Voices | Acoustic graph |

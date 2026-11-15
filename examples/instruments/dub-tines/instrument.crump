@@ -1,93 +1,81 @@
 crump-module 2
 instrument dub-tines "Dub Tines" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset dub-tines-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
-      zone z36-hard-0 asset dub-tines-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
-      zone z43-soft-0 asset dub-tines-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
-      zone z43-hard-0 asset dub-tines-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
-      zone z48-soft-0 asset dub-tines-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset dub-tines-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
-      zone z55-soft-0 asset dub-tines-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
-      zone z55-hard-0 asset dub-tines-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
-      zone z60-soft-0 asset dub-tines-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
-      zone z60-hard-0 asset dub-tines-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
-      zone z67-soft-0 asset dub-tines-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset dub-tines-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset dub-tines-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset dub-tines-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
-      zone z79-soft-0 asset dub-tines-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
-      zone z79-hard-0 asset dub-tines-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
+  modulation {
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route key-gain-low source key-level target key-gain depth 0.023276 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth -0.0337097 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 20 {
+    # A mallet on a tuned bar's modes, optionally through a pickup.
+    node strike1 exciter kind impact contact 0.000164038s hardness $hardness level 1
+    node body2 modal_bank profile dub-tines-bar max_modes 4 key_track 1 decay_scale $ring brightness 0 level 1
+    node shape3 shaper curve tanh drive 1.77227 bias 0
+    node gain4 math operation scale amount 0.564248
+    node times5 math operation multiply
+    node gain6 math operation scale amount 0.18
+    node plus7 math operation add
+    node hi-8 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node lo-9 lowpass mode lowpass cutoff 2600hz resonance 0.308309
+    node echo10 delay_line mode time time 0.368854s interpolation linear max_time 0.378854s
+    node gain11 math operation scale amount 0.32
+    node echo12 delay_line mode time time 0.737708s interpolation linear max_time 0.747708s
+    node gain13 math operation scale amount 0.12
+    node mix14 sum max_inputs 3
+    node gain15 math operation scale amount 0.7
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.318083
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-shape3-audio body2.audio -> shape3.audio
+    bus shape3-audio-gain4-a shape3.audio -> gain4.a
+    bus body2-audio-times5-a body2.audio -> times5.a
+    bus body2-audio-times5-b body2.audio -> times5.b
+    bus times5-audio-gain6-a times5.audio -> gain6.a
+    bus gain4-audio-plus7-a gain4.audio -> plus7.a
+    bus gain6-audio-plus7-b gain6.audio -> plus7.b
+    bus plus7-audio-hi-8-audio plus7.audio -> hi-8.audio
+    bus hi-8-audio-lo-9-audio hi-8.audio -> lo-9.audio
+    bus lo-9-audio-echo10-audio lo-9.audio -> echo10.audio
+    bus echo10-audio-gain11-a echo10.audio -> gain11.a
+    bus lo-9-audio-echo12-audio lo-9.audio -> echo12.audio
+    bus echo12-audio-gain13-a echo12.audio -> gain13.a
+    bus lo-9-audio-mix14-inputs lo-9.audio -> mix14.inputs
+    bus gain11-audio-mix14-inputs gain11.audio -> mix14.inputs
+    bus gain13-audio-mix14-inputs gain13.audio -> mix14.inputs
+    bus mix14-audio-gain15-a mix14.audio -> gain15.a
+    bus gain15-audio-register-a gain15.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset dub-tines-36-soft-0 "Dub Tines" wav "media/36-soft-0.wav" sha256 "9a5dae1db3a35f110ec8f77affe05f5b248fe8ff61626fbd53ee284a7be1f233" {
-  usage multisample
-}
-asset dub-tines-36-hard-0 "Dub Tines" wav "media/36-hard-0.wav" sha256 "45a70c0b27cf1fda7e5b8ef71a7c3ec16d7d48fdbad03d10f339bc9298b00c38" {
-  usage multisample
-}
-asset dub-tines-43-soft-0 "Dub Tines" wav "media/43-soft-0.wav" sha256 "3eceab210d77fdc218819dc97b00f57c59b29fba1f001edd2559a6e40eb7bb1d" {
-  usage multisample
-}
-asset dub-tines-43-hard-0 "Dub Tines" wav "media/43-hard-0.wav" sha256 "da35c2f3fd0a43f9b309da172ae1b80f5d8b96cfa96b1888cdcd5da525125299" {
-  usage multisample
-}
-asset dub-tines-48-soft-0 "Dub Tines" wav "media/48-soft-0.wav" sha256 "fa95731f00b9349be6db3be95c4c27f25af43aead8132e2f95ff7b10e6b1472d" {
-  usage multisample
-}
-asset dub-tines-48-hard-0 "Dub Tines" wav "media/48-hard-0.wav" sha256 "b6961f11b2a00002f307751d33a977cd99eaa4ad32ec6cac590461bd17b6abba" {
-  usage multisample
-}
-asset dub-tines-55-soft-0 "Dub Tines" wav "media/55-soft-0.wav" sha256 "844c5c323551b7b8a7a8ed6b9d6eaab5db066d2fcc42fb81ab3471f4c3281845" {
-  usage multisample
-}
-asset dub-tines-55-hard-0 "Dub Tines" wav "media/55-hard-0.wav" sha256 "2400afd8720c80ae007ffacf621516b74db785565a0709f4d27e1ba5cf8345ab" {
-  usage multisample
-}
-asset dub-tines-60-soft-0 "Dub Tines" wav "media/60-soft-0.wav" sha256 "08b0e61e0d9acb1c668b1a75be99b3774bd6001ddaacf1ac72ddc2b3bb3a3ae2" {
-  usage multisample
-}
-asset dub-tines-60-hard-0 "Dub Tines" wav "media/60-hard-0.wav" sha256 "e6ef6243bddcfedbc32fc5a284b5ad42f64c364b6d0e7b9ff86c16c3c861e38f" {
-  usage multisample
-}
-asset dub-tines-67-soft-0 "Dub Tines" wav "media/67-soft-0.wav" sha256 "f7cf4dc436b0aad6a4190eeeff32271f8f96f8af2ea600112070fc95a5789724" {
-  usage multisample
-}
-asset dub-tines-67-hard-0 "Dub Tines" wav "media/67-hard-0.wav" sha256 "8d1a493a308fb96d15b9720b95473aa17b87ce36bcf14da4c18f53976ecb08d5" {
-  usage multisample
-}
-asset dub-tines-72-soft-0 "Dub Tines" wav "media/72-soft-0.wav" sha256 "8388f2560bbfcd434182c37164d17c18a7ad281377c1d7cafe502e6ab2c49b0d" {
-  usage multisample
-}
-asset dub-tines-72-hard-0 "Dub Tines" wav "media/72-hard-0.wav" sha256 "f97f9933a6cc812b780b194552f062b1e64d482b81accb425063d7333ed7a6eb" {
-  usage multisample
-}
-asset dub-tines-79-soft-0 "Dub Tines" wav "media/79-soft-0.wav" sha256 "5727e8959f75dcc0da2444b096a7a1cd39ea11f7d63fb0275cfe97d31f55f337" {
-  usage multisample
-}
-asset dub-tines-79-hard-0 "Dub Tines" wav "media/79-hard-0.wav" sha256 "863b787f13d0e368f7b634b2aaa6a2ee400c9e3122658ed94df52d6faebc2a0c" {
-  usage multisample
+profile dub-tines-bar {
+  root 261.626hz
+  mode m0 frequency 261.834hz decay 1.94641s gain 1 after_decay 1.94641s after_gain 0
+  mode m1 frequency 523.669hz decay 0.578456s gain 0.106328 after_decay 0.578456s after_gain 0
+  mode m2 frequency 1640.92hz decay 0.0783343s gain 0.0658898 after_decay 0.0783343s after_gain 0
+  mode m3 frequency 4595.19hz decay 0.0129146s gain 0.0203185 after_decay 0.0129146s after_gain 0
 }

@@ -24,7 +24,7 @@ To use one in your own `crump 2` Project, copy its `instrument.crump` next to `p
 
 ## Comparison with recordings
 
-These figures come from rendering isolated notes and comparing them with the reference clips listed in `tools/instrument_assets/references.json` on the instrument-expansion branch. The comparison uses that tool's onset, decay, centroid and sixth-octave spectrum functions. The harmonic envelope is the mean absolute difference of harmonics 1–16 in dB, measured 50–500 ms after the onset. The sixth-octave distance also counts the room noise, body noise and reverb between harmonics in the recordings, which a bare waveguide lacks. It is therefore larger than the harmonic-envelope distance.
+These figures come from rendering isolated notes and comparing them with the reference clips listed in `tools/instrument_assets/references.json`. The comparison uses that tool's onset, decay, centroid and sixth-octave spectrum functions. The harmonic envelope is the mean absolute difference of harmonics 1–16 in dB, measured 50–500 ms after the onset. The sixth-octave distance also counts the room noise, body noise and reverb between harmonics in the recordings, which a bare waveguide lacks. It is therefore larger than the harmonic-envelope distance.
 
 | Model | Reference clip | Sixth-octave distance | Harmonic envelope | Centroid, model / reference |
 | --- | --- | --- | --- | --- |

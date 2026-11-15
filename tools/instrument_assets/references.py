@@ -11,18 +11,21 @@ records each clip's source, licence and slice. A clip comes from a URL, a
 Wikimedia Commons file, a member of a zip archive, or a YouTube video. Fetching
 needs ffmpeg, and yt-dlp for YouTube clips.
 
+Comparisons render each Instrument Module through Crump, so build the release
+binary first (or pass --crump).
+
   references.py --fetch [ID ...]     download and slice every clip, or some
   references.py --compare [ID ...]   write the model/reference report the player reads
-  references.py --fit ID [--write]   fit a smooth reference_eq from the comparison
-  references.py --profile ID [--write]
-                                     measure the harmonic spectral envelope of the
-                                     pitched references for sustained models
+  references.py --profile ID         measure the harmonic spectral envelope of the
+                                     pitched references, as [[hz, db], ...]
 """
 
 import argparse
 import hashlib
 import json
+import shutil
 import subprocess
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -32,7 +35,6 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
-from materials import RATE, load_recipe, make, treatment
 from scipy import signal
 from scipy.io import wavfile
 
@@ -41,6 +43,9 @@ REPO = HERE.parents[1]
 LIBRARY = REPO / "examples/instruments"
 OUTPUT = REPO / "renders/instrument-references"
 LIST = HERE / "references.json"
+CATALOG = LIBRARY / "catalog.json"
+BINARY = REPO / "target/release/crump"
+RATE = 48000
 COMMONS = "https://commons.wikimedia.org/w/api.php"
 AGENT = {"User-Agent": "crump-instrument-references/1 (https://github.com/NathanaelRea/crump)"}
 # Sixth-octave bands from 50 Hz to 16 kHz.
@@ -170,42 +175,80 @@ def facts(x):
     }
 
 
-def nearest_stroke(recipe, clip):
-    """The recipe variant a reference compares against: a named stroke, or the recipe."""
-    stroke = next((s for s in recipe.get("strokes", []) if s["name"] == clip.get("stroke")), None)
-    stroke = stroke or (recipe["strokes"][0] if recipe.get("strokes") else None)
-    if stroke:
-        return recipe | {"params": recipe["params"] | stroke.get("params", {})}
-    return recipe
+def note_name(midi):
+    return ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][midi % 12] + str(midi // 12 - 1)
 
 
-def model_note(recipe, note):
-    x = make(recipe, note, 0.92, recipe["seed_base"] + note * 10)
-    x = treatment(x / np.max(np.abs(x)) * 0.5, recipe.get("treatment"))
-    return x.mean(axis=0) if x.ndim > 1 else x
+def render(ident, notes, spacing=8.0):
+    """Render (midi, velocity, held seconds) notes of one module through Crump, one array each."""
+    with tempfile.TemporaryDirectory() as temporary:
+        folder = Path(temporary)
+        shutil.copyfile(LIBRARY / ident / "instrument.crump", folder / "instrument.crump")
+        beats = spacing * 2
+        bars = int(np.ceil(len(notes) * beats / 4))
+        events = "\n".join(
+            f"      note {k * beats:g}beat {note_name(m)} {h * 2:g}beat {v:g}" for k, (m, v, h) in enumerate(notes)
+        )
+        (folder / "project.crump").write_text(f"""crump 2
+import "instrument.crump"
+project "Reference comparison" {{
+  id reference-{ident}
+  seed 1
+  sample_rate 48000
+  render_tail 4s
+  song {{
+    tempo 120bpm
+    meter 4/4
+    end {bars}bar
+    pattern notes {bars}bar {{
+{events}
+    }}
+    track model "Model" instrument {ident} level 0db pan 0 {{
+      clip notes pattern notes start 0bar duration {bars}bar mode once
+    }}
+  }}
+}}
+""")
+        for args in [
+            ["publish", "--origin", "agent", "--actor", "references", "--summary", "Comparison", "--explanation", "Reference comparison"],
+            ["render", "--output", str(folder / "render")],
+        ]:
+            result = subprocess.run([str(BINARY), "--project", str(folder), "--json", *args], capture_output=True, text=True)
+            if result.returncode or not json.loads(result.stdout).get("ok"):
+                raise RuntimeError(f"{ident} {args[0]}: {result.stdout[:600]}")
+        audio = wavfile.read(folder / "render/master.wav")[1].astype(np.float64)
+    audio = audio.mean(axis=1) if audio.ndim > 1 else audio
+    span = int(spacing * RATE)
+    return [audio[k * span : (k + 1) * span] for k in range(len(notes))]
 
 
 def compare(ident):
     clips = json.loads(LIST.read_text())[ident]
-    recipe = load_recipe(LIBRARY / ident / "recipe.json")[0]
-    results = []
+    entry = next(e for e in json.loads(CATALOG.read_text()) if e["id"] == ident)
+    pending = []
     for index, clip in enumerate(clips):
         path = OUTPUT / ident / f"{index}.wav"
         if not path.exists():
             continue
         x = wavfile.read(path)[1].astype(np.float64) / 32768
-        hz = clip.get("hz") or (pitch(x) if recipe["pitched"] else None)
-        if recipe["pitched"]:
-            low, high = recipe.get("range", [24, 91])
+        hz = clip.get("hz") or (pitch(x) if entry["pitched"] else None)
+        if entry["pitched"]:
+            low, high = entry.get("range", [24, 91])
             detected = round(69 + 12 * np.log2(hz / 440)) if hz else None
             # A detection far outside the instrument's range is a failure, not a note.
             if detected is None or not low - 3 <= detected <= high + 3:
-                detected, hz = recipe.get("audition", 60), None
+                detected, hz = entry.get("audition_note", 60), None
             midi = int(np.clip(detected, low, high))
         else:
-            midi = 60
-        variant = nearest_stroke(recipe, clip)
-        model = model_note(variant, midi)
+            # A split instrument plays each stroke on its own keys.
+            strokes = entry.get("strokes", {})
+            midi = strokes.get(clip.get("stroke"), next(iter(strokes.values()), 60))
+        pending.append((index, x, hz, midi))
+    held = 1.5 if entry.get("sustained") else 0.25
+    models = render(ident, [(midi, 0.92, held) for _, _, _, midi in pending]) if pending else []
+    results = []
+    for (index, x, hz, midi), model in zip(pending, models):
+        model = model / max(np.max(np.abs(model)), 1e-12) * 0.5
         reference_db, model_db = spectrum(x), spectrum(model)
         # Score only bands either sound actually uses.
         audible = (BANDS >= 40) & (BANDS <= 14000) & (np.maximum(reference_db, model_db) > -40)
@@ -222,27 +265,6 @@ def compare(ident):
             }
         )
     return ident, results
-
-
-def fit(ident, cap=8.0):
-    """Mean smoothed reference/model difference, capped and level-neutral."""
-    report = json.loads((OUTPUT / "report.json").read_text())["instruments"][ident]
-    differences = [np.asarray(c["reference_db"]) - np.asarray(c["model_db"]) for c in report["clips"]]
-    difference = np.mean(differences, axis=0)
-    difference = np.convolve(np.pad(difference, 3, mode="edge"), np.ones(7) / 7, mode="valid")
-    keep = (BANDS >= 60) & (BANDS <= 14000)
-    hz, db = BANDS[keep], np.clip(difference[keep], -cap, cap)
-    # Level-neutral where the instrument is loudest.
-    weight = 10 ** (np.mean([c["reference_db"] for c in report["clips"]], axis=0)[keep] / 10)
-    db -= np.sum(db * weight) / np.sum(weight)
-    recipe = json.loads((LIBRARY / ident / "recipe.json").read_text())
-    # The comparison already includes any earlier fit, so corrections compound.
-    if recipe.get("reference_eq"):
-        old_hz, old_db = np.asarray(recipe["reference_eq"]).T
-        db += np.interp(np.log(hz), np.log(old_hz), old_db)
-    db = np.clip(db, -cap * 1.5, cap * 1.5)
-    # Every third band is enough for a smooth curve.
-    return [[round(float(h)), round(float(d), 1)] for h, d in zip(hz[::3], db[::3])]
 
 
 def label(clip):
@@ -310,14 +332,15 @@ def harmonic_profile(ident, count=32):
 
 
 def main():
+    global BINARY
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--fetch", nargs="*")
     parser.add_argument("--compare", nargs="*")
-    parser.add_argument("--fit", nargs="+")
     parser.add_argument("--profile", nargs="+")
-    parser.add_argument("--write", action="store_true", help="With --fit or --profile, store the curve in each recipe")
     parser.add_argument("--jobs", type=int, default=8)
+    parser.add_argument("--crump", type=Path, default=REPO / "target/release/crump")
     args = parser.parse_args()
+    BINARY = args.crump.resolve()
     references = json.loads(LIST.read_text())
     if args.fetch is not None:
         pages_path = OUTPUT / "pages.json"
@@ -360,26 +383,9 @@ def main():
                 print(f"{ident:18} {summary}", flush=True)
         report["bands"] = np.round(BANDS, 1).tolist()
         report_path.write_text(json.dumps(report) + "\n")
-    if args.fit:
-        for ident in args.fit:
-            curve = fit(ident)
-            print(ident, json.dumps(curve))
-            if args.write:
-                path = LIBRARY / ident / "recipe.json"
-                recipe = json.loads(path.read_text())
-                recipe["reference_eq"] = curve
-                path.write_text(json.dumps(recipe, indent=2, ensure_ascii=False) + "\n")
-
-
     if args.profile:
         for ident in args.profile:
-            curve = harmonic_profile(ident)
-            print(ident, json.dumps(curve))
-            if args.write:
-                path = LIBRARY / ident / "recipe.json"
-                recipe = json.loads(path.read_text())
-                recipe["params"]["profile"] = curve
-                path.write_text(json.dumps(recipe, indent=2, ensure_ascii=False) + "\n")
+            print(ident, json.dumps(harmonic_profile(ident)))
 
 
 if __name__ == "__main__":

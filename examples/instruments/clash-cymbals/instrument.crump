@@ -1,81 +1,225 @@
 crump-module 2
 instrument clash-cymbals "Clash Cymbals" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 2
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z38-soft-0 asset clash-cymbals-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
-      zone z43-soft-0 asset clash-cymbals-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
-      zone z48-soft-0 asset clash-cymbals-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
-      zone z53-soft-0 asset clash-cymbals-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
-      zone z58-soft-0 asset clash-cymbals-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
-      zone z63-soft-0 asset clash-cymbals-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
-      zone z68-soft-0 asset clash-cymbals-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone z73-soft-0 asset clash-cymbals-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
-      zone z78-soft-0 asset clash-cymbals-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
-      zone z83-soft-0 asset clash-cymbals-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
-      zone z38-hard-0 asset clash-cymbals-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
-      zone z43-hard-0 asset clash-cymbals-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
-      zone z48-hard-0 asset clash-cymbals-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
-      zone z53-hard-0 asset clash-cymbals-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
-      zone z58-hard-0 asset clash-cymbals-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
-      zone z63-hard-0 asset clash-cymbals-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
-      zone z68-hard-0 asset clash-cymbals-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone z73-hard-0 asset clash-cymbals-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
-      zone z78-hard-0 asset clash-cymbals-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
-      zone z83-hard-0 asset clash-cymbals-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
-      zone z38-soft-1 asset clash-cymbals-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
-      zone z43-soft-1 asset clash-cymbals-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
-      zone z48-soft-1 asset clash-cymbals-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
-      zone z53-soft-1 asset clash-cymbals-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
-      zone z58-soft-1 asset clash-cymbals-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
-      zone z63-soft-1 asset clash-cymbals-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
-      zone z68-soft-1 asset clash-cymbals-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone z73-soft-1 asset clash-cymbals-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
-      zone z78-soft-1 asset clash-cymbals-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
-      zone z83-soft-1 asset clash-cymbals-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
-      zone z38-hard-1 asset clash-cymbals-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
-      zone z43-hard-1 asset clash-cymbals-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
-      zone z48-hard-1 asset clash-cymbals-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
-      zone z53-hard-1 asset clash-cymbals-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
-      zone z58-hard-1 asset clash-cymbals-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
-      zone z63-hard-1 asset clash-cymbals-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
-      zone z68-hard-1 asset clash-cymbals-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone z73-hard-1 asset clash-cymbals-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
-      zone z78-hard-1 asset clash-cymbals-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
-      zone z83-hard-1 asset clash-cymbals-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
-    }
+  graph voice 24 {
+    # A strike on dense metal modes, with rattle and broadband shimmer.
+    node strike1 exciter kind impact contact 0.000484s hardness $hardness level 1
+    node hiss2 noise level 1
+    node fall3 math operation add
+    node fall3-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall3-leak math operation scale amount 0.999479302277
+    node times4 math operation multiply
+    node gain5 math operation scale amount 0.155885
+    node plus6 math operation add
+    node body7 modal_bank profile clash-cymbals-plate max_modes 150 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss8 noise level 1
+    node fall9 math operation add
+    node fall9-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall9-leak math operation scale amount 0.999978070416
+    node times10 math operation multiply
+    node hi-11 lowpass mode highpass cutoff 2500hz resonance 0.308309
+    node lo-12 lowpass mode lowpass cutoff 17000hz resonance 0.308309
+    node gain13 math operation scale amount 0.381051
+    node plus14 math operation add
+    node hi-15 lowpass mode highpass cutoff 260hz resonance 0.308309
+    node hi-16 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.0429406
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus fall3-audio-fall3-previous-audio fall3.audio -> fall3-previous.audio
+    bus strike1-audio-fall3-a strike1.audio -> fall3.a
+    bus fall3-previous-audio-fall3-leak-a fall3-previous.audio -> fall3-leak.a
+    bus fall3-leak-audio-fall3-b fall3-leak.audio -> fall3.b
+    bus hiss2-audio-times4-a hiss2.audio -> times4.a
+    bus fall3-audio-times4-b fall3.audio -> times4.b
+    bus times4-audio-gain5-a times4.audio -> gain5.a
+    bus strike1-audio-plus6-a strike1.audio -> plus6.a
+    bus gain5-audio-plus6-b gain5.audio -> plus6.b
+    bus plus6-audio-body7-audio plus6.audio -> body7.audio
+    bus note-pitch-body7-pitch note.pitch -> body7.pitch
+    bus note-gate-body7-gate note.gate -> body7.gate
+    bus fall9-audio-fall9-previous-audio fall9.audio -> fall9-previous.audio
+    bus strike1-audio-fall9-a strike1.audio -> fall9.a
+    bus fall9-previous-audio-fall9-leak-a fall9-previous.audio -> fall9-leak.a
+    bus fall9-leak-audio-fall9-b fall9-leak.audio -> fall9.b
+    bus hiss8-audio-times10-a hiss8.audio -> times10.a
+    bus fall9-audio-times10-b fall9.audio -> times10.b
+    bus times10-audio-hi-11-audio times10.audio -> hi-11.audio
+    bus hi-11-audio-lo-12-audio hi-11.audio -> lo-12.audio
+    bus lo-12-audio-gain13-a lo-12.audio -> gain13.a
+    bus body7-audio-plus14-a body7.audio -> plus14.a
+    bus gain13-audio-plus14-b gain13.audio -> plus14.b
+    bus plus14-audio-hi-15-audio plus14.audio -> hi-15.audio
+    bus hi-15-audio-hi-16-audio hi-15.audio -> hi-16.audio
+    bus hi-16-audio-trim-a hi-16.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset clash-cymbals-60-soft-0 "Clash Cymbals" wav "media/60-soft-0.wav" sha256 "c84c1d42b621a310a79c58f167ca57d84a06808e8c14b61f4530dbac0572b3a9" {
-  usage multisample
-}
-asset clash-cymbals-60-hard-0 "Clash Cymbals" wav "media/60-hard-0.wav" sha256 "3bfbd823104ff48ef464dd9ea65b7ed0a7fc6ffdb90a1a51ac220eb153ca1efe" {
-  usage multisample
-}
-asset clash-cymbals-60-soft-1 "Clash Cymbals" wav "media/60-soft-1.wav" sha256 "2cb951d87473f85eb097b9c4b2c864c6995b2c091d122d413a7af94fcc2c31a4" {
-  usage multisample
-}
-asset clash-cymbals-60-hard-1 "Clash Cymbals" wav "media/60-hard-1.wav" sha256 "22d1fa76b557c6b69aa6e10f800d34274aa87ae498ef47da9654678b87874290" {
-  usage multisample
+profile clash-cymbals-plate {
+  root 261.626hz
+  mode m0 frequency 317.486hz decay 1.74538s gain 0.0185089 after_decay 1.74538s after_gain 0
+  mode m1 frequency 348.621hz decay 1.15096s gain 0.0486038 after_decay 1.15096s after_gain 0
+  mode m2 frequency 351.717hz decay 1.81894s gain 0.0297412 after_decay 1.81894s after_gain 0
+  mode m3 frequency 367.163hz decay 1.73452s gain 0.0256952 after_decay 1.73452s after_gain 0
+  mode m4 frequency 352.253hz decay 2.06171s gain 0.0186509 after_decay 2.06171s after_gain 0
+  mode m5 frequency 370.467hz decay 2.26955s gain 0.0488546 after_decay 2.26955s after_gain 0
+  mode m6 frequency 375.839hz decay 1.37365s gain 0.0406784 after_decay 1.37365s after_gain 0
+  mode m7 frequency 404.124hz decay 2.25958s gain 0.0415347 after_decay 2.25958s after_gain 0
+  mode m8 frequency 418.839hz decay 2.0318s gain 0.0167638 after_decay 2.0318s after_gain 0
+  mode m9 frequency 410.113hz decay 1.49046s gain 0.0369886 after_decay 1.49046s after_gain 0
+  mode m10 frequency 432.453hz decay 1.0953s gain 0.0536568 after_decay 1.0953s after_gain 0
+  mode m11 frequency 437.985hz decay 1.8432s gain 0.0329933 after_decay 1.8432s after_gain 0
+  mode m12 frequency 462.204hz decay 1.497s gain 0.0260767 after_decay 1.497s after_gain 0
+  mode m13 frequency 477.159hz decay 1.27197s gain 0.0634095 after_decay 1.27197s after_gain 0
+  mode m14 frequency 490.184hz decay 1.87768s gain 0.0562808 after_decay 1.87768s after_gain 0
+  mode m15 frequency 492.667hz decay 1.74273s gain 0.0636193 after_decay 1.74273s after_gain 0
+  mode m16 frequency 496.36hz decay 1.91418s gain 0.0313436 after_decay 1.91418s after_gain 0
+  mode m17 frequency 516.427hz decay 1.70758s gain 0.0330819 after_decay 1.70758s after_gain 0
+  mode m18 frequency 515.095hz decay 2.28737s gain 0.0417061 after_decay 2.28737s after_gain 0
+  mode m19 frequency 532.576hz decay 1.86472s gain 0.0167129 after_decay 1.86472s after_gain 0
+  mode m20 frequency 536.462hz decay 1.95213s gain 0.0324903 after_decay 1.95213s after_gain 0
+  mode m21 frequency 583.831hz decay 1.1816s gain 0.0429171 after_decay 1.1816s after_gain 0
+  mode m22 frequency 566.203hz decay 1.67053s gain 0.029691 after_decay 1.67053s after_gain 0
+  mode m23 frequency 595.196hz decay 1.63171s gain 0.0284982 after_decay 1.63171s after_gain 0
+  mode m24 frequency 593.204hz decay 1.74382s gain 0.0656021 after_decay 1.74382s after_gain 0
+  mode m25 frequency 614.039hz decay 2.14436s gain 0.0480977 after_decay 2.14436s after_gain 0
+  mode m26 frequency 655.526hz decay 1.8255s gain 0.01426 after_decay 1.8255s after_gain 0
+  mode m27 frequency 661.897hz decay 2.19972s gain 0.026788 after_decay 2.19972s after_gain 0
+  mode m28 frequency 704.971hz decay 1.61779s gain 0.0148087 after_decay 1.61779s after_gain 0
+  mode m29 frequency 713.822hz decay 1.23404s gain 0.0642106 after_decay 1.23404s after_gain 0
+  mode m30 frequency 738.085hz decay 2.049s gain 0.0295121 after_decay 2.049s after_gain 0
+  mode m31 frequency 715.076hz decay 2.20846s gain 0.0336825 after_decay 2.20846s after_gain 0
+  mode m32 frequency 764.314hz decay 1.35139s gain 0.0322052 after_decay 1.35139s after_gain 0
+  mode m33 frequency 795.491hz decay 1.32263s gain 0.0479476 after_decay 1.32263s after_gain 0
+  mode m34 frequency 825.521hz decay 1.90107s gain 0.0237129 after_decay 1.90107s after_gain 0
+  mode m35 frequency 828.855hz decay 1.6318s gain 0.0476361 after_decay 1.6318s after_gain 0
+  mode m36 frequency 811.418hz decay 1.84791s gain 0.0529647 after_decay 1.84791s after_gain 0
+  mode m37 frequency 887.732hz decay 1.50874s gain 0.0575374 after_decay 1.50874s after_gain 0
+  mode m38 frequency 894.429hz decay 2.12958s gain 0.0163567 after_decay 2.12958s after_gain 0
+  mode m39 frequency 903.803hz decay 0.932503s gain 0.0158713 after_decay 0.932503s after_gain 0
+  mode m40 frequency 909.572hz decay 1.58267s gain 0.031305 after_decay 1.58267s after_gain 0
+  mode m41 frequency 940.735hz decay 1.03207s gain 0.0152751 after_decay 1.03207s after_gain 0
+  mode m42 frequency 967.4hz decay 1.76908s gain 0.0216683 after_decay 1.76908s after_gain 0
+  mode m43 frequency 964.179hz decay 1.11089s gain 0.02005 after_decay 1.11089s after_gain 0
+  mode m44 frequency 1015.88hz decay 1.70845s gain 0.066603 after_decay 1.70845s after_gain 0
+  mode m45 frequency 1062.62hz decay 1.5263s gain 0.0672854 after_decay 1.5263s after_gain 0
+  mode m46 frequency 1083.15hz decay 1.46873s gain 0.057901 after_decay 1.46873s after_gain 0
+  mode m47 frequency 1111.01hz decay 2.13467s gain 0.0481874 after_decay 2.13467s after_gain 0
+  mode m48 frequency 1183.2hz decay 1.59093s gain 0.071088 after_decay 1.59093s after_gain 0
+  mode m49 frequency 1196.6hz decay 0.913705s gain 0.0644439 after_decay 0.913705s after_gain 0
+  mode m50 frequency 1182.21hz decay 2.06421s gain 0.0721048 after_decay 2.06421s after_gain 0
+  mode m51 frequency 1214.38hz decay 1.00884s gain 0.0415388 after_decay 1.00884s after_gain 0
+  mode m52 frequency 1294.98hz decay 2.04485s gain 0.0523763 after_decay 2.04485s after_gain 0
+  mode m53 frequency 1268.36hz decay 1.65707s gain 0.023461 after_decay 1.65707s after_gain 0
+  mode m54 frequency 1324.47hz decay 0.890637s gain 0.0366635 after_decay 0.890637s after_gain 0
+  mode m55 frequency 1339.57hz decay 1.22226s gain 0.0685196 after_decay 1.22226s after_gain 0
+  mode m56 frequency 1418.51hz decay 1.30672s gain 0.0614904 after_decay 1.30672s after_gain 0
+  mode m57 frequency 1478.81hz decay 0.826242s gain 0.0748558 after_decay 0.826242s after_gain 0
+  mode m58 frequency 1528.78hz decay 1.80081s gain 0.0511334 after_decay 1.80081s after_gain 0
+  mode m59 frequency 1537.98hz decay 0.969139s gain 0.0632376 after_decay 0.969139s after_gain 0
+  mode m60 frequency 1585.12hz decay 1.27417s gain 0.0384047 after_decay 1.27417s after_gain 0
+  mode m61 frequency 1602.35hz decay 1.08384s gain 0.0710634 after_decay 1.08384s after_gain 0
+  mode m62 frequency 1634.11hz decay 1.90746s gain 0.0198991 after_decay 1.90746s after_gain 0
+  mode m63 frequency 1688.5hz decay 1.29217s gain 0.0565402 after_decay 1.29217s after_gain 0
+  mode m64 frequency 1725.33hz decay 1.76858s gain 0.0374841 after_decay 1.76858s after_gain 0
+  mode m65 frequency 1768.75hz decay 1.69073s gain 0.0371501 after_decay 1.69073s after_gain 0
+  mode m66 frequency 1832.58hz decay 1.00604s gain 0.0736461 after_decay 1.00604s after_gain 0
+  mode m67 frequency 1903.77hz decay 1.84431s gain 0.0592535 after_decay 1.84431s after_gain 0
+  mode m68 frequency 1891hz decay 1.52641s gain 0.0186342 after_decay 1.52641s after_gain 0
+  mode m69 frequency 1889.53hz decay 0.825737s gain 0.0297076 after_decay 0.825737s after_gain 0
+  mode m70 frequency 1954.41hz decay 1.78874s gain 0.0392325 after_decay 1.78874s after_gain 0
+  mode m71 frequency 2018.28hz decay 1.41632s gain 0.0541088 after_decay 1.41632s after_gain 0
+  mode m72 frequency 2057.5hz decay 1.35611s gain 0.065955 after_decay 1.35611s after_gain 0
+  mode m73 frequency 2114.73hz decay 1.71072s gain 0.0538972 after_decay 1.71072s after_gain 0
+  mode m74 frequency 2285.78hz decay 1.22757s gain 0.0596838 after_decay 1.22757s after_gain 0
+  mode m75 frequency 2274.46hz decay 1.1952s gain 0.0164776 after_decay 1.1952s after_gain 0
+  mode m76 frequency 2400.72hz decay 0.88464s gain 0.0240687 after_decay 0.88464s after_gain 0
+  mode m77 frequency 2460.07hz decay 0.836691s gain 0.07195 after_decay 0.836691s after_gain 0
+  mode m78 frequency 2473.95hz decay 1.76803s gain 0.0741137 after_decay 1.76803s after_gain 0
+  mode m79 frequency 2608.23hz decay 0.847585s gain 0.0502893 after_decay 0.847585s after_gain 0
+  mode m80 frequency 2658.9hz decay 1.62999s gain 0.0514046 after_decay 1.62999s after_gain 0
+  mode m81 frequency 2751.33hz decay 1.25271s gain 0.0807173 after_decay 1.25271s after_gain 0
+  mode m82 frequency 2817.54hz decay 1.10458s gain 0.0486106 after_decay 1.10458s after_gain 0
+  mode m83 frequency 2915.89hz decay 1.34964s gain 0.0612081 after_decay 1.34964s after_gain 0
+  mode m84 frequency 2860.73hz decay 1.60314s gain 0.0191143 after_decay 1.60314s after_gain 0
+  mode m85 frequency 2906.18hz decay 0.712292s gain 0.0259217 after_decay 0.712292s after_gain 0
+  mode m86 frequency 3086.65hz decay 1.09092s gain 0.0764146 after_decay 1.09092s after_gain 0
+  mode m87 frequency 3153.27hz decay 1.5875s gain 0.070645 after_decay 1.5875s after_gain 0
+  mode m88 frequency 3320.48hz decay 1.2964s gain 0.0611801 after_decay 1.2964s after_gain 0
+  mode m89 frequency 3245.39hz decay 0.970601s gain 0.0767102 after_decay 0.970601s after_gain 0
+  mode m90 frequency 3400.06hz decay 1.64823s gain 0.084257 after_decay 1.64823s after_gain 0
+  mode m91 frequency 3344.59hz decay 0.732461s gain 0.0660179 after_decay 0.732461s after_gain 0
+  mode m92 frequency 3428.46hz decay 1.26861s gain 0.0253849 after_decay 1.26861s after_gain 0
+  mode m93 frequency 3637.7hz decay 0.991937s gain 0.0620133 after_decay 0.991937s after_gain 0
+  mode m94 frequency 3879.02hz decay 1.42552s gain 0.0304407 after_decay 1.42552s after_gain 0
+  mode m95 frequency 3792.55hz decay 1.17191s gain 0.0409983 after_decay 1.17191s after_gain 0
+  mode m96 frequency 3986.41hz decay 1.21023s gain 0.0869098 after_decay 1.21023s after_gain 0
+  mode m97 frequency 4201.23hz decay 1.24958s gain 0.0819228 after_decay 1.24958s after_gain 0
+  mode m98 frequency 4256.95hz decay 0.86891s gain 0.0177505 after_decay 0.86891s after_gain 0
+  mode m99 frequency 4364.17hz decay 0.867836s gain 0.0636685 after_decay 0.867836s after_gain 0
+  mode m100 frequency 4403hz decay 1.39748s gain 0.0380424 after_decay 1.39748s after_gain 0
+  mode m101 frequency 4622.89hz decay 0.670522s gain 0.0680764 after_decay 0.670522s after_gain 0
+  mode m102 frequency 4757.78hz decay 1.55168s gain 0.05696 after_decay 1.55168s after_gain 0
+  mode m103 frequency 4593.03hz decay 1.49505s gain 0.0488558 after_decay 1.49505s after_gain 0
+  mode m104 frequency 4740.71hz decay 1.2468s gain 0.0746898 after_decay 1.2468s after_gain 0
+  mode m105 frequency 4936.62hz decay 1.05295s gain 0.0603362 after_decay 1.05295s after_gain 0
+  mode m106 frequency 4899.36hz decay 1.54264s gain 0.0652106 after_decay 1.54264s after_gain 0
+  mode m107 frequency 5293.21hz decay 0.979457s gain 0.0845139 after_decay 0.979457s after_gain 0
+  mode m108 frequency 5451.07hz decay 0.989209s gain 0.0444342 after_decay 0.989209s after_gain 0
+  mode m109 frequency 5580.64hz decay 0.672838s gain 0.0849244 after_decay 0.672838s after_gain 0
+  mode m110 frequency 5607.45hz decay 1.3727s gain 0.046635 after_decay 1.3727s after_gain 0
+  mode m111 frequency 5801.71hz decay 1.26448s gain 0.0244071 after_decay 1.26448s after_gain 0
+  mode m112 frequency 5900.15hz decay 1.44252s gain 0.0729581 after_decay 1.44252s after_gain 0
+  mode m113 frequency 5973.35hz decay 1.25094s gain 0.0449327 after_decay 1.25094s after_gain 0
+  mode m114 frequency 6321.18hz decay 0.897074s gain 0.0788374 after_decay 0.897074s after_gain 0
+  mode m115 frequency 6550.74hz decay 0.97223s gain 0.0322373 after_decay 0.97223s after_gain 0
+  mode m116 frequency 6805.74hz decay 1.16519s gain 0.0541729 after_decay 1.16519s after_gain 0
+  mode m117 frequency 6532.62hz decay 0.708508s gain 0.0265889 after_decay 0.708508s after_gain 0
+  mode m118 frequency 7008.46hz decay 1.16442s gain 0.0942613 after_decay 1.16442s after_gain 0
+  mode m119 frequency 7159.09hz decay 0.755596s gain 0.0283351 after_decay 0.755596s after_gain 0
+  mode m120 frequency 7111.64hz decay 1.10173s gain 0.0802588 after_decay 1.10173s after_gain 0
+  mode m121 frequency 7292.11hz decay 0.881747s gain 0.0456318 after_decay 0.881747s after_gain 0
+  mode m122 frequency 7862.31hz decay 0.999496s gain 0.0333472 after_decay 0.999496s after_gain 0
+  mode m123 frequency 8031.98hz decay 0.863006s gain 0.0640432 after_decay 0.863006s after_gain 0
+  mode m124 frequency 7885.06hz decay 1.41642s gain 0.04898 after_decay 1.41642s after_gain 0
+  mode m125 frequency 8176.66hz decay 0.637645s gain 0.020581 after_decay 0.637645s after_gain 0
+  mode m126 frequency 8877.52hz decay 1.03841s gain 0.0786303 after_decay 1.03841s after_gain 0
+  mode m127 frequency 8964.8hz decay 1.31223s gain 0.0456699 after_decay 1.31223s after_gain 0
+  mode m128 frequency 8741.34hz decay 0.72941s gain 0.0345583 after_decay 0.72941s after_gain 0
+  mode m129 frequency 9609.44hz decay 1.24701s gain 0.0457692 after_decay 1.24701s after_gain 0
+  mode m130 frequency 9365.45hz decay 0.931807s gain 0.0221292 after_decay 0.931807s after_gain 0
+  mode m131 frequency 9431.89hz decay 0.620271s gain 0.0978077 after_decay 0.620271s after_gain 0
+  mode m132 frequency 9905.03hz decay 0.586886s gain 0.0909551 after_decay 0.586886s after_gain 0
+  mode m133 frequency 9876.47hz decay 1.04119s gain 0.060248 after_decay 1.04119s after_gain 0
+  mode m134 frequency 10370.1hz decay 0.66857s gain 0.0322156 after_decay 0.66857s after_gain 0
+  mode m135 frequency 10968.1hz decay 0.77398s gain 0.0969221 after_decay 0.77398s after_gain 0
+  mode m136 frequency 11331.4hz decay 0.81679s gain 0.0737596 after_decay 0.81679s after_gain 0
+  mode m137 frequency 11363.6hz decay 1.2652s gain 0.0214034 after_decay 1.2652s after_gain 0
+  mode m138 frequency 11547.1hz decay 1.03565s gain 0.08705 after_decay 1.03565s after_gain 0
+  mode m139 frequency 11504.2hz decay 1.17076s gain 0.0371005 after_decay 1.17076s after_gain 0
+  mode m140 frequency 12316.9hz decay 0.970808s gain 0.050248 after_decay 0.970808s after_gain 0
+  mode m141 frequency 12860.5hz decay 1.24254s gain 0.0761783 after_decay 1.24254s after_gain 0
+  mode m142 frequency 13394.3hz decay 0.894115s gain 0.0669993 after_decay 0.894115s after_gain 0
+  mode m143 frequency 13751.1hz decay 1.00942s gain 0.0681358 after_decay 1.00942s after_gain 0
+  mode m144 frequency 13586.6hz decay 0.721984s gain 0.0811925 after_decay 0.721984s after_gain 0
+  mode m145 frequency 13519.5hz decay 0.996381s gain 0.0380055 after_decay 0.996381s after_gain 0
+  mode m146 frequency 14594hz decay 0.732085s gain 0.0683004 after_decay 0.732085s after_gain 0
+  mode m147 frequency 14379.3hz decay 1.22702s gain 0.0856182 after_decay 1.22702s after_gain 0
+  mode m148 frequency 14715.8hz decay 0.75396s gain 0.0252004 after_decay 0.75396s after_gain 0
+  mode m149 frequency 15254.8hz decay 0.515233s gain 0.0853616 after_decay 0.515233s after_gain 0
 }

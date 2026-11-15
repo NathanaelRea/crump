@@ -1,93 +1,92 @@
 crump-module 2
 instrument thumb-kalimba "Thumb Kalimba" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset thumb-kalimba-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
-      zone z36-hard-0 asset thumb-kalimba-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
-      zone z43-soft-0 asset thumb-kalimba-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
-      zone z43-hard-0 asset thumb-kalimba-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
-      zone z48-soft-0 asset thumb-kalimba-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset thumb-kalimba-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
-      zone z55-soft-0 asset thumb-kalimba-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
-      zone z55-hard-0 asset thumb-kalimba-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
-      zone z60-soft-0 asset thumb-kalimba-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
-      zone z60-hard-0 asset thumb-kalimba-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
-      zone z67-soft-0 asset thumb-kalimba-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset thumb-kalimba-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset thumb-kalimba-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset thumb-kalimba-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
-      zone z79-soft-0 asset thumb-kalimba-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
-      zone z79-hard-0 asset thumb-kalimba-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
+  modulation {
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route key-gain-low source key-level target key-gain depth 0.305042 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth 0.315179 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 20 {
+    # A plucked tine in a box, with neighbouring tines and the nail.
+    node strike1 exciter kind impact contact 0.000130317s hardness $hardness level 1
+    node body2 modal_bank profile thumb-kalimba-tine max_modes 8 key_track 1 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.999394406365
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 1200hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 16000hz resonance 0.308309
+    node gain8 math operation scale amount 0.0112144
+    node plus9 math operation add
+    node body10 modal_bank profile thumb-kalimba-box max_modes 3 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain11 math operation scale amount 1.00352
+    node plus12 math operation add
+    node hi-13 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.102349
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus strike1-audio-fall4-a strike1.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-body10-audio plus9.audio -> body10.audio
+    bus note-pitch-body10-pitch note.pitch -> body10.pitch
+    bus note-gate-body10-gate note.gate -> body10.gate
+    bus body10-audio-gain11-a body10.audio -> gain11.a
+    bus plus9-audio-plus12-a plus9.audio -> plus12.a
+    bus gain11-audio-plus12-b gain11.audio -> plus12.b
+    bus plus12-audio-hi-13-audio plus12.audio -> hi-13.audio
+    bus hi-13-audio-register-a hi-13.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset thumb-kalimba-36-soft-0 "Thumb Kalimba" wav "media/36-soft-0.wav" sha256 "5a356df1ef56c00e019dc63b0a6abd20fb99a971b539afa895bf99ca7fda8e8b" {
-  usage multisample
+profile thumb-kalimba-tine {
+  root 261.626hz
+  mode m0 frequency 259.335hz decay 0.145535s gain 1 after_decay 0.145535s after_gain 0
+  mode m1 frequency 1400.41hz decay 0.0234705s gain 0.25 after_decay 0.0234705s after_gain 0
+  mode m2 frequency 3449.16hz decay 0.00885053s gain 0.06 after_decay 0.00885053s after_gain 0
+  mode m3 frequency 6431.51hz decay 0.00451006s gain 0.025 after_decay 0.00451006s after_gain 0
+  mode m4 frequency 197.095hz decay 0.517093s gain 0.0237141 after_decay 0.517093s after_gain 0
+  mode m5 frequency 230.808hz decay 0.517093s gain 0.0632375 after_decay 0.517093s after_gain 0
+  mode m6 frequency 290.455hz decay 0.517093s gain 0.0790469 after_decay 0.517093s after_gain 0
+  mode m7 frequency 331.949hz decay 0.517093s gain 0.0197617 after_decay 0.517093s after_gain 0
 }
-asset thumb-kalimba-36-hard-0 "Thumb Kalimba" wav "media/36-hard-0.wav" sha256 "ccd60c09f4fe4b6e3cfbd93d31bfe09bfea15e5449dcb56c640f105f3b4602a2" {
-  usage multisample
-}
-asset thumb-kalimba-43-soft-0 "Thumb Kalimba" wav "media/43-soft-0.wav" sha256 "f1ec1e2f4e725c1b2230fcc751b9df61c349fc344f14aac4716dc2ecc29a2fe9" {
-  usage multisample
-}
-asset thumb-kalimba-43-hard-0 "Thumb Kalimba" wav "media/43-hard-0.wav" sha256 "003a99d5f98e2c7ca1d1416162c3453454794675a19082f213edfb6d5f3411e5" {
-  usage multisample
-}
-asset thumb-kalimba-48-soft-0 "Thumb Kalimba" wav "media/48-soft-0.wav" sha256 "c0d7883307a97080c58f8c438b71b7d8e34a82a71dc008dfecf6e5a786af9554" {
-  usage multisample
-}
-asset thumb-kalimba-48-hard-0 "Thumb Kalimba" wav "media/48-hard-0.wav" sha256 "fc32cf93d9ba6ce751c8fed236bbf560c9b4b02ba1470af46218f5437872cad1" {
-  usage multisample
-}
-asset thumb-kalimba-55-soft-0 "Thumb Kalimba" wav "media/55-soft-0.wav" sha256 "45f4d371c451cc7986e515825857bf3479ab313d8c6612f17b39e1f955f1635c" {
-  usage multisample
-}
-asset thumb-kalimba-55-hard-0 "Thumb Kalimba" wav "media/55-hard-0.wav" sha256 "05e73605e3572d381045715f07edfc88b76b8b1c28346f9c2595f63f0bfbd6d1" {
-  usage multisample
-}
-asset thumb-kalimba-60-soft-0 "Thumb Kalimba" wav "media/60-soft-0.wav" sha256 "f4dc15bbce1ebdae67c2ce53406ec6b5fd3d1e3239a5069a05c40b22671d0354" {
-  usage multisample
-}
-asset thumb-kalimba-60-hard-0 "Thumb Kalimba" wav "media/60-hard-0.wav" sha256 "4c3098e93c926493b5d72312f2c7dff42aee841608fd099cc42475c23fef64bb" {
-  usage multisample
-}
-asset thumb-kalimba-67-soft-0 "Thumb Kalimba" wav "media/67-soft-0.wav" sha256 "306e740ccb5e2e0482bf3657bc19127d171339bf6619b16fdbe7bc2bccb3cd62" {
-  usage multisample
-}
-asset thumb-kalimba-67-hard-0 "Thumb Kalimba" wav "media/67-hard-0.wav" sha256 "0da1863d835c64a23add6814190beb2b7b69c722f0c0ada4704e37efe95b3c09" {
-  usage multisample
-}
-asset thumb-kalimba-72-soft-0 "Thumb Kalimba" wav "media/72-soft-0.wav" sha256 "36af096c45e02b84502267e082010d9974227c622f1c37293f6c046def1aff0a" {
-  usage multisample
-}
-asset thumb-kalimba-72-hard-0 "Thumb Kalimba" wav "media/72-hard-0.wav" sha256 "35bb34da54a3a6c18c8212e12783c09aa82c09515b1c0631532d5b7197b9f272" {
-  usage multisample
-}
-asset thumb-kalimba-79-soft-0 "Thumb Kalimba" wav "media/79-soft-0.wav" sha256 "c0dc4d48b686f0e2a7e5cdd1ee47fb09967631ec551a602985217717cf7e7923" {
-  usage multisample
-}
-asset thumb-kalimba-79-hard-0 "Thumb Kalimba" wav "media/79-hard-0.wav" sha256 "8e9cfea7e33ae54c854d43f219b393a102be470ad285f798f795c872ebd3af76" {
-  usage multisample
+profile thumb-kalimba-box {
+  root 261.626hz
+  mode m0 frequency 180hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 390hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 750hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }
