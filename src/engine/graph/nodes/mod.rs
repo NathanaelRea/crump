@@ -479,9 +479,9 @@ use oscillator::{
     NoiseState, OscillatorConfig, OscillatorState, OscillatorWaveform, UnisonConfig, UnisonState,
 };
 use primitives::{
-    BiquadConfig, BiquadMode, BiquadState, DcBlockConfig, DcBlockState, OnePoleConfig,
-    OnePoleMode, OnePoleState, DelayInterpolation, DelayLineConfig, DelayLineMode,
-    DelayLineState, LinearPhaseLowpassConfig, LinearPhaseLowpassState, MathConfig, MathOperation,
+    BiquadConfig, BiquadMode, BiquadState, DcBlockConfig, DcBlockState, DelayInterpolation,
+    DelayLineConfig, DelayLineMode, DelayLineState, LinearPhaseLowpassConfig,
+    LinearPhaseLowpassState, MathConfig, MathOperation, OnePoleConfig, OnePoleMode, OnePoleState,
     ShaperConfig, ShaperCurve,
 };
 use sample_source::{

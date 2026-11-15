@@ -2044,7 +2044,9 @@ fn runtime_node_input(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> {
             | NodeKind::StereoFilter,
             "audio",
         ) => Some(RuntimeSignalType::AudioStereo),
-        (NodeKind::Lowpass | NodeKind::StereoFilter | NodeKind::Biquad, "key") => Some(RuntimeSignalType::Hertz),
+        (NodeKind::Lowpass | NodeKind::StereoFilter | NodeKind::Biquad, "key") => {
+            Some(RuntimeSignalType::Hertz)
+        }
         (NodeKind::Lowpass | NodeKind::StereoFilter, "mod") => Some(RuntimeSignalType::Control),
         (NodeKind::Lowpass | NodeKind::StereoFilter, "velocity") => {
             Some(RuntimeSignalType::Unipolar)

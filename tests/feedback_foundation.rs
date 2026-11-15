@@ -851,30 +851,42 @@ fn biquad_and_onepole_contracts_fail_closed() {
     bus output stereo.audio -> out.audio";
     let cases = [
         (
-            format!("{PLUCK}\n    node shaped biquad mode lowpass gain 6db\n    bus a pluck.audio -> shaped.audio\n{out}"),
+            format!(
+                "{PLUCK}\n    node shaped biquad mode lowpass gain 6db\n    bus a pluck.audio -> shaped.audio\n{out}"
+            ),
             "applies only to peak and shelf modes",
         ),
         (
-            format!("{PLUCK}\n    node shaped biquad mode bandpass\n    bus a pluck.audio -> shaped.audio\n    bus k note.pitch -> shaped.key\n{out}"),
+            format!(
+                "{PLUCK}\n    node shaped biquad mode bandpass\n    bus a pluck.audio -> shaped.audio\n    bus k note.pitch -> shaped.key\n{out}"
+            ),
             "reads `key` only with `key_track`",
         ),
         (
-            format!("{PLUCK}\n    node shaped onepole mode lowpass time 0.1s\n    bus a pluck.audio -> shaped.audio\n{out}"),
+            format!(
+                "{PLUCK}\n    node shaped onepole mode lowpass time 0.1s\n    bus a pluck.audio -> shaped.audio\n{out}"
+            ),
             "applies only in leak mode",
         ),
         (
-            format!("{PLUCK}\n    node shaped onepole mode leak cutoff 100hz\n    bus a pluck.audio -> shaped.audio\n{out}"),
+            format!(
+                "{PLUCK}\n    node shaped onepole mode leak cutoff 100hz\n    bus a pluck.audio -> shaped.audio\n{out}"
+            ),
             "applies only in lowpass and highpass mode",
         ),
         (
-            format!("{PLUCK}\n    node shaped biquad mode peak q 100\n    bus a pluck.audio -> shaped.audio\n{out}"),
+            format!(
+                "{PLUCK}\n    node shaped biquad mode peak q 100\n    bus a pluck.audio -> shaped.audio\n{out}"
+            ),
             "outside its supported",
         ),
     ];
     for (graph, text) in cases {
         let diagnostics = codes(&probe(&graph));
         assert!(
-            diagnostics.iter().any(|(_, message)| message.contains(text)),
+            diagnostics
+                .iter()
+                .any(|(_, message)| message.contains(text)),
             "`{text}` missing from {diagnostics:?}"
         );
     }
@@ -907,7 +919,12 @@ fn onepole_leak_shapes_a_strike_into_an_exponential_and_biquads_filter_it() {
     let audio = render(&compiled, 48_000, 128);
     assert!(audio.iter().flatten().all(|value| value.is_finite()));
     let level = |from: usize| {
-        (audio[from..from + 2_400].iter().map(|f| f64::from(f[0]).powi(2)).sum::<f64>() / 2_400.0).sqrt()
+        (audio[from..from + 2_400]
+            .iter()
+            .map(|f| f64::from(f[0]).powi(2))
+            .sum::<f64>()
+            / 2_400.0)
+            .sqrt()
     };
     // Each 0.1 s, one e-folding time, the level falls by about e.
     let ratio = level(4_800) / level(9_600);

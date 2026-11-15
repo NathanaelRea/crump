@@ -2726,7 +2726,9 @@ fn node_input(kind: NodeKind, port: &str) -> Option<SignalType> {
             | NodeKind::MonoToStereo,
             "audio",
         ) => Some(SignalType::AudioMono),
-        (NodeKind::Lowpass | NodeKind::StereoFilter | NodeKind::Biquad, "key") => Some(SignalType::Hertz),
+        (NodeKind::Lowpass | NodeKind::StereoFilter | NodeKind::Biquad, "key") => {
+            Some(SignalType::Hertz)
+        }
         (NodeKind::Lowpass | NodeKind::StereoFilter, "mod") => Some(SignalType::Control),
         (NodeKind::Lowpass | NodeKind::StereoFilter, "velocity") => Some(SignalType::Unipolar),
         (NodeKind::Amplifier, "gain") => Some(SignalType::Unipolar),
@@ -3598,7 +3600,13 @@ const fn setting_schema(kind: NodeKind) -> &'static [SettingSpec] {
             SettingSpec {
                 key: "mode",
                 kind: Text(&[
-                    "lowpass", "highpass", "bandpass", "notch", "peak", "lowshelf", "highshelf",
+                    "lowpass",
+                    "highpass",
+                    "bandpass",
+                    "notch",
+                    "peak",
+                    "lowshelf",
+                    "highshelf",
                     "allpass",
                 ]),
             },

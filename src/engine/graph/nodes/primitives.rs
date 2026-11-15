@@ -915,8 +915,15 @@ mod tests {
     fn biquad_recovers_from_non_finite_input() {
         let config = biquad(BiquadMode::Lowpass, 1_000.0, 1.0, 0.0);
         let mut state = BiquadState::default();
-        assert_eq!(config.process(&mut state, f32::NAN, 0.0, false, &[], 48_000.0), 0.0);
-        assert!(config.process(&mut state, 1.0, 0.0, false, &[], 48_000.0).is_finite());
+        assert_eq!(
+            config.process(&mut state, f32::NAN, 0.0, false, &[], 48_000.0),
+            0.0
+        );
+        assert!(
+            config
+                .process(&mut state, 1.0, 0.0, false, &[], 48_000.0)
+                .is_finite()
+        );
     }
 
     #[test]
@@ -932,7 +939,10 @@ mod tests {
             output = config.process(&mut state, f32::from(frame == 0), &[], 48_000.0);
         }
         // 12,000 frames is exactly one e-folding time.
-        assert!((f64::from(output) - (-1.0_f64).exp()).abs() < 1.0e-5, "{output}");
+        assert!(
+            (f64::from(output) - (-1.0_f64).exp()).abs() < 1.0e-5,
+            "{output}"
+        );
     }
 
     #[test]
@@ -942,11 +952,15 @@ mod tests {
             cutoff: Scalar::constant(500.0),
             time: Scalar::constant(0.1),
         };
-        let high = OnePoleConfig { mode: OnePoleMode::Highpass, ..low };
+        let high = OnePoleConfig {
+            mode: OnePoleMode::Highpass,
+            ..low
+        };
         let (mut a, mut b) = (OnePoleState::default(), OnePoleState::default());
         for frame in 0..4_800 {
             let x = (f64::from(frame) * 0.37).sin() as f32;
-            let sum = low.process(&mut a, x, &[], 48_000.0) + high.process(&mut b, x, &[], 48_000.0);
+            let sum =
+                low.process(&mut a, x, &[], 48_000.0) + high.process(&mut b, x, &[], 48_000.0);
             assert!((sum - x).abs() < 1.0e-5);
         }
         let mut steady = 0.0;
