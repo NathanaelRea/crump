@@ -5,6 +5,7 @@ instrument tuba "Tuba" graph {
   parameter release "Release" seconds 0.01s 4s 0.12s 0.12s
   parameter vibrato-depth "Vibrato" ratio 0 1 0 0 modulatable
   parameter noise "Air" ratio 0 4 0.0328118 0.0328118 modulatable
+  parameter register "Register level" ratio 0.05 20 1.34896 1.34896 modulatable
   parameter dynamics "Dynamics" ratio 0 1 0.357143 0.357143 modulatable
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
@@ -18,12 +19,68 @@ instrument tuba "Tuba" graph {
   }
   modulation {
     source velocity note_velocity per_voice unipolar
+    source key-from-d1-3 note_key per_voice bipolar reference D1 range 3st
+    source key-from-f1-3 note_key per_voice bipolar reference F1 range 3st
+    source key-from-gs1-3 note_key per_voice bipolar reference G#1 range 3st
+    source key-from-b1-3 note_key per_voice bipolar reference B1 range 3st
+    source key-from-d2-3 note_key per_voice bipolar reference D2 range 3st
+    source key-from-f2-3 note_key per_voice bipolar reference F2 range 3st
+    source key-from-gs2-3 note_key per_voice bipolar reference G#2 range 3st
+    source key-from-b2-3 note_key per_voice bipolar reference B2 range 3st
+    source key-from-d3-3 note_key per_voice bipolar reference D3 range 3st
+    source key-from-f3-3 note_key per_voice bipolar reference F3 range 3st
+    source key-from-gs3-3 note_key per_voice bipolar reference G#3 range 3st
+    source key-from-b3-3 note_key per_voice bipolar reference B3 range 3st
+    source key-from-d4-3 note_key per_voice bipolar reference D4 range 3st
+    source key-from-f4-1 note_key per_voice bipolar reference F4 range 1st
     route attack-velocity source velocity target attack depth -0.0554166s map unipolar curve linear order 0 bypass false
     route vibrato-depth-velocity source velocity target vibrato-depth depth 0.0712457 map unipolar curve linear order 0 bypass false
     route noise-velocity source velocity target noise depth -0.0308118 map unipolar curve linear order 0 bypass false
+    route register-1 source key-from-d1-3 target register depth -0.0754598 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-2 source key-from-f1-3 target register depth -0.151485 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-3 source key-from-gs1-3 target register depth 0.0528791 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-4 source key-from-b1-3 target register depth -0.151605 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-5 source key-from-d2-3 target register depth 0.0238356 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-6 source key-from-f2-3 target register depth -0.305818 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-7 source key-from-gs2-3 target register depth 0.25869 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-8 source key-from-b2-3 target register depth 0.0839269 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-9 source key-from-d3-3 target register depth -0.407844 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-10 source key-from-f3-3 target register depth -0.244564 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-11 source key-from-gs3-3 target register depth 0.327058 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-12 source key-from-b3-3 target register depth 0.0542529 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-13 source key-from-d4-3 target register depth -0.31738 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-14 source key-from-f4-1 target register depth 0.0799897 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
     route dynamics-velocity source velocity target dynamics depth 0.642857 map unipolar curve linear order 0 bypass false
   }
-  graph voice 48 {
+  graph voice 49 {
     # A breath-driven tone: an oscillator and breath noise through fixed formants.
     node breath envelope mode adsr attack $attack decay 0.15s sustain 0.9 release $release attack_curve 0.3
     node breath-audio to_audio
@@ -55,21 +112,22 @@ instrument tuba "Tuba" graph {
     node breath-noise math operation multiply
     node breath-level math operation scale amount $noise
     node voice sum max_inputs 2
-    node formant1 biquad mode peak frequency 346.833hz q 2 gain 5.00441db
-    node formant2 biquad mode peak frequency 2408.43hz q 1.99456 gain 3.32898db
-    node formant3 biquad mode peak frequency 192.125hz q 1.51494 gain 6.90963db
-    node formant4 biquad mode peak frequency 2328.67hz q 0.780555 gain -10.0691db
-    node formant5 biquad mode peak frequency 1247.29hz q 1.85227 gain -9.47619db
-    node formant6 biquad mode peak frequency 11264.9hz q 0.5 gain -2.98732db
-    node formant7 biquad mode lowshelf frequency 185.576hz q 0.7071 gain -4.35101db
-    node formant8 biquad mode highshelf frequency 1397.58hz q 0.7071 gain -12db
+    node formant1 biquad mode peak frequency 206.131hz q 2.5 gain 13.8324db
+    node formant2 biquad mode peak frequency 355.041hz q 2.5 gain 15db
+    node formant3 biquad mode peak frequency 686.872hz q 2.5 gain 10.9825db
+    node formant4 biquad mode peak frequency 930.289hz q 1.74019 gain 4.20989db
+    node formant5 biquad mode peak frequency 1566.75hz q 2.29479 gain -6.43405db
+    node formant6 biquad mode peak frequency 2069.49hz q 1.34178 gain -7.63081db
+    node formant7 biquad mode lowshelf frequency 502.942hz q 0.7071 gain 12.9759db
+    node formant8 biquad mode highshelf frequency 3310.43hz q 0.7071 gain 1.77954db
     node below-note biquad mode highpass frequency 104.65hz q 0.7071 key_track 1 key_reference 261.626hz
     node radiation biquad mode highpass frequency 22hz q 0.7071
     node shimmer-depth math operation scale amount 1.00987
     node shimmer math operation offset amount 1
     node alive math operation multiply
+    node register-level math operation scale amount $register
     node dynamics-level math operation scale amount $dynamics
-    node trim math operation scale amount 0.325619
+    node trim math operation scale amount 0.0409747
     node level math operation scale amount $level
     node place pan position $pan
     node out output
@@ -130,7 +188,8 @@ instrument tuba "Tuba" graph {
     bus shimmer-depth-audio-shimmer-a shimmer-depth.audio -> shimmer.a
     bus radiation-audio-alive-a radiation.audio -> alive.a
     bus shimmer-audio-alive-b shimmer.audio -> alive.b
-    bus alive-audio-dynamics-level-a alive.audio -> dynamics-level.a
+    bus alive-audio-register-level-a alive.audio -> register-level.a
+    bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a
     bus dynamics-level-audio-trim-a dynamics-level.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a
     bus level-audio-place-audio level.audio -> place.audio

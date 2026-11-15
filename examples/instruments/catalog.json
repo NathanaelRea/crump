@@ -2037,7 +2037,7 @@
     "kind": "acoustic",
     "seed": 1219526,
     "collection": "expansion",
-    "about": "Hurdy-gurdy: a wheel-bowed melody string over fixed C and G drones, with a buzzing bridge.",
+    "about": "Hurdy-gurdy: a wheel-bowed melody string over fixed G drones.",
     "model": "hurdy",
     "range": [
       55,

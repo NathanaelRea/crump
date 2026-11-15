@@ -1,12 +1,12 @@
 crump-module 2
 instrument concert-flute "Concert Flute" graph {
   polyphony 6
-  parameter attack "Attack" seconds 0.002s 2s 0.0401614s 0.0401614s modulatable
+  parameter attack "Attack" seconds 0.002s 2s 0.0679142s 0.0679142s modulatable
   parameter release "Release" seconds 0.01s 4s 0.12s 0.12s
-  parameter vibrato-depth "Vibrato" ratio 0 1 0.0755952 0.0755952 modulatable
-  parameter speak "Speak" seconds 0.002s 2s 0.13544s 0.13544s modulatable
-  parameter noise "Air" ratio 0 4 0.139238 0.139238 modulatable
-  parameter register "Register level" ratio 0.05 20 1.14485 1.14485 modulatable
+  parameter vibrato-depth "Vibrato" ratio 0 1 0.103422 0.103422 modulatable
+  parameter speak "Speak" seconds 0.002s 2s 0.155893s 0.155893s modulatable
+  parameter noise "Air" ratio 0 4 0.137932 0.137932 modulatable
+  parameter register "Register level" ratio 0.05 20 1.6788 1.6788 modulatable
   parameter dynamics "Dynamics" ratio 0 1 0.357143 0.357143 modulatable
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
@@ -21,41 +21,65 @@ instrument concert-flute "Concert Flute" graph {
   }
   modulation {
     source velocity note_velocity per_voice unipolar
-    source key-from-b3-6 note_key per_voice bipolar reference B3 range 6st
-    source key-from-f4-6 note_key per_voice bipolar reference F4 range 6st
-    source key-from-b4-6 note_key per_voice bipolar reference B4 range 6st
-    source key-from-f5-6 note_key per_voice bipolar reference F5 range 6st
-    source key-from-b5-6 note_key per_voice bipolar reference B5 range 6st
-    source key-from-f6-6 note_key per_voice bipolar reference F6 range 6st
+    source key-from-b3-3 note_key per_voice bipolar reference B3 range 3st
+    source key-from-d4-3 note_key per_voice bipolar reference D4 range 3st
+    source key-from-f4-3 note_key per_voice bipolar reference F4 range 3st
+    source key-from-gs4-3 note_key per_voice bipolar reference G#4 range 3st
+    source key-from-b4-3 note_key per_voice bipolar reference B4 range 3st
+    source key-from-d5-3 note_key per_voice bipolar reference D5 range 3st
+    source key-from-f5-3 note_key per_voice bipolar reference F5 range 3st
+    source key-from-gs5-3 note_key per_voice bipolar reference G#5 range 3st
+    source key-from-b5-3 note_key per_voice bipolar reference B5 range 3st
+    source key-from-d6-3 note_key per_voice bipolar reference D6 range 3st
+    source key-from-f6-3 note_key per_voice bipolar reference F6 range 3st
+    source key-from-gs6-3 note_key per_voice bipolar reference G#6 range 3st
     source key-from-b6-3 note_key per_voice bipolar reference B6 range 3st
-    route attack-velocity source velocity target attack depth 0.099462s map unipolar curve linear order 0 bypass false
-    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.0146828 map unipolar curve linear order 0 bypass false
-    route speak-velocity source velocity target speak depth -0.0514651s map unipolar curve linear order 0 bypass false
-    route noise-velocity source velocity target noise depth -0.13438 map unipolar curve linear order 0 bypass false
-    route register-1 source key-from-b3-6 target register depth -0.112687 map bipolar curve linear order 0 bypass false {
+    route attack-velocity source velocity target attack depth 0.00695256s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth -0.0780741 map unipolar curve linear order 0 bypass false
+    route speak-velocity source velocity target speak depth -0.119642s map unipolar curve linear order 0 bypass false
+    route noise-velocity source velocity target noise depth -0.135932 map unipolar curve linear order 0 bypass false
+    route register-1 source key-from-b3-3 target register depth -0.112053 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-2 source key-from-f4-6 target register depth -0.0492882 map bipolar curve linear order 0 bypass false {
+    route register-2 source key-from-d4-3 target register depth -0.336482 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-3 source key-from-b4-6 target register depth -0.0992905 map bipolar curve linear order 0 bypass false {
+    route register-3 source key-from-f4-3 target register depth -0.0688202 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-4 source key-from-f5-6 target register depth -0.189763 map bipolar curve linear order 0 bypass false {
+    route register-4 source key-from-gs4-3 target register depth -0.126306 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-5 source key-from-b5-6 target register depth 0.0474852 map bipolar curve linear order 0 bypass false {
+    route register-5 source key-from-b4-3 target register depth -0.0235627 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-6 source key-from-f6-6 target register depth 0.374268 map bipolar curve linear order 0 bypass false {
+    route register-6 source key-from-d5-3 target register depth -0.373316 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-7 source key-from-b6-3 target register depth 0.28079 map bipolar curve linear order 0 bypass false {
+    route register-7 source key-from-f5-3 target register depth 0.373316 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-8 source key-from-gs5-3 target register depth -0.0565869 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-9 source key-from-b5-3 target register depth -0.324035 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-10 source key-from-d6-3 target register depth -0.321928 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-11 source key-from-f6-3 target register depth 0.374882 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-12 source key-from-gs6-3 target register depth 0.304641 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-13 source key-from-b6-3 target register depth -0.0113159 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
     route dynamics-velocity source velocity target dynamics depth 0.642857 map unipolar curve linear order 0 bypass false
   }
-  graph voice 57 {
+  graph voice 53 {
     # A breath-driven tone: an oscillator and breath noise through fixed formants.
     node breath envelope mode adsr attack $attack decay 0.15s sustain 0.9 release $release attack_curve 0.3
     node breath-audio to_audio
@@ -76,10 +100,10 @@ instrument concert-flute "Concert Flute" graph {
     node reed analog_oscillator waveform saw level 1 velocity_amount 1 fm_depth 1st random_phase 1
     node tone-env envelope mode adsr attack $speak decay 0.15s sustain 0.9 release $release attack_curve 0.5
     node reed-mono stereo_to_mono
-    node brightness lowpass mode lowpass cutoff 595.299hz resonance 0.1 mod_depth 630.555hz velocity_depth 1000hz key_track 1 key_reference 261.626hz
-    node brightness2 lowpass mode lowpass cutoff 595.299hz resonance 0.1 mod_depth 630.555hz velocity_depth 1000hz key_track 1 key_reference 261.626hz
-    node air-low biquad mode highpass frequency 449.998hz q 0.7071
-    node air-band biquad mode lowpass frequency 11612.3hz q 0.7071
+    node brightness lowpass mode lowpass cutoff 364.378hz resonance 0.1 mod_depth 615.991hz velocity_depth 1000hz key_track 0.935758 key_reference 261.626hz
+    node brightness2 lowpass mode lowpass cutoff 364.378hz resonance 0.1 mod_depth 615.991hz velocity_depth 1000hz key_track 0.935758 key_reference 261.626hz
+    node air-low biquad mode highpass frequency 360.231hz q 0.7071
+    node air-band biquad mode lowpass frequency 8443.59hz q 0.7071
     node steady-air math operation scale amount 0.7
     node air-drive sum max_inputs 1
     node breath-noise math operation multiply
@@ -87,30 +111,26 @@ instrument concert-flute "Concert Flute" graph {
     node chiff envelope mode adsr attack 0.002s decay 0.03s sustain 0 release 0.03s
     node chiff-audio to_audio
     node chiff-noise math operation multiply
-    node chiff-level math operation scale amount 0
+    node chiff-level math operation scale amount 0.0728999
     node voice sum max_inputs 3
-    node formant1 biquad mode peak frequency 531.051hz q 1.13662 gain -2.3876db
-    node formant2 biquad mode peak frequency 861.188hz q 2.5 gain -5.80458db
-    node formant3 biquad mode peak frequency 1125.29hz q 2.5 gain 14.9982db
-    node formant4 biquad mode peak frequency 2069.55hz q 2.5 gain -5.48035db
-    node formant5 biquad mode peak frequency 4608.07hz q 2.5 gain -15db
-    node formant6 biquad mode peak frequency 5985.3hz q 2.5 gain 12.2053db
-    node formant7 biquad mode lowshelf frequency 937.076hz q 0.7071 gain -3.6492db
-    node formant8 biquad mode highshelf frequency 5639.68hz q 0.7071 gain 9.42444db
-    node formant9 biquad mode peak frequency 475.805hz q 0.5 gain 6.58591db
-    node formant10 biquad mode peak frequency 1950.62hz q 0.705377 gain 5.91143db
-    node formant11 biquad mode peak frequency 4166.51hz q 2.5 gain 15db
-    node formant12 biquad mode peak frequency 4601.19hz q 2.5 gain -13.6856db
+    node formant1 biquad mode peak frequency 273.533hz q 2.5 gain -7.3135db
+    node formant2 biquad mode peak frequency 273.547hz q 2.5 gain -7.31306db
+    node formant3 biquad mode peak frequency 2879.9hz q 2.5 gain 6.90377db
+    node formant4 biquad mode peak frequency 1384.73hz q 2.5 gain 15db
+    node formant5 biquad mode peak frequency 5248.84hz q 2.5 gain 6.35053db
+    node formant6 biquad mode peak frequency 10694hz q 2.48476 gain 14.9866db
+    node formant7 biquad mode lowshelf frequency 253.434hz q 0.7071 gain -3.88773db
+    node formant8 biquad mode highshelf frequency 3425.41hz q 0.7071 gain 2.86207db
     node below-note biquad mode highpass frequency 156.975hz q 0.7071 key_track 1 key_reference 261.626hz
     node radiation biquad mode highpass frequency 40hz q 0.7071
     node shimmer-depth math operation scale amount 1.00987
-    node tremolo math operation scale amount 2.11201
+    node tremolo math operation scale amount 2.54645
     node swell sum max_inputs 2
     node shimmer math operation offset amount 1
     node alive math operation multiply
     node register-level math operation scale amount $register
     node dynamics-level math operation scale amount $dynamics
-    node trim math operation scale amount 0.174801
+    node trim math operation scale amount 0.224886
     node level math operation scale amount $level
     node place pan position $pan
     node out output
@@ -167,11 +187,7 @@ instrument concert-flute "Concert Flute" graph {
     bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
     bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
     bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
-    bus formant8-audio-formant9-audio formant8.audio -> formant9.audio
-    bus formant9-audio-formant10-audio formant9.audio -> formant10.audio
-    bus formant10-audio-formant11-audio formant10.audio -> formant11.audio
-    bus formant11-audio-formant12-audio formant11.audio -> formant12.audio
-    bus formant12-audio-below-note-audio formant12.audio -> below-note.audio
+    bus formant8-audio-below-note-audio formant8.audio -> below-note.audio
     bus note-pitch-below-note-key note.pitch -> below-note.key
     bus below-note-audio-radiation-audio below-note.audio -> radiation.audio
     bus flutter-audio-shimmer-depth-a flutter.audio -> shimmer-depth.a

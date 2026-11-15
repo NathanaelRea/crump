@@ -6,7 +6,7 @@ instrument bansuri "Bansuri" graph {
   parameter vibrato-depth "Vibrato" ratio 0 1 0.0371429 0.0371429 modulatable
   parameter speak "Speak" seconds 0.002s 2s 0.141429s 0.141429s modulatable
   parameter noise "Air" ratio 0 4 0.139987 0.139987 modulatable
-  parameter register "Register level" ratio 0.05 20 0.968835 0.968835 modulatable
+  parameter register "Register level" ratio 0.05 20 1.02329 1.02329 modulatable
   parameter dynamics "Dynamics" ratio 0 1 0.357143 0.357143 modulatable
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
@@ -21,37 +21,61 @@ instrument bansuri "Bansuri" graph {
   }
   modulation {
     source velocity note_velocity per_voice unipolar
-    source key-from-e3-6 note_key per_voice bipolar reference E3 range 6st
-    source key-from-as3-6 note_key per_voice bipolar reference A#3 range 6st
-    source key-from-e4-6 note_key per_voice bipolar reference E4 range 6st
-    source key-from-as4-6 note_key per_voice bipolar reference A#4 range 6st
-    source key-from-e5-6 note_key per_voice bipolar reference E5 range 6st
-    source key-from-as5-4 note_key per_voice bipolar reference A#5 range 4st
+    source key-from-e3-3 note_key per_voice bipolar reference E3 range 3st
+    source key-from-g3-3 note_key per_voice bipolar reference G3 range 3st
+    source key-from-as3-3 note_key per_voice bipolar reference A#3 range 3st
+    source key-from-cs4-3 note_key per_voice bipolar reference C#4 range 3st
+    source key-from-e4-3 note_key per_voice bipolar reference E4 range 3st
+    source key-from-g4-3 note_key per_voice bipolar reference G4 range 3st
+    source key-from-as4-3 note_key per_voice bipolar reference A#4 range 3st
+    source key-from-cs5-3 note_key per_voice bipolar reference C#5 range 3st
+    source key-from-e5-3 note_key per_voice bipolar reference E5 range 3st
+    source key-from-g5-3 note_key per_voice bipolar reference G5 range 3st
+    source key-from-as5-3 note_key per_voice bipolar reference A#5 range 3st
+    source key-from-cs6-1 note_key per_voice bipolar reference C#6 range 1st
     route attack-velocity source velocity target attack depth -0.0428571s map unipolar curve linear order 0 bypass false
     route vibrato-depth-velocity source velocity target vibrato-depth depth 0.142857 map unipolar curve linear order 0 bypass false
     route speak-velocity source velocity target speak depth -0.0714286s map unipolar curve linear order 0 bypass false
     route noise-velocity source velocity target noise depth -0.0583281 map unipolar curve linear order 0 bypass false
-    route register-1 source key-from-e3-6 target register depth -0.125015 map bipolar curve linear order 0 bypass false {
+    route register-1 source key-from-e3-3 target register depth -0.0572421 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-2 source key-from-as3-6 target register depth -0.123543 map bipolar curve linear order 0 bypass false {
+    route register-2 source key-from-g3-3 target register depth -0.0327966 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-3 source key-from-e4-6 target register depth 0.0470837 map bipolar curve linear order 0 bypass false {
+    route register-3 source key-from-as3-3 target register depth -0.138926 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-4 source key-from-as4-6 target register depth 0.31969 map bipolar curve linear order 0 bypass false {
+    route register-4 source key-from-cs4-3 target register depth -0.133635 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-5 source key-from-e5-6 target register depth 0.582117 map bipolar curve linear order 0 bypass false {
+    route register-5 source key-from-e4-3 target register depth -0.0150392 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-6 source key-from-as5-4 target register depth 0.474957 map bipolar curve linear order 0 bypass false {
+    route register-6 source key-from-g4-3 target register depth 0.157872 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-7 source key-from-as4-3 target register depth 0.196474 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-8 source key-from-cs5-3 target register depth 0.216186 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-9 source key-from-e5-3 target register depth -0.0412884 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-10 source key-from-g5-3 target register depth 0.409996 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-11 source key-from-as5-3 target register depth 0.732501 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-12 source key-from-cs6-1 target register depth 0.137314 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
     route dynamics-velocity source velocity target dynamics depth 0.642857 map unipolar curve linear order 0 bypass false
   }
-  graph voice 60 {
+  graph voice 64 {
     # A breath-driven tone: an oscillator and breath noise through fixed formants.
     node breath envelope mode adsr attack $attack decay 0.15s sustain 0.9 release $release attack_curve 0.3
     node breath-audio to_audio
@@ -92,14 +116,18 @@ instrument bansuri "Bansuri" graph {
     node chiff-noise math operation multiply
     node chiff-level math operation scale amount 0.15
     node voice sum max_inputs 3
-    node formant1 biquad mode peak frequency 296.18hz q 1.0897 gain 9.25927db
-    node formant2 biquad mode peak frequency 731.844hz q 2 gain 5.76672db
-    node formant3 biquad mode peak frequency 438.553hz q 1.58755 gain 7.04283db
-    node formant4 biquad mode peak frequency 2537.04hz q 2 gain 12db
-    node formant5 biquad mode peak frequency 4305.56hz q 2 gain -8.88612db
-    node formant6 biquad mode peak frequency 6094.18hz q 1.88848 gain -2.91339db
-    node formant7 biquad mode lowshelf frequency 101.23hz q 0.7071 gain -2.98006db
-    node formant8 biquad mode highshelf frequency 6000.63hz q 0.7071 gain -10.0554db
+    node formant1 biquad mode peak frequency 348.015hz q 0.668266 gain 13.9139db
+    node formant2 biquad mode peak frequency 2739.08hz q 2.5 gain 10.6045db
+    node formant3 biquad mode peak frequency 2097.2hz q 2.5 gain 7.10587db
+    node formant4 biquad mode peak frequency 859.833hz q 1.67634 gain 10.0345db
+    node formant5 biquad mode peak frequency 2082.67hz q 2.5 gain 9.84899db
+    node formant6 biquad mode peak frequency 2734.76hz q 2.5 gain 11.7648db
+    node formant7 biquad mode lowshelf frequency 938.914hz q 0.7071 gain 14.5855db
+    node formant8 biquad mode highshelf frequency 8516.54hz q 0.7071 gain -0.186898db
+    node formant9 biquad mode peak frequency 447.564hz q 0.789634 gain 1.73545db
+    node formant10 biquad mode peak frequency 448.609hz q 0.791775 gain 1.73549db
+    node formant11 biquad mode peak frequency 1183.75hz q 2.5 gain 2.87065db
+    node formant12 biquad mode peak frequency 2774.77hz q 2.1963 gain 3.90027db
     node below-note biquad mode highpass frequency 156.975hz q 0.7071 key_track 1 key_reference 261.626hz
     node radiation biquad mode highpass frequency 40hz q 0.7071
     node shimmer-depth math operation scale amount 1.00987
@@ -109,7 +137,7 @@ instrument bansuri "Bansuri" graph {
     node alive math operation multiply
     node register-level math operation scale amount $register
     node dynamics-level math operation scale amount $dynamics
-    node trim math operation scale amount 0.238876
+    node trim math operation scale amount 0.0269258
     node level math operation scale amount $level
     node place pan position $pan
     node out output
@@ -176,7 +204,11 @@ instrument bansuri "Bansuri" graph {
     bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
     bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
     bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
-    bus formant8-audio-below-note-audio formant8.audio -> below-note.audio
+    bus formant8-audio-formant9-audio formant8.audio -> formant9.audio
+    bus formant9-audio-formant10-audio formant9.audio -> formant10.audio
+    bus formant10-audio-formant11-audio formant10.audio -> formant11.audio
+    bus formant11-audio-formant12-audio formant11.audio -> formant12.audio
+    bus formant12-audio-below-note-audio formant12.audio -> below-note.audio
     bus note-pitch-below-note-key note.pitch -> below-note.key
     bus below-note-audio-radiation-audio below-note.audio -> radiation.audio
     bus flutter-audio-shimmer-depth-a flutter.audio -> shimmer-depth.a

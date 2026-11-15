@@ -1,10 +1,11 @@
 crump-module 2
 instrument euphonium "Euphonium" graph {
   polyphony 6
-  parameter attack "Attack" seconds 0.002s 2s 0.0577246s 0.0577246s modulatable
+  parameter attack "Attack" seconds 0.002s 2s 0.0623808s 0.0623808s modulatable
   parameter release "Release" seconds 0.01s 4s 0.12s 0.12s
   parameter vibrato-depth "Vibrato" ratio 0 1 0 0 modulatable
-  parameter noise "Air" ratio 0 4 0.051333 0.051333 modulatable
+  parameter noise "Air" ratio 0 4 0.0195589 0.0195589 modulatable
+  parameter register "Register level" ratio 0.05 20 1.88365 1.88365 modulatable
   parameter dynamics "Dynamics" ratio 0 1 0.357143 0.357143 modulatable
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
@@ -18,12 +19,64 @@ instrument euphonium "Euphonium" graph {
   }
   modulation {
     source velocity note_velocity per_voice unipolar
-    route attack-velocity source velocity target attack depth 0.040918s map unipolar curve linear order 0 bypass false
-    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.078516 map unipolar curve linear order 0 bypass false
-    route noise-velocity source velocity target noise depth -0.0412796 map unipolar curve linear order 0 bypass false
+    source key-from-as1-3 note_key per_voice bipolar reference A#1 range 3st
+    source key-from-cs2-3 note_key per_voice bipolar reference C#2 range 3st
+    source key-from-e2-3 note_key per_voice bipolar reference E2 range 3st
+    source key-from-g2-3 note_key per_voice bipolar reference G2 range 3st
+    source key-from-as2-3 note_key per_voice bipolar reference A#2 range 3st
+    source key-from-cs3-3 note_key per_voice bipolar reference C#3 range 3st
+    source key-from-e3-3 note_key per_voice bipolar reference E3 range 3st
+    source key-from-g3-3 note_key per_voice bipolar reference G3 range 3st
+    source key-from-as3-3 note_key per_voice bipolar reference A#3 range 3st
+    source key-from-cs4-3 note_key per_voice bipolar reference C#4 range 3st
+    source key-from-e4-3 note_key per_voice bipolar reference E4 range 3st
+    source key-from-g4-3 note_key per_voice bipolar reference G4 range 3st
+    source key-from-as4-2 note_key per_voice bipolar reference A#4 range 2st
+    route attack-velocity source velocity target attack depth 0.0253975s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.119882 map unipolar curve linear order 0 bypass false
+    route noise-velocity source velocity target noise depth 0.0203256 map unipolar curve linear order 0 bypass false
+    route register-1 source key-from-as1-3 target register depth -0.165741 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-2 source key-from-cs2-3 target register depth -0.186821 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-3 source key-from-e2-3 target register depth -0.102194 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-4 source key-from-g2-3 target register depth -0.140644 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-5 source key-from-as2-3 target register depth -0.0997473 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-6 source key-from-cs3-3 target register depth -0.141374 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-7 source key-from-e3-3 target register depth -0.092136 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-8 source key-from-g3-3 target register depth -0.0324212 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-9 source key-from-as3-3 target register depth -0.0714334 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-10 source key-from-cs4-3 target register depth -0.0659024 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-11 source key-from-e4-3 target register depth -0.0690922 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-12 source key-from-g4-3 target register depth -0.0630129 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-13 source key-from-as4-2 target register depth -0.0574684 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
     route dynamics-velocity source velocity target dynamics depth 0.642857 map unipolar curve linear order 0 bypass false
   }
-  graph voice 49 {
+  graph voice 57 {
     # A breath-driven tone: an oscillator and breath noise through fixed formants.
     node breath envelope mode adsr attack $attack decay 0.15s sustain 0.9 release $release attack_curve 0.3
     node breath-audio to_audio
@@ -46,31 +99,39 @@ instrument euphonium "Euphonium" graph {
     node pitch-movement sum max_inputs 4
     node reed analog_oscillator waveform saw level 1 velocity_amount 1 fm_depth 1st random_phase 1
     node reed-mono stereo_to_mono
-    node brightness lowpass mode lowpass cutoff 200hz resonance 0.1 mod_depth 2180.79hz velocity_depth 1500hz key_track 0.3 key_reference 261.626hz
-    node brightness2 lowpass mode lowpass cutoff 200hz resonance 0.1 mod_depth 2180.79hz velocity_depth 1500hz key_track 0.3 key_reference 261.626hz
-    node air-low biquad mode highpass frequency 827.038hz q 0.7071
-    node air-band biquad mode lowpass frequency 3634.01hz q 0.7071
+    node tone-wander math operation scale amount 0.231544
+    node tone-sum math operation add
+    node tone-drive to_control
+    node brightness lowpass mode lowpass cutoff 200hz resonance 0.1 mod_depth 1137.06hz velocity_depth 1500hz key_track 0.250265 key_reference 261.626hz
+    node brightness2 lowpass mode lowpass cutoff 200hz resonance 0.1 mod_depth 1137.06hz velocity_depth 1500hz key_track 0.250265 key_reference 261.626hz
+    node air-low biquad mode highpass frequency 520.466hz q 0.7071
+    node air-band biquad mode lowpass frequency 1500hz q 0.7071
     node steady-air math operation scale amount 0.5
-    node pulsed-air math operation scale amount 0.129949
+    node pulsed-air math operation scale amount 0.477446
     node air-drive sum max_inputs 2
     node breath-noise math operation multiply
     node breath-level math operation scale amount $noise
     node voice sum max_inputs 2
-    node formant1 biquad mode peak frequency 3109.94hz q 1.41545 gain 5.37902db
-    node formant2 biquad mode peak frequency 83.2007hz q 0.5 gain 4.91825db
-    node formant3 biquad mode peak frequency 820.464hz q 2 gain -12db
-    node formant4 biquad mode peak frequency 7599.88hz q 1.99004 gain -0.288901db
-    node formant5 biquad mode peak frequency 1058.23hz q 0.83107 gain 10.4875db
-    node formant6 biquad mode peak frequency 11021hz q 1.23444 gain -0.644927db
-    node formant7 biquad mode lowshelf frequency 434.862hz q 0.7071 gain -12db
-    node formant8 biquad mode highshelf frequency 1009.02hz q 0.7071 gain -10.5897db
+    node formant1 biquad mode peak frequency 286.493hz q 2.5 gain -13.9944db
+    node formant2 biquad mode peak frequency 90.4189hz q 1.77742 gain -15db
+    node formant3 biquad mode peak frequency 104.541hz q 1.74578 gain -14.9999db
+    node formant4 biquad mode peak frequency 7189.3hz q 2.3852 gain 3.48156db
+    node formant5 biquad mode peak frequency 4453.09hz q 0.905106 gain 12.069db
+    node formant6 biquad mode peak frequency 1335.38hz q 1.16863 gain 6.70112db
+    node formant7 biquad mode lowshelf frequency 126.273hz q 0.7071 gain -14.9996db
+    node formant8 biquad mode highshelf frequency 3599.31hz q 0.7071 gain 9.23838db
+    node formant9 biquad mode peak frequency 811.613hz q 2.49998 gain -1.17988db
+    node formant10 biquad mode peak frequency 1680.9hz q 2.49658 gain 0.249012db
+    node formant11 biquad mode peak frequency 5362.28hz q 2.49579 gain -3.71693db
+    node formant12 biquad mode peak frequency 290.022hz q 2.5 gain -2.00121db
     node below-note biquad mode highpass frequency 156.975hz q 0.7071 key_track 1 key_reference 261.626hz
     node radiation biquad mode highpass frequency 40hz q 0.7071
     node shimmer-depth math operation scale amount 1.00987
     node shimmer math operation offset amount 1
     node alive math operation multiply
+    node register-level math operation scale amount $register
     node dynamics-level math operation scale amount $dynamics
-    node trim math operation scale amount 0.611907
+    node trim math operation scale amount 0.465288
     node level math operation scale amount $level
     node place pan position $pan
     node out output
@@ -99,12 +160,16 @@ instrument euphonium "Euphonium" graph {
     bus breath-control-reed-gain breath.control -> reed.gain
     bus pitch-movement-audio-reed-fm pitch-movement.audio -> reed.fm
     bus reed-audio-reed-mono-audio reed.audio -> reed-mono.audio
+    bus wander-smooth-audio-tone-wander-a wander-smooth.audio -> tone-wander.a
+    bus breath-audio-audio-tone-sum-a breath-audio.audio -> tone-sum.a
+    bus tone-wander-audio-tone-sum-b tone-wander.audio -> tone-sum.b
+    bus tone-sum-audio-tone-drive-audio tone-sum.audio -> tone-drive.audio
     bus reed-mono-audio-brightness-audio reed-mono.audio -> brightness.audio
-    bus breath-control-brightness-mod breath.control -> brightness.mod
+    bus tone-drive-control-brightness-mod tone-drive.control -> brightness.mod
     bus note-velocity-brightness-velocity note.velocity -> brightness.velocity
     bus note-pitch-brightness-key note.pitch -> brightness.key
     bus brightness-audio-brightness2-audio brightness.audio -> brightness2.audio
-    bus breath-control-brightness2-mod breath.control -> brightness2.mod
+    bus tone-drive-control-brightness2-mod tone-drive.control -> brightness2.mod
     bus note-velocity-brightness2-velocity note.velocity -> brightness2.velocity
     bus note-pitch-brightness2-key note.pitch -> brightness2.key
     bus air-audio-air-low-audio air.audio -> air-low.audio
@@ -126,14 +191,19 @@ instrument euphonium "Euphonium" graph {
     bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
     bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
     bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
-    bus formant8-audio-below-note-audio formant8.audio -> below-note.audio
+    bus formant8-audio-formant9-audio formant8.audio -> formant9.audio
+    bus formant9-audio-formant10-audio formant9.audio -> formant10.audio
+    bus formant10-audio-formant11-audio formant10.audio -> formant11.audio
+    bus formant11-audio-formant12-audio formant11.audio -> formant12.audio
+    bus formant12-audio-below-note-audio formant12.audio -> below-note.audio
     bus note-pitch-below-note-key note.pitch -> below-note.key
     bus below-note-audio-radiation-audio below-note.audio -> radiation.audio
     bus flutter-audio-shimmer-depth-a flutter.audio -> shimmer-depth.a
     bus shimmer-depth-audio-shimmer-a shimmer-depth.audio -> shimmer.a
     bus radiation-audio-alive-a radiation.audio -> alive.a
     bus shimmer-audio-alive-b shimmer.audio -> alive.b
-    bus alive-audio-dynamics-level-a alive.audio -> dynamics-level.a
+    bus alive-audio-register-level-a alive.audio -> register-level.a
+    bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a
     bus dynamics-level-audio-trim-a dynamics-level.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a
     bus level-audio-place-audio level.audio -> place.audio
