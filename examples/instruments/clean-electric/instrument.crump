@@ -1,22 +1,26 @@
 crump-module 2
 instrument clean-electric "Clean Electric" graph {
   polyphony 8
-  parameter sustain "Sustain" ratio 0.5 0.99999 0.993211 0.993211 modulatable
+  parameter sustain "Sustain" ratio 0.5 0.99999 0.98255187 0.98255187 modulatable
   parameter length "String length 1" ratio 0.5 1.1 0.98845944 0.98845944 modulatable
   parameter length2 "String length 2" ratio 0.5 1.1 0.98817401 0.98817401 modulatable
-  parameter register "Register level" ratio 0.05 20 1.88365 1.88365 modulatable
+  parameter register "Register level" ratio 0.05 20 1.03514 1.03514 modulatable
   parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control sustain "Sustain" "How long the string rings" maps sustain
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-c4-24 note_key per_voice bipolar reference C4 range 24st
-    source key-from-c1-24 note_key per_voice bipolar reference C1 range 24st
+    source key-from-c1-12 note_key per_voice bipolar reference C1 range 12st
+    source key-from-c2-12 note_key per_voice bipolar reference C2 range 12st
     source key-from-c3-12 note_key per_voice bipolar reference C3 range 12st
+    source key-from-c4-12 note_key per_voice bipolar reference C4 range 12st
+    source key-from-c5-12 note_key per_voice bipolar reference C5 range 12st
+    source key-from-c6-12 note_key per_voice bipolar reference C6 range 12st
+    source key-from-c7-12 note_key per_voice bipolar reference C7 range 12st
+    source key-from-c1-24 note_key per_voice bipolar reference C1 range 24st
     source key-from-c4-6 note_key per_voice bipolar reference C4 range 6st
     source key-from-fs4-6 note_key per_voice bipolar reference F#4 range 6st
     source key-from-c5-6 note_key per_voice bipolar reference C5 range 6st
@@ -40,10 +44,25 @@ instrument clean-electric "Clean Electric" graph {
     source key-from-as5-3 note_key per_voice bipolar reference A#5 range 3st
     source key-from-cs6-1 note_key per_voice bipolar reference C#6 range 1st
     source velocity note_velocity per_voice unipolar
-    route sustain-low source key-c4-24 target sustain depth -0.00539998 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    route sustain-1 source key-from-c1-12 target sustain depth 0.008685674 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
     }
-    route sustain-high source key-c4-24 target sustain depth 0.0065891 map bipolar curve linear order 0 bypass false {
+    route sustain-2 source key-from-c2-12 target sustain depth 0.0030974947 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route sustain-3 source key-from-c3-12 target sustain depth 0.0020045628 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route sustain-4 source key-from-c4-12 target sustain depth 0.0010707158 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route sustain-5 source key-from-c5-12 target sustain depth 0.00075780484 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route sustain-6 source key-from-c6-12 target sustain depth 0.00091551837 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route sustain-7 source key-from-c7-12 target sustain depth 0.00045807403 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
     route length-1 source key-from-c1-24 target length depth 0.00088766474 map bipolar curve linear order 0 bypass false {
@@ -94,52 +113,52 @@ instrument clean-electric "Clean Electric" graph {
     route length2-8 source key-from-fs6-18 target length2 depth -0.0038299032 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-1 source key-from-e2-3 target register depth -1.68866 map bipolar curve linear order 0 bypass false {
+    route register-1 source key-from-e2-3 target register depth 0.15336 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-2 source key-from-g2-3 target register depth -0.129671 map bipolar curve linear order 0 bypass false {
+    route register-2 source key-from-g2-3 target register depth -0.244441 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-3 source key-from-as2-3 target register depth 0.206957 map bipolar curve linear order 0 bypass false {
+    route register-3 source key-from-as2-3 target register depth 0.02199 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-4 source key-from-cs3-3 target register depth -0.0657321 map bipolar curve linear order 0 bypass false {
+    route register-4 source key-from-cs3-3 target register depth -0.0110583 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-5 source key-from-e3-3 target register depth 0.0989541 map bipolar curve linear order 0 bypass false {
+    route register-5 source key-from-e3-3 target register depth 0.206456 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-6 source key-from-g3-3 target register depth 1.39275 map bipolar curve linear order 0 bypass false {
+    route register-6 source key-from-g3-3 target register depth -0.013295 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-7 source key-from-as3-3 target register depth -0.536795 map bipolar curve linear order 0 bypass false {
+    route register-7 source key-from-as3-3 target register depth 0.21643 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-8 source key-from-cs4-3 target register depth -1.10145 map bipolar curve linear order 0 bypass false {
+    route register-8 source key-from-cs4-3 target register depth -0.305329 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-9 source key-from-e4-3 target register depth 1.15619 map bipolar curve linear order 0 bypass false {
+    route register-9 source key-from-e4-3 target register depth -0.359412 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-10 source key-from-g4-3 target register depth 0.667463 map bipolar curve linear order 0 bypass false {
+    route register-10 source key-from-g4-3 target register depth 0.384085 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-11 source key-from-as4-3 target register depth -0.471112 map bipolar curve linear order 0 bypass false {
+    route register-11 source key-from-as4-3 target register depth -0.271096 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-12 source key-from-cs5-3 target register depth 0.514987 map bipolar curve linear order 0 bypass false {
+    route register-12 source key-from-cs5-3 target register depth 0.309188 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-13 source key-from-e5-3 target register depth -0.892383 map bipolar curve linear order 0 bypass false {
+    route register-13 source key-from-e5-3 target register depth -0.526356 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-14 source key-from-g5-3 target register depth 0.682766 map bipolar curve linear order 0 bypass false {
+    route register-14 source key-from-g5-3 target register depth 0.404338 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-15 source key-from-as5-3 target register depth -1.01807 map bipolar curve linear order 0 bypass false {
+    route register-15 source key-from-as5-3 target register depth -0.59262 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-16 source key-from-cs6-1 target register depth 0.311737 map bipolar curve linear order 0 bypass false {
+    route register-16 source key-from-cs6-1 target register depth 0.16806 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
     route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve linear order 0 bypass false
@@ -160,13 +179,13 @@ instrument clean-electric "Clean Electric" graph {
     node share math operation scale amount 0.6
     node string delay_line mode pitch ratio $length interpolation lagrange3 max_time 0.05s
     node bridge math operation add
-    node loss biquad mode lowpass frequency 13556.4hz q 0.764324 key_track 1 key_reference 261.626hz
+    node loss biquad mode lowpass frequency 13556.4hz q 0.7 key_track 1 key_reference 261.626hz
     node stiffness biquad mode allpass frequency 15697.5hz q 0.7 key_track 1 key_reference 261.626hz
     node return math operation scale amount $sustain
     node share2 math operation scale amount 0.4
     node string2 delay_line mode pitch ratio $length2 interpolation lagrange3 max_time 0.05s
     node bridge2 math operation add
-    node loss2 biquad mode lowpass frequency 13556.4hz q 0.764324 key_track 1 key_reference 261.626hz
+    node loss2 biquad mode lowpass frequency 13556.4hz q 0.7 key_track 1 key_reference 261.626hz
     node stiffness2 biquad mode allpass frequency 15697.5hz q 0.7 key_track 1 key_reference 261.626hz
     node trim-loss2 math operation scale amount 0.9995
     node return2 math operation scale amount $sustain
@@ -196,7 +215,7 @@ instrument clean-electric "Clean Electric" graph {
     node radiation biquad mode highpass frequency 60hz q 0.7071
     node register-level math operation scale amount $register
     node dynamics-level math operation scale amount $dynamics
-    node trim math operation scale amount 0.0840263
+    node trim math operation scale amount 0.190257
     node level math operation scale amount $level
     node place pan position $pan
     node out output

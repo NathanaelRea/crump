@@ -31,10 +31,10 @@ Similarity to the references, old → new, with both sides peak-normalised:
 | Woodwinds | Flute 0.45 → 0.60, Oboe 0.61 → 0.66, Clarinet 0.50 → 0.64, Bassoon 0.46 → 0.63, English Horn 0.56 → 0.63, Bass Clarinet 0.57 → 0.73, Contrabassoon 0.52 → 0.75 |
 | Brass | Trumpet 0.60 → 0.74, Muted Trumpet 0.55 → 0.67, Flugelhorn 0.65 → 0.83, French Horn 0.51 → 0.68, Euphonium 0.61 → 0.79, Bass Trombone 0.25 → 0.73, Tuba 0.53 → 0.72 |
 | World winds | Recorder 0.39 → 0.85, Pan Flute 0.33 → 0.66, Shakuhachi 0.34 → 0.78, Bansuri 0.37 → 0.79, Ocarina 0.31 → 0.56, Harmonica 0.25 → 0.40, Accordion 0.78 → 0.85, Bagpipes 0.29 → 0.35, Didgeridoo 0.45 → 0.61 |
-| World strings | Sitar 0.45 → 0.59, Shamisen 0.41 → 0.43, Oud 0.40 → 0.67, Hammered Dulcimer 0.56 → 0.70 |
+| World strings | Shamisen 0.41 → 0.57, Oud 0.40 → 0.67, Hammered Dulcimer 0.56 → 0.70 |
 | Guitar | Nylon Thumb 0.49 → 0.54, Mandolin 0.29 → 0.37, Ukulele 0.45 → 0.60, Clean Electric 0.58 → 0.68, Crunch Guitar 0.60 → 0.66, Small Harp 0.50 → 0.61 |
 
-Piccolo, Tenor Trombone, Brass Section, Duduk, Erhu, Hurdy-Gurdy, Banjo, Koto and Disco Mute keep their previous models: no new candidate came closer to the recordings. Steel Finger has no reference; its new model, derived from the classical guitar with a stiffer, brighter string, is labelled a steel-string acoustic guitar by the proxy where the old one was labelled a synth pluck.
+Piccolo, Tenor Trombone, Brass Section, Duduk, Erhu, Hurdy-Gurdy, Banjo, Koto, Sitar and Disco Mute keep their previous models: no new candidate came closer to the recordings. A first sitar scored higher only because its bridge buzz, inside the string loop, had more than unity gain and sustained low notes indefinitely; buzz now acts on the string's output, and every plucked string sets its ring time per register. Steel Finger has no reference; its new model, derived from the classical guitar with a stiffer, brighter string, is labelled a steel-string acoustic guitar by the proxy where the old one was labelled a synth pluck.
 
 ## Limits
 

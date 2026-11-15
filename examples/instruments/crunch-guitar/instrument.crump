@@ -1,50 +1,52 @@
 crump-module 2
 instrument crunch-guitar "Crunch Guitar" graph {
   polyphony 8
-  parameter sustain "Sustain" ratio 0.5 0.99999 0.995919 0.995919 modulatable
+  parameter sustain "Sustain" ratio 0.5 0.99999 0.97394231 0.97394231 modulatable
   parameter length "String length 1" ratio 0.5 1.1 0.99246223 0.99246223 modulatable
   parameter length2 "String length 2" ratio 0.5 1.1 0.99217564 0.99217564 modulatable
   parameter room "Room" ratio 0 1 0.164489 0.164489
-  parameter register "Register level" ratio 0.05 20 1.02329 1.02329 modulatable
   parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
   parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control sustain "Sustain" "How long the string rings" maps sustain
     control level "Level" "Output level" maps level
     control pan "Pan" "Stereo position" maps pan
   }
   modulation {
-    source key-c4-24 note_key per_voice bipolar reference C4 range 24st
-    source key-from-c1-24 note_key per_voice bipolar reference C1 range 24st
+    source key-from-c1-12 note_key per_voice bipolar reference C1 range 12st
+    source key-from-c2-12 note_key per_voice bipolar reference C2 range 12st
     source key-from-c3-12 note_key per_voice bipolar reference C3 range 12st
+    source key-from-c4-12 note_key per_voice bipolar reference C4 range 12st
+    source key-from-c5-12 note_key per_voice bipolar reference C5 range 12st
+    source key-from-c6-12 note_key per_voice bipolar reference C6 range 12st
+    source key-from-c7-12 note_key per_voice bipolar reference C7 range 12st
+    source key-from-c1-24 note_key per_voice bipolar reference C1 range 24st
     source key-from-c4-6 note_key per_voice bipolar reference C4 range 6st
     source key-from-fs4-6 note_key per_voice bipolar reference F#4 range 6st
     source key-from-c5-6 note_key per_voice bipolar reference C5 range 6st
     source key-from-fs5-6 note_key per_voice bipolar reference F#5 range 6st
     source key-from-c6-6 note_key per_voice bipolar reference C6 range 6st
     source key-from-fs6-18 note_key per_voice bipolar reference F#6 range 18st
-    source key-from-e2-3 note_key per_voice bipolar reference E2 range 3st
-    source key-from-g2-3 note_key per_voice bipolar reference G2 range 3st
-    source key-from-as2-3 note_key per_voice bipolar reference A#2 range 3st
-    source key-from-cs3-3 note_key per_voice bipolar reference C#3 range 3st
-    source key-from-e3-3 note_key per_voice bipolar reference E3 range 3st
-    source key-from-g3-3 note_key per_voice bipolar reference G3 range 3st
-    source key-from-as3-3 note_key per_voice bipolar reference A#3 range 3st
-    source key-from-cs4-3 note_key per_voice bipolar reference C#4 range 3st
-    source key-from-e4-3 note_key per_voice bipolar reference E4 range 3st
-    source key-from-g4-3 note_key per_voice bipolar reference G4 range 3st
-    source key-from-as4-3 note_key per_voice bipolar reference A#4 range 3st
-    source key-from-cs5-3 note_key per_voice bipolar reference C#5 range 3st
-    source key-from-e5-3 note_key per_voice bipolar reference E5 range 3st
-    source key-from-g5-3 note_key per_voice bipolar reference G5 range 3st
-    source key-from-as5-3 note_key per_voice bipolar reference A#5 range 3st
-    source key-from-cs6-1 note_key per_voice bipolar reference C#6 range 1st
     source velocity note_velocity per_voice unipolar
-    route sustain-low source key-c4-24 target sustain depth -0.00309474 map bipolar curve linear order 0 bypass false {
-      clamp -1 0
+    route sustain-1 source key-from-c1-12 target sustain depth 0.012942848 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
     }
-    route sustain-high source key-c4-24 target sustain depth -0.000745627 map bipolar curve linear order 0 bypass false {
+    route sustain-2 source key-from-c2-12 target sustain depth 0.0048001779 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route sustain-3 source key-from-c3-12 target sustain depth 0.0030479448 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route sustain-4 source key-from-c4-12 target sustain depth 0.0015397089 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route sustain-5 source key-from-c5-12 target sustain depth 0.0010901768 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route sustain-6 source key-from-c6-12 target sustain depth 0.001317549 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route sustain-7 source key-from-c7-12 target sustain depth 0.00065942708 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
     route length-1 source key-from-c1-24 target length depth 0.0006369689 map bipolar curve linear order 0 bypass false {
@@ -95,57 +97,9 @@ instrument crunch-guitar "Crunch Guitar" graph {
     route length2-8 source key-from-fs6-18 target length2 depth -0.0026269514 map bipolar curve linear order 0 bypass false {
       clamp 0 1
     }
-    route register-1 source key-from-e2-3 target register depth -0.692162 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-2 source key-from-g2-3 target register depth 0.292604 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-3 source key-from-as2-3 target register depth 0.161501 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-4 source key-from-cs3-3 target register depth -0.0439254 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-5 source key-from-e3-3 target register depth 0.330209 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-6 source key-from-g3-3 target register depth -0.159508 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-7 source key-from-as3-3 target register depth 0.223 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-8 source key-from-cs4-3 target register depth -0.135011 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-9 source key-from-e4-3 target register depth 0.023293 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-10 source key-from-g4-3 target register depth -0.0117135 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-11 source key-from-as4-3 target register depth -0.0565869 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-12 source key-from-cs5-3 target register depth 0.154182 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-13 source key-from-e5-3 target register depth 0.0657227 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-14 source key-from-g5-3 target register depth -0.0528791 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-15 source key-from-as5-3 target register depth -0.251055 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
-    route register-16 source key-from-cs6-1 target register depth 0.200556 map bipolar curve linear order 0 bypass false {
-      clamp 0 1
-    }
     route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve linear order 0 bypass false
   }
-  graph voice 61 {
+  graph voice 51 {
     # A plucked string: a pitch-tracked loop that loses its upper partials first, then the body.
     node pluck exciter kind impact contact 0.00053214s hardness 0.4 level 1
     node released onepole mode leak time 0.02s
@@ -176,16 +130,7 @@ instrument crunch-guitar "Crunch Guitar" graph {
     node pickup-delay delay_line mode pitch ratio 0.15 interpolation lagrange3 max_time 0.03s
     node pickup math operation subtract
     node coil biquad mode lowpass frequency 2600hz q 1.3
-    node scrape noise level 1
-    node knock-env envelope mode adsr attack 0.001s decay 0.4s sustain 0 release 0.4s decay_curve -0.7
-    node knock-env-audio to_audio
-    node knock-low biquad mode highpass frequency 150hz q 0.7071
-    node knock-band biquad mode lowpass frequency 6520.15hz q 0.7071
-    node knock-burst math operation multiply
-    node knock-velocity math operation multiply
-    node knock-level math operation scale amount 0.110788
-    node with-knock math operation add
-    node preamp math operation scale amount 12
+    node preamp math operation scale amount 8
     node valve shaper curve asymmetric drive 4 bias 0.1 asymmetry 0.3
     node valve-dc dc_block cutoff 30hz
     node formant1 biquad mode peak frequency 517.962hz q 0.979019 gain -6.43522db
@@ -202,9 +147,8 @@ instrument crunch-guitar "Crunch Guitar" graph {
     node cabinet4 biquad mode lowpass frequency 4800hz q 0.9
     node cabinet5 biquad mode lowpass frequency 6000hz q 0.7
     node radiation biquad mode highpass frequency 80hz q 0.7071
-    node register-level math operation scale amount $register
     node dynamics-level math operation scale amount $dynamics
-    node trim math operation scale amount 0.129646
+    node trim math operation scale amount 0.128594
     node level math operation scale amount $level
     node place pan position $pan
     node out output
@@ -254,18 +198,7 @@ instrument crunch-guitar "Crunch Guitar" graph {
     bus bridge-dc-audio-pickup-a bridge-dc.audio -> pickup.a
     bus pickup-delay-audio-pickup-b pickup-delay.audio -> pickup.b
     bus pickup-audio-coil-audio pickup.audio -> coil.audio
-    bus note-gate-knock-env-gate note.gate -> knock-env.gate
-    bus knock-env-control-knock-env-audio-control knock-env.control -> knock-env-audio.control
-    bus scrape-audio-knock-low-audio scrape.audio -> knock-low.audio
-    bus knock-low-audio-knock-band-audio knock-low.audio -> knock-band.audio
-    bus knock-band-audio-knock-burst-a knock-band.audio -> knock-burst.a
-    bus knock-env-audio-audio-knock-burst-b knock-env-audio.audio -> knock-burst.b
-    bus knock-burst-audio-knock-velocity-a knock-burst.audio -> knock-velocity.a
-    bus velocity-audio-audio-knock-velocity-b velocity-audio.audio -> knock-velocity.b
-    bus knock-velocity-audio-knock-level-a knock-velocity.audio -> knock-level.a
-    bus coil-audio-with-knock-a coil.audio -> with-knock.a
-    bus knock-level-audio-with-knock-b knock-level.audio -> with-knock.b
-    bus with-knock-audio-preamp-a with-knock.audio -> preamp.a
+    bus coil-audio-preamp-a coil.audio -> preamp.a
     bus preamp-audio-valve-audio preamp.audio -> valve.audio
     bus valve-audio-valve-dc-audio valve.audio -> valve-dc.audio
     bus valve-dc-audio-formant1-audio valve-dc.audio -> formant1.audio
@@ -282,8 +215,7 @@ instrument crunch-guitar "Crunch Guitar" graph {
     bus cabinet3-audio-cabinet4-audio cabinet3.audio -> cabinet4.audio
     bus cabinet4-audio-cabinet5-audio cabinet4.audio -> cabinet5.audio
     bus cabinet5-audio-radiation-audio cabinet5.audio -> radiation.audio
-    bus radiation-audio-register-level-a radiation.audio -> register-level.a
-    bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a
+    bus radiation-audio-dynamics-level-a radiation.audio -> dynamics-level.a
     bus dynamics-level-audio-trim-a dynamics-level.audio -> trim.a
     bus trim-audio-level-a trim.audio -> level.a
     bus level-audio-place-audio level.audio -> place.audio
