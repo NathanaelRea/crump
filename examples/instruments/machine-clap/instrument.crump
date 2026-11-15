@@ -1,0 +1,123 @@
+crump-module 2
+instrument machine-clap "Machine Clap" graph {
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  graph voice 44 {
+    # Layers of simpler models, each peak-normalised.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall1 math operation add
+    node fall1-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall1-leak math operation scale amount 0.997226076677
+    node fall2 math operation add
+    node fall2-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall2-leak math operation scale amount 0.946616613353
+    node gain3 math operation scale amount -1
+    node plus4 math operation add
+    node gain5 math operation scale amount 1.23499
+    node hand6 delay_line mode time time 0.011304s interpolation linear max_time 0.016956s
+    node hand7 delay_line mode time time 0.022406s interpolation linear max_time 0.0336089s
+    node hand8 delay_line mode time time 0.0320611s interpolation linear max_time 0.0480916s
+    node mix9 sum max_inputs 4
+    node hiss10 noise level 1
+    node times11 math operation multiply
+    node hi-12 lowpass mode highpass cutoff 800hz resonance 0.308309
+    node lo-13 lowpass mode lowpass cutoff 2600hz resonance 0.308309
+    node gain14 math operation scale amount 0.866025
+    node body15 modal_bank profile machine-clap-box max_modes 3 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain16 math operation scale amount 0.3
+    node plus17 math operation add
+    node gain18 math operation scale amount 2.24229
+    node hiss19 noise level 1
+    node fall20 math operation add
+    node fall20-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall20-leak math operation scale amount 0.999877458489
+    node rise21 math operation subtract
+    node fall22 math operation add
+    node fall22-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall22-leak math operation scale amount 0.959071916584
+    node gain23 math operation scale amount 1.02029
+    node times24 math operation multiply
+    node hi-25 lowpass mode highpass cutoff 700hz resonance 0.308309
+    node lo-26 lowpass mode lowpass cutoff 2200hz resonance 0.308309
+    node gain27 math operation scale amount 2.10664
+    node gain28 math operation scale amount 0.380436
+    node late29 delay_line mode time time 0.03s interpolation linear max_time 0.046s
+    node plus30 math operation add
+    node hi-31 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.220603
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall1-audio-fall1-previous-audio fall1.audio -> fall1-previous.audio
+    bus onset-audio-fall1-a onset.audio -> fall1.a
+    bus fall1-previous-audio-fall1-leak-a fall1-previous.audio -> fall1-leak.a
+    bus fall1-leak-audio-fall1-b fall1-leak.audio -> fall1.b
+    bus fall2-audio-fall2-previous-audio fall2.audio -> fall2-previous.audio
+    bus onset-audio-fall2-a onset.audio -> fall2.a
+    bus fall2-previous-audio-fall2-leak-a fall2-previous.audio -> fall2-leak.a
+    bus fall2-leak-audio-fall2-b fall2-leak.audio -> fall2.b
+    bus fall2-audio-gain3-a fall2.audio -> gain3.a
+    bus fall1-audio-plus4-a fall1.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus plus4-audio-gain5-a plus4.audio -> gain5.a
+    bus gain5-audio-hand6-audio gain5.audio -> hand6.audio
+    bus gain5-audio-hand7-audio gain5.audio -> hand7.audio
+    bus gain5-audio-hand8-audio gain5.audio -> hand8.audio
+    bus gain5-audio-mix9-inputs gain5.audio -> mix9.inputs
+    bus hand6-audio-mix9-inputs hand6.audio -> mix9.inputs
+    bus hand7-audio-mix9-inputs hand7.audio -> mix9.inputs
+    bus hand8-audio-mix9-inputs hand8.audio -> mix9.inputs
+    bus hiss10-audio-times11-a hiss10.audio -> times11.a
+    bus mix9-audio-times11-b mix9.audio -> times11.b
+    bus times11-audio-hi-12-audio times11.audio -> hi-12.audio
+    bus hi-12-audio-lo-13-audio hi-12.audio -> lo-13.audio
+    bus lo-13-audio-gain14-a lo-13.audio -> gain14.a
+    bus gain14-audio-body15-audio gain14.audio -> body15.audio
+    bus note-pitch-body15-pitch note.pitch -> body15.pitch
+    bus note-gate-body15-gate note.gate -> body15.gate
+    bus body15-audio-gain16-a body15.audio -> gain16.a
+    bus gain14-audio-plus17-a gain14.audio -> plus17.a
+    bus gain16-audio-plus17-b gain16.audio -> plus17.b
+    bus plus17-audio-gain18-a plus17.audio -> gain18.a
+    bus fall20-audio-fall20-previous-audio fall20.audio -> fall20-previous.audio
+    bus onset-audio-fall20-a onset.audio -> fall20.a
+    bus fall20-previous-audio-fall20-leak-a fall20-previous.audio -> fall20-leak.a
+    bus fall20-leak-audio-fall20-b fall20-leak.audio -> fall20.b
+    bus fall20-audio-rise21-a fall20.audio -> rise21.a
+    bus fall22-audio-fall22-previous-audio fall22.audio -> fall22-previous.audio
+    bus onset-audio-fall22-a onset.audio -> fall22.a
+    bus fall22-previous-audio-fall22-leak-a fall22-previous.audio -> fall22-leak.a
+    bus fall22-leak-audio-fall22-b fall22-leak.audio -> fall22.b
+    bus fall22-audio-rise21-b fall22.audio -> rise21.b
+    bus rise21-audio-gain23-a rise21.audio -> gain23.a
+    bus hiss19-audio-times24-a hiss19.audio -> times24.a
+    bus gain23-audio-times24-b gain23.audio -> times24.b
+    bus times24-audio-hi-25-audio times24.audio -> hi-25.audio
+    bus hi-25-audio-lo-26-audio hi-25.audio -> lo-26.audio
+    bus lo-26-audio-gain27-a lo-26.audio -> gain27.a
+    bus gain27-audio-gain28-a gain27.audio -> gain28.a
+    bus gain28-audio-late29-audio gain28.audio -> late29.audio
+    bus gain18-audio-plus30-a gain18.audio -> plus30.a
+    bus late29-audio-plus30-b late29.audio -> plus30.b
+    bus plus30-audio-hi-31-audio plus30.audio -> hi-31.audio
+    bus hi-31-audio-trim-a hi-31.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile machine-clap-box {
+  root 261.626hz
+  mode m0 frequency 950hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 1510hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 2320hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+}

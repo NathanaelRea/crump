@@ -1,93 +1,54 @@
 crump-module 2
 instrument glass-drop "Glass Drop" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
+  }
+  modulation {
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route key-gain-low source key-level target key-gain depth 0.0128204 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
+    }
+    route key-gain-high source key-level target key-gain depth 0.0684739 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
   }
   graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset glass-drop-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
-      zone z36-hard-0 asset glass-drop-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
-      zone z43-soft-0 asset glass-drop-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
-      zone z43-hard-0 asset glass-drop-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
-      zone z48-soft-0 asset glass-drop-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset glass-drop-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
-      zone z55-soft-0 asset glass-drop-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
-      zone z55-hard-0 asset glass-drop-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
-      zone z60-soft-0 asset glass-drop-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
-      zone z60-hard-0 asset glass-drop-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
-      zone z67-soft-0 asset glass-drop-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset glass-drop-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset glass-drop-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset glass-drop-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
-      zone z79-soft-0 asset glass-drop-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
-      zone z79-hard-0 asset glass-drop-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
-    }
+    # A mallet on a tuned bar's modes, optionally through a pickup.
+    node strike1 exciter kind impact contact 0.000123374s hardness $hardness level 1
+    node body2 modal_bank profile glass-drop-bar max_modes 5 key_track 1 decay_scale $ring brightness 0 level 1
+    node hi-3 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.0561
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-hi-3-audio body2.audio -> hi-3.audio
+    bus hi-3-audio-register-a hi-3.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset glass-drop-36-soft-0 "Glass Drop" wav "media/36-soft-0.wav" sha256 "e44b2ce51357d49f0fd53974fac91f914d69952525cf6cb1b35fd0c000ee48da" {
-  usage multisample
-}
-asset glass-drop-36-hard-0 "Glass Drop" wav "media/36-hard-0.wav" sha256 "264f4fa025ad8df9f1d1d320a87ac2ffc31afb9fddb004d534aec881480bea08" {
-  usage multisample
-}
-asset glass-drop-43-soft-0 "Glass Drop" wav "media/43-soft-0.wav" sha256 "42edf6c5781d34b7e27596d562da73228f3401fddfd616babd03bcfefaa7e6f1" {
-  usage multisample
-}
-asset glass-drop-43-hard-0 "Glass Drop" wav "media/43-hard-0.wav" sha256 "abade439b4a4e215c19f532bd860b21f97af48eef8c14b9d53f4c967afc7e872" {
-  usage multisample
-}
-asset glass-drop-48-soft-0 "Glass Drop" wav "media/48-soft-0.wav" sha256 "eee244c2aafbbf7ca2bb1bf1ec507d55e79f368a08aba4287590e6469cd11272" {
-  usage multisample
-}
-asset glass-drop-48-hard-0 "Glass Drop" wav "media/48-hard-0.wav" sha256 "5635b8df90cd066a6e89d3b920f3633a78afb823313f70120d3d7678c78fdf4c" {
-  usage multisample
-}
-asset glass-drop-55-soft-0 "Glass Drop" wav "media/55-soft-0.wav" sha256 "5f320cd296c9f610ffd637b166462e2092d4c092fee2a00ac21bc78266e2baf7" {
-  usage multisample
-}
-asset glass-drop-55-hard-0 "Glass Drop" wav "media/55-hard-0.wav" sha256 "8dcab445630ab10c4d96d132564bffc5816369678d53b8b210d66834dc534fe2" {
-  usage multisample
-}
-asset glass-drop-60-soft-0 "Glass Drop" wav "media/60-soft-0.wav" sha256 "44521f7d92d6f900173e5172bc0141d6a70b0bd91600810322156b643398e70e" {
-  usage multisample
-}
-asset glass-drop-60-hard-0 "Glass Drop" wav "media/60-hard-0.wav" sha256 "04e5789d1a9f944c94765f9d5aea31fee8c1bc1fdfe4a5197104e9d761f967a9" {
-  usage multisample
-}
-asset glass-drop-67-soft-0 "Glass Drop" wav "media/67-soft-0.wav" sha256 "ad09570f8e1846c4672b54ecd56d604ba7326f88e539371400a8d58da6d2596d" {
-  usage multisample
-}
-asset glass-drop-67-hard-0 "Glass Drop" wav "media/67-hard-0.wav" sha256 "049f57a9083b5a760e0ed54bed94fd28a4d6e0bc49374460775a7030e863f7d8" {
-  usage multisample
-}
-asset glass-drop-72-soft-0 "Glass Drop" wav "media/72-soft-0.wav" sha256 "1439c5d59c51213b0fdf81a59807ebab11ee18dd06589c2dcbd1bbc5719ffa3e" {
-  usage multisample
-}
-asset glass-drop-72-hard-0 "Glass Drop" wav "media/72-hard-0.wav" sha256 "fec86927ad706efee62f04038bf01cbeae18a70ee4d93da6937a865a4cd55a4f" {
-  usage multisample
-}
-asset glass-drop-79-soft-0 "Glass Drop" wav "media/79-soft-0.wav" sha256 "bc38785843e10731c5ce320b60cabc2ae3fc399680e6379c2a1ddeaf77332f1b" {
-  usage multisample
-}
-asset glass-drop-79-hard-0 "Glass Drop" wav "media/79-hard-0.wav" sha256 "d319614edf3c9d30b1f25af818d3aaf11921bb3c0d283f1816101f08b88ad817" {
-  usage multisample
+profile glass-drop-bar {
+  root 261.626hz
+  mode m0 frequency 261.627hz decay 1.02688s gain 1 after_decay 1.02688s after_gain 0
+  mode m1 frequency 778.626hz decay 0.274572s gain 1.28013 after_decay 0.274572s after_gain 0
+  mode m2 frequency 1573.91hz decay 0.117214s gain 0.905058 after_decay 0.117214s after_gain 0
+  mode m3 frequency 1946.78hz decay 0.090636s gain 0.486856 after_decay 0.090636s after_gain 0
+  mode m4 frequency 2419.84hz decay 0.0696692s gain 0.667719 after_decay 0.0696692s after_gain 0
 }

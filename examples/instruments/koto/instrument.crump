@@ -1,0 +1,75 @@
+crump-module 2
+instrument koto "Koto" graph {
+  polyphony 8
+  parameter hardness "Pick hardness" ratio 0 1 0.890936 0.890936
+  parameter pick "Pick position" ratio 0.02 0.5 0.135806 0.135806
+  parameter damping "Damping" ratio 0 1 0.323165 0.323165
+  parameter sustain "Sustain" ratio 0.9 0.99999 0.99667336 0.99667336
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control hardness "Pick hardness" "Brightness of the pluck" maps hardness
+    control pick "Pick position" "Plucking point along the string" maps pick
+    control damping "Damping" "How much faster the upper partials decay" maps damping
+    control sustain "Sustain" "Energy kept on each trip along the string" maps sustain
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  graph voice 23 {
+    # A plucked string: a pitch-tuned loop with loss and stiffness, then the body.
+    node pluck exciter kind impact contact 0.000234598s hardness $hardness level 1
+    node step onepole mode leak time 0.02s
+    node pick-point delay_line mode pitch ratio $pick interpolation linear max_time 0.05s
+    node pulse math operation subtract
+    node excite math operation add
+    node string delay_line mode pitch interpolation lagrange3 tune_compensation 2.61083 max_time 0.1s
+    node loss linear_phase_lowpass amount $damping
+    node stiffness biquad mode allpass frequency 8372.02hz q 0.6 key_track 1 key_reference 261.626hz
+    node decay math operation scale amount $sustain
+    node hold envelope attack 0ms decay 0ms sustain 1 release 0.4s
+    node hold-audio to_audio
+    node damp math operation multiply
+    node radiate dc_block cutoff 20hz
+    node body1 biquad mode peak frequency 146.832hz q 5.98197 gain -4.30502db
+    node body2 biquad mode peak frequency 326.3hz q 3.28792 gain -11.3746db
+    node body3 biquad mode peak frequency 604.605hz q 4.5779 gain -8.27218db
+    node body4 biquad mode highshelf frequency 304.121hz q 0.7071 gain 4.48984db
+    node radiation biquad mode lowpass frequency 7574.5hz q 0.7071
+    node sub-cut biquad mode highpass frequency 183.138hz q 0.7071 key_track 1 key_reference 261.626hz
+    node trim math operation scale amount 0.145713
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-pluck-gate note.gate -> pluck.gate
+    bus note-velocity-pluck-velocity note.velocity -> pluck.velocity
+    bus pluck-audio-step-audio pluck.audio -> step.audio
+    bus note-pitch-pick-point-pitch note.pitch -> pick-point.pitch
+    bus step-audio-pick-point-audio step.audio -> pick-point.audio
+    bus step-audio-pulse-a step.audio -> pulse.a
+    bus pick-point-audio-pulse-b pick-point.audio -> pulse.b
+    bus pulse-audio-excite-a pulse.audio -> excite.a
+    bus note-pitch-string-pitch note.pitch -> string.pitch
+    bus excite-audio-string-audio excite.audio -> string.audio
+    bus string-audio-loss-audio string.audio -> loss.audio
+    bus note-pitch-stiffness-key note.pitch -> stiffness.key
+    bus loss-audio-stiffness-audio loss.audio -> stiffness.audio
+    bus stiffness-audio-decay-a stiffness.audio -> decay.a
+    bus note-gate-hold-gate note.gate -> hold.gate
+    bus hold-control-hold-audio-control hold.control -> hold-audio.control
+    bus decay-audio-damp-a decay.audio -> damp.a
+    bus hold-audio-audio-damp-b hold-audio.audio -> damp.b
+    bus damp-audio-excite-b damp.audio -> excite.b
+    bus string-audio-radiate-audio string.audio -> radiate.audio
+    bus radiate-audio-body1-audio radiate.audio -> body1.audio
+    bus body1-audio-body2-audio body1.audio -> body2.audio
+    bus body2-audio-body3-audio body2.audio -> body3.audio
+    bus body3-audio-body4-audio body3.audio -> body4.audio
+    bus body4-audio-radiation-audio body4.audio -> radiation.audio
+    bus radiation-audio-sub-cut-audio radiation.audio -> sub-cut.audio
+    bus note-pitch-sub-cut-key note.pitch -> sub-cut.key
+    bus sub-cut-audio-trim-a sub-cut.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}

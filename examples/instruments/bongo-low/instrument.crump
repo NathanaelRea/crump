@@ -1,45 +1,70 @@
 crump-module 2
 instrument bongo-low "Bongo Low" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.118 0.118
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z60-soft-0 asset bongo-low-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-0 asset bongo-low-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
-      zone z60-soft-1 asset bongo-low-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-1 asset bongo-low-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
-    }
+  graph voice 17 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.00183586s hardness $hardness level 1
+    node body2 modal_bank profile bongo-low-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.997687862303
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 0.121244
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.167899
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus onset-audio-fall4-a onset.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-trim-a hi-10.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset bongo-low-60-soft-0 "Bongo Low" wav "media/60-soft-0.wav" sha256 "3fa6687f7121587fc5dd37524528662269311130dea6a4eeab2da15345581e5f" {
-  usage multisample
-}
-asset bongo-low-60-hard-0 "Bongo Low" wav "media/60-hard-0.wav" sha256 "5088f6bdbe7e58f25c276504eb48d9f3d1e12411dad791bb542b366764f56870" {
-  usage multisample
-}
-asset bongo-low-60-soft-1 "Bongo Low" wav "media/60-soft-1.wav" sha256 "4d72dc44861beaf67e2e402d5ccdfd29c4ada00b32078f18fa91d6f56f3c0607" {
-  usage multisample
-}
-asset bongo-low-60-hard-1 "Bongo Low" wav "media/60-hard-1.wav" sha256 "80fc06792b84d3ab4c115de708578b35516285fe52fcaa412b930ef2a7662983" {
-  usage multisample
+profile bongo-low-head {
+  root 265hz
+  mode m0 frequency 265hz decay 0.17s gain 1 after_decay 0.17s after_gain 0
+  mode m1 frequency 422.145hz decay 0.119891s gain 0.557711 after_decay 0.119891s after_gain 0
+  mode m2 frequency 566.04hz decay 0.0962162s gain 0.242748 after_decay 0.0962162s after_gain 0
+  mode m3 frequency 608.44hz decay 0.0911423s gain 0.138295 after_decay 0.0911423s after_gain 0
+  mode m4 frequency 703.045hz decay 0.0817798s gain 0.0982112 after_decay 0.0817798s after_gain 0
+  mode m5 frequency 773.27hz decay 0.0761439s gain 0.0765651 after_decay 0.0761439s after_gain 0
+  mode m6 frequency 836.34hz decay 0.0717953s gain 0.0529791 after_decay 0.0717953s after_gain 0
+  mode m7 frequency 927.765hz decay 0.0664209s gain 0.0285939 after_decay 0.0664209s after_gain 0
+  mode m8 frequency 954hz decay 0.0650462s gain 0.0214343 after_decay 0.0650462s after_gain 0
+  mode m9 frequency 1075.9hz decay 0.0594367s gain 0.00964045 after_decay 0.0594367s after_gain 0
 }

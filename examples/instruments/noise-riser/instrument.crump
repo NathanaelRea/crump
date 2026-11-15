@@ -1,0 +1,61 @@
+crump-module 2
+instrument noise-riser "Noise Riser" graph {
+  polyphony 4
+  voicing poly retrigger always glide 0ms glide_mode always note_priority last steal_priority release_oldest seed 30316
+  parameter level "Level" ratio 0 1 0.12 0.12
+  parameter rise "Rise" seconds 500ms 8s 4s 4s automatable
+  parameter release "Release" seconds 100ms 8s 1.5s 1.5s automatable
+  parameter space "Space" ratio 0 1 0.4 0.4 automatable
+  faceplate {
+    control rise "Rise" "Time for the sweep to reach the top while the note is held" maps rise
+    control release "Release" "Tail after Note Off" maps release
+    control space "Space" "Echo and hall" maps space
+    control level "Level" "Output level" maps level
+  }
+  graph voice 11 {
+    node hiss noise level 1
+    node lift amplifier level 1
+    node hiss-stereo mono_to_stereo
+    node tone analog_oscillator {
+      waveform saw
+      unison 3
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 1
+      detune 0.2st
+      blend 0.8
+      width 0.8
+      level 0.5
+      pan 0
+    }
+    node sources stereo_mixer a_level 1 b_level 1
+    node amplitude envelope mode ahdsr attack $rise hold 0ms decay 1s sustain 1 release $release attack_curve 0.4 decay_curve 0 release_curve -0.3 retrigger always
+    node sweep envelope mode ahdsr attack $rise hold 0ms decay 1s sustain 1 release $release attack_curve 0.6 decay_curve 0 release_curve 0 retrigger always
+    node band stereo_filter model svf_clean mode lowpass cutoff 200hz resonance 0.75 drive 0 mix 1 pan 0 mod_depth 9khz velocity_depth 0hz key_track 0.5 key_reference 261.625565hz
+    node trim stereo_mixer a_level $level b_level 0
+    node out output
+    bus tone-pitch note.pitch -> tone.pitch
+    bus hiss-lift hiss.audio -> lift.audio
+    bus lift-gain amplitude.control -> lift.gain
+    bus hiss-widen lift.audio -> hiss-stereo.audio
+    bus tone-gain amplitude.control -> tone.gain
+    bus mix-a hiss-stereo.audio -> sources.a
+    bus mix-b tone.audio -> sources.b
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus sweep-gate note.gate -> sweep.gate
+    bus band-audio sources.audio -> band.audio
+    bus band-sweep sweep.control -> band.mod
+    bus band-key note.pitch -> band.key
+    bus trim-audio band.audio -> trim.a
+    bus output trim.audio -> out.audio
+  }
+  graph shared 8 {
+    node echo delay time 187.5ms feedback 0.3 mix $space
+    node hall reverb room 0.7 damping 0.5 mix $space
+    node shared-out output
+    bus voice-sum voice_sum.audio -> echo.audio
+    bus echo-hall echo.audio -> hall.audio
+    bus shared-output hall.audio -> shared-out.audio
+  }
+}

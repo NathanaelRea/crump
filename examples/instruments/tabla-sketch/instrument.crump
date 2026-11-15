@@ -1,45 +1,67 @@
 crump-module 2
 instrument tabla-sketch "Tabla Sketch" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.2725 0.2725
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z60-soft-0 asset tabla-sketch-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-0 asset tabla-sketch-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
-      zone z60-soft-1 asset tabla-sketch-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-1 asset tabla-sketch-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
-    }
+  graph voice 16 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.000834483s hardness $hardness level 1
+    node body2 modal_bank profile tabla-sketch-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.997687862303
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 0.190526
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.125227
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus strike1-audio-fall4-a strike1.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-trim-a hi-10.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset tabla-sketch-60-soft-0 "Tabla Sketch" wav "media/60-soft-0.wav" sha256 "78c2d296de6a9c77f87fad81923e87315858418b92efbff6d7a11f22eb0c177b" {
-  usage multisample
-}
-asset tabla-sketch-60-hard-0 "Tabla Sketch" wav "media/60-hard-0.wav" sha256 "b0cfe57105b37e5a7d7376523d7789c4c1e533f41bfae913a9c620ff5d35c6af" {
-  usage multisample
-}
-asset tabla-sketch-60-soft-1 "Tabla Sketch" wav "media/60-soft-1.wav" sha256 "9c34e18d0bdf28826794a6de4e6fc04b6063e28bebc088458a18a30906bd7d7b" {
-  usage multisample
-}
-asset tabla-sketch-60-hard-1 "Tabla Sketch" wav "media/60-hard-1.wav" sha256 "a13238c66e43ed9c97844ad2689585226398c04d4956fc5d4a7edc85023992cb" {
-  usage multisample
+profile tabla-sketch-head {
+  root 310hz
+  mode m0 frequency 310hz decay 0.15s gain 1 after_decay 0.15s after_gain 0
+  mode m1 frequency 493.83hz decay 0.105786s gain 0.585773 after_decay 0.105786s after_gain 0
+  mode m2 frequency 662.16hz decay 0.0848966s gain 0.267791 after_decay 0.0848966s after_gain 0
+  mode m3 frequency 711.76hz decay 0.0804197s gain 0.160238 after_decay 0.0804197s after_gain 0
+  mode m4 frequency 822.43hz decay 0.0721586s gain 0.11952 after_decay 0.0721586s after_gain 0
+  mode m5 frequency 904.58hz decay 0.0671858s gain 0.097866 after_decay 0.0671858s after_gain 0
+  mode m6 frequency 978.36hz decay 0.0633488s gain 0.0711256 after_decay 0.0633488s after_gain 0
+  mode m7 frequency 1085.31hz decay 0.0586067s gain 0.0403195 after_decay 0.0586067s after_gain 0
+  mode m8 frequency 1116hz decay 0.0573937s gain 0.0317447 after_decay 0.0573937s after_gain 0
+  mode m9 frequency 1258.6hz decay 0.0524441s gain 0.0149961 after_decay 0.0524441s after_gain 0
 }

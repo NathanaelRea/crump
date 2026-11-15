@@ -1,45 +1,79 @@
 crump-module 2
 instrument gourd-maraca "Gourd Maraca" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z60-soft-0 asset gourd-maraca-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-0 asset gourd-maraca-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
-      zone z60-soft-1 asset gourd-maraca-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-1 asset gourd-maraca-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
-    }
+  graph voice 25 {
+    # Beads or jingles: a burst of random contacts through small resonant shells.
+    node grains1 exciter kind collisions contact 4e-05s hardness 0.5 rate 10000hz duration 0.0771398s attack 0.0364165s level 1
+    node gain2 math operation scale amount 1.22787
+    node body3 modal_bank profile gourd-maraca-shell max_modes 3 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain4 math operation scale amount 2
+    node hiss5 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall6 math operation add
+    node fall6-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall6-leak math operation scale amount 0.99972996416
+    node rise7 math operation subtract
+    node fall8 math operation add
+    node fall8-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall8-leak math operation scale amount 0.999158197533
+    node gain9 math operation scale amount 2.51826
+    node times10 math operation multiply
+    node hi-11 lowpass mode highpass cutoff 1000hz resonance 0.308309
+    node lo-12 lowpass mode lowpass cutoff 16000hz resonance 0.308309
+    node gain13 math operation scale amount 0.0234754
+    node plus14 math operation add
+    node hi-15 lowpass mode highpass cutoff 2395.4hz resonance 0.308309
+    node hi-16 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.0561645
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-grains1-gate note.gate -> grains1.gate
+    bus note-velocity-grains1-velocity note.velocity -> grains1.velocity
+    bus grains1-audio-gain2-a grains1.audio -> gain2.a
+    bus gain2-audio-body3-audio gain2.audio -> body3.audio
+    bus note-pitch-body3-pitch note.pitch -> body3.pitch
+    bus note-gate-body3-gate note.gate -> body3.gate
+    bus body3-audio-gain4-a body3.audio -> gain4.a
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall6-audio-fall6-previous-audio fall6.audio -> fall6-previous.audio
+    bus onset-audio-fall6-a onset.audio -> fall6.a
+    bus fall6-previous-audio-fall6-leak-a fall6-previous.audio -> fall6-leak.a
+    bus fall6-leak-audio-fall6-b fall6-leak.audio -> fall6.b
+    bus fall6-audio-rise7-a fall6.audio -> rise7.a
+    bus fall8-audio-fall8-previous-audio fall8.audio -> fall8-previous.audio
+    bus onset-audio-fall8-a onset.audio -> fall8.a
+    bus fall8-previous-audio-fall8-leak-a fall8-previous.audio -> fall8-leak.a
+    bus fall8-leak-audio-fall8-b fall8-leak.audio -> fall8.b
+    bus fall8-audio-rise7-b fall8.audio -> rise7.b
+    bus rise7-audio-gain9-a rise7.audio -> gain9.a
+    bus hiss5-audio-times10-a hiss5.audio -> times10.a
+    bus gain9-audio-times10-b gain9.audio -> times10.b
+    bus times10-audio-hi-11-audio times10.audio -> hi-11.audio
+    bus hi-11-audio-lo-12-audio hi-11.audio -> lo-12.audio
+    bus lo-12-audio-gain13-a lo-12.audio -> gain13.a
+    bus gain4-audio-plus14-a gain4.audio -> plus14.a
+    bus gain13-audio-plus14-b gain13.audio -> plus14.b
+    bus plus14-audio-hi-15-audio plus14.audio -> hi-15.audio
+    bus hi-15-audio-hi-16-audio hi-15.audio -> hi-16.audio
+    bus hi-16-audio-trim-a hi-16.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset gourd-maraca-60-soft-0 "Gourd Maraca" wav "media/60-soft-0.wav" sha256 "7d5dd152840f634118d56460a9aa6db5531051d1e81619f5d7c1370abe898863" {
-  usage multisample
-}
-asset gourd-maraca-60-hard-0 "Gourd Maraca" wav "media/60-hard-0.wav" sha256 "81b395fc7d423874afdcbb6d1f0ff4b78d5e834b7c26260fe3c6c94dcf3ad59a" {
-  usage multisample
-}
-asset gourd-maraca-60-soft-1 "Gourd Maraca" wav "media/60-soft-1.wav" sha256 "9a2d4d33a8ca6c0652f8efdd4db69a3870f5fdf14a93a8d3a61c07a6061ec366" {
-  usage multisample
-}
-asset gourd-maraca-60-hard-1 "Gourd Maraca" wav "media/60-hard-1.wav" sha256 "08ac52ce6c3e567afa64def2c36b00cf2d4a11be78f6b1d01c19921f340142b8" {
-  usage multisample
+profile gourd-maraca-shell {
+  root 261.626hz
+  mode m0 frequency 2892.93hz decay 0.000180832s gain 0.4 after_decay 0.000180832s after_gain 0
+  mode m1 frequency 2786.1hz decay 0.000180832s gain 0.4 after_decay 0.000180832s after_gain 0
+  mode m2 frequency 4734.97hz decay 0.000180832s gain 0.4 after_decay 0.000180832s after_gain 0
 }

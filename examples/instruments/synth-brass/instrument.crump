@@ -1,0 +1,58 @@
+crump-module 2
+instrument synth-brass "Synth Brass" graph {
+  polyphony 8
+  voicing poly retrigger always glide 0ms glide_mode always note_priority last steal_priority release_oldest seed 30310
+  parameter level "Level" ratio 0 1 0.088 0.088
+  parameter cutoff "Cutoff" hz 100hz 8khz 500hz 500hz automatable modulatable
+  parameter swell "Swell" hz 0hz 8khz 3200hz 3200hz automatable modulatable
+  parameter attack "Attack" seconds 1ms 1s 40ms 40ms automatable
+  parameter release "Release" seconds 20ms 3s 300ms 300ms automatable
+  parameter space "Space" ratio 0 1 0.15 0.15 automatable
+  faceplate {
+    control swell "Swell" "How far the filter opens on each chord: the brassy blat" maps swell
+    control cutoff "Cutoff" "Brightness once the chord settles" maps cutoff
+    control attack "Attack" "Fade-in" maps attack
+    control release "Release" "Tail after Note Off" maps release
+    control space "Space" "Echo and hall" maps space
+    control level "Level" "Output level" maps level
+  }
+  graph voice 8 {
+    node saws analog_oscillator {
+      waveform saw
+      unison 2
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 1
+      detune 0.09st
+      blend 0.9
+      width 0.6
+      drift 0.02st
+      velocity_amount 0.4
+      level $level
+      pan 0
+    }
+    node amplitude envelope mode ahdsr attack $attack hold 0ms decay 600ms sustain 0.85 release $release attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+    node blat envelope mode ahdsr attack 70ms hold 0ms decay 550ms sustain 0.35 release 300ms attack_curve 0.3 decay_curve -0.2 release_curve 0 retrigger always
+    node filter stereo_filter model ladder_drive mode lowpass cutoff $cutoff resonance 0.12 drive 0.25 mix 1 pan 0 mod_depth $swell velocity_depth 1500hz key_track 0.5 key_reference 261.625565hz
+    node out output
+    bus saws-pitch note.pitch -> saws.pitch
+    bus saws-gain amplitude.control -> saws.gain
+    bus saws-velocity note.velocity -> saws.velocity
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus blat-gate note.gate -> blat.gate
+    bus filter-audio saws.audio -> filter.audio
+    bus filter-blat blat.control -> filter.mod
+    bus filter-key note.pitch -> filter.key
+    bus filter-velocity note.velocity -> filter.velocity
+    bus output filter.audio -> out.audio
+  }
+  graph shared 8 {
+    node echo delay time 187.5ms feedback 0.3 mix $space
+    node hall reverb room 0.7 damping 0.5 mix $space
+    node shared-out output
+    bus voice-sum voice_sum.audio -> echo.audio
+    bus echo-hall echo.audio -> hall.audio
+    bus shared-output hall.audio -> shared-out.audio
+  }
+}

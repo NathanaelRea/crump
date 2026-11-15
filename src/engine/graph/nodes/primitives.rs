@@ -354,6 +354,190 @@ impl DcBlockConfig {
     }
 }
 
+/// Responses of the second-order [`BiquadConfig`], from the Audio EQ Cookbook.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum BiquadMode {
+    Lowpass,
+    Highpass,
+    /// Constant 0 dB peak gain.
+    Bandpass,
+    Notch,
+    Peak,
+    LowShelf,
+    HighShelf,
+    Allpass,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct BiquadConfig {
+    pub(super) mode: BiquadMode,
+    pub(super) frequency: Scalar,
+    pub(super) q: Scalar,
+    pub(super) gain: Scalar,
+    pub(super) key_track: Scalar,
+    pub(super) key_reference: Scalar,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct BiquadState {
+    /// Transposed direct form II state.
+    first: f64,
+    second: f64,
+    /// Coefficients and the settings they were computed from.
+    coefficients: [f64; 5],
+    computed_for: Option<[u64; 3]>,
+}
+
+impl BiquadConfig {
+    /// Normalized `[b0, b1, b2, a1, a2]` for one frequency, Q and gain.
+    fn coefficients(self, frequency: f64, q: f64, gain_db: f64, sample_rate: f64) -> [f64; 5] {
+        let w = 2.0 * PI * frequency / sample_rate;
+        let (sin, cos) = w.sin_cos();
+        let alpha = sin / (2.0 * q);
+        let amplitude = 10.0_f64.powf(gain_db / 40.0);
+        let shelf = 2.0 * amplitude.sqrt() * alpha;
+        let [b0, b1, b2, a0, a1, a2] = match self.mode {
+            BiquadMode::Lowpass => {
+                let b = (1.0 - cos) / 2.0;
+                [b, 1.0 - cos, b, 1.0 + alpha, -2.0 * cos, 1.0 - alpha]
+            }
+            BiquadMode::Highpass => {
+                let b = (1.0 + cos) / 2.0;
+                [b, -(1.0 + cos), b, 1.0 + alpha, -2.0 * cos, 1.0 - alpha]
+            }
+            BiquadMode::Bandpass => [alpha, 0.0, -alpha, 1.0 + alpha, -2.0 * cos, 1.0 - alpha],
+            BiquadMode::Notch => [1.0, -2.0 * cos, 1.0, 1.0 + alpha, -2.0 * cos, 1.0 - alpha],
+            BiquadMode::Allpass => [
+                1.0 - alpha,
+                -2.0 * cos,
+                1.0 + alpha,
+                1.0 + alpha,
+                -2.0 * cos,
+                1.0 - alpha,
+            ],
+            BiquadMode::Peak => [
+                1.0 + alpha * amplitude,
+                -2.0 * cos,
+                1.0 - alpha * amplitude,
+                1.0 + alpha / amplitude,
+                -2.0 * cos,
+                1.0 - alpha / amplitude,
+            ],
+            BiquadMode::LowShelf => {
+                let (p, m) = (amplitude + 1.0, amplitude - 1.0);
+                [
+                    amplitude * (p - m * cos + shelf),
+                    2.0 * amplitude * (m - p * cos),
+                    amplitude * (p - m * cos - shelf),
+                    p + m * cos + shelf,
+                    -2.0 * (m + p * cos),
+                    p + m * cos - shelf,
+                ]
+            }
+            BiquadMode::HighShelf => {
+                let (p, m) = (amplitude + 1.0, amplitude - 1.0);
+                [
+                    amplitude * (p + m * cos + shelf),
+                    -2.0 * amplitude * (m + p * cos),
+                    amplitude * (p + m * cos - shelf),
+                    p - m * cos + shelf,
+                    2.0 * (m - p * cos),
+                    p - m * cos - shelf,
+                ]
+            }
+        };
+        [b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0]
+    }
+
+    pub(super) fn process(
+        self,
+        state: &mut BiquadState,
+        audio: f32,
+        key: f32,
+        has_key: bool,
+        controls: &[f64],
+        sample_rate: f64,
+    ) -> f32 {
+        let mut frequency = self.frequency.value(controls);
+        if has_key {
+            let reference = self.key_reference.value(controls);
+            let key = f64::from(key);
+            if key > 0.0 && reference > 0.0 {
+                frequency *= (key / reference).powf(self.key_track.value(controls).clamp(0.0, 1.0));
+            }
+        }
+        // Stay clear of DC and Nyquist, where the cookbook forms degenerate.
+        let frequency = frequency.clamp(1.0, sample_rate * 0.49);
+        let q = self.q.value(controls).clamp(0.05, 64.0);
+        let gain = self.gain.value(controls).clamp(-48.0, 48.0);
+        let key = [frequency.to_bits(), q.to_bits(), gain.to_bits()];
+        if state.computed_for != Some(key) {
+            state.coefficients = self.coefficients(frequency, q, gain, sample_rate);
+            state.computed_for = Some(key);
+        }
+        let [b0, b1, b2, a1, a2] = state.coefficients;
+        let input = f64::from(audio);
+        let output = b0 * input + state.first;
+        state.first = b1 * input - a1 * output + state.second;
+        state.second = b2 * input - a2 * output;
+        if !output.is_finite() {
+            *state = BiquadState::default();
+            return 0.0;
+        }
+        output as f32
+    }
+}
+
+/// Responses of the first-order [`OnePoleConfig`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum OnePoleMode {
+    Lowpass,
+    Highpass,
+    /// `y = x + e^(-1 / (time × rate)) y[n-1]`: an impulse becomes an exact exponential
+    /// decay with e-folding `time`, and a step becomes a smooth rise.
+    Leak,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct OnePoleConfig {
+    pub(super) mode: OnePoleMode,
+    pub(super) cutoff: Scalar,
+    pub(super) time: Scalar,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct OnePoleState {
+    output: f64,
+}
+
+impl OnePoleConfig {
+    pub(super) fn process(
+        self,
+        state: &mut OnePoleState,
+        audio: f32,
+        controls: &[f64],
+        sample_rate: f64,
+    ) -> f32 {
+        let input = f64::from(audio);
+        let output = match self.mode {
+            OnePoleMode::Leak => {
+                let time = self.time.value(controls).clamp(0.000_01, 60.0);
+                input + (-1.0 / (time * sample_rate)).exp() * state.output
+            }
+            OnePoleMode::Lowpass | OnePoleMode::Highpass => {
+                let cutoff = self.cutoff.value(controls).clamp(1.0, sample_rate * 0.49);
+                let pole = (-2.0 * PI * cutoff / sample_rate).exp();
+                (1.0 - pole) * input + pole * state.output
+            }
+        };
+        state.output = if output.is_finite() { output } else { 0.0 };
+        match self.mode {
+            OnePoleMode::Highpass => (input - state.output) as f32,
+            _ => state.output as f32,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(super) struct LinearPhaseLowpassConfig {
     pub(super) amount: Scalar,
@@ -389,6 +573,7 @@ impl LinearPhaseLowpassConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::f64::consts::FRAC_1_SQRT_2;
 
     fn delay_config(mode: DelayLineMode, interpolation: DelayInterpolation) -> DelayLineConfig {
         DelayLineConfig {
@@ -651,6 +836,138 @@ mod tests {
         assert_eq!(table.process(0.5, &[]), -0.375);
         assert_eq!(table.process(9.0, &[]), -1.0);
         assert_eq!(table.process(f32::NAN, &[]), 0.0);
+    }
+
+    fn biquad(mode: BiquadMode, frequency: f64, q: f64, gain: f64) -> BiquadConfig {
+        BiquadConfig {
+            mode,
+            frequency: Scalar::constant(frequency),
+            q: Scalar::constant(q),
+            gain: Scalar::constant(gain),
+            key_track: Scalar::constant(0.0),
+            key_reference: Scalar::constant(261.625_565),
+        }
+    }
+
+    /// Steady-state gain in dB of a sine at `hz` through `config`.
+    fn sine_gain(config: BiquadConfig, hz: f64, key: Option<f32>) -> f64 {
+        let mut state = BiquadState::default();
+        let (mut input, mut output) = (0.0, 0.0);
+        for frame in 0..48_000 {
+            let x = (2.0 * PI * hz * f64::from(frame) / 48_000.0).sin();
+            let y = f64::from(config.process(
+                &mut state,
+                x as f32,
+                key.unwrap_or(0.0),
+                key.is_some(),
+                &[],
+                48_000.0,
+            ));
+            if frame >= 24_000 {
+                input += x * x;
+                output += y * y;
+            }
+        }
+        10.0 * (output / input).log10()
+    }
+
+    #[test]
+    fn biquad_responses_match_their_cookbook_shapes() {
+        let lowpass = biquad(BiquadMode::Lowpass, 1_000.0, FRAC_1_SQRT_2, 0.0);
+        assert!(sine_gain(lowpass, 100.0, None).abs() < 0.05);
+        assert!((sine_gain(lowpass, 1_000.0, None) + 3.01).abs() < 0.1);
+        assert!(sine_gain(lowpass, 8_000.0, None) < -34.0);
+        let highpass = biquad(BiquadMode::Highpass, 1_000.0, FRAC_1_SQRT_2, 0.0);
+        assert!(sine_gain(highpass, 100.0, None) < -38.0);
+        let bandpass = biquad(BiquadMode::Bandpass, 1_000.0, 4.0, 0.0);
+        assert!(sine_gain(bandpass, 1_000.0, None).abs() < 0.05);
+        assert!(sine_gain(bandpass, 3_000.0, None) < -12.0);
+        let notch = biquad(BiquadMode::Notch, 1_000.0, 2.0, 0.0);
+        assert!(sine_gain(notch, 1_000.0, None) < -40.0);
+        let peak = biquad(BiquadMode::Peak, 2_000.0, 3.0, 9.0);
+        assert!((sine_gain(peak, 2_000.0, None) - 9.0).abs() < 0.1);
+        assert!(sine_gain(peak, 200.0, None).abs() < 0.2);
+        let low_shelf = biquad(BiquadMode::LowShelf, 300.0, FRAC_1_SQRT_2, -6.0);
+        assert!((sine_gain(low_shelf, 40.0, None) + 6.0).abs() < 0.2);
+        assert!(sine_gain(low_shelf, 6_000.0, None).abs() < 0.2);
+        let high_shelf = biquad(BiquadMode::HighShelf, 3_000.0, FRAC_1_SQRT_2, 6.0);
+        assert!((sine_gain(high_shelf, 15_000.0, None) - 6.0).abs() < 0.3);
+    }
+
+    #[test]
+    fn biquad_allpass_keeps_every_level() {
+        let allpass = biquad(BiquadMode::Allpass, 2_000.0, 0.7, 0.0);
+        for hz in [50.0, 500.0, 2_000.0, 9_000.0, 18_000.0] {
+            assert!(sine_gain(allpass, hz, None).abs() < 0.02, "{hz}");
+        }
+    }
+
+    #[test]
+    fn biquad_frequency_follows_the_key() {
+        let mut tracked = biquad(BiquadMode::Bandpass, 1_000.0, 8.0, 0.0);
+        tracked.key_track = Scalar::constant(1.0);
+        // An octave above the reference doubles the centre frequency.
+        assert!(sine_gain(tracked, 2_000.0, Some(523.251_13)).abs() < 0.05);
+        assert!(sine_gain(tracked, 1_000.0, Some(523.251_13)) < -15.0);
+    }
+
+    #[test]
+    fn biquad_recovers_from_non_finite_input() {
+        let config = biquad(BiquadMode::Lowpass, 1_000.0, 1.0, 0.0);
+        let mut state = BiquadState::default();
+        assert_eq!(
+            config.process(&mut state, f32::NAN, 0.0, false, &[], 48_000.0),
+            0.0
+        );
+        assert!(
+            config
+                .process(&mut state, 1.0, 0.0, false, &[], 48_000.0)
+                .is_finite()
+        );
+    }
+
+    #[test]
+    fn onepole_leak_turns_an_impulse_into_an_exact_exponential() {
+        let config = OnePoleConfig {
+            mode: OnePoleMode::Leak,
+            cutoff: Scalar::constant(1_000.0),
+            time: Scalar::constant(0.25),
+        };
+        let mut state = OnePoleState::default();
+        let mut output = 0.0;
+        for frame in 0..=12_000 {
+            output = config.process(&mut state, f32::from(frame == 0), &[], 48_000.0);
+        }
+        // 12,000 frames is exactly one e-folding time.
+        assert!(
+            (f64::from(output) - (-1.0_f64).exp()).abs() < 1.0e-5,
+            "{output}"
+        );
+    }
+
+    #[test]
+    fn onepole_lowpass_and_highpass_split_a_signal() {
+        let low = OnePoleConfig {
+            mode: OnePoleMode::Lowpass,
+            cutoff: Scalar::constant(500.0),
+            time: Scalar::constant(0.1),
+        };
+        let high = OnePoleConfig {
+            mode: OnePoleMode::Highpass,
+            ..low
+        };
+        let (mut a, mut b) = (OnePoleState::default(), OnePoleState::default());
+        for frame in 0..4_800 {
+            let x = (f64::from(frame) * 0.37).sin() as f32;
+            let sum =
+                low.process(&mut a, x, &[], 48_000.0) + high.process(&mut b, x, &[], 48_000.0);
+            assert!((sum - x).abs() < 1.0e-5);
+        }
+        let mut steady = 0.0;
+        for _ in 0..48_000 {
+            steady = low.process(&mut a, 1.0, &[], 48_000.0);
+        }
+        assert!((steady - 1.0).abs() < 1.0e-6);
     }
 
     #[test]

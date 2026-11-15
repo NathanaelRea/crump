@@ -1,0 +1,132 @@
+crump 2
+import "instrument.crump"
+project "Acid Line" {
+  id example-acid-line
+  seed 736467
+  sample_rate 48000
+  render_tail 2s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C2 2beat 0.48
+      note 2beat C3 2beat 0.92
+      note 4beat C2 0.18beat 0.95
+      note 4.25beat C2 0.18beat 0.62
+      note 4.5beat C3 0.18beat 0.62
+      note 4.75beat C2 0.3beat 0.62
+      note 5beat A#2 0.18beat 0.95
+      note 5.25beat C2 0.18beat 0.62
+      note 5.5beat G2 0.18beat 0.62
+      note 5.75beat C3 0.3beat 0.62
+      note 6beat C2 0.18beat 0.95
+      note 6.25beat D#2 0.18beat 0.62
+      note 6.5beat C3 0.18beat 0.62
+      note 6.75beat C2 0.3beat 0.62
+      note 7beat A#2 0.18beat 0.95
+      note 7.25beat G2 0.18beat 0.62
+      note 7.5beat F2 0.18beat 0.62
+      note 7.75beat D#2 0.3beat 0.62
+      note 8beat G#1 0.18beat 0.95
+      note 8.25beat G#1 0.18beat 0.62
+      note 8.5beat G#2 0.18beat 0.62
+      note 8.75beat G#1 0.3beat 0.62
+      note 9beat F#2 0.18beat 0.95
+      note 9.25beat G#1 0.18beat 0.62
+      note 9.5beat D#2 0.18beat 0.62
+      note 9.75beat G#2 0.3beat 0.62
+      note 10beat G#1 0.18beat 0.95
+      note 10.25beat B1 0.18beat 0.62
+      note 10.5beat G#2 0.18beat 0.62
+      note 10.75beat G#1 0.3beat 0.62
+      note 11beat F#2 0.18beat 0.95
+      note 11.25beat D#2 0.18beat 0.62
+      note 11.5beat C#2 0.18beat 0.62
+      note 11.75beat B1 0.3beat 0.62
+      note 12beat A#1 0.18beat 0.95
+      note 12.25beat A#1 0.18beat 0.62
+      note 12.5beat A#2 0.18beat 0.62
+      note 12.75beat A#1 0.3beat 0.62
+      note 13beat G#2 0.18beat 0.95
+      note 13.25beat A#1 0.18beat 0.62
+      note 13.5beat F2 0.18beat 0.62
+      note 13.75beat A#2 0.3beat 0.62
+      note 14beat A#1 0.18beat 0.95
+      note 14.25beat C#2 0.18beat 0.62
+      note 14.5beat A#2 0.18beat 0.62
+      note 14.75beat A#1 0.3beat 0.62
+      note 15beat G#2 0.18beat 0.95
+      note 15.25beat F2 0.18beat 0.62
+      note 15.5beat D#2 0.18beat 0.62
+      note 15.75beat C#2 0.3beat 0.62
+      note 16beat C2 0.18beat 0.95
+      note 16.25beat C2 0.18beat 0.62
+      note 16.5beat C3 0.18beat 0.62
+      note 16.75beat C2 0.3beat 0.62
+      note 17beat A#2 0.18beat 0.95
+      note 17.25beat C2 0.18beat 0.62
+      note 17.5beat G2 0.18beat 0.62
+      note 17.75beat C3 0.3beat 0.62
+      note 18beat C2 0.18beat 0.95
+      note 18.25beat D#2 0.18beat 0.62
+      note 18.5beat C3 0.18beat 0.62
+      note 18.75beat C2 0.3beat 0.62
+      note 19beat A#2 0.18beat 0.95
+      note 19.25beat G2 0.18beat 0.62
+      note 19.5beat F2 0.18beat 0.62
+      note 19.75beat D#2 0.3beat 0.62
+      note 20beat C2 0.18beat 0.95
+      note 20.25beat C2 0.18beat 0.62
+      note 20.5beat C3 0.18beat 0.62
+      note 20.75beat C2 0.3beat 0.62
+      note 21beat A#2 0.18beat 0.95
+      note 21.25beat C2 0.18beat 0.62
+      note 21.5beat G2 0.18beat 0.62
+      note 21.75beat C3 0.3beat 0.62
+      note 22beat C2 0.18beat 0.95
+      note 22.25beat D#2 0.18beat 0.62
+      note 22.5beat C3 0.18beat 0.62
+      note 22.75beat C2 0.3beat 0.62
+      note 23beat A#2 0.18beat 0.95
+      note 23.25beat G2 0.18beat 0.62
+      note 23.5beat F2 0.18beat 0.62
+      note 23.75beat D#2 0.3beat 0.62
+      note 24beat G#1 0.18beat 0.95
+      note 24.25beat G#1 0.18beat 0.62
+      note 24.5beat G#2 0.18beat 0.62
+      note 24.75beat G#1 0.3beat 0.62
+      note 25beat F#2 0.18beat 0.95
+      note 25.25beat G#1 0.18beat 0.62
+      note 25.5beat D#2 0.18beat 0.62
+      note 25.75beat G#2 0.3beat 0.62
+      note 26beat G#1 0.18beat 0.95
+      note 26.25beat B1 0.18beat 0.62
+      note 26.5beat G#2 0.18beat 0.62
+      note 26.75beat G#1 0.3beat 0.62
+      note 27beat F#2 0.18beat 0.95
+      note 27.25beat D#2 0.18beat 0.62
+      note 27.5beat C#2 0.18beat 0.62
+      note 27.75beat B1 0.3beat 0.62
+      note 28beat A#1 0.18beat 0.95
+      note 28.25beat A#1 0.18beat 0.62
+      note 28.5beat A#2 0.18beat 0.62
+      note 28.75beat A#1 0.3beat 0.62
+      note 29beat G#2 0.18beat 0.95
+      note 29.25beat A#1 0.18beat 0.62
+      note 29.5beat F2 0.18beat 0.62
+      note 29.75beat A#2 0.3beat 0.62
+      note 30beat A#1 0.18beat 0.95
+      note 30.25beat C#2 0.18beat 0.62
+      note 30.5beat A#2 0.18beat 0.62
+      note 30.75beat A#1 0.3beat 0.62
+      note 31beat G#2 0.18beat 0.95
+      note 31.25beat F2 0.18beat 0.62
+      note 31.5beat D#2 0.18beat 0.62
+      note 31.75beat C#2 0.3beat 0.62
+    }
+    track instrument "Acid Line" instrument acid-line level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

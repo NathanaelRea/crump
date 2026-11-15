@@ -81,6 +81,20 @@
   .overlay pre { background: var(--bg); padding: 10px; border-radius: 6px; overflow-x: auto; }
   #feedback-text { width: 100%; height: 260px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: 12px ui-monospace, monospace; }
   .hidden { display: none !important; }
+  .about { margin-top: 8px; font-size: 13px; color: var(--text); max-width: 760px; }
+  .about::before { content: "Should sound like: "; color: var(--muted); }
+  .reference { margin: 0 20px 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); display: grid; grid-template-columns: minmax(280px, 1fr) 360px; gap: 12px; }
+  .reference h3 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 500; display: flex; gap: 10px; align-items: center; }
+  .reference .clip { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 12px; flex-wrap: wrap; }
+  .reference .clip.chosen .label { color: var(--accent-2); }
+  .reference .clip button { padding: 2px 8px; font-size: 12px; }
+  .reference .label { flex: 1; min-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reference a { color: var(--muted); }
+  .reference .facts { color: var(--muted); font-size: 11px; margin-top: 4px; }
+  .reference .facts b { color: var(--text); font-weight: 500; }
+  canvas#compare { width: 360px; height: 120px; background: #0c0e11; border-radius: 6px; }
+  .legend { font-size: 11px; color: var(--muted); display: flex; gap: 12px; }
+  .legend .ref { color: #5cc8b0; } .legend .mod { color: #f2a541; }
 </style>
 </head>
 <body>
@@ -101,7 +115,8 @@
     <div class="filters">
       <input id="search" placeholder="Search instruments" autocomplete="off">
       <div class="chips">
-        <button data-scope="orchestra" class="on">Orchestra</button>
+        <button data-scope="new" class="on" title="The 92 instruments added in the expansion">New</button>
+        <button data-scope="orchestra">Orchestra</button>
         <button data-scope="house">House</button>
         <button data-scope="all">All</button>
       </div>
@@ -115,6 +130,7 @@
         <h2 id="title">Loading library…</h2>
         <div class="meta" id="meta"></div>
         <div class="facts" id="facts"></div>
+        <div class="about hidden" id="about"></div>
       </div>
       <div class="actions">
         <div class="buttons">
@@ -127,6 +143,17 @@
           <button class="down" id="dislike" title="Not for me">👎</button>
         </div>
         <textarea id="note" placeholder="Notes on this instrument (saved in this browser)"></textarea>
+      </div>
+    </div>
+    <div class="reference hidden" id="reference">
+      <div>
+        <h3>Reference recordings <label class="control">Level <input id="reference-level" type="range" min="0" max="2" step="0.01" value="1"></label></h3>
+        <div id="clips"></div>
+        <div class="facts" id="reference-facts"></div>
+      </div>
+      <div>
+        <canvas id="compare"></canvas>
+        <div class="legend"><span class="ref">— reference</span><span class="mod">— this model, same note</span><span id="distance"></span></div>
       </div>
     </div>
     <canvas id="scope"></canvas>
@@ -164,6 +191,10 @@
 
 const ORCHESTRA = ["Strings", "Woodwinds", "Brass", "Orchestral percussion", "Tuned percussion", "Orchestral keys", "Voices"];
 const HOUSE = ["Keys", "Bass", "Guitar", "Mallets", "Kicks", "Backbeats", "Hats and metal", "Hand percussion", "Shakers", "Resampling"];
+// The expansion's own categories, followed by the shared ones it adds to.
+const EXPANSION = ["Synth bass", "Synth leads", "Synth pads and keys", "Synth FX", "Drum machines", "Drum kit",
+  "World percussion", "World mallets", "World strings", "World winds", "Saxophones"];
+const ORDER = [...EXPANSION, ...ORCHESTRA, ...HOUSE];
 const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const LOW_KEY = 21, HIGH_KEY = 108;
 const POLYPHONY = 16;
@@ -175,7 +206,7 @@ const BASE = new URL("../../", location.href);
 const $ = (id) => document.getElementById(id);
 const noteName = (n) => NAMES[n % 12] + (Math.floor(n / 12) - 1);
 const state = {
-  instruments: [], byId: new Map(), selected: [], scope: "orchestra", search: "",
+  instruments: [], byId: new Map(), selected: [], scope: "new", search: "", clip: 0,
   octave: 4, pedal: false, held: new Map(), saved: JSON.parse(localStorage.getItem(STORE) || "{}"),
 };
 
@@ -489,10 +520,13 @@ function refreshKeyboard() {
 }
 
 // ---------- Library ----------
-function scopeOf(instrument) { return ORCHESTRA.includes(instrument.category) ? "orchestra" : "house"; }
+function scopeOf(instrument) {
+  if (instrument.collection === "expansion") return "new";
+  return ORCHESTRA.includes(instrument.category) ? "orchestra" : "house";
+}
 
 function visible() {
-  const order = [...ORCHESTRA, ...HOUSE];
+  const order = ORDER;
   const query = state.search.toLowerCase();
   return state.instruments
     .filter((i) => state.scope === "all" || scopeOf(i) === state.scope)
@@ -518,8 +552,10 @@ function renderLibrary() {
     row.className = "row" + (state.selected.includes(instrument) ? " selected" : "");
     row.dataset.id = instrument.id;
     const verdict = state.saved[instrument.id]?.rating;
-    row.innerHTML = `<span class="name ${scopeOf(instrument) === "orchestra" ? "new" : ""}">${instrument.name}</span>
-      <span class="tag">${instrument.sustain ? "held" : instrument.source === "Acoustic graph" ? "graph" : "rings"}</span>
+    const tag = instrument.source === "Synth graph" ? "synth" : instrument.sustain ? "held" : instrument.source === "Acoustic graph" ? "graph" : "rings";
+    row.innerHTML = `<span class="name ${scopeOf(instrument) === "new" ? "new" : ""}">${instrument.name}</span>
+      <span class="tag">${tag}</span>
+      <span class="tag" title="Reference recordings">${instrument.references?.length ? "ref" : ""}</span>
       <span class="rate">${verdict === 1 ? "👍" : verdict === -1 ? "👎" : ""}</span>
       <button class="play" title="Audition phrase">▶</button>`;
     row.addEventListener("click", (event) => {
@@ -563,6 +599,11 @@ const MODELS = {
   timpani: "Tuned membrane", gong: "Blooming metal plate", clack: "Paired shells", membrane: "Membrane",
   metal: "Metal modes", bar: "Struck bar modes", collisions: "Collision gesture", hammer: "Hammered strings",
   piano: "Hammered strings", tine: "Struck tine",
+  machine: "Analog drum voice", machine_tuned: "Analog drum voice", drum: "Membrane", tuned_drum: "Tuned membrane",
+  modes: "Struck modes", modes_tuned: "Struck modes", layered: "Layered models", layered_tuned: "Layered models",
+  plucked: "Plucked string", tonewheel: "Tonewheel organ", prepared: "Prepared piano", drone: "Lip-buzzed drone",
+  hurdy: "Wheel-bowed strings", friction: "Friction drum", scrape: "Scraped ridges", chimes: "Swept chimes",
+  bowed: "Bowed string", choir: "Sung voices", organ: "Pipe or reed ranks", ring: "Ringing rod", plate: "Metal plate",
 };
 
 function renderInfo() {
@@ -584,6 +625,96 @@ function renderInfo() {
   $("like").classList.toggle("on", saved.rating === 1);
   $("dislike").classList.toggle("on", saved.rating === -1);
   $("note").value = saved.note || "";
+  $("about").textContent = lead.about || "";
+  $("about").classList.toggle("hidden", !lead.about);
+  state.clip = 0;
+  renderReference();
+}
+
+// ---------- Reference comparison ----------
+let referencePlayer;
+function renderReference() {
+  const lead = state.selected[0];
+  const clips = lead?.references || [];
+  $("reference").classList.toggle("hidden", !clips.length);
+  if (!clips.length) return;
+  $("clips").innerHTML = "";
+  clips.forEach((clip, i) => {
+    const row = document.createElement("div");
+    row.className = "clip" + (i === state.clip ? " chosen" : "");
+    const note = clip.note != null ? noteName(clip.note) : "";
+    row.innerHTML = `<button data-act="ref" title="Play the reference recording">▶ Ref</button>
+      <button data-act="model" title="Play this instrument at the reference's note">▶ Model ${note}</button>
+      <button data-act="ab" title="Reference, then the model">A/B</button>
+      <span class="label" title="${clip.label}">${clip.label}</span>
+      <a href="${clip.page}" target="_blank" rel="noopener">source</a> <span>${clip.license}</span>`;
+    row.addEventListener("click", (event) => {
+      state.clip = i;
+      for (const r of $("clips").children) r.classList.toggle("chosen", r === row);
+      drawCompare();
+      const act = event.target.closest("button")?.dataset.act;
+      if (act === "ref") playReference(clip);
+      if (act === "model") playModelNote(clip);
+      if (act === "ab") playReference(clip).then((seconds) => setTimeout(() => playModelNote(clip), Math.min(seconds, 4) * 1000 + 250));
+    });
+    $("clips").appendChild(row);
+  });
+  drawCompare();
+}
+
+async function playReference(clip) {
+  audio();
+  referencePlayer?.stop();
+  const decoded = await buffer(clip.url);
+  const player = ctx.createBufferSource();
+  const gain = ctx.createGain();
+  player.buffer = decoded;
+  gain.gain.value = +$("reference-level").value;
+  player.connect(gain).connect(master);
+  player.start();
+  referencePlayer = player;
+  return decoded.duration;
+}
+
+async function playModelNote(clip) {
+  const lead = state.selected[0];
+  audio();
+  await load(lead);
+  const note = lead.pitched ? clip.note : 60;
+  noteOn(lead, note, 0.92, ctx.currentTime, "reference");
+  light(note, true);
+  const hold = lead.sustain ? 2 : 0.3;
+  noteOff(lead, note, ctx.currentTime + hold, "reference");
+  scheduled.push(setTimeout(() => light(note, state.held.has(note)), hold * 1000));
+}
+
+function drawCompare() {
+  const lead = state.selected[0];
+  const clip = lead?.references?.[state.clip];
+  const canvas = $("compare");
+  const ratio = devicePixelRatio || 1;
+  canvas.width = canvas.clientWidth * ratio; canvas.height = canvas.clientHeight * ratio;
+  const g = canvas.getContext("2d"), w = canvas.width, h = canvas.height;
+  g.clearRect(0, 0, w, h);
+  if (!clip || !state.bands.length) return;
+  const x = (hz) => Math.log(hz / 40) / Math.log(16500 / 40) * w;
+  const y = (db) => h * 0.06 + (-db / 60) * h * 0.86;
+  g.strokeStyle = "#252a33"; g.lineWidth = ratio;
+  for (const db of [-20, -40]) { g.beginPath(); g.moveTo(0, y(db)); g.lineTo(w, y(db)); g.stroke(); }
+  g.fillStyle = "#4b5260"; g.font = `${10 * ratio}px system-ui`;
+  for (const f of [100, 1000, 10000]) g.fillText(f >= 1000 ? `${f / 1000}k` : f, x(f) + 2 * ratio, h - 3 * ratio);
+  for (const [values, colour] of [[clip.reference_db, "#5cc8b0"], [clip.model_db, "#f2a541"]]) {
+    g.beginPath();
+    values.forEach((db, i) => { const px = x(state.bands[i]), py = y(db); i ? g.lineTo(px, py) : g.moveTo(px, py); });
+    g.strokeStyle = colour; g.lineWidth = 1.5 * ratio; g.stroke();
+  }
+  $("distance").textContent = `mean difference ${clip.spectral_distance_db} dB`;
+  const fact = (label, ref, model, unit = "") => `${label} <b>${ref ?? "—"}${ref != null ? unit : ""}</b> → <b>${model ?? "—"}${model != null ? unit : ""}</b>`;
+  $("reference-facts").innerHTML = [
+    fact("20 dB decay", clip.reference.decay_20db, clip.model.decay_20db, " s"),
+    fact("brightness", clip.reference.centroid, clip.model.centroid, " Hz"),
+    clip.detected_hz ? `detected <b>${clip.detected_hz} Hz</b>` : "",
+  ].filter(Boolean).join(" · ") + " <span>(reference → model; recordings include their room)</span>";
 }
 
 function remember(id, change) {
@@ -594,7 +725,7 @@ function remember(id, change) {
 
 function exportFeedback() {
   const lines = ["# Instrument player feedback", ""];
-  for (const category of [...ORCHESTRA, ...HOUSE]) {
+  for (const category of ORDER) {
     const rated = state.instruments.filter((i) => i.category === category && (state.saved[i.id]?.rating || state.saved[i.id]?.note));
     if (!rated.length) continue;
     lines.push(`## ${category}`);
@@ -757,6 +888,7 @@ async function start() {
     $("setup").classList.remove("hidden");
     return;
   }
+  state.bands = manifest.bands || [];
   for (const instrument of manifest.instruments) {
     instrument.range = [
       Math.max(LOW_KEY, Math.min(...instrument.zones.map((z) => z.low))),
@@ -768,8 +900,8 @@ async function start() {
     state.byId.set(instrument.id, instrument);
   }
   const wanted = location.hash.slice(1).split("+").map((id) => state.byId.get(id)).filter(Boolean);
-  if (wanted.length && wanted.every((i) => scopeOf(i) === "house")) {
-    document.querySelector('[data-scope="house"]').click();
+  if (wanted.length && wanted.every((i) => scopeOf(i) === scopeOf(wanted[0]))) {
+    document.querySelector(`[data-scope="${scopeOf(wanted[0])}"]`).click();
   }
   select(wanted[0] || visible()[0]);
   for (const extra of wanted.slice(1)) select(extra, true);

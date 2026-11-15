@@ -1,45 +1,65 @@
 crump-module 2
 instrument disco-beater "Disco Beater" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z60-soft-0 asset disco-beater-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-0 asset disco-beater-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
-      zone z60-soft-1 asset disco-beater-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-1 asset disco-beater-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
-    }
+  graph voice 16 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.000105083s hardness 0 level 1
+    node body2 modal_bank profile disco-beater-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.998552316427
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 0.226982
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.19012
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus strike1-audio-fall4-a strike1.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-trim-a hi-10.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset disco-beater-60-soft-0 "Disco Beater" wav "media/60-soft-0.wav" sha256 "9d9fbba0352944c2323a47072294a8b44033a79ff87abdc9d8191c343973d1f8" {
-  usage multisample
-}
-asset disco-beater-60-hard-0 "Disco Beater" wav "media/60-hard-0.wav" sha256 "43170514e9bedb2c4b537665a9107ed428f6e10315672ae70248aa0bf804fcee" {
-  usage multisample
-}
-asset disco-beater-60-soft-1 "Disco Beater" wav "media/60-soft-1.wav" sha256 "2d6835fd80fdaebd464f3ab67659e1ee63ca19d35b744749476b8f9872825551" {
-  usage multisample
-}
-asset disco-beater-60-hard-1 "Disco Beater" wav "media/60-hard-1.wav" sha256 "c4641cfe995f7bbaae29643233507f439c25ba4a100d27fe2f88156e093c92e4" {
-  usage multisample
+profile disco-beater-head {
+  root 62.9412hz
+  mode m0 frequency 62.9412hz decay 0.143247s gain 1 after_decay 0.143247s after_gain 0
+  mode m1 frequency 100.265hz decay 0.101024s gain 0.39284 after_decay 0.101024s after_gain 0
+  mode m2 frequency 134.442hz decay 0.0810744s gain 0.12044 after_decay 0.0810744s after_gain 0
+  mode m3 frequency 144.513hz decay 0.0767991s gain 0.0483309 after_decay 0.0767991s after_gain 0
+  mode m4 frequency 166.983hz decay 0.06891s gain 0.0241761 after_decay 0.06891s after_gain 0
+  mode m5 frequency 183.662hz decay 0.064161s gain 0.0132759 after_decay 0.064161s after_gain 0
+  mode m6 frequency 198.642hz decay 0.0604968s gain 0.00647058 after_decay 0.0604968s after_gain 0
+  mode m7 frequency 220.357hz decay 0.0559681s gain 0.00245991 after_decay 0.0559681s after_gain 0
+  mode m8 frequency 226.588hz decay 0.0548098s gain 0.00129886 after_decay 0.0548098s after_gain 0
+  mode m9 frequency 255.541hz decay 0.050083s gain 0.000411486 after_decay 0.050083s after_gain 0
 }

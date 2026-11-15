@@ -1,0 +1,37 @@
+crump-module 2
+instrument sub-sine "Sub Sine" graph {
+  polyphony 1
+  voicing mono retrigger legato glide 40ms glide_mode legato note_priority last steal_priority release_oldest seed 30302
+  parameter level "Level" ratio 0 1 0.18 0.18
+  parameter drive "Drive" ratio 0 1 0.15 0.15 automatable modulatable
+  parameter release "Release" seconds 10ms 1s 90ms 90ms automatable
+  parameter glide "Glide" seconds 0s 300ms 40ms 40ms
+  faceplate {
+    control level "Level" "Output level" maps level
+    control drive "Drive" "Rounds the sine into audible harmonics on small speakers" maps drive
+    control release "Release" "Tail after Note Off" maps release
+    control glide "Glide" "Slide between overlapping notes" maps glide
+  }
+  graph voice 4 {
+    node sine analog_oscillator {
+      waveform sine
+      unison 1
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 0
+      glide $glide
+      velocity_amount 0.2
+      level $level
+      pan 0
+      distortion weight tanh amount $drive
+    }
+    node amplitude envelope mode ahdsr attack 3ms hold 0ms decay 10ms sustain 1 release $release attack_curve 0 decay_curve 0 release_curve 0 retrigger legato
+    node out output
+    bus sine-pitch note.pitch -> sine.pitch
+    bus sine-gain amplitude.control -> sine.gain
+    bus sine-velocity note.velocity -> sine.velocity
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus output sine.audio -> out.audio
+  }
+}

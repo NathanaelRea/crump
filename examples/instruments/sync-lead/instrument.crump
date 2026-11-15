@@ -1,0 +1,60 @@
+crump-module 2
+instrument sync-lead "Sync Lead" graph {
+  polyphony 6
+  voicing poly retrigger always glide 0ms glide_mode always note_priority last steal_priority release_oldest seed 30308
+  parameter level "Level" ratio 0 1 0.05 0.05
+  parameter sweep "Sweep" semitones 0st 36st 0st 0st modulatable
+  parameter release "Release" seconds 20ms 2s 250ms 250ms automatable
+  parameter space "Space" ratio 0 1 0.18 0.18 automatable
+  faceplate {
+    control release "Release" "Tail after Note Off" maps release
+    control space "Space" "Echo and hall" maps space
+    control level "Level" "Output level" maps level
+  }
+  modulation {
+    source sweep-envelope port sweep-shape.control per_voice unipolar
+    route sync-sweep source sweep-envelope target sweep depth 19st map unipolar curve linear order 0 bypass false
+  }
+  graph voice 8 {
+    node master oscillator waveform sine detune 0st glide 0s level 1
+    node slave analog_oscillator {
+      waveform saw
+      unison 2
+      coarse $sweep
+      fine 0st
+      phase 0
+      random_phase 0.5
+      detune 0.06st
+      blend 0.8
+      width 0.5
+      velocity_amount 0.3
+      level $level
+      pan 0
+    }
+    node sweep-shape envelope mode ahdsr attack 0ms hold 20ms decay 600ms sustain 0.15 release 300ms attack_curve 0 decay_curve -0.3 release_curve 0 retrigger always
+    node amplitude envelope mode ahdsr attack 3ms hold 0ms decay 400ms sustain 0.8 release $release attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+    node filter stereo_filter model svf_clean mode lowpass cutoff 7khz resonance 0.1 drive 0.1 mix 1 pan 0 mod_depth 0hz velocity_depth 1khz key_track 0.2 key_reference 261.625565hz
+    node dc-block stereo_filter model svf_clean mode highpass cutoff 30hz resonance 0 drive 0 mix 1 pan 0 mod_depth 0hz velocity_depth 0hz key_track 0 key_reference 261.625565hz
+    node out output
+    bus master-pitch note.pitch -> master.pitch
+    bus slave-pitch note.pitch -> slave.pitch
+    bus slave-sync master.audio -> slave.sync
+    bus slave-gain amplitude.control -> slave.gain
+    bus slave-velocity note.velocity -> slave.velocity
+    bus sweep-gate note.gate -> sweep-shape.gate
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus filter-audio slave.audio -> filter.audio
+    bus filter-key note.pitch -> filter.key
+    bus filter-velocity note.velocity -> filter.velocity
+    bus dc-block-audio filter.audio -> dc-block.audio
+    bus output dc-block.audio -> out.audio
+  }
+  graph shared 8 {
+    node echo delay time 187.5ms feedback 0.3 mix $space
+    node hall reverb room 0.7 damping 0.5 mix $space
+    node shared-out output
+    bus voice-sum voice_sum.audio -> echo.audio
+    bus echo-hall echo.audio -> hall.audio
+    bus shared-output hall.audio -> shared-out.audio
+  }
+}

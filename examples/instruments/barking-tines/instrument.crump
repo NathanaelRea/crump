@@ -1,93 +1,65 @@
 crump-module 2
 instrument barking-tines "Barking Tines" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset barking-tines-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
-      zone z36-hard-0 asset barking-tines-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
-      zone z43-soft-0 asset barking-tines-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
-      zone z43-hard-0 asset barking-tines-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
-      zone z48-soft-0 asset barking-tines-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset barking-tines-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
-      zone z55-soft-0 asset barking-tines-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
-      zone z55-hard-0 asset barking-tines-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
-      zone z60-soft-0 asset barking-tines-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
-      zone z60-hard-0 asset barking-tines-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
-      zone z67-soft-0 asset barking-tines-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset barking-tines-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset barking-tines-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset barking-tines-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
-      zone z79-soft-0 asset barking-tines-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
-      zone z79-hard-0 asset barking-tines-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
+  modulation {
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route key-gain-low source key-level target key-gain depth -0.0367507 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth -0.0488178 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 13 {
+    # A mallet on a tuned bar's modes, optionally through a pickup.
+    node strike1 exciter kind impact contact 0.000188105s hardness $hardness level 1
+    node body2 modal_bank profile barking-tines-bar max_modes 4 key_track 1 decay_scale $ring brightness 0 level 1
+    node shape3 shaper curve tanh drive 2.06039 bias 0
+    node gain4 math operation scale amount 0.485345
+    node times5 math operation multiply
+    node gain6 math operation scale amount 0.18
+    node plus7 math operation add
+    node hi-8 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.167009
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-shape3-audio body2.audio -> shape3.audio
+    bus shape3-audio-gain4-a shape3.audio -> gain4.a
+    bus body2-audio-times5-a body2.audio -> times5.a
+    bus body2-audio-times5-b body2.audio -> times5.b
+    bus times5-audio-gain6-a times5.audio -> gain6.a
+    bus gain4-audio-plus7-a gain4.audio -> plus7.a
+    bus gain6-audio-plus7-b gain6.audio -> plus7.b
+    bus plus7-audio-hi-8-audio plus7.audio -> hi-8.audio
+    bus hi-8-audio-register-a hi-8.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset barking-tines-36-soft-0 "Barking Tines" wav "media/36-soft-0.wav" sha256 "e37e9c8c5abf72a40cc7333ea06d7d1e85f0df4b38a0501dd83f7cac587986b9" {
-  usage multisample
-}
-asset barking-tines-36-hard-0 "Barking Tines" wav "media/36-hard-0.wav" sha256 "cd0229669179b8604bc3d7b5dc846d6f0780ca04327efd4d64694a579814b3ca" {
-  usage multisample
-}
-asset barking-tines-43-soft-0 "Barking Tines" wav "media/43-soft-0.wav" sha256 "6c17af3e029a4c5683b828c16dd2478def440e1bc2c152d96fed4e9098dc0797" {
-  usage multisample
-}
-asset barking-tines-43-hard-0 "Barking Tines" wav "media/43-hard-0.wav" sha256 "2eadf5bae9b24603e9ca02bc36568841e1cfa59b5158789c66b8056a60a245b4" {
-  usage multisample
-}
-asset barking-tines-48-soft-0 "Barking Tines" wav "media/48-soft-0.wav" sha256 "80f962ecb281256d725b8c7eb1df0ce4cd4a2280f770e4936fcbc187f8e09352" {
-  usage multisample
-}
-asset barking-tines-48-hard-0 "Barking Tines" wav "media/48-hard-0.wav" sha256 "409530e7a7aed2754f0198688bfae9705387643ed29a41d2f0982aa74f36baba" {
-  usage multisample
-}
-asset barking-tines-55-soft-0 "Barking Tines" wav "media/55-soft-0.wav" sha256 "71663524a51224d83cd71df8ec583d3a77ec55a947b8b8631b541df533a3d768" {
-  usage multisample
-}
-asset barking-tines-55-hard-0 "Barking Tines" wav "media/55-hard-0.wav" sha256 "0ea414c6356766f72d15d9f3aebf0afb6d78b243334e8ca9dd85066bef64db0c" {
-  usage multisample
-}
-asset barking-tines-60-soft-0 "Barking Tines" wav "media/60-soft-0.wav" sha256 "1a4676079f5d66a1a4e4925da2eaeed5bb09ce04e7a5f614ed00bf76a95b562d" {
-  usage multisample
-}
-asset barking-tines-60-hard-0 "Barking Tines" wav "media/60-hard-0.wav" sha256 "86d8a0dd17a2c44e13aa3ea46e733088eb14b813a3ca33c3c5ff1d23213b7370" {
-  usage multisample
-}
-asset barking-tines-67-soft-0 "Barking Tines" wav "media/67-soft-0.wav" sha256 "86808e8a9a05bd165a0620a4eebf9d35642dd08803945b6c9b9ca636fc55166d" {
-  usage multisample
-}
-asset barking-tines-67-hard-0 "Barking Tines" wav "media/67-hard-0.wav" sha256 "7bc76e8a083ae834daec05c979bb3a1f656f5ed5abc7a5c35a51f86284cb3e55" {
-  usage multisample
-}
-asset barking-tines-72-soft-0 "Barking Tines" wav "media/72-soft-0.wav" sha256 "c43546d674cefe6eba4b1424dd6fc23df10ffcb71f246fdd14e1963960f5e21a" {
-  usage multisample
-}
-asset barking-tines-72-hard-0 "Barking Tines" wav "media/72-hard-0.wav" sha256 "8e832f5d784765664d6e83d73f8a86d77b0a626d00607e0c555767e6cda4f318" {
-  usage multisample
-}
-asset barking-tines-79-soft-0 "Barking Tines" wav "media/79-soft-0.wav" sha256 "b945766823493b4d129c95479784a92ff3f48fe30fb942396804589948aa3413" {
-  usage multisample
-}
-asset barking-tines-79-hard-0 "Barking Tines" wav "media/79-hard-0.wav" sha256 "400a93e7741083eb09a1045213c7064880c26806ef76dd582e3868ec39dd73c4" {
-  usage multisample
+profile barking-tines-bar {
+  root 261.626hz
+  mode m0 frequency 262.038hz decay 1.18616s gain 1 after_decay 1.18616s after_gain 0
+  mode m1 frequency 524.077hz decay 0.594181s gain 1.38366 after_decay 0.594181s after_gain 0
+  mode m2 frequency 1642.19hz decay 0.190204s gain 0.398957 after_decay 0.190204s after_gain 0
+  mode m3 frequency 4598.77hz decay 0.0681085s gain 0.00572916 after_decay 0.0681085s after_gain 0
 }

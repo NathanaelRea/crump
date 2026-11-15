@@ -1,0 +1,88 @@
+crump-module 2
+instrument sitar "Sitar" graph {
+  polyphony 8
+  parameter level "Level" ratio 0 1 0.348 0.348
+  parameter sustain "Sustain" ratio 0.9 0.9999 0.997 0.997
+  parameter damping "Damping" ratio 0 1 0.06 0.06
+  parameter pick "Pick position" ratio 0.04 0.5 0.08 0.08
+  parameter hardness "Pick hardness" ratio 0 1 0.7 0.7
+  parameter tone "Tone" hz 500hz 16000hz 7000hz 7000hz
+  parameter release "Release" seconds 0.02s 4s 0.4s 0.4s
+  parameter pan "Pan" pan -1 1 0 0
+  parameter jawari "Jawari" ratio 0 1 0.3 0.3
+  parameter bridge "Bridge offset" ratio -0.5 0 -0.02 -0.02
+  faceplate {
+    control level "Level" "Output level" maps level
+    control sustain "Sustain" "Energy kept on each trip along the string" maps sustain
+    control damping "Damping" "How much faster the upper partials decay" maps damping
+    control pick "Pick position" "Plucking point as a fraction of the string length" maps pick
+    control tone "Tone" "Body brightness" maps tone
+    control release "Release" "How quickly a released note is damped" maps release
+    control jawari "Jawari" "How far the bridge shortens the string while they touch" maps jawari
+    control bridge "Bridge offset" "How far the string must swing before it touches the bridge; nearer zero buzzes sooner" maps bridge
+  }
+  graph voice 27 {
+    # Excitation: a plectrum contact integrated into a released step by a one-frame leaky
+    # integrator, then comb-filtered by the plucking point into a pulse one pick position wide.
+    node pluck exciter kind impact contact 0.1ms hardness $hardness level 1
+    node integrate math operation add
+    node previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node leak math operation scale amount 0.9995
+    node pick-point delay_line mode pitch ratio $pick interpolation linear max_time 0.05s
+    node picked math operation subtract
+    node centred dc_block cutoff 30hz
+    # The string: a pitch-tuned delay loop. The linear-phase loss filter delays every
+    # frequency by exactly one frame, which tune_compensation removes from the delay.
+    node excite math operation add
+    node string delay_line mode pitch interpolation lagrange3 tune_compensation 1 max_time 0.1s mod_depth $jawari
+    # Jawari: past the bridge offset the string wraps onto the curved bridge, which
+    # shortens its sounding length for as long as they touch. A lowpass tracking twice the
+    # played pitch turns the travelling wave into a displacement-like swing.
+    node swing lowpass mode lowpass cutoff 523.25113hz resonance 0 key_track 1 key_reference 261.625565hz
+    node contact shaper curve one_sided drive 4 bias $bridge
+    node shorten math operation negate
+    node loss linear_phase_lowpass amount $damping
+    node decay math operation scale amount $sustain
+    # A released note mutes the string by fading the loop gain.
+    node hold envelope attack 0ms decay 0ms sustain 1 release $release
+    node hold-audio to_audio
+    node damp math operation multiply
+    # Pickup and body.
+    node dc dc_block cutoff 20hz
+    node body lowpass mode lowpass cutoff $tone resonance 0.05
+    node gain math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus gate note.gate -> pluck.gate
+    bus velocity note.velocity -> pluck.velocity
+    bus contact pluck.audio -> integrate.a
+    bus integrated integrate.audio -> previous.audio
+    bus held previous.audio -> leak.a
+    bus leaked leak.audio -> integrate.b
+    bus pick-pitch note.pitch -> pick-point.pitch
+    bus pick-in integrate.audio -> pick-point.audio
+    bus direct integrate.audio -> picked.a
+    bus reflected pick-point.audio -> picked.b
+    bus pulse picked.audio -> centred.audio
+    bus excitation centred.audio -> excite.a
+    bus string-pitch note.pitch -> string.pitch
+    bus string-in excite.audio -> string.audio
+    bus string-out string.audio -> loss.audio
+    bus lossy loss.audio -> decay.a
+    bus hold-gate note.gate -> hold.gate
+    bus hold-control hold.control -> hold-audio.control
+    bus decayed decay.audio -> damp.a
+    bus muting hold-audio.audio -> damp.b
+    bus feedback damp.audio -> excite.b
+    bus swing-in string.audio -> swing.audio
+    bus swing-key note.pitch -> swing.key
+    bus bridge-in swing.audio -> contact.audio
+    bus pressing contact.audio -> shorten.a
+    bus jawari shorten.audio -> string.time_mod
+    bus pickup string.audio -> dc.audio
+    bus pickup-clean dc.audio -> body.audio
+    bus body-out body.audio -> gain.a
+    bus level-out gain.audio -> place.audio
+    bus output place.audio -> out.audio
+  }
+}

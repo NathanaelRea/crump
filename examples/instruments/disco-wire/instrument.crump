@@ -1,45 +1,88 @@
 crump-module 2
 instrument disco-wire "Disco Wire" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z60-soft-0 asset disco-wire-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-0 asset disco-wire-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
-      zone z60-soft-1 asset disco-wire-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-1 asset disco-wire-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
-    }
+  graph voice 25 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.00180519s hardness $hardness level 1
+    node body2 modal_bank profile disco-wire-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.999661817335
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 0.528983
+    node hiss9 noise level 1
+    node fall10 math operation add
+    node fall10-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall10-leak math operation scale amount 0.999929261596
+    node times11 math operation multiply
+    node hi-12 lowpass mode highpass cutoff 1400hz resonance 0.308309
+    node lo-13 lowpass mode lowpass cutoff 11500hz resonance 0.308309
+    node gain14 math operation scale amount 0.0306831
+    node mix15 sum max_inputs 3
+    node hi-16 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.0950002
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus onset-audio-fall4-a onset.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus fall10-audio-fall10-previous-audio fall10.audio -> fall10-previous.audio
+    bus onset-audio-fall10-a onset.audio -> fall10.a
+    bus fall10-previous-audio-fall10-leak-a fall10-previous.audio -> fall10-leak.a
+    bus fall10-leak-audio-fall10-b fall10-leak.audio -> fall10.b
+    bus hiss9-audio-times11-a hiss9.audio -> times11.a
+    bus fall10-audio-times11-b fall10.audio -> times11.b
+    bus times11-audio-hi-12-audio times11.audio -> hi-12.audio
+    bus hi-12-audio-lo-13-audio hi-12.audio -> lo-13.audio
+    bus lo-13-audio-gain14-a lo-13.audio -> gain14.a
+    bus body2-audio-mix15-inputs body2.audio -> mix15.inputs
+    bus gain8-audio-mix15-inputs gain8.audio -> mix15.inputs
+    bus gain14-audio-mix15-inputs gain14.audio -> mix15.inputs
+    bus mix15-audio-hi-16-audio mix15.audio -> hi-16.audio
+    bus hi-16-audio-trim-a hi-16.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset disco-wire-60-soft-0 "Disco Wire" wav "media/60-soft-0.wav" sha256 "b043788a57a3b407810b6f3c33771f21b0e80e3c49394b3aac440fc8aea1c800" {
-  usage multisample
-}
-asset disco-wire-60-hard-0 "Disco Wire" wav "media/60-hard-0.wav" sha256 "f0a284a83be4890259503f93378e1a7e0800ca775b0fb58eab23d31b552e585e" {
-  usage multisample
-}
-asset disco-wire-60-soft-1 "Disco Wire" wav "media/60-soft-1.wav" sha256 "b61439ce7ac647efb2d3c61a75409fa6de410a16e7d0e24927a028173babd03e" {
-  usage multisample
-}
-asset disco-wire-60-hard-1 "Disco Wire" wav "media/60-hard-1.wav" sha256 "a497a9484fc4fc47422efdb3a3c18ea4d6cd922e63afa82813342cf1acbcedd2" {
-  usage multisample
+profile disco-wire-head {
+  root 208.16hz
+  mode m0 frequency 208.16hz decay 0.0673362s gain 1 after_decay 0.0673362s after_gain 0
+  mode m1 frequency 331.599hz decay 0.0474883s gain 0.692285 after_decay 0.0474883s after_gain 0
+  mode m2 frequency 444.629hz decay 0.0381108s gain 0.374031 after_decay 0.0381108s after_gain 0
+  mode m3 frequency 477.935hz decay 0.036101s gain 0.264504 after_decay 0.036101s after_gain 0
+  mode m4 frequency 552.248hz decay 0.0323926s gain 0.233165 after_decay 0.0323926s after_gain 0
+  mode m5 frequency 607.41hz decay 0.0301602s gain 0.225636 after_decay 0.0301602s after_gain 0
+  mode m6 frequency 656.952hz decay 0.0284378s gain 0.193802 after_decay 0.0284378s after_gain 0
+  mode m7 frequency 728.768hz decay 0.026309s gain 0.129838 after_decay 0.026309s after_gain 0
+  mode m8 frequency 749.375hz decay 0.0257645s gain 0.120813 after_decay 0.0257645s after_gain 0
+  mode m9 frequency 845.129hz decay 0.0235426s gain 0.0674492 after_decay 0.0235426s after_gain 0
 }

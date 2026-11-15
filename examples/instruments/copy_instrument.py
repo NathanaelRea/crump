@@ -2,7 +2,6 @@
 """Copy an example into a Project and print the import to add."""
 
 import argparse
-import hashlib
 import json
 import shutil
 import tempfile
@@ -26,22 +25,8 @@ def copy_instrument(ident, project):
     if destination.exists() or destination.is_symlink():
         raise ValueError(f"Refusing to replace {destination}")
     source = ROOT / ident
-    manifest = source / "assets.json"
-    assets = json.loads(manifest.read_text())["assets"] if manifest.exists() else []
+    # Every example is one self-contained module: profiles live in the file, no media.
     files = ["instrument.crump"]
-    files += [p for p in ["assets.json", "recipe.json"] if (source / p).exists()]
-    for asset in assets:
-        path = Path(asset["path"])
-        if path.is_absolute() or ".." in path.parts or path.as_posix() != asset["path"]:
-            raise ValueError("Invalid asset path")
-        if not (source / path).exists():
-            raise ValueError(
-                "Generate the example media first: uv run tools/instrument_assets/build.py --setup"
-            )
-        data = (source / path).read_bytes()
-        if hashlib.sha256(data).hexdigest() != asset["sha256"]:
-            raise ValueError(f"Changed example media: {path}")
-        files.append(asset["path"])
     # Stage a complete folder, then rename without editing the destination source.
     with tempfile.TemporaryDirectory(dir=parent, prefix=".instrument-") as temporary:
         staged = Path(temporary) / ident
@@ -51,7 +36,6 @@ def copy_instrument(ident, project):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source / filename, target)
         staged.rename(destination)
-    # The module declares its own media, so the import is the only source to add.
     return (
         "# Add before the Project declaration (a `crump 2` root):\n"
         f'import "instruments/{ident}/instrument.crump"\n'

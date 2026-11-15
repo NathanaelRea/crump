@@ -1,100 +1,213 @@
 crump-module 2
 instrument clarinet "Clarinet" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 6
+  parameter attack "Attack" seconds 0.002s 2s 0.0680807s 0.0680807s modulatable
+  parameter release "Release" seconds 0.01s 4s 0.12s 0.12s
+  parameter vibrato-depth "Vibrato" ratio 0 1 0 0 modulatable
+  parameter noise "Air" ratio 0 4 0.783482 0.783482 modulatable
+  parameter register "Register level" ratio 0.05 20 1.23027 1.23027 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0.357143 0.357143 modulatable
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
-  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control noise "Air" "Breath noise level" maps noise
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z50-soft-0 asset clarinet-50-soft-0 keys C#3 E3 velocity 0 0.65 root D3 loop 48000 123771 crossfade 8160
-      zone z50-hard-0 asset clarinet-50-hard-0 keys C#3 E3 velocity 0.65 1 root D3 loop 48000 123771 crossfade 8160
-      zone z55-soft-0 asset clarinet-55-soft-0 keys F3 A3 velocity 0 0.65 root G3 loop 48000 123726 crossfade 8160
-      zone z55-hard-0 asset clarinet-55-hard-0 keys F3 A3 velocity 0.65 1 root G3 loop 48000 123719 crossfade 8160
-      zone z60-soft-0 asset clarinet-60-soft-0 keys A#3 D4 velocity 0 0.65 root C4 loop 48000 125901 crossfade 8160
-      zone z60-hard-0 asset clarinet-60-hard-0 keys A#3 D4 velocity 0.65 1 root C4 loop 48000 125905 crossfade 8160
-      zone z65-soft-0 asset clarinet-65-soft-0 keys D#4 G4 velocity 0 0.65 root F4 loop 48000 124515 crossfade 8160
-      zone z65-hard-0 asset clarinet-65-hard-0 keys D#4 G4 velocity 0.65 1 root F4 loop 48000 124515 crossfade 8160
-      zone z70-soft-0 asset clarinet-70-soft-0 keys G#4 C#5 velocity 0 0.65 root A#4 loop 48000 125983 crossfade 8160
-      zone z70-hard-0 asset clarinet-70-hard-0 keys G#4 C#5 velocity 0.65 1 root A#4 loop 48000 123615 crossfade 8160
-      zone z76-soft-0 asset clarinet-76-soft-0 keys D5 G5 velocity 0 0.65 root E5 loop 48000 125406 crossfade 8160
-      zone z76-hard-0 asset clarinet-76-hard-0 keys D5 G5 velocity 0.65 1 root E5 loop 48000 125115 crossfade 8160
-      zone z82-soft-0 asset clarinet-82-soft-0 keys G#5 C#6 velocity 0 0.65 root A#5 loop 48000 123616 crossfade 8160
-      zone z82-hard-0 asset clarinet-82-hard-0 keys G#5 C#6 velocity 0.65 1 root A#5 loop 48000 124231 crossfade 8160
-      zone z88-soft-0 asset clarinet-88-soft-0 keys D6 A#6 velocity 0 0.65 root E6 loop 48000 123624 crossfade 8160
-      zone z88-hard-0 asset clarinet-88-hard-0 keys D6 A#6 velocity 0.65 1 root E6 loop 48000 125992 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-from-cs3-3 note_key per_voice bipolar reference C#3 range 3st
+    source key-from-e3-3 note_key per_voice bipolar reference E3 range 3st
+    source key-from-g3-3 note_key per_voice bipolar reference G3 range 3st
+    source key-from-as3-3 note_key per_voice bipolar reference A#3 range 3st
+    source key-from-cs4-3 note_key per_voice bipolar reference C#4 range 3st
+    source key-from-e4-3 note_key per_voice bipolar reference E4 range 3st
+    source key-from-g4-3 note_key per_voice bipolar reference G4 range 3st
+    source key-from-as4-3 note_key per_voice bipolar reference A#4 range 3st
+    source key-from-cs5-3 note_key per_voice bipolar reference C#5 range 3st
+    source key-from-e5-3 note_key per_voice bipolar reference E5 range 3st
+    source key-from-g5-3 note_key per_voice bipolar reference G5 range 3st
+    source key-from-as5-3 note_key per_voice bipolar reference A#5 range 3st
+    source key-from-cs6-3 note_key per_voice bipolar reference C#6 range 3st
+    source key-from-e6-3 note_key per_voice bipolar reference E6 range 3st
+    source key-from-g6-3 note_key per_voice bipolar reference G6 range 3st
+    route attack-velocity source velocity target attack depth -0.060269s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.0167008 map unipolar curve linear order 0 bypass false
+    route noise-velocity source velocity target noise depth -0.778054 map unipolar curve linear order 0 bypass false
+    route register-1 source key-from-cs3-3 target register depth 0.391541 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
-    node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    route register-2 source key-from-e3-3 target register depth 0.0377768 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-3 source key-from-g3-3 target register depth -0.128499 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-4 source key-from-as3-3 target register depth -0.382934 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-5 source key-from-cs4-3 target register depth 0.155013 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-6 source key-from-e4-3 target register depth -0.0869808 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-7 source key-from-g4-3 target register depth -0.238949 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-8 source key-from-as4-3 target register depth -0.116243 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-9 source key-from-cs5-3 target register depth -0.0847466 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-10 source key-from-e5-3 target register depth -0.173688 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-11 source key-from-g5-3 target register depth 0.258434 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-12 source key-from-as5-3 target register depth 0.162299 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-13 source key-from-cs6-3 target register depth -0.191529 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-14 source key-from-e6-3 target register depth -0.200806 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-15 source key-from-g6-3 target register depth 0.240006 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route dynamics-velocity source velocity target dynamics depth 0.642857 map unipolar curve linear order 0 bypass false
   }
-}
-asset clarinet-50-soft-0 "Clarinet" wav "media/50-soft-0.wav" sha256 "a622d8c832bd45c0181d240bf4cb39c3681cd5f79f8df133c4bf9c1435eb2b7a" {
-  usage multisample
-}
-asset clarinet-50-hard-0 "Clarinet" wav "media/50-hard-0.wav" sha256 "db29877a1e4b0b5f5b10324425faac6109ec3215d3fa731ebabfbb3245054071" {
-  usage multisample
-}
-asset clarinet-55-soft-0 "Clarinet" wav "media/55-soft-0.wav" sha256 "7f7ca82c8f28b8421cdf081b06bf87523fb56b4651aa6463df4da27c7ec4b4b5" {
-  usage multisample
-}
-asset clarinet-55-hard-0 "Clarinet" wav "media/55-hard-0.wav" sha256 "52b6431d342427d5424868549d03eea39936d56ff957cb0e9e3585b21a52745f" {
-  usage multisample
-}
-asset clarinet-60-soft-0 "Clarinet" wav "media/60-soft-0.wav" sha256 "8a0d7e0cb85e575e859fb88fcabbc1e0996f46ed22fdceda287ae299e59bed67" {
-  usage multisample
-}
-asset clarinet-60-hard-0 "Clarinet" wav "media/60-hard-0.wav" sha256 "21363947fedf36d48e13d6d86e35ad11a771374b2a95f277542393338a549ce1" {
-  usage multisample
-}
-asset clarinet-65-soft-0 "Clarinet" wav "media/65-soft-0.wav" sha256 "0a381998f3d718d8e6a6ecc216652a99375ed5a97aad2638a8f6f11b68489c29" {
-  usage multisample
-}
-asset clarinet-65-hard-0 "Clarinet" wav "media/65-hard-0.wav" sha256 "eccf20da398e9b23aad6953b24acaca3987c09ad4655d6dfe2053b363b4971b8" {
-  usage multisample
-}
-asset clarinet-70-soft-0 "Clarinet" wav "media/70-soft-0.wav" sha256 "eebe97d9b8cf012d021746fb61deae7e745b740bbc6d5f5a41f8e2cf6c4ae251" {
-  usage multisample
-}
-asset clarinet-70-hard-0 "Clarinet" wav "media/70-hard-0.wav" sha256 "c29941bf452dcb04b465ac18dd04c70e5e0ce286674b4a1ae7e2b9d8cbee9f9c" {
-  usage multisample
-}
-asset clarinet-76-soft-0 "Clarinet" wav "media/76-soft-0.wav" sha256 "27ca2995be6d1853ed6844d6fed5763c965e4207d7802129257b8dbe27693145" {
-  usage multisample
-}
-asset clarinet-76-hard-0 "Clarinet" wav "media/76-hard-0.wav" sha256 "2888a02f26d9b7a608f66c991b77ea214e4a0f7efbf2333d77c3514ecb6f1ac3" {
-  usage multisample
-}
-asset clarinet-82-soft-0 "Clarinet" wav "media/82-soft-0.wav" sha256 "e5ec271cf0713f0038afb1d8c462335d6a1b157e2aae2a5fd568c6e91e9e709e" {
-  usage multisample
-}
-asset clarinet-82-hard-0 "Clarinet" wav "media/82-hard-0.wav" sha256 "1690d5d9b423f30153377ea9011cd64be0444fa38e576107dd1ece9a96a1e66f" {
-  usage multisample
-}
-asset clarinet-88-soft-0 "Clarinet" wav "media/88-soft-0.wav" sha256 "f11970a83d7270d985cca527adc9d6b6253c168541730c6b902c4461603e9fb4" {
-  usage multisample
-}
-asset clarinet-88-hard-0 "Clarinet" wav "media/88-hard-0.wav" sha256 "9e887b6766d6ec6d631f7e2257b75680be112d90b87a75e998f913dff59f716c" {
-  usage multisample
+  graph voice 54 {
+    # A breath-driven tone: an oscillator and breath noise through fixed formants.
+    node breath envelope mode adsr attack $attack decay 0.15s sustain 0.9 release $release attack_curve 0.3
+    node breath-audio to_audio
+    node vibrato lfo waveform sine rate 5hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-fade envelope mode ahdsr attack 0.5s hold 0s decay 0.01s sustain 1 release 0.3s attack_curve 0.6
+    node vibrato-fade-audio to_audio
+    node vibrato-shape math operation multiply
+    node vibrato-amount math operation scale amount $vibrato-depth
+    node air noise level 1
+    node wander lfo waveform sample_hold rate 2.7hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node wander-audio to_audio
+    node wander-smooth onepole mode lowpass cutoff 2.5hz
+    node wander-amount math operation scale amount 0.0545455
+    node flutter onepole mode lowpass cutoff 18hz
+    node flutter-amount math operation scale amount 1.5148
+    node pitch-movement sum max_inputs 3
+    node reed analog_oscillator waveform square level 1 velocity_amount 1 fm_depth 1st random_phase 1
+    node reed-mono stereo_to_mono
+    node upper analog_oscillator waveform saw level 1.2 velocity_amount 1 fm_depth 1st random_phase 1
+    node upper-mono stereo_to_mono
+    node upper-band biquad mode highpass frequency 1363.49hz q 0.7071
+    node reed-pair math operation add
+    node brightness lowpass mode lowpass cutoff 681.116hz resonance 0.1 mod_depth 1000.33hz velocity_depth 3000hz key_track 0.362469 key_reference 261.626hz
+    node smear1 biquad mode allpass frequency 1016.71hz q 1.5
+    node smear2 biquad mode allpass frequency 2287.6hz q 1.2
+    node smear3 biquad mode allpass frequency 4575.2hz q 1
+    node smear4 biquad mode allpass frequency 7625.33hz q 0.8
+    node air-low biquad mode highpass frequency 191.864hz q 0.7071
+    node air-band biquad mode lowpass frequency 14000hz q 0.7071
+    node steady-air math operation scale amount 0.5
+    node pulsed-air math operation scale amount 0.351068
+    node air-drive sum max_inputs 2
+    node breath-noise math operation multiply
+    node breath-level math operation scale amount $noise
+    node voice sum max_inputs 2
+    node formant1 biquad mode peak frequency 2026.13hz q 2.49492 gain -6.6306db
+    node formant2 biquad mode peak frequency 196.187hz q 2.49998 gain -14.9894db
+    node formant3 biquad mode peak frequency 1098.77hz q 2.5 gain -7.74698db
+    node formant4 biquad mode peak frequency 141.014hz q 2.49997 gain 6.10702db
+    node formant5 biquad mode peak frequency 9574.57hz q 2.5 gain -14.9984db
+    node formant6 biquad mode peak frequency 6634.66hz q 2.5 gain -5.70458db
+    node formant7 biquad mode lowshelf frequency 558.252hz q 0.7071 gain -15db
+    node formant8 biquad mode highshelf frequency 3264.68hz q 0.7071 gain -14.574db
+    node below-note biquad mode highpass frequency 156.975hz q 0.7071 key_track 1 key_reference 261.626hz
+    node radiation biquad mode highpass frequency 40hz q 0.7071
+    node shimmer-depth math operation scale amount 1.00987
+    node shimmer math operation offset amount 1
+    node alive math operation multiply
+    node register-level math operation scale amount $register
+    node dynamics-level math operation scale amount $dynamics
+    node trim math operation scale amount 0.404242
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-breath-gate note.gate -> breath.gate
+    bus breath-control-breath-audio-control breath.control -> breath-audio.control
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-fade-gate note.gate -> vibrato-fade.gate
+    bus vibrato-fade-control-vibrato-fade-audio-control vibrato-fade.control -> vibrato-fade-audio.control
+    bus vibrato-audio-audio-vibrato-shape-a vibrato-audio.audio -> vibrato-shape.a
+    bus vibrato-fade-audio-audio-vibrato-shape-b vibrato-fade-audio.audio -> vibrato-shape.b
+    bus vibrato-shape-audio-vibrato-amount-a vibrato-shape.audio -> vibrato-amount.a
+    bus wander-control-wander-audio-control wander.control -> wander-audio.control
+    bus wander-audio-audio-wander-smooth-audio wander-audio.audio -> wander-smooth.audio
+    bus wander-smooth-audio-wander-amount-a wander-smooth.audio -> wander-amount.a
+    bus air-audio-flutter-audio air.audio -> flutter.audio
+    bus flutter-audio-flutter-amount-a flutter.audio -> flutter-amount.a
+    bus vibrato-amount-audio-pitch-movement-inputs vibrato-amount.audio -> pitch-movement.inputs
+    bus wander-amount-audio-pitch-movement-inputs wander-amount.audio -> pitch-movement.inputs
+    bus flutter-amount-audio-pitch-movement-inputs flutter-amount.audio -> pitch-movement.inputs
+    bus note-pitch-reed-pitch note.pitch -> reed.pitch
+    bus note-velocity-reed-velocity note.velocity -> reed.velocity
+    bus breath-control-reed-gain breath.control -> reed.gain
+    bus pitch-movement-audio-reed-fm pitch-movement.audio -> reed.fm
+    bus reed-audio-reed-mono-audio reed.audio -> reed-mono.audio
+    bus note-pitch-upper-pitch note.pitch -> upper.pitch
+    bus note-velocity-upper-velocity note.velocity -> upper.velocity
+    bus breath-control-upper-gain breath.control -> upper.gain
+    bus pitch-movement-audio-upper-fm pitch-movement.audio -> upper.fm
+    bus upper-audio-upper-mono-audio upper.audio -> upper-mono.audio
+    bus upper-mono-audio-upper-band-audio upper-mono.audio -> upper-band.audio
+    bus reed-mono-audio-reed-pair-a reed-mono.audio -> reed-pair.a
+    bus upper-band-audio-reed-pair-b upper-band.audio -> reed-pair.b
+    bus reed-pair-audio-brightness-audio reed-pair.audio -> brightness.audio
+    bus breath-control-brightness-mod breath.control -> brightness.mod
+    bus note-velocity-brightness-velocity note.velocity -> brightness.velocity
+    bus note-pitch-brightness-key note.pitch -> brightness.key
+    bus brightness-audio-smear1-audio brightness.audio -> smear1.audio
+    bus smear1-audio-smear2-audio smear1.audio -> smear2.audio
+    bus smear2-audio-smear3-audio smear2.audio -> smear3.audio
+    bus smear3-audio-smear4-audio smear3.audio -> smear4.audio
+    bus air-audio-air-low-audio air.audio -> air-low.audio
+    bus air-low-audio-air-band-audio air-low.audio -> air-band.audio
+    bus breath-audio-audio-steady-air-a breath-audio.audio -> steady-air.a
+    bus reed-mono-audio-pulsed-air-a reed-mono.audio -> pulsed-air.a
+    bus steady-air-audio-air-drive-inputs steady-air.audio -> air-drive.inputs
+    bus pulsed-air-audio-air-drive-inputs pulsed-air.audio -> air-drive.inputs
+    bus air-band-audio-breath-noise-a air-band.audio -> breath-noise.a
+    bus air-drive-audio-breath-noise-b air-drive.audio -> breath-noise.b
+    bus breath-noise-audio-breath-level-a breath-noise.audio -> breath-level.a
+    bus smear4-audio-voice-inputs smear4.audio -> voice.inputs
+    bus breath-level-audio-voice-inputs breath-level.audio -> voice.inputs
+    bus voice-audio-formant1-audio voice.audio -> formant1.audio
+    bus formant1-audio-formant2-audio formant1.audio -> formant2.audio
+    bus formant2-audio-formant3-audio formant2.audio -> formant3.audio
+    bus formant3-audio-formant4-audio formant3.audio -> formant4.audio
+    bus formant4-audio-formant5-audio formant4.audio -> formant5.audio
+    bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
+    bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
+    bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
+    bus formant8-audio-below-note-audio formant8.audio -> below-note.audio
+    bus note-pitch-below-note-key note.pitch -> below-note.key
+    bus below-note-audio-radiation-audio below-note.audio -> radiation.audio
+    bus flutter-audio-shimmer-depth-a flutter.audio -> shimmer-depth.a
+    bus shimmer-depth-audio-shimmer-a shimmer-depth.audio -> shimmer.a
+    bus radiation-audio-alive-a radiation.audio -> alive.a
+    bus shimmer-audio-alive-b shimmer.audio -> alive.b
+    bus alive-audio-register-level-a alive.audio -> register-level.a
+    bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a
+    bus dynamics-level-audio-trim-a dynamics-level.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
 }

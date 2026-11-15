@@ -1,0 +1,48 @@
+crump 2
+import "instrument.crump"
+project "Sync Lead" {
+  id example-sync-lead
+  seed 791900
+  sample_rate 48000
+  render_tail 2s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 1beat 0.75
+      note 1beat D#4 1beat 0.75
+      note 2beat G4 1.5beat 0.75
+      note 3.5beat A#4 0.5beat 0.75
+      note 4beat C5 3beat 0.75
+      note 8beat D#5 0.5beat 0.75
+      note 8.5beat D5 0.5beat 0.75
+      note 9beat C5 0.5beat 0.75
+      note 9.5beat A#4 0.5beat 0.75
+      note 10beat C5 2beat 0.75
+      note 12beat G4 1beat 0.75
+      note 13beat A#4 1beat 0.75
+      note 14beat D#4 2beat 0.75
+      note 16beat C4 0.35beat 0.85
+      note 16.5beat D#4 0.35beat 0.85
+      note 17beat G4 0.35beat 0.85
+      note 17.5beat A#4 0.35beat 0.85
+      note 18beat C5 0.35beat 0.85
+      note 18.5beat A#4 0.35beat 0.85
+      note 19beat G4 0.35beat 0.85
+      note 19.5beat D#4 0.35beat 0.85
+      note 20beat C4 0.35beat 0.85
+      note 20.5beat D#4 0.35beat 0.85
+      note 21beat G4 0.35beat 0.85
+      note 21.5beat A#4 0.35beat 0.85
+      note 22beat C5 0.35beat 0.85
+      note 22.5beat A#4 0.35beat 0.85
+      note 23beat G4 0.35beat 0.85
+      note 23.5beat D#4 0.35beat 0.85
+      note 24beat C5 6beat 0.8
+    }
+    track instrument "Sync Lead" instrument sync-lead level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

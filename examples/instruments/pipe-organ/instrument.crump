@@ -1,108 +1,209 @@
 crump-module 2
 instrument pipe-organ "Pipe Organ" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
-  parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 0.199091s 0.199091s modulatable
   parameter release "Release" seconds 0.02s 4s 0.2s 0.2s
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset pipe-organ-36-soft-0 keys E1 D#2 velocity 0 0.65 root C2 loop 48000 123667 crossfade 8160
-      zone z36-hard-0 asset pipe-organ-36-hard-0 keys E1 D#2 velocity 0.65 1 root C2 loop 48000 123667 crossfade 8160
-      zone z43-soft-0 asset pipe-organ-43-soft-0 keys E2 A#2 velocity 0 0.65 root G2 loop 48000 125789 crossfade 8160
-      zone z43-hard-0 asset pipe-organ-43-hard-0 keys E2 A#2 velocity 0.65 1 root G2 loop 48000 125789 crossfade 8160
-      zone z50-soft-0 asset pipe-organ-50-soft-0 keys B2 F3 velocity 0 0.65 root D3 loop 48000 125561 crossfade 8160
-      zone z50-hard-0 asset pipe-organ-50-hard-0 keys B2 F3 velocity 0.65 1 root D3 loop 48000 125561 crossfade 8160
-      zone z57-soft-0 asset pipe-organ-57-soft-0 keys F#3 C4 velocity 0 0.65 root A3 loop 48000 123809 crossfade 8160
-      zone z57-hard-0 asset pipe-organ-57-hard-0 keys F#3 C4 velocity 0.65 1 root A3 loop 48000 123809 crossfade 8160
-      zone z64-soft-0 asset pipe-organ-64-soft-0 keys C#4 G4 velocity 0 0.65 root E4 loop 48000 123721 crossfade 8160
-      zone z64-hard-0 asset pipe-organ-64-hard-0 keys C#4 G4 velocity 0.65 1 root E4 loop 48000 123721 crossfade 8160
-      zone z71-soft-0 asset pipe-organ-71-soft-0 keys G#4 D5 velocity 0 0.65 root B4 loop 48000 123748 crossfade 8160
-      zone z71-hard-0 asset pipe-organ-71-hard-0 keys G#4 D5 velocity 0.65 1 root B4 loop 48000 123748 crossfade 8160
-      zone z78-soft-0 asset pipe-organ-78-soft-0 keys D#5 A5 velocity 0 0.65 root F#5 loop 48000 125994 crossfade 8160
-      zone z78-hard-0 asset pipe-organ-78-hard-0 keys D#5 A5 velocity 0.65 1 root F#5 loop 48000 125994 crossfade 8160
-      zone z85-soft-0 asset pipe-organ-85-soft-0 keys A#5 E6 velocity 0 0.65 root C#6 loop 48000 125958 crossfade 8160
-      zone z85-hard-0 asset pipe-organ-85-hard-0 keys A#5 E6 velocity 0.65 1 root C#6 loop 48000 125958 crossfade 8160
-      zone z92-soft-0 asset pipe-organ-92-soft-0 keys F6 C7 velocity 0 0.65 root G#6 loop 48000 123635 crossfade 8160
-      zone z92-hard-0 asset pipe-organ-92-hard-0 keys F6 C7 velocity 0.65 1 root G#6 loop 48000 123635 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route attack-velocity source velocity target attack depth -0.10227273s map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(1.309) order 0 bypass false
+    route key-gain-low source key-level target key-gain depth 0.422967 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
+    route key-gain-high source key-level target key-gain depth 0.63866 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 58 {
+    # Organ ranks: oscillators at each stop's pitch through a fixed body.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain1 math operation scale amount 0.005
+    node stop1 analog_oscillator waveform saw coarse -12.002st level 0.311127 velocity_amount 0 fm_depth 1st
+    node stop1-mono stereo_to_mono
+    node stop2 analog_oscillator waveform saw coarse -0.00865842st level 1.41421 velocity_amount 0 fm_depth 1st
+    node stop2-mono stereo_to_mono
+    node stop3 analog_oscillator waveform saw coarse 11.9896st level 0.707107 velocity_amount 0 fm_depth 1st
+    node stop3-mono stereo_to_mono
+    node stop4 analog_oscillator waveform saw coarse 19.0108st level 0.226274 velocity_amount 0 fm_depth 1st
+    node stop4-mono stereo_to_mono
+    node stop5 analog_oscillator waveform saw coarse 23.9954st level 0.367696 velocity_amount 0 fm_depth 1st
+    node stop5-mono stereo_to_mono
+    node stop6 analog_oscillator waveform saw coarse 31.0266st level 0.141421 velocity_amount 0 fm_depth 1st
+    node stop6-mono stereo_to_mono
+    node stop7 analog_oscillator waveform saw coarse 36st level 0.127279 velocity_amount 0 fm_depth 1st
+    node stop7-mono stereo_to_mono
+    node stop8 analog_oscillator waveform saw coarse 43.0095st level 0.0707107 velocity_amount 0 fm_depth 1st
+    node stop8-mono stereo_to_mono
+    node stop9 analog_oscillator waveform saw coarse 47.9872st level 0.0565685 velocity_amount 0 fm_depth 1st
+    node stop9-mono stereo_to_mono
+    node mix2 sum max_inputs 9
+    node breath noise level 1
+    node hi-3 lowpass mode highpass cutoff 500hz resonance 0.308309
+    node lo-4 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node breath-comb-in math operation add
+    node breath-comb delay_line mode pitch ratio 1 interpolation linear max_time 0.05s
+    node gain5 math operation scale amount 0.7
+    node gain6 math operation scale amount 0.3
+    node gain7 math operation scale amount 0.15
+    node gain8 math operation scale amount 0.85
+    node plus9 math operation add
+    node breath-amp to_audio
+    node gain10 math operation scale amount 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall11 math operation add
+    node fall11-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall11-leak math operation scale amount 0.999999333334
+    node fall12 math operation add
+    node fall12-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall12-leak math operation scale amount 0.998264729548
+    node gain13 math operation scale amount -1
+    node plus14 math operation add
+    node gain15 math operation scale amount 8.29156
+    node gain16 math operation scale amount 8.29156
+    node plus17 math operation add
+    node times18 math operation multiply
+    node gain19 math operation scale amount 0.00243532
+    node plus20 math operation add
+    node body21 modal_bank profile pipe-organ-body max_modes 14 key_track 0 decay_scale 1 brightness 0 level 1
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-22 lowpass mode highpass cutoff 20hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.00237133
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain1-a drift-audio.audio -> gain1.a
+    bus note-pitch-stop1-pitch note.pitch -> stop1.pitch
+    bus note-velocity-stop1-velocity note.velocity -> stop1.velocity
+    bus gain1-audio-stop1-fm gain1.audio -> stop1.fm
+    bus amplitude-control-stop1-gain amplitude.control -> stop1.gain
+    bus stop1-audio-stop1-mono-audio stop1.audio -> stop1-mono.audio
+    bus note-pitch-stop2-pitch note.pitch -> stop2.pitch
+    bus note-velocity-stop2-velocity note.velocity -> stop2.velocity
+    bus gain1-audio-stop2-fm gain1.audio -> stop2.fm
+    bus amplitude-control-stop2-gain amplitude.control -> stop2.gain
+    bus stop2-audio-stop2-mono-audio stop2.audio -> stop2-mono.audio
+    bus note-pitch-stop3-pitch note.pitch -> stop3.pitch
+    bus note-velocity-stop3-velocity note.velocity -> stop3.velocity
+    bus gain1-audio-stop3-fm gain1.audio -> stop3.fm
+    bus amplitude-control-stop3-gain amplitude.control -> stop3.gain
+    bus stop3-audio-stop3-mono-audio stop3.audio -> stop3-mono.audio
+    bus note-pitch-stop4-pitch note.pitch -> stop4.pitch
+    bus note-velocity-stop4-velocity note.velocity -> stop4.velocity
+    bus gain1-audio-stop4-fm gain1.audio -> stop4.fm
+    bus amplitude-control-stop4-gain amplitude.control -> stop4.gain
+    bus stop4-audio-stop4-mono-audio stop4.audio -> stop4-mono.audio
+    bus note-pitch-stop5-pitch note.pitch -> stop5.pitch
+    bus note-velocity-stop5-velocity note.velocity -> stop5.velocity
+    bus gain1-audio-stop5-fm gain1.audio -> stop5.fm
+    bus amplitude-control-stop5-gain amplitude.control -> stop5.gain
+    bus stop5-audio-stop5-mono-audio stop5.audio -> stop5-mono.audio
+    bus note-pitch-stop6-pitch note.pitch -> stop6.pitch
+    bus note-velocity-stop6-velocity note.velocity -> stop6.velocity
+    bus gain1-audio-stop6-fm gain1.audio -> stop6.fm
+    bus amplitude-control-stop6-gain amplitude.control -> stop6.gain
+    bus stop6-audio-stop6-mono-audio stop6.audio -> stop6-mono.audio
+    bus note-pitch-stop7-pitch note.pitch -> stop7.pitch
+    bus note-velocity-stop7-velocity note.velocity -> stop7.velocity
+    bus gain1-audio-stop7-fm gain1.audio -> stop7.fm
+    bus amplitude-control-stop7-gain amplitude.control -> stop7.gain
+    bus stop7-audio-stop7-mono-audio stop7.audio -> stop7-mono.audio
+    bus note-pitch-stop8-pitch note.pitch -> stop8.pitch
+    bus note-velocity-stop8-velocity note.velocity -> stop8.velocity
+    bus gain1-audio-stop8-fm gain1.audio -> stop8.fm
+    bus amplitude-control-stop8-gain amplitude.control -> stop8.gain
+    bus stop8-audio-stop8-mono-audio stop8.audio -> stop8-mono.audio
+    bus note-pitch-stop9-pitch note.pitch -> stop9.pitch
+    bus note-velocity-stop9-velocity note.velocity -> stop9.velocity
+    bus gain1-audio-stop9-fm gain1.audio -> stop9.fm
+    bus amplitude-control-stop9-gain amplitude.control -> stop9.gain
+    bus stop9-audio-stop9-mono-audio stop9.audio -> stop9-mono.audio
+    bus stop1-mono-audio-mix2-inputs stop1-mono.audio -> mix2.inputs
+    bus stop2-mono-audio-mix2-inputs stop2-mono.audio -> mix2.inputs
+    bus stop3-mono-audio-mix2-inputs stop3-mono.audio -> mix2.inputs
+    bus stop4-mono-audio-mix2-inputs stop4-mono.audio -> mix2.inputs
+    bus stop5-mono-audio-mix2-inputs stop5-mono.audio -> mix2.inputs
+    bus stop6-mono-audio-mix2-inputs stop6-mono.audio -> mix2.inputs
+    bus stop7-mono-audio-mix2-inputs stop7-mono.audio -> mix2.inputs
+    bus stop8-mono-audio-mix2-inputs stop8-mono.audio -> mix2.inputs
+    bus stop9-mono-audio-mix2-inputs stop9-mono.audio -> mix2.inputs
+    bus breath-audio-hi-3-audio breath.audio -> hi-3.audio
+    bus hi-3-audio-lo-4-audio hi-3.audio -> lo-4.audio
+    bus lo-4-audio-breath-comb-in-a lo-4.audio -> breath-comb-in.a
+    bus note-pitch-breath-comb-pitch note.pitch -> breath-comb.pitch
+    bus breath-comb-in-audio-breath-comb-audio breath-comb-in.audio -> breath-comb.audio
+    bus breath-comb-audio-gain5-a breath-comb.audio -> gain5.a
+    bus gain5-audio-breath-comb-in-b gain5.audio -> breath-comb-in.b
+    bus breath-comb-in-audio-gain6-a breath-comb-in.audio -> gain6.a
+    bus lo-4-audio-gain7-a lo-4.audio -> gain7.a
+    bus gain6-audio-gain8-a gain6.audio -> gain8.a
+    bus gain7-audio-plus9-a gain7.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus amplitude-control-breath-amp-control amplitude.control -> breath-amp.control
+    bus breath-amp-audio-gain10-a breath-amp.audio -> gain10.a
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall11-audio-fall11-previous-audio fall11.audio -> fall11-previous.audio
+    bus onset-audio-fall11-a onset.audio -> fall11.a
+    bus fall11-previous-audio-fall11-leak-a fall11-previous.audio -> fall11-leak.a
+    bus fall11-leak-audio-fall11-b fall11-leak.audio -> fall11.b
+    bus fall12-audio-fall12-previous-audio fall12.audio -> fall12-previous.audio
+    bus onset-audio-fall12-a onset.audio -> fall12.a
+    bus fall12-previous-audio-fall12-leak-a fall12-previous.audio -> fall12-leak.a
+    bus fall12-leak-audio-fall12-b fall12-leak.audio -> fall12.b
+    bus fall12-audio-gain13-a fall12.audio -> gain13.a
+    bus fall11-audio-plus14-a fall11.audio -> plus14.a
+    bus gain13-audio-plus14-b gain13.audio -> plus14.b
+    bus plus14-audio-gain15-a plus14.audio -> gain15.a
+    bus gain15-audio-gain16-a gain15.audio -> gain16.a
+    bus gain10-audio-plus17-a gain10.audio -> plus17.a
+    bus gain16-audio-plus17-b gain16.audio -> plus17.b
+    bus plus9-audio-times18-a plus9.audio -> times18.a
+    bus plus17-audio-times18-b plus17.audio -> times18.b
+    bus times18-audio-gain19-a times18.audio -> gain19.a
+    bus mix2-audio-plus20-a mix2.audio -> plus20.a
+    bus gain19-audio-plus20-b gain19.audio -> plus20.b
+    bus plus20-audio-body21-audio plus20.audio -> body21.audio
+    bus note-pitch-body21-pitch note.pitch -> body21.pitch
+    bus note-gate-body21-gate note.gate -> body21.gate
+    bus body21-audio-dynamics-gain-a body21.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-22-audio dynamics-gain.audio -> hi-22.audio
+    bus hi-22-audio-register-a hi-22.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset pipe-organ-36-soft-0 "Pipe Organ" wav "media/36-soft-0.wav" sha256 "d68b7161bab02bd09eed4b6735c1d6d74bba75e7d75e32c112e0960e0fbec7e7" {
-  usage multisample
-}
-asset pipe-organ-36-hard-0 "Pipe Organ" wav "media/36-hard-0.wav" sha256 "f23688e2fba06f447dc0b3980f5ab2d2a674cc3379bafa168d38a0e1a4444a22" {
-  usage multisample
-}
-asset pipe-organ-43-soft-0 "Pipe Organ" wav "media/43-soft-0.wav" sha256 "c816d967c95ffffd4d5e7ca31cf8f1283801fdbdc9d68f7069769b07233c916f" {
-  usage multisample
-}
-asset pipe-organ-43-hard-0 "Pipe Organ" wav "media/43-hard-0.wav" sha256 "6b30ea5932b8b5508b1930e137c01371dee0eb648d6d40c7850051e187906c68" {
-  usage multisample
-}
-asset pipe-organ-50-soft-0 "Pipe Organ" wav "media/50-soft-0.wav" sha256 "c1f0ffe69f864578be1746c75a4be34a94160ce7017f4a8ab1cbb62616b569cd" {
-  usage multisample
-}
-asset pipe-organ-50-hard-0 "Pipe Organ" wav "media/50-hard-0.wav" sha256 "b10f81dc94fdaa776fd38413f01e97bd148260a317fef9bac05400193bd51ca7" {
-  usage multisample
-}
-asset pipe-organ-57-soft-0 "Pipe Organ" wav "media/57-soft-0.wav" sha256 "356994ce61e29f435910b4e9949f00b944e84a0e28f8f00e7709ec6ef745979e" {
-  usage multisample
-}
-asset pipe-organ-57-hard-0 "Pipe Organ" wav "media/57-hard-0.wav" sha256 "a04bdd3998b02cea7087653e2e111ec5472a136fd431acb667e1bacb66fa3b36" {
-  usage multisample
-}
-asset pipe-organ-64-soft-0 "Pipe Organ" wav "media/64-soft-0.wav" sha256 "f6b1352169ce5c808cec0a488a9b66c79376898ad99ecf0dc8414572d63f8cae" {
-  usage multisample
-}
-asset pipe-organ-64-hard-0 "Pipe Organ" wav "media/64-hard-0.wav" sha256 "f08da34dbc6d7f795fea8cf7b6d6dc1f0f6bf85cd290d29cbd8f20e37c5c110a" {
-  usage multisample
-}
-asset pipe-organ-71-soft-0 "Pipe Organ" wav "media/71-soft-0.wav" sha256 "83c879217c0847094e5999f86c56711c7db58e86b71baf65574c13cb217d2af2" {
-  usage multisample
-}
-asset pipe-organ-71-hard-0 "Pipe Organ" wav "media/71-hard-0.wav" sha256 "ae76d29fcce24360276c0acc9c2060bfec01fa48dd91718b2a9c2011a59c1515" {
-  usage multisample
-}
-asset pipe-organ-78-soft-0 "Pipe Organ" wav "media/78-soft-0.wav" sha256 "f957c83785ba50597dbe304b989afc4db855840965a0c78aa83b4e7a004cf26c" {
-  usage multisample
-}
-asset pipe-organ-78-hard-0 "Pipe Organ" wav "media/78-hard-0.wav" sha256 "fdb10f732b8c7fcb45dfb106243a429df965c3a8f1184e1c2bd3d4bd3159a7ce" {
-  usage multisample
-}
-asset pipe-organ-85-soft-0 "Pipe Organ" wav "media/85-soft-0.wav" sha256 "cb2586c7dfdba314d819f1e867778eedf844dc3d7bb3da1fee0d3b5e5e72f75b" {
-  usage multisample
-}
-asset pipe-organ-85-hard-0 "Pipe Organ" wav "media/85-hard-0.wav" sha256 "d7523815325ddcc88294cf578f87ebc0334c075433848068b63fa5d3b060e5be" {
-  usage multisample
-}
-asset pipe-organ-92-soft-0 "Pipe Organ" wav "media/92-soft-0.wav" sha256 "962f2e3a1274b48d215a8eb3158618e539dd67a69bc03a409de8859c9ad74d83" {
-  usage multisample
-}
-asset pipe-organ-92-hard-0 "Pipe Organ" wav "media/92-hard-0.wav" sha256 "76fc64cb64f93c8da0eafd7f0dd6effd0c6bde9f68494055213e5df6f203f872" {
-  usage multisample
+profile pipe-organ-body {
+  root 261.626hz
+  mode m0 frequency 50hz decay 0.0159155s gain 0.335047 after_decay 0.0159155s after_gain 0
+  mode m1 frequency 77.1282hz decay 0.0103176s gain 0.448568 after_decay 0.0103176s after_gain 0
+  mode m2 frequency 118.975hz decay 0.00668859s gain 0.521657 after_decay 0.00668859s after_gain 0
+  mode m3 frequency 183.526hz decay 0.00433602s gain 0.591754 after_decay 0.00433602s after_gain 0
+  mode m4 frequency 283.101hz decay 0.00281092s gain 0.660013 after_decay 0.00281092s after_gain 0
+  mode m5 frequency 436.701hz decay 0.00182224s gain 0.730959 after_decay 0.00182224s after_gain 0
+  mode m6 frequency 673.64hz decay 0.00118131s gain 0.806026 after_decay 0.00118131s after_gain 0
+  mode m7 frequency 1039.13hz decay 0.000765808s gain 0.884407 after_decay 0.000765808s after_gain 0
+  mode m8 frequency 1602.93hz decay 0.000496451s gain 0.958124 after_decay 0.000496451s after_gain 0
+  mode m9 frequency 2472.61hz decay 0.000321835s gain 1 after_decay 0.000321835s after_gain 0
+  mode m10 frequency 3814.16hz decay 0.000208637s gain 0.943929 after_decay 0.000208637s after_gain 0
+  mode m11 frequency 5883.59hz decay 0.000135253s gain 0.71279 after_decay 0.000135253s after_gain 0
+  mode m12 frequency 9075.8hz decay 0.0001s gain 0.342396 after_decay 0.0001s after_gain 0
+  mode m13 frequency 14000hz decay 0.0001s gain 0.063249 after_decay 0.0001s after_gain 0
 }

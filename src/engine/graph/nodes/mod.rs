@@ -148,6 +148,7 @@ pub(super) fn authored_node_work_units(instrument: &Instrument, node: &GraphNode
             1_u64.saturating_add(node.directives.len() as u64)
         }
         NodeKind::DelayLine => 4,
+        NodeKind::Biquad => 2,
         // Binary search over the authored table, plus the interpolation.
         NodeKind::Shaper if !node.directives.is_empty() => {
             1_u64.saturating_add(u64::from((node.directives.len() as u32).max(1).ilog2()) + 1)
@@ -478,8 +479,9 @@ use oscillator::{
     NoiseState, OscillatorConfig, OscillatorState, OscillatorWaveform, UnisonConfig, UnisonState,
 };
 use primitives::{
-    DcBlockConfig, DcBlockState, DelayInterpolation, DelayLineConfig, DelayLineMode,
-    DelayLineState, LinearPhaseLowpassConfig, LinearPhaseLowpassState, MathConfig, MathOperation,
+    BiquadConfig, BiquadMode, BiquadState, DcBlockConfig, DcBlockState, DelayInterpolation,
+    DelayLineConfig, DelayLineMode, DelayLineState, LinearPhaseLowpassConfig,
+    LinearPhaseLowpassState, MathConfig, MathOperation, OnePoleConfig, OnePoleMode, OnePoleState,
     ShaperConfig, ShaperCurve,
 };
 use sample_source::{
@@ -620,6 +622,8 @@ enum NodeProgramKind {
     ToControl,
     DcBlock(DcBlockConfig),
     LinearPhaseLowpass(LinearPhaseLowpassConfig),
+    Biquad(BiquadConfig),
+    OnePole(OnePoleConfig),
 }
 
 /// Mutable state paired with one [`NodeProgram`] variant at voice creation.
@@ -663,6 +667,8 @@ enum NodeStateKind {
     DelayLine(DelayLineState),
     DcBlock(DcBlockState),
     LinearPhaseLowpass(LinearPhaseLowpassState),
+    Biquad(BiquadState),
+    OnePole(OnePoleState),
     Stateless,
 }
 
@@ -1552,6 +1558,42 @@ impl NodeProgram {
                     amount: number("amount", Unit::Ratio, 0.5)?,
                 })
             }
+            NodeKind::Biquad => NodeProgramKind::Biquad(BiquadConfig {
+                mode: match text(node, "mode", "lowpass") {
+                    "lowpass" => BiquadMode::Lowpass,
+                    "highpass" => BiquadMode::Highpass,
+                    "bandpass" => BiquadMode::Bandpass,
+                    "notch" => BiquadMode::Notch,
+                    "peak" => BiquadMode::Peak,
+                    "lowshelf" => BiquadMode::LowShelf,
+                    "highshelf" => BiquadMode::HighShelf,
+                    "allpass" => BiquadMode::Allpass,
+                    value => {
+                        return Err(EngineError::Compile(format!(
+                            "unsupported biquad mode `{value}`"
+                        )));
+                    }
+                },
+                frequency: number("frequency", Unit::Hertz, 1_000.0)?,
+                q: number("q", Unit::Ratio, std::f64::consts::FRAC_1_SQRT_2)?,
+                gain: number("gain", Unit::Decibels, 0.0)?,
+                key_track: number("key_track", Unit::Ratio, 0.0)?,
+                key_reference: number("key_reference", Unit::Hertz, 261.625_565)?,
+            }),
+            NodeKind::OnePole => NodeProgramKind::OnePole(OnePoleConfig {
+                mode: match text(node, "mode", "lowpass") {
+                    "lowpass" => OnePoleMode::Lowpass,
+                    "highpass" => OnePoleMode::Highpass,
+                    "leak" => OnePoleMode::Leak,
+                    value => {
+                        return Err(EngineError::Compile(format!(
+                            "unsupported onepole mode `{value}`"
+                        )));
+                    }
+                },
+                cutoff: number("cutoff", Unit::Hertz, 1_000.0)?,
+                time: number("time", Unit::Seconds, 0.1)?,
+            }),
             NodeKind::Lfo => {
                 let (custom_points, custom_point_count) = compile_lfo_points(node)?;
                 NodeProgramKind::Lfo(Box::new(LfoConfig {
@@ -1737,6 +1779,8 @@ impl NodeProgram {
                     NodeStateKind::DelayLine(DelayLineState::new(config.capacity_frames))
                 }
                 NodeProgramKind::DcBlock(_) => NodeStateKind::DcBlock(DcBlockState::default()),
+                NodeProgramKind::Biquad(_) => NodeStateKind::Biquad(BiquadState::default()),
+                NodeProgramKind::OnePole(_) => NodeStateKind::OnePole(OnePoleState::default()),
                 NodeProgramKind::LinearPhaseLowpass(_) => {
                     NodeStateKind::LinearPhaseLowpass(LinearPhaseLowpassState::default())
                 }
@@ -1994,6 +2038,19 @@ impl NodeProgram {
             (NodeProgramKind::DcBlock(config), NodeStateKind::DcBlock(state)) => {
                 Signal::Mono(config.process(state, inputs.audio.mono(), controls, sample_rate))
             }
+            (NodeProgramKind::Biquad(config), NodeStateKind::Biquad(state)) => {
+                Signal::Mono(config.process(
+                    state,
+                    inputs.audio.mono(),
+                    inputs.key.control(),
+                    inputs.has_key,
+                    controls,
+                    sample_rate,
+                ))
+            }
+            (NodeProgramKind::OnePole(config), NodeStateKind::OnePole(state)) => {
+                Signal::Mono(config.process(state, inputs.audio.mono(), controls, sample_rate))
+            }
             (
                 NodeProgramKind::LinearPhaseLowpass(config),
                 NodeStateKind::LinearPhaseLowpass(state),
@@ -2110,6 +2167,8 @@ impl NodeProgram {
             | (NodeProgramKind::ToAudio, NodeProgramKind::ToAudio)
             | (NodeProgramKind::ToControl, NodeProgramKind::ToControl)
             | (NodeProgramKind::DcBlock(_), NodeProgramKind::DcBlock(_))
+            | (NodeProgramKind::Biquad(_), NodeProgramKind::Biquad(_))
+            | (NodeProgramKind::OnePole(_), NodeProgramKind::OnePole(_))
             | (NodeProgramKind::LinearPhaseLowpass(_), NodeProgramKind::LinearPhaseLowpass(_))
             | (NodeProgramKind::Mixer(_), NodeProgramKind::Mixer(_))
             | (NodeProgramKind::MonoToStereo, NodeProgramKind::MonoToStereo)
@@ -2189,6 +2248,8 @@ impl NodeState {
             NodeStateKind::Reverb(state) => state.reset(),
             NodeStateKind::DelayLine(state) => state.reset(),
             NodeStateKind::DcBlock(state) => *state = DcBlockState::default(),
+            NodeStateKind::Biquad(state) => *state = BiquadState::default(),
+            NodeStateKind::OnePole(state) => *state = OnePoleState::default(),
             NodeStateKind::LinearPhaseLowpass(state) => *state = LinearPhaseLowpassState::default(),
             NodeStateKind::Stateless => {}
         }
@@ -2215,6 +2276,8 @@ impl NodeState {
             // A voice-start resets loop state so each note starts from silence.
             NodeStateKind::DelayLine(state) => state.reset(),
             NodeStateKind::DcBlock(state) => *state = DcBlockState::default(),
+            NodeStateKind::Biquad(state) => *state = BiquadState::default(),
+            NodeStateKind::OnePole(state) => *state = OnePoleState::default(),
             NodeStateKind::LinearPhaseLowpass(state) => *state = LinearPhaseLowpassState::default(),
             NodeStateKind::Delay(_) | NodeStateKind::Reverb(_) | NodeStateKind::Stateless => {}
         }
@@ -2244,6 +2307,8 @@ impl NodeState {
             | NodeStateKind::DelayLine(_)
             | NodeStateKind::DcBlock(_)
             | NodeStateKind::LinearPhaseLowpass(_)
+            | NodeStateKind::Biquad(_)
+            | NodeStateKind::OnePole(_)
             | NodeStateKind::Stateless => {}
         }
     }

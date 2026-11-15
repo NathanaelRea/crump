@@ -1,100 +1,213 @@
 crump-module 2
 instrument tenor-trombone "Tenor Trombone" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 6
+  parameter attack "Attack" seconds 0.002s 2s 0.0625533s 0.0625533s modulatable
+  parameter release "Release" seconds 0.01s 4s 0.12s 0.12s
+  parameter vibrato-depth "Vibrato" ratio 0 1 0 0 modulatable
+  parameter noise "Air" ratio 0 4 0.172803 0.172803 modulatable
+  parameter register "Register level" ratio 0.05 20 1.75792 1.75792 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0.357143 0.357143 modulatable
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
-  parameter attack "Attack" seconds 0.001s 2s 0.002s 0.002s
-  parameter release "Release" seconds 0.02s 4s 0.15s 0.15s
   faceplate {
-    control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
-    control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
-    control attack "Attack" "Fade-in added to the natural onset" maps attack
+    control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control noise "Air" "Breath noise level" maps noise
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z40-soft-0 asset tenor-trombone-40-soft-0 keys D2 F#2 velocity 0 0.65 root E2 loop 48000 125479 crossfade 8160
-      zone z40-hard-0 asset tenor-trombone-40-hard-0 keys D2 F#2 velocity 0.65 1 root E2 loop 48000 124897 crossfade 8160
-      zone z45-soft-0 asset tenor-trombone-45-soft-0 keys G2 B2 velocity 0 0.65 root A2 loop 48000 123803 crossfade 8160
-      zone z45-hard-0 asset tenor-trombone-45-hard-0 keys G2 B2 velocity 0.65 1 root A2 loop 48000 125110 crossfade 8160
-      zone z50-soft-0 asset tenor-trombone-50-soft-0 keys C3 E3 velocity 0 0.65 root D3 loop 48000 123795 crossfade 8160
-      zone z50-hard-0 asset tenor-trombone-50-hard-0 keys C3 E3 velocity 0.65 1 root D3 loop 48000 125756 crossfade 8160
-      zone z55-soft-0 asset tenor-trombone-55-soft-0 keys F3 A3 velocity 0 0.65 root G3 loop 48000 125991 crossfade 8160
-      zone z55-hard-0 asset tenor-trombone-55-hard-0 keys F3 A3 velocity 0.65 1 root G3 loop 48000 125991 crossfade 8160
-      zone z60-soft-0 asset tenor-trombone-60-soft-0 keys A#3 D4 velocity 0 0.65 root C4 loop 48000 124005 crossfade 8160
-      zone z60-hard-0 asset tenor-trombone-60-hard-0 keys A#3 D4 velocity 0.65 1 root C4 loop 48000 125838 crossfade 8160
-      zone z65-soft-0 asset tenor-trombone-65-soft-0 keys D#4 G4 velocity 0 0.65 root F4 loop 48000 123734 crossfade 8160
-      zone z65-hard-0 asset tenor-trombone-65-hard-0 keys D#4 G4 velocity 0.65 1 root F4 loop 48000 125933 crossfade 8160
-      zone z70-soft-0 asset tenor-trombone-70-soft-0 keys G#4 C5 velocity 0 0.65 root A#4 loop 48000 125972 crossfade 8160
-      zone z70-hard-0 asset tenor-trombone-70-hard-0 keys G#4 C5 velocity 0.65 1 root A#4 loop 48000 123600 crossfade 8160
-      zone z75-soft-0 asset tenor-trombone-75-soft-0 keys C#5 G5 velocity 0 0.65 root D#5 loop 48000 123629 crossfade 8160
-      zone z75-hard-0 asset tenor-trombone-75-hard-0 keys C#5 G5 velocity 0.65 1 root D#5 loop 48000 125944 crossfade 8160
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-from-d2-3 note_key per_voice bipolar reference D2 range 3st
+    source key-from-f2-3 note_key per_voice bipolar reference F2 range 3st
+    source key-from-gs2-3 note_key per_voice bipolar reference G#2 range 3st
+    source key-from-b2-3 note_key per_voice bipolar reference B2 range 3st
+    source key-from-d3-3 note_key per_voice bipolar reference D3 range 3st
+    source key-from-f3-3 note_key per_voice bipolar reference F3 range 3st
+    source key-from-gs3-3 note_key per_voice bipolar reference G#3 range 3st
+    source key-from-b3-3 note_key per_voice bipolar reference B3 range 3st
+    source key-from-d4-3 note_key per_voice bipolar reference D4 range 3st
+    source key-from-f4-3 note_key per_voice bipolar reference F4 range 3st
+    source key-from-gs4-3 note_key per_voice bipolar reference G#4 range 3st
+    source key-from-b4-3 note_key per_voice bipolar reference B4 range 3st
+    source key-from-d5-3 note_key per_voice bipolar reference D5 range 3st
+    source key-from-f5-2 note_key per_voice bipolar reference F5 range 2st
+    route attack-velocity source velocity target attack depth -0.0085111s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.141992 map unipolar curve linear order 0 bypass false
+    route noise-velocity source velocity target noise depth -0.147407 map unipolar curve linear order 0 bypass false
+    route register-1 source key-from-d2-3 target register depth -0.136114 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
     }
-    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release
-    node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus amplitude amplitude.control -> source.gain
-    bus amplitude-gate note.gate -> amplitude.gate
-    bus output source.audio -> out.audio
+    route register-2 source key-from-f2-3 target register depth -0.159633 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-4 source key-from-b2-3 target register depth -0.217663 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-5 source key-from-d3-3 target register depth -0.096361 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-6 source key-from-f3-3 target register depth -0.113011 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-7 source key-from-gs3-3 target register depth -0.0351422 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-8 source key-from-b3-3 target register depth -0.0879892 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-9 source key-from-d4-3 target register depth -0.0706157 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-10 source key-from-f4-3 target register depth -0.133449 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-11 source key-from-gs4-3 target register depth -0.0472523 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-12 source key-from-b4-3 target register depth -0.02243 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-13 source key-from-d5-3 target register depth -0.0145287 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route register-14 source key-from-f5-2 target register depth 0.0145287 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+    route dynamics-velocity source velocity target dynamics depth 0.642857 map unipolar curve linear order 0 bypass false
   }
-}
-asset tenor-trombone-40-soft-0 "Tenor Trombone" wav "media/40-soft-0.wav" sha256 "b5093c4245bedf7a3b057fb4c53434f097ce8991d26c7565ca416bf28b831e3e" {
-  usage multisample
-}
-asset tenor-trombone-40-hard-0 "Tenor Trombone" wav "media/40-hard-0.wav" sha256 "2b3bf0003575a6c37df3d7ec2d25236e6e6d3d7032a2dc0b6dc9ff92b77157e4" {
-  usage multisample
-}
-asset tenor-trombone-45-soft-0 "Tenor Trombone" wav "media/45-soft-0.wav" sha256 "c30d77ace5705a6ec97e5f8c3879e80588244315a9294ba88b8ea8b646ee0c62" {
-  usage multisample
-}
-asset tenor-trombone-45-hard-0 "Tenor Trombone" wav "media/45-hard-0.wav" sha256 "381e5471a8a8505a6a48c0e9c479709cb0a06129b86f04cf0e5856e9c6af0844" {
-  usage multisample
-}
-asset tenor-trombone-50-soft-0 "Tenor Trombone" wav "media/50-soft-0.wav" sha256 "ed7bc931f6ad8ea049896e57dd71e07d775229f488b908baa3c34ec97847b6fd" {
-  usage multisample
-}
-asset tenor-trombone-50-hard-0 "Tenor Trombone" wav "media/50-hard-0.wav" sha256 "0590a87a0cf41d6ba641c8d83bba77ff86574d73d7b287ee376054afb08b9858" {
-  usage multisample
-}
-asset tenor-trombone-55-soft-0 "Tenor Trombone" wav "media/55-soft-0.wav" sha256 "61cd485ae3ceed629c11535e7bf9b5b0494b1f15bd53b713425d7709b51b633e" {
-  usage multisample
-}
-asset tenor-trombone-55-hard-0 "Tenor Trombone" wav "media/55-hard-0.wav" sha256 "2ba4c83e4d9da9ca7b3c205b661cbff1d03fd918870d391cb0d1e8c7c316d614" {
-  usage multisample
-}
-asset tenor-trombone-60-soft-0 "Tenor Trombone" wav "media/60-soft-0.wav" sha256 "fe42941a06180afe55ad06720e4a21505cb08cc0f41022e178027121cc8231b6" {
-  usage multisample
-}
-asset tenor-trombone-60-hard-0 "Tenor Trombone" wav "media/60-hard-0.wav" sha256 "a6af8d651eb7a682abaabc984a8b983693c3a205877e56dfe002622ee294782b" {
-  usage multisample
-}
-asset tenor-trombone-65-soft-0 "Tenor Trombone" wav "media/65-soft-0.wav" sha256 "9d248f72e736d932929e6d605210607f45690869af5d24e809ad3d4df6a9f027" {
-  usage multisample
-}
-asset tenor-trombone-65-hard-0 "Tenor Trombone" wav "media/65-hard-0.wav" sha256 "9e8f2e142da045190ac861a1e93fda7ab2882308e1b05ca47ae7fee69c77baf1" {
-  usage multisample
-}
-asset tenor-trombone-70-soft-0 "Tenor Trombone" wav "media/70-soft-0.wav" sha256 "278433b120a2565e5fc24604f770d50112069545d7cb3faa9e3aeed6fb334953" {
-  usage multisample
-}
-asset tenor-trombone-70-hard-0 "Tenor Trombone" wav "media/70-hard-0.wav" sha256 "5656a8e1a1c466a82dcb6ff67523b2eda4c4ceff0e02fb2582733162d43a54a0" {
-  usage multisample
-}
-asset tenor-trombone-75-soft-0 "Tenor Trombone" wav "media/75-soft-0.wav" sha256 "744b353e7dccffc79ff3820156e439ca1680f8154ed8e11a17f69ba084b8611a" {
-  usage multisample
-}
-asset tenor-trombone-75-hard-0 "Tenor Trombone" wav "media/75-hard-0.wav" sha256 "2d504f5f7e411839546b9db334febee172837d24e34d3dbab624ce3fbfd2c7cb" {
-  usage multisample
+  graph voice 57 {
+    # A breath-driven tone: an oscillator and breath noise through fixed formants.
+    node breath envelope mode adsr attack $attack decay 0.15s sustain 0.9 release $release attack_curve 0.3
+    node breath-audio to_audio
+    node vibrato lfo waveform sine rate 5hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-fade envelope mode ahdsr attack 0.6s hold 0s decay 0.01s sustain 1 release 0.3s attack_curve 0.6
+    node vibrato-fade-audio to_audio
+    node vibrato-shape math operation multiply
+    node vibrato-amount math operation scale amount $vibrato-depth
+    node air noise level 1
+    node wander lfo waveform sample_hold rate 2.7hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node wander-audio to_audio
+    node wander-smooth onepole mode lowpass cutoff 2.5hz
+    node wander-amount math operation scale amount 0.0727273
+    node flutter onepole mode lowpass cutoff 18hz
+    node flutter-amount math operation scale amount 1.5148
+    node scoop envelope mode adsr attack 0s decay 0.05s sustain 0 release 0.01s decay_curve -0.5
+    node scoop-audio to_audio
+    node scoop-amount math operation scale amount -0.25
+    node pitch-movement sum max_inputs 4
+    node reed analog_oscillator waveform saw level 1 velocity_amount 1 fm_depth 1st random_phase 1
+    node reed-mono stereo_to_mono
+    node tone-wander math operation scale amount 0.562302
+    node tone-sum math operation add
+    node tone-drive to_control
+    node brightness lowpass mode lowpass cutoff 206.433hz resonance 0.1 mod_depth 2612.83hz velocity_depth 2500hz key_track 0.586037 key_reference 261.626hz
+    node brightness2 lowpass mode lowpass cutoff 206.433hz resonance 0.1 mod_depth 2612.83hz velocity_depth 2500hz key_track 0.586037 key_reference 261.626hz
+    node air-low biquad mode highpass frequency 236.032hz q 0.7071
+    node air-band biquad mode lowpass frequency 1500hz q 0.7071
+    node steady-air math operation scale amount 0.5
+    node pulsed-air math operation scale amount 1.46478
+    node air-drive sum max_inputs 2
+    node breath-noise math operation multiply
+    node breath-level math operation scale amount $noise
+    node voice sum max_inputs 2
+    node formant1 biquad mode peak frequency 101.89hz q 0.5 gain -15db
+    node formant2 biquad mode peak frequency 86.7976hz q 2.19697 gain -10.9843db
+    node formant3 biquad mode peak frequency 1243.74hz q 0.600392 gain 14.9999db
+    node formant4 biquad mode peak frequency 438.687hz q 2.5 gain 7.03533db
+    node formant5 biquad mode peak frequency 3745.74hz q 1.25102 gain 6.3554db
+    node formant6 biquad mode peak frequency 7316.29hz q 1.93932 gain 14.9988db
+    node formant7 biquad mode lowshelf frequency 93.4089hz q 0.7071 gain -7.33814db
+    node formant8 biquad mode highshelf frequency 3284.45hz q 0.7071 gain 4.10952db
+    node formant9 biquad mode peak frequency 112.976hz q 2.4977 gain -2.6933db
+    node formant10 biquad mode peak frequency 78.1462hz q 2.36086 gain -0.790396db
+    node formant11 biquad mode peak frequency 744.735hz q 0.5 gain -2.01227db
+    node formant12 biquad mode peak frequency 6837.83hz q 1.23523 gain -7.26546db
+    node below-note biquad mode highpass frequency 156.975hz q 0.7071 key_track 1 key_reference 261.626hz
+    node radiation biquad mode highpass frequency 40hz q 0.7071
+    node shimmer-depth math operation scale amount 1.00987
+    node shimmer math operation offset amount 1
+    node alive math operation multiply
+    node register-level math operation scale amount $register
+    node dynamics-level math operation scale amount $dynamics
+    node trim math operation scale amount 0.197686
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-breath-gate note.gate -> breath.gate
+    bus breath-control-breath-audio-control breath.control -> breath-audio.control
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-fade-gate note.gate -> vibrato-fade.gate
+    bus vibrato-fade-control-vibrato-fade-audio-control vibrato-fade.control -> vibrato-fade-audio.control
+    bus vibrato-audio-audio-vibrato-shape-a vibrato-audio.audio -> vibrato-shape.a
+    bus vibrato-fade-audio-audio-vibrato-shape-b vibrato-fade-audio.audio -> vibrato-shape.b
+    bus vibrato-shape-audio-vibrato-amount-a vibrato-shape.audio -> vibrato-amount.a
+    bus wander-control-wander-audio-control wander.control -> wander-audio.control
+    bus wander-audio-audio-wander-smooth-audio wander-audio.audio -> wander-smooth.audio
+    bus wander-smooth-audio-wander-amount-a wander-smooth.audio -> wander-amount.a
+    bus air-audio-flutter-audio air.audio -> flutter.audio
+    bus flutter-audio-flutter-amount-a flutter.audio -> flutter-amount.a
+    bus note-gate-scoop-gate note.gate -> scoop.gate
+    bus scoop-control-scoop-audio-control scoop.control -> scoop-audio.control
+    bus scoop-audio-audio-scoop-amount-a scoop-audio.audio -> scoop-amount.a
+    bus vibrato-amount-audio-pitch-movement-inputs vibrato-amount.audio -> pitch-movement.inputs
+    bus wander-amount-audio-pitch-movement-inputs wander-amount.audio -> pitch-movement.inputs
+    bus flutter-amount-audio-pitch-movement-inputs flutter-amount.audio -> pitch-movement.inputs
+    bus scoop-amount-audio-pitch-movement-inputs scoop-amount.audio -> pitch-movement.inputs
+    bus note-pitch-reed-pitch note.pitch -> reed.pitch
+    bus note-velocity-reed-velocity note.velocity -> reed.velocity
+    bus breath-control-reed-gain breath.control -> reed.gain
+    bus pitch-movement-audio-reed-fm pitch-movement.audio -> reed.fm
+    bus reed-audio-reed-mono-audio reed.audio -> reed-mono.audio
+    bus wander-smooth-audio-tone-wander-a wander-smooth.audio -> tone-wander.a
+    bus breath-audio-audio-tone-sum-a breath-audio.audio -> tone-sum.a
+    bus tone-wander-audio-tone-sum-b tone-wander.audio -> tone-sum.b
+    bus tone-sum-audio-tone-drive-audio tone-sum.audio -> tone-drive.audio
+    bus reed-mono-audio-brightness-audio reed-mono.audio -> brightness.audio
+    bus tone-drive-control-brightness-mod tone-drive.control -> brightness.mod
+    bus note-velocity-brightness-velocity note.velocity -> brightness.velocity
+    bus note-pitch-brightness-key note.pitch -> brightness.key
+    bus brightness-audio-brightness2-audio brightness.audio -> brightness2.audio
+    bus tone-drive-control-brightness2-mod tone-drive.control -> brightness2.mod
+    bus note-velocity-brightness2-velocity note.velocity -> brightness2.velocity
+    bus note-pitch-brightness2-key note.pitch -> brightness2.key
+    bus air-audio-air-low-audio air.audio -> air-low.audio
+    bus air-low-audio-air-band-audio air-low.audio -> air-band.audio
+    bus breath-audio-audio-steady-air-a breath-audio.audio -> steady-air.a
+    bus reed-mono-audio-pulsed-air-a reed-mono.audio -> pulsed-air.a
+    bus steady-air-audio-air-drive-inputs steady-air.audio -> air-drive.inputs
+    bus pulsed-air-audio-air-drive-inputs pulsed-air.audio -> air-drive.inputs
+    bus air-band-audio-breath-noise-a air-band.audio -> breath-noise.a
+    bus air-drive-audio-breath-noise-b air-drive.audio -> breath-noise.b
+    bus breath-noise-audio-breath-level-a breath-noise.audio -> breath-level.a
+    bus brightness2-audio-voice-inputs brightness2.audio -> voice.inputs
+    bus breath-level-audio-voice-inputs breath-level.audio -> voice.inputs
+    bus voice-audio-formant1-audio voice.audio -> formant1.audio
+    bus formant1-audio-formant2-audio formant1.audio -> formant2.audio
+    bus formant2-audio-formant3-audio formant2.audio -> formant3.audio
+    bus formant3-audio-formant4-audio formant3.audio -> formant4.audio
+    bus formant4-audio-formant5-audio formant4.audio -> formant5.audio
+    bus formant5-audio-formant6-audio formant5.audio -> formant6.audio
+    bus formant6-audio-formant7-audio formant6.audio -> formant7.audio
+    bus formant7-audio-formant8-audio formant7.audio -> formant8.audio
+    bus formant8-audio-formant9-audio formant8.audio -> formant9.audio
+    bus formant9-audio-formant10-audio formant9.audio -> formant10.audio
+    bus formant10-audio-formant11-audio formant10.audio -> formant11.audio
+    bus formant11-audio-formant12-audio formant11.audio -> formant12.audio
+    bus formant12-audio-below-note-audio formant12.audio -> below-note.audio
+    bus note-pitch-below-note-key note.pitch -> below-note.key
+    bus below-note-audio-radiation-audio below-note.audio -> radiation.audio
+    bus flutter-audio-shimmer-depth-a flutter.audio -> shimmer-depth.a
+    bus shimmer-depth-audio-shimmer-a shimmer-depth.audio -> shimmer.a
+    bus radiation-audio-alive-a radiation.audio -> alive.a
+    bus shimmer-audio-alive-b shimmer.audio -> alive.b
+    bus alive-audio-register-level-a alive.audio -> register-level.a
+    bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a
+    bus dynamics-level-audio-trim-a dynamics-level.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
 }

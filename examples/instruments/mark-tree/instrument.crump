@@ -1,0 +1,227 @@
+crump-module 2
+instrument mark-tree "Mark Tree" graph {
+  polyphony 2
+  parameter upper-stroke "Upper stroke" ratio 0 1 0 0 modulatable
+  parameter lower-stroke "Lower stroke" ratio 0 1 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-step note_key per_voice unipolar reference C4 range 1st
+    route key-upper source key-step target upper-stroke depth 1 map unipolar curve linear order 0 bypass false
+    route key-lower source key-step target lower-stroke depth -1 map unipolar curve linear order 0 bypass false
+  }
+  graph voice 19 {
+    # A hand sweeping a row of rods: contacts filtered by a moving band.
+    node grains1 exciter kind collisions contact 0.0001s hardness 0.6 rate 40hz duration 1.26s attack 0s level 1
+    node up-hand envelope attack 1.4s decay 0s sustain 1 release 1.4s attack_curve -0.5
+    node up-row lowpass mode bandpass cutoff 6500hz resonance 0.9 mod_depth 9500hz
+    node body2 modal_bank profile mark-tree-up-rods max_modes 76 key_track 0 decay_scale $ring brightness 0 level 1
+    node hi-3 lowpass mode highpass cutoff 1500hz resonance 0.308309
+    node hi-4 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node gain5 math operation scale amount $lower-stroke
+    node grains6 exciter kind collisions contact 0.0001s hardness 0.6 rate 40hz duration 1.26s attack 0s level 1
+    node down-hand envelope attack 1.4s decay 0s sustain 1 release 1.4s attack_curve -0.5
+    node down-row lowpass mode bandpass cutoff 16000hz resonance 0.9 mod_depth 0.001hz
+    node body7 modal_bank profile mark-tree-down-rods max_modes 76 key_track 0 decay_scale 1 brightness 0 level 1
+    node hi-8 lowpass mode highpass cutoff 1500hz resonance 0.308309
+    node hi-9 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node gain10 math operation scale amount $upper-stroke
+    node plus11 math operation add
+    node trim math operation scale amount 0.0158704
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-grains1-gate note.gate -> grains1.gate
+    bus note-velocity-grains1-velocity note.velocity -> grains1.velocity
+    bus note-gate-up-hand-gate note.gate -> up-hand.gate
+    bus grains1-audio-up-row-audio grains1.audio -> up-row.audio
+    bus up-hand-control-up-row-mod up-hand.control -> up-row.mod
+    bus up-row-audio-body2-audio up-row.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-hi-3-audio body2.audio -> hi-3.audio
+    bus hi-3-audio-hi-4-audio hi-3.audio -> hi-4.audio
+    bus hi-4-audio-gain5-a hi-4.audio -> gain5.a
+    bus note-gate-grains6-gate note.gate -> grains6.gate
+    bus note-velocity-grains6-velocity note.velocity -> grains6.velocity
+    bus note-gate-down-hand-gate note.gate -> down-hand.gate
+    bus grains6-audio-down-row-audio grains6.audio -> down-row.audio
+    bus down-hand-control-down-row-mod down-hand.control -> down-row.mod
+    bus down-row-audio-body7-audio down-row.audio -> body7.audio
+    bus note-pitch-body7-pitch note.pitch -> body7.pitch
+    bus note-gate-body7-gate note.gate -> body7.gate
+    bus body7-audio-hi-8-audio body7.audio -> hi-8.audio
+    bus hi-8-audio-hi-9-audio hi-8.audio -> hi-9.audio
+    bus hi-9-audio-gain10-a hi-9.audio -> gain10.a
+    bus gain5-audio-plus11-a gain5.audio -> plus11.a
+    bus gain10-audio-plus11-b gain10.audio -> plus11.b
+    bus plus11-audio-trim-a plus11.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile mark-tree-up-rods {
+  root 261.626hz
+  mode m0 frequency 6487hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m1 frequency 6513hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m2 frequency 17940hz decay 0.225s gain 0.2 after_decay 0.225s after_gain 0
+  mode m3 frequency 6661.16hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m4 frequency 6687.86hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m5 frequency 18421.6hz decay 0.225s gain 0.2 after_decay 0.225s after_gain 0
+  mode m6 frequency 6840hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m7 frequency 6867.41hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m8 frequency 18916.2hz decay 0.225s gain 0.2 after_decay 0.225s after_gain 0
+  mode m9 frequency 7023.64hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m10 frequency 7051.79hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m11 frequency 19424.1hz decay 0.225s gain 0.2 after_decay 0.225s after_gain 0
+  mode m12 frequency 7212.21hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m13 frequency 7241.11hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m14 frequency 19945.6hz decay 0.225s gain 0.2 after_decay 0.225s after_gain 0
+  mode m15 frequency 7405.84hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m16 frequency 7435.52hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m17 frequency 20481.1hz decay 0.225s gain 0.2 after_decay 0.225s after_gain 0
+  mode m18 frequency 7604.67hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m19 frequency 7635.15hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m20 frequency 7808.84hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m21 frequency 7840.14hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m22 frequency 8018.49hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m23 frequency 8050.63hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m24 frequency 8233.77hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m25 frequency 8266.77hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m26 frequency 8454.83hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m27 frequency 8488.71hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m28 frequency 8681.82hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m29 frequency 8716.62hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m30 frequency 8914.91hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m31 frequency 8950.64hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m32 frequency 9154.25hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m33 frequency 9190.94hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m34 frequency 9400.02hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m35 frequency 9437.7hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m36 frequency 9652.39hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m37 frequency 9691.08hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m38 frequency 9911.54hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m39 frequency 9951.27hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m40 frequency 10177.6hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m41 frequency 10218.4hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m42 frequency 10450.9hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m43 frequency 10492.8hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m44 frequency 10731.5hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m45 frequency 10774.5hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m46 frequency 11019.6hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m47 frequency 11063.8hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m48 frequency 11315.4hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m49 frequency 11360.8hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m50 frequency 11619.2hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m51 frequency 11665.8hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m52 frequency 11931.2hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m53 frequency 11979hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m54 frequency 12251.5hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m55 frequency 12300.6hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m56 frequency 12580.4hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m57 frequency 12630.9hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m58 frequency 12918.2hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m59 frequency 12970hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m60 frequency 13265hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m61 frequency 13318.2hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m62 frequency 13621.2hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m63 frequency 13675.8hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m64 frequency 13986.9hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m65 frequency 14042.9hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m66 frequency 14362.4hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m67 frequency 14419.9hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m68 frequency 14748hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m69 frequency 14807.1hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m70 frequency 15143.9hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m71 frequency 15204.6hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m72 frequency 15550.5hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m73 frequency 15612.8hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m74 frequency 15968hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m75 frequency 16032hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+}
+profile mark-tree-down-rods {
+  root 261.626hz
+  mode m0 frequency 6487hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m1 frequency 6513hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m2 frequency 17940hz decay 0.225s gain 0.2 after_decay 0.225s after_gain 0
+  mode m3 frequency 6661.16hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m4 frequency 6687.86hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m5 frequency 18421.6hz decay 0.225s gain 0.2 after_decay 0.225s after_gain 0
+  mode m6 frequency 6840hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m7 frequency 6867.41hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m8 frequency 18916.2hz decay 0.225s gain 0.2 after_decay 0.225s after_gain 0
+  mode m9 frequency 7023.64hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m10 frequency 7051.79hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m11 frequency 19424.1hz decay 0.225s gain 0.2 after_decay 0.225s after_gain 0
+  mode m12 frequency 7212.21hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m13 frequency 7241.11hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m14 frequency 19945.6hz decay 0.225s gain 0.2 after_decay 0.225s after_gain 0
+  mode m15 frequency 7405.84hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m16 frequency 7435.52hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m17 frequency 20481.1hz decay 0.225s gain 0.2 after_decay 0.225s after_gain 0
+  mode m18 frequency 7604.67hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m19 frequency 7635.15hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m20 frequency 7808.84hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m21 frequency 7840.14hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m22 frequency 8018.49hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m23 frequency 8050.63hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m24 frequency 8233.77hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m25 frequency 8266.77hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m26 frequency 8454.83hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m27 frequency 8488.71hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m28 frequency 8681.82hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m29 frequency 8716.62hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m30 frequency 8914.91hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m31 frequency 8950.64hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m32 frequency 9154.25hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m33 frequency 9190.94hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m34 frequency 9400.02hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m35 frequency 9437.7hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m36 frequency 9652.39hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m37 frequency 9691.08hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m38 frequency 9911.54hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m39 frequency 9951.27hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m40 frequency 10177.6hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m41 frequency 10218.4hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m42 frequency 10450.9hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m43 frequency 10492.8hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m44 frequency 10731.5hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m45 frequency 10774.5hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m46 frequency 11019.6hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m47 frequency 11063.8hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m48 frequency 11315.4hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m49 frequency 11360.8hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m50 frequency 11619.2hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m51 frequency 11665.8hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m52 frequency 11931.2hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m53 frequency 11979hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m54 frequency 12251.5hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m55 frequency 12300.6hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m56 frequency 12580.4hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m57 frequency 12630.9hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m58 frequency 12918.2hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m59 frequency 12970hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m60 frequency 13265hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m61 frequency 13318.2hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m62 frequency 13621.2hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m63 frequency 13675.8hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m64 frequency 13986.9hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m65 frequency 14042.9hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m66 frequency 14362.4hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m67 frequency 14419.9hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m68 frequency 14748hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m69 frequency 14807.1hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m70 frequency 15143.9hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m71 frequency 15204.6hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m72 frequency 15550.5hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m73 frequency 15612.8hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m74 frequency 15968hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+  mode m75 frequency 16032hz decay 0.5s gain 0.5 after_decay 0.5s after_gain 0
+}

@@ -1,45 +1,77 @@
 crump-module 2
 instrument cabasa-turn "Cabasa Turn" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z60-soft-0 asset cabasa-turn-60-soft-0 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-0 asset cabasa-turn-60-hard-0 keys C-1 G9 velocity 0.65 1 root C4
-      zone z60-soft-1 asset cabasa-turn-60-soft-1 keys C-1 G9 velocity 0 0.65 root C4
-      zone z60-hard-1 asset cabasa-turn-60-hard-1 keys C-1 G9 velocity 0.65 1 root C4
-    }
+  graph voice 24 {
+    # Beads or jingles: a burst of random contacts through small resonant shells.
+    node grains1 exciter kind collisions contact 4e-05s hardness 0.5 rate 1314.74hz duration 0.0956465s attack 0.0141092s level 1
+    node body2 modal_bank profile cabasa-turn-shell max_modes 3 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain3 math operation scale amount 2
+    node hiss4 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall5 math operation add
+    node fall5-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall5-leak math operation scale amount 0.999782207815
+    node rise6 math operation subtract
+    node fall7 math operation add
+    node fall7-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall7-leak math operation scale amount 0.998307037423
+    node gain8 math operation scale amount 1.55304
+    node times9 math operation multiply
+    node hi-10 lowpass mode highpass cutoff 1000hz resonance 0.308309
+    node lo-11 lowpass mode lowpass cutoff 16000hz resonance 0.308309
+    node gain12 math operation scale amount 1.05922
+    node plus13 math operation add
+    node hi-14 lowpass mode highpass cutoff 3976.4hz resonance 0.308309
+    node hi-15 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.0424016
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-grains1-gate note.gate -> grains1.gate
+    bus note-velocity-grains1-velocity note.velocity -> grains1.velocity
+    bus grains1-audio-body2-audio grains1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-gain3-a body2.audio -> gain3.a
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall5-audio-fall5-previous-audio fall5.audio -> fall5-previous.audio
+    bus onset-audio-fall5-a onset.audio -> fall5.a
+    bus fall5-previous-audio-fall5-leak-a fall5-previous.audio -> fall5-leak.a
+    bus fall5-leak-audio-fall5-b fall5-leak.audio -> fall5.b
+    bus fall5-audio-rise6-a fall5.audio -> rise6.a
+    bus fall7-audio-fall7-previous-audio fall7.audio -> fall7-previous.audio
+    bus onset-audio-fall7-a onset.audio -> fall7.a
+    bus fall7-previous-audio-fall7-leak-a fall7-previous.audio -> fall7-leak.a
+    bus fall7-leak-audio-fall7-b fall7-leak.audio -> fall7.b
+    bus fall7-audio-rise6-b fall7.audio -> rise6.b
+    bus rise6-audio-gain8-a rise6.audio -> gain8.a
+    bus hiss4-audio-times9-a hiss4.audio -> times9.a
+    bus gain8-audio-times9-b gain8.audio -> times9.b
+    bus times9-audio-hi-10-audio times9.audio -> hi-10.audio
+    bus hi-10-audio-lo-11-audio hi-10.audio -> lo-11.audio
+    bus lo-11-audio-gain12-a lo-11.audio -> gain12.a
+    bus gain3-audio-plus13-a gain3.audio -> plus13.a
+    bus gain12-audio-plus13-b gain12.audio -> plus13.b
+    bus plus13-audio-hi-14-audio plus13.audio -> hi-14.audio
+    bus hi-14-audio-hi-15-audio hi-14.audio -> hi-15.audio
+    bus hi-15-audio-trim-a hi-15.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset cabasa-turn-60-soft-0 "Cabasa Turn" wav "media/60-soft-0.wav" sha256 "48cb55be7f398949910dfc95c19ce01d9c76e4cbfbc5f7f27d42cd094f96281f" {
-  usage multisample
-}
-asset cabasa-turn-60-hard-0 "Cabasa Turn" wav "media/60-hard-0.wav" sha256 "a85f7de3520fffea236a741b220694e66bf7993850c4e79cffc0f7f00f9450e4" {
-  usage multisample
-}
-asset cabasa-turn-60-soft-1 "Cabasa Turn" wav "media/60-soft-1.wav" sha256 "b313ac8fa9c92015f3f0d30a0fce7564b0b52d5c35efd2e6913391d410df38b7" {
-  usage multisample
-}
-asset cabasa-turn-60-hard-1 "Cabasa Turn" wav "media/60-hard-1.wav" sha256 "0253dcca65d26108a8079279a303520df19435f2f3c06994bff5aa2de88b6564" {
-  usage multisample
+profile cabasa-turn-shell {
+  root 261.626hz
+  mode m0 frequency 2234.87hz decay 0.0203051s gain 0.4 after_decay 0.0203051s after_gain 0
+  mode m1 frequency 9271.56hz decay 0.0203051s gain 0.4 after_decay 0.0203051s after_gain 0
+  mode m2 frequency 9009.12hz decay 0.0203051s gain 0.4 after_decay 0.0203051s after_gain 0
 }

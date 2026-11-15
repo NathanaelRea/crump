@@ -409,6 +409,8 @@ const fn node_kind_has_runtime(kind: NodeKind) -> bool {
                 | NodeKind::ToControl
                 | NodeKind::DcBlock
                 | NodeKind::LinearPhaseLowpass
+                | NodeKind::Biquad
+                | NodeKind::OnePole
         )
 }
 

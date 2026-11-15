@@ -1,81 +1,68 @@
 crump-module 2
 instrument concert-bass-drum "Concert Bass Drum" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z38-soft-0 asset concert-bass-drum-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
-      zone z43-soft-0 asset concert-bass-drum-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
-      zone z48-soft-0 asset concert-bass-drum-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
-      zone z53-soft-0 asset concert-bass-drum-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
-      zone z58-soft-0 asset concert-bass-drum-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
-      zone z63-soft-0 asset concert-bass-drum-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
-      zone z68-soft-0 asset concert-bass-drum-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone z73-soft-0 asset concert-bass-drum-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
-      zone z78-soft-0 asset concert-bass-drum-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
-      zone z83-soft-0 asset concert-bass-drum-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
-      zone z38-hard-0 asset concert-bass-drum-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
-      zone z43-hard-0 asset concert-bass-drum-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
-      zone z48-hard-0 asset concert-bass-drum-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
-      zone z53-hard-0 asset concert-bass-drum-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
-      zone z58-hard-0 asset concert-bass-drum-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
-      zone z63-hard-0 asset concert-bass-drum-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
-      zone z68-hard-0 asset concert-bass-drum-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone z73-hard-0 asset concert-bass-drum-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
-      zone z78-hard-0 asset concert-bass-drum-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
-      zone z83-hard-0 asset concert-bass-drum-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
-      zone z38-soft-1 asset concert-bass-drum-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
-      zone z43-soft-1 asset concert-bass-drum-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
-      zone z48-soft-1 asset concert-bass-drum-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
-      zone z53-soft-1 asset concert-bass-drum-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
-      zone z58-soft-1 asset concert-bass-drum-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
-      zone z63-soft-1 asset concert-bass-drum-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
-      zone z68-soft-1 asset concert-bass-drum-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone z73-soft-1 asset concert-bass-drum-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
-      zone z78-soft-1 asset concert-bass-drum-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
-      zone z83-soft-1 asset concert-bass-drum-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
-      zone z38-hard-1 asset concert-bass-drum-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
-      zone z43-hard-1 asset concert-bass-drum-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
-      zone z48-hard-1 asset concert-bass-drum-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
-      zone z53-hard-1 asset concert-bass-drum-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
-      zone z58-hard-1 asset concert-bass-drum-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
-      zone z63-hard-1 asset concert-bass-drum-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
-      zone z68-hard-1 asset concert-bass-drum-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone z73-hard-1 asset concert-bass-drum-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
-      zone z78-hard-1 asset concert-bass-drum-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
-      zone z83-hard-1 asset concert-bass-drum-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
-    }
+  graph voice 17 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.00751034s hardness 0 level 1
+    node body2 modal_bank profile concert-bass-drum-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.99895887568
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 0.0138564
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 18hz resonance 0.308309
+    node trim math operation scale amount 0.162856
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus onset-audio-fall4-a onset.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-trim-a hi-10.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset concert-bass-drum-60-soft-0 "Concert Bass Drum" wav "media/60-soft-0.wav" sha256 "a782cc8c7c8c2e1f643b48074415d905cb21baadeecc8fb39212881fc79e27d0" {
-  usage multisample
-}
-asset concert-bass-drum-60-hard-0 "Concert Bass Drum" wav "media/60-hard-0.wav" sha256 "29cb504bd90ac29ace27e728bca514931c238c48cd5d2aff9efba29ee17c0caa" {
-  usage multisample
-}
-asset concert-bass-drum-60-soft-1 "Concert Bass Drum" wav "media/60-soft-1.wav" sha256 "f9b68212b561546a8c9f47daa5ca3a8d8f816b968413183c02be7da541a617fa" {
-  usage multisample
-}
-asset concert-bass-drum-60-hard-1 "Concert Bass Drum" wav "media/60-hard-1.wav" sha256 "313b447abd470b4d1169168594f1961c6730129eeae2870ba1f6eb7c755acdc7" {
-  usage multisample
+profile concert-bass-drum-head {
+  root 44hz
+  mode m0 frequency 44hz decay 1.5s gain 1 after_decay 1.5s after_gain 0
+  mode m1 frequency 70.092hz decay 1.05786s gain 0.485678 after_decay 1.05786s after_gain 0
+  mode m2 frequency 93.984hz decay 0.848966s gain 0.184092 after_decay 0.848966s after_gain 0
+  mode m3 frequency 101.024hz decay 0.804197s gain 0.0913325 after_decay 0.804197s after_gain 0
+  mode m4 frequency 116.732hz decay 0.721586s gain 0.0564833 after_decay 0.721586s after_gain 0
+  mode m5 frequency 128.392hz decay 0.671858s gain 0.0383468 after_decay 0.671858s after_gain 0
+  mode m6 frequency 138.864hz decay 0.633488s gain 0.023107 after_decay 0.633488s after_gain 0
+  mode m7 frequency 154.044hz decay 0.586067s gain 0.0108605 after_decay 0.586067s after_gain 0
+  mode m8 frequency 158.4hz decay 0.573937s gain 0.00708969 after_decay 0.573937s after_gain 0
+  mode m9 frequency 178.64hz decay 0.524441s gain 0.00277686 after_decay 0.524441s after_gain 0
 }

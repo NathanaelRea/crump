@@ -1,109 +1,111 @@
 crump-module 2
 instrument concert-harp "Concert Harp" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z24-soft-0 asset concert-harp-24-soft-0 keys B0 E1 velocity 0 0.65 root C1
-      zone z24-hard-0 asset concert-harp-24-hard-0 keys B0 E1 velocity 0.65 1 root C1
-      zone z33-soft-0 asset concert-harp-33-soft-0 keys F1 C#2 velocity 0 0.65 root A1
-      zone z33-hard-0 asset concert-harp-33-hard-0 keys F1 C#2 velocity 0.65 1 root A1
-      zone z41-soft-0 asset concert-harp-41-soft-0 keys D2 G#2 velocity 0 0.65 root F2
-      zone z41-hard-0 asset concert-harp-41-hard-0 keys D2 G#2 velocity 0.65 1 root F2
-      zone z48-soft-0 asset concert-harp-48-soft-0 keys A2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset concert-harp-48-hard-0 keys A2 D#3 velocity 0.65 1 root C3
-      zone z55-soft-0 asset concert-harp-55-soft-0 keys E3 A#3 velocity 0 0.65 root G3
-      zone z55-hard-0 asset concert-harp-55-hard-0 keys E3 A#3 velocity 0.65 1 root G3
-      zone z62-soft-0 asset concert-harp-62-soft-0 keys B3 F4 velocity 0 0.65 root D4
-      zone z62-hard-0 asset concert-harp-62-hard-0 keys B3 F4 velocity 0.65 1 root D4
-      zone z69-soft-0 asset concert-harp-69-soft-0 keys F#4 C#5 velocity 0 0.65 root A4
-      zone z69-hard-0 asset concert-harp-69-hard-0 keys F#4 C#5 velocity 0.65 1 root A4
-      zone z77-soft-0 asset concert-harp-77-soft-0 keys D5 A5 velocity 0 0.65 root F5
-      zone z77-hard-0 asset concert-harp-77-hard-0 keys D5 A5 velocity 0.65 1 root F5
-      zone z86-soft-0 asset concert-harp-86-soft-0 keys A#5 G6 velocity 0 0.65 root D6
-      zone z86-hard-0 asset concert-harp-86-hard-0 keys A#5 G6 velocity 0.65 1 root D6
-      zone z96-soft-0 asset concert-harp-96-soft-0 keys G#6 G7 velocity 0 0.65 root C7
-      zone z96-hard-0 asset concert-harp-96-hard-0 keys G#6 G7 velocity 0.65 1 root C7
+  modulation {
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route key-gain-low source key-level target key-gain depth -1.02702 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth 1.42629 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 32 {
+    # A plucked string: a pitch-tuned delay loop with a per-trip loss, a pickup and a body.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node held math operation add
+    node held-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node held-leak math operation scale amount 1
+    node period-later delay_line mode pitch ratio 1 interpolation linear max_time 0.1s
+    node period math operation subtract
+    node pluck-window shaper curve hard_clip drive 64 bias 0
+    node pluck-noise noise level 1
+    node pluck math operation multiply
+    node pluck-tone lowpass mode lowpass cutoff 1440hz resonance 0.308309 velocity_depth 2080hz
+    node string-in math operation add
+    node string delay_line mode pitch ratio 1 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node string-loss linear_phase_lowpass amount 0.1
+    node string-keep math operation scale amount 0.99999
+    node string-pickup delay_line mode pitch ratio 0.33 interpolation linear max_time 0.05s
+    node string-out math operation subtract
+    node gain1 math operation scale amount 0.7
+    node gain2 math operation scale amount 1.73205
+    node string-tone lowpass mode lowpass cutoff 1440hz resonance 0.308309 velocity_depth 2080hz
+    node string-decay math operation add
+    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node string-decay-leak math operation scale amount 0.999991319482
+    node times3 math operation multiply
+    node body4 modal_bank profile concert-harp-box max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain5 math operation scale amount 0.28
+    node plus6 math operation add
+    node hi-7 lowpass mode highpass cutoff 20hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.113721
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus held-audio-held-previous-audio held.audio -> held-previous.audio
+    bus onset-audio-held-a onset.audio -> held.a
+    bus held-previous-audio-held-leak-a held-previous.audio -> held-leak.a
+    bus held-leak-audio-held-b held-leak.audio -> held.b
+    bus note-pitch-period-later-pitch note.pitch -> period-later.pitch
+    bus held-audio-period-later-audio held.audio -> period-later.audio
+    bus held-audio-period-a held.audio -> period.a
+    bus period-later-audio-period-b period-later.audio -> period.b
+    bus period-audio-pluck-window-audio period.audio -> pluck-window.audio
+    bus pluck-noise-audio-pluck-a pluck-noise.audio -> pluck.a
+    bus pluck-window-audio-pluck-b pluck-window.audio -> pluck.b
+    bus pluck-audio-pluck-tone-audio pluck.audio -> pluck-tone.audio
+    bus note-velocity-pluck-tone-velocity note.velocity -> pluck-tone.velocity
+    bus pluck-tone-audio-string-in-a pluck-tone.audio -> string-in.a
+    bus note-pitch-string-pitch note.pitch -> string.pitch
+    bus string-in-audio-string-audio string-in.audio -> string.audio
+    bus string-audio-string-loss-audio string.audio -> string-loss.audio
+    bus string-loss-audio-string-keep-a string-loss.audio -> string-keep.a
+    bus string-keep-audio-string-in-b string-keep.audio -> string-in.b
+    bus note-pitch-string-pickup-pitch note.pitch -> string-pickup.pitch
+    bus string-audio-string-pickup-audio string.audio -> string-pickup.audio
+    bus string-audio-string-out-a string.audio -> string-out.a
+    bus string-pickup-audio-gain1-a string-pickup.audio -> gain1.a
+    bus gain1-audio-string-out-b gain1.audio -> string-out.b
+    bus string-out-audio-gain2-a string-out.audio -> gain2.a
+    bus gain2-audio-string-tone-audio gain2.audio -> string-tone.audio
+    bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
+    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
+    bus onset-audio-string-decay-a onset.audio -> string-decay.a
+    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
+    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
+    bus string-tone-audio-times3-a string-tone.audio -> times3.a
+    bus string-decay-audio-times3-b string-decay.audio -> times3.b
+    bus times3-audio-body4-audio times3.audio -> body4.audio
+    bus note-pitch-body4-pitch note.pitch -> body4.pitch
+    bus note-gate-body4-gate note.gate -> body4.gate
+    bus body4-audio-gain5-a body4.audio -> gain5.a
+    bus times3-audio-plus6-a times3.audio -> plus6.a
+    bus gain5-audio-plus6-b gain5.audio -> plus6.b
+    bus plus6-audio-hi-7-audio plus6.audio -> hi-7.audio
+    bus hi-7-audio-register-a hi-7.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset concert-harp-24-soft-0 "Concert Harp" wav "media/24-soft-0.wav" sha256 "b079b48a6bbd10b997f6e44aaa3d102a2217350f7779a744a9857f5f83e1a175" {
-  usage multisample
-}
-asset concert-harp-24-hard-0 "Concert Harp" wav "media/24-hard-0.wav" sha256 "44966f8c69c1bf4d1a5f486f5b46dede04283a09204f785e3bed3bab37936ae4" {
-  usage multisample
-}
-asset concert-harp-33-soft-0 "Concert Harp" wav "media/33-soft-0.wav" sha256 "0eb235e0efb9e43c77cd200cec0830f7b37791a5e09bb5c5854550607d83386c" {
-  usage multisample
-}
-asset concert-harp-33-hard-0 "Concert Harp" wav "media/33-hard-0.wav" sha256 "a626efbc8d6f7e4eb1e15fbe0dbf92f606a12043336bb66829072c85e0164797" {
-  usage multisample
-}
-asset concert-harp-41-soft-0 "Concert Harp" wav "media/41-soft-0.wav" sha256 "5badea8e8dd646bbd5e98c59a673df4c616ffb4cea4d007e01c42953fd659843" {
-  usage multisample
-}
-asset concert-harp-41-hard-0 "Concert Harp" wav "media/41-hard-0.wav" sha256 "e732f9e5fec1215c45942ac073de9afa054e677c616c2894e909b3da2da8f108" {
-  usage multisample
-}
-asset concert-harp-48-soft-0 "Concert Harp" wav "media/48-soft-0.wav" sha256 "77c7f9e3c56bed26fb41193d738bcaacfe30a631e1e4efcb1d57595e3423bc82" {
-  usage multisample
-}
-asset concert-harp-48-hard-0 "Concert Harp" wav "media/48-hard-0.wav" sha256 "9ce0331d41f61c555b0bb68e5b07372bf0c75b43527125dcb5673200967a6aea" {
-  usage multisample
-}
-asset concert-harp-55-soft-0 "Concert Harp" wav "media/55-soft-0.wav" sha256 "8868087deac3125fe2d254f9164d7b79ef967094fe8dd39d4d00065e744f2a5b" {
-  usage multisample
-}
-asset concert-harp-55-hard-0 "Concert Harp" wav "media/55-hard-0.wav" sha256 "bd3b31430a3e8e5dfaca6291749e4608b7f31fe5e3f7fb8674209cc845258d1e" {
-  usage multisample
-}
-asset concert-harp-62-soft-0 "Concert Harp" wav "media/62-soft-0.wav" sha256 "bc0bc5ee73761d9b9dd2db6d06baec53b35c877a93a8d3cbcaaa5d19e8742e4e" {
-  usage multisample
-}
-asset concert-harp-62-hard-0 "Concert Harp" wav "media/62-hard-0.wav" sha256 "2012693656d9407532cee5cb0e5e7791f20314db782d87f583530a4d86ef3f14" {
-  usage multisample
-}
-asset concert-harp-69-soft-0 "Concert Harp" wav "media/69-soft-0.wav" sha256 "44cda554d27374fda597242dc9aa3f2f090cb26165d16feb0ef5126ba81ba464" {
-  usage multisample
-}
-asset concert-harp-69-hard-0 "Concert Harp" wav "media/69-hard-0.wav" sha256 "4bda030542ee31a54c58aeb37d2d8047738cc89850b9a3e9211a6960d1238142" {
-  usage multisample
-}
-asset concert-harp-77-soft-0 "Concert Harp" wav "media/77-soft-0.wav" sha256 "f1bccc9472de2a65153d0118c20c2e8d7f4a545a4a77001d4602b271d58064fa" {
-  usage multisample
-}
-asset concert-harp-77-hard-0 "Concert Harp" wav "media/77-hard-0.wav" sha256 "d8f160db1bcb9b0895394304584347307cae42d3eee7959cb1d0a889383ffb06" {
-  usage multisample
-}
-asset concert-harp-86-soft-0 "Concert Harp" wav "media/86-soft-0.wav" sha256 "281483246ef110a064e1751d25346420376b5750e09ed06deed791323602931d" {
-  usage multisample
-}
-asset concert-harp-86-hard-0 "Concert Harp" wav "media/86-hard-0.wav" sha256 "1d906723b2a57697d4fb96ddb791f8411d1b01d6c421da88c8e488e90a957283" {
-  usage multisample
-}
-asset concert-harp-96-soft-0 "Concert Harp" wav "media/96-soft-0.wav" sha256 "a7270780556761b2547b31bfcad3a031d6ee5c7486a09b0c2cf07ccd32839d0c" {
-  usage multisample
-}
-asset concert-harp-96-hard-0 "Concert Harp" wav "media/96-hard-0.wav" sha256 "1d1a6d7d9497582493d3f8d22e21c37d4c6de10556e8721cb482232e9b8296ff" {
-  usage multisample
+profile concert-harp-box {
+  root 261.626hz
+  mode m0 frequency 130hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 270hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 520hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m3 frequency 1050hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }

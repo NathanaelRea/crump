@@ -19,7 +19,7 @@
 - [Native Synthesis Qualification Runbook](qualification/native-synthesis.md)
 - [Architecture Decision Records](adr/README.md)
 - [Research](research/)
-- [Example Instruments](../examples/instruments/README.md) — 92 portable house and orchestral instruments and audition Projects
+- [Example Instruments](../examples/instruments/README.md) — 184 portable house, orchestral, synth, world and band instruments and audition Projects
 - [Native Acoustic Models](native-acoustics.md) — excitation, profiles and graph controls
 - [Waveguide Instruments](../examples/waveguides/README.md) — a plucked string, a sitar and a clarinet built from feedback loops in plain `.crump`
 - [Audio Comparison](../tools/audio_compare/README.md) — reusable listening and time/frequency reports

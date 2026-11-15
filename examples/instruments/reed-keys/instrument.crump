@@ -1,93 +1,66 @@
 crump-module 2
 instrument reed-keys "Reed Keys" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset reed-keys-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
-      zone z36-hard-0 asset reed-keys-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
-      zone z43-soft-0 asset reed-keys-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
-      zone z43-hard-0 asset reed-keys-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
-      zone z48-soft-0 asset reed-keys-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset reed-keys-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
-      zone z55-soft-0 asset reed-keys-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
-      zone z55-hard-0 asset reed-keys-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
-      zone z60-soft-0 asset reed-keys-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
-      zone z60-hard-0 asset reed-keys-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
-      zone z67-soft-0 asset reed-keys-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset reed-keys-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset reed-keys-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset reed-keys-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
-      zone z79-soft-0 asset reed-keys-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
-      zone z79-hard-0 asset reed-keys-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
+  modulation {
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route key-gain-low source key-level target key-gain depth -0.0759949 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth 0.0558889 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 13 {
+    # A mallet on a tuned bar's modes, optionally through a pickup.
+    node strike1 exciter kind impact contact 0.000163241s hardness $hardness level 1
+    node body2 modal_bank profile reed-keys-bar max_modes 5 key_track 1 decay_scale $ring brightness 0 level 1
+    node shape3 shaper curve tanh drive 2.12769 bias 0
+    node gain4 math operation scale amount 0.469994
+    node times5 math operation multiply
+    node gain6 math operation scale amount 0.18
+    node plus7 math operation add
+    node hi-8 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.18241
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-shape3-audio body2.audio -> shape3.audio
+    bus shape3-audio-gain4-a shape3.audio -> gain4.a
+    bus body2-audio-times5-a body2.audio -> times5.a
+    bus body2-audio-times5-b body2.audio -> times5.b
+    bus times5-audio-gain6-a times5.audio -> gain6.a
+    bus gain4-audio-plus7-a gain4.audio -> plus7.a
+    bus gain6-audio-plus7-b gain6.audio -> plus7.b
+    bus plus7-audio-hi-8-audio plus7.audio -> hi-8.audio
+    bus hi-8-audio-register-a hi-8.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset reed-keys-36-soft-0 "Reed Keys" wav "media/36-soft-0.wav" sha256 "33a73aa03253fac9f75562d5816ecef8fa7d97aa22caff6532a05e82855512fc" {
-  usage multisample
-}
-asset reed-keys-36-hard-0 "Reed Keys" wav "media/36-hard-0.wav" sha256 "8a20efceb5c0d1609054ac238180bbe1ce95e3b06dcb42d3126ae631a017f69f" {
-  usage multisample
-}
-asset reed-keys-43-soft-0 "Reed Keys" wav "media/43-soft-0.wav" sha256 "07a1edb4499c6ba41f57632e02a676778e57d02e47a226caca5d0c913b1f6e50" {
-  usage multisample
-}
-asset reed-keys-43-hard-0 "Reed Keys" wav "media/43-hard-0.wav" sha256 "15a18e227a1107eac76351444945e679a3d280c78f77fbd4af14a276744a1da0" {
-  usage multisample
-}
-asset reed-keys-48-soft-0 "Reed Keys" wav "media/48-soft-0.wav" sha256 "06264a4b995c59401a0184569c83208d391c9ea2efda41f52f25694f5143573b" {
-  usage multisample
-}
-asset reed-keys-48-hard-0 "Reed Keys" wav "media/48-hard-0.wav" sha256 "deae3fbdea978fdf498aa970ba1fb9d0085d00c0886cd06e6adc2535abb527e9" {
-  usage multisample
-}
-asset reed-keys-55-soft-0 "Reed Keys" wav "media/55-soft-0.wav" sha256 "eb1f232887ce2e0215f4a5e80dd567c4c17de441b812e26a24cd3e88910c6f50" {
-  usage multisample
-}
-asset reed-keys-55-hard-0 "Reed Keys" wav "media/55-hard-0.wav" sha256 "a4b4607c8d1f25fbca8293d4d654a9e3be4605d61968338146931916490bdb80" {
-  usage multisample
-}
-asset reed-keys-60-soft-0 "Reed Keys" wav "media/60-soft-0.wav" sha256 "40ce955be413d22a8375000c3ffe77946ae26bdc4bb25f5d635a8dbe301e9959" {
-  usage multisample
-}
-asset reed-keys-60-hard-0 "Reed Keys" wav "media/60-hard-0.wav" sha256 "494c5ee5dee8aa76965abd298b8e792879bd74c1a6786bb8f126006924c2c71e" {
-  usage multisample
-}
-asset reed-keys-67-soft-0 "Reed Keys" wav "media/67-soft-0.wav" sha256 "8037dfe17684b5e253e8bb23bbce1d78562f9a346ec7229b5dad2b776dcb6652" {
-  usage multisample
-}
-asset reed-keys-67-hard-0 "Reed Keys" wav "media/67-hard-0.wav" sha256 "d76af4858b5f47c927fad8e920d3b6a1fe1484cd2478def1e249b2b34a0fada8" {
-  usage multisample
-}
-asset reed-keys-72-soft-0 "Reed Keys" wav "media/72-soft-0.wav" sha256 "416bae2107e101d9461f46eb255fdff1b280c67738828523ff891ca60407a284" {
-  usage multisample
-}
-asset reed-keys-72-hard-0 "Reed Keys" wav "media/72-hard-0.wav" sha256 "a0f65d905e9426702ff935a6d322164e4eff8f86372f271d6c255f76eaa2fd96" {
-  usage multisample
-}
-asset reed-keys-79-soft-0 "Reed Keys" wav "media/79-soft-0.wav" sha256 "ed54dfaf0f6531f1f61d3ca9c23a3e16a5857faa2f17e3f949da240ea75852f6" {
-  usage multisample
-}
-asset reed-keys-79-hard-0 "Reed Keys" wav "media/79-hard-0.wav" sha256 "ed0c2983a6d0892adbb1b5cab69e000bf98db9dbc6ad144f679d3601aecc25cd" {
-  usage multisample
+profile reed-keys-bar {
+  root 261.626hz
+  mode m0 frequency 260.432hz decay 1.09607s gain 1 after_decay 1.09607s after_gain 0
+  mode m1 frequency 520.864hz decay 0.640665s gain 0.93501 after_decay 0.640665s after_gain 0
+  mode m2 frequency 781.295hz decay 0.467965s gain 0.591898 after_decay 0.467965s after_gain 0
+  mode m3 frequency 1062.56hz decay 0.368775s gain 0.0344022 after_decay 0.368775s after_gain 0
+  mode m4 frequency 1614.68hz decay 0.266671s gain 0.00518008 after_decay 0.266671s after_gain 0
 }

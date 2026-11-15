@@ -1,0 +1,159 @@
+crump-module 2
+instrument talking-drum "Talking Drum" graph {
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.0665 0.0665
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-level note_key per_voice bipolar reference A3 range 12st
+    route key-gain-low source key-level target key-gain depth 0.0288191 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
+    }
+    route key-gain-high source key-level target key-gain depth 0.84218 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 21 {
+    # A strike on a drumhead's modes, tuned to the key, bent by a pitch contour.
+    node strike1 exciter kind impact contact 0.00208621s hardness $hardness level 1
+    node body2 modal_bank profile talking-drum-head max_modes 10 key_track 1 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.997687862303
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 0.0866025
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node contour lfo {
+      waveform custom
+      rate 1.6666667hz
+      depth 1
+      phase 0
+      random_phase 0
+      mode one_shot
+      direction forward
+      polarity bipolar
+      retrigger note
+      point c0 phase 0 value -0.98763188
+      point c1 phase 0.001 value -0.97346287
+      point c2 phase 0.00112421 value -0.97170294
+      point c3 phase 0.0012638482 value -0.96972441
+      point c4 phase 0.0014208308 value -0.96750012
+      point c5 phase 0.0015973123 value -0.96499955
+      point c6 phase 0.0017957145 value -0.96218839
+      point c7 phase 0.0020187603 value -0.95902805
+      point c8 phase 0.0022695105 value -0.95547517
+      point c9 phase 0.0025514065 value -0.95148098
+      point c10 phase 0.0028683168 value -0.94699068
+      point c11 phase 0.0032245905 value -0.94194263
+      point c12 phase 0.003625117 value -0.93626757
+      point c13 phase 0.004075393 value -0.9298876
+      point c14 phase 0.0045815977 value -0.92271518
+      point c15 phase 0.0051506781 value -0.91465188
+      point c16 phase 0.005790444 value -0.90558703
+      point c17 phase 0.0065096752 value -0.89539624
+      point c18 phase 0.0073182422 value -0.88393964
+      point c19 phase 0.0082272413 value -0.87106003
+      point c20 phase 0.0092491473 value -0.85658063
+      point c21 phase 0.010397984 value -0.84030275
+      point c22 phase 0.011689518 value -0.82200299
+      point c23 phase 0.013141474 value -0.80143022
+      point c24 phase 0.014773777 value -0.77830211
+      point c25 phase 0.016608828 value -0.75230125
+      point c26 phase 0.018671811 value -0.72307082
+      point c27 phase 0.020991037 value -0.69020969
+      point c28 phase 0.023598335 value -0.65326686
+      point c29 phase 0.026529485 value -0.61173537
+      point c30 phase 0.029824713 value -0.56504525
+      point c31 phase 0.033529241 value -0.51255575
+      point c32 phase 0.03769391 value -0.45354653
+      point c33 phase 0.042375872 value -0.38720777
+      point c34 phase 0.04763938 value -0.31262907
+      point c35 phase 0.053556669 value -0.22915846
+      point c36 phase 0.060208945 value -0.13815757
+      point c37 phase 0.0676875 value -0.039871711
+      point c38 phase 0.076094967 value 0.065514014
+      point c39 phase 0.085546725 value 0.1774964
+      point c40 phase 0.096172487 value 0.29512821
+      point c41 phase 0.10811808 value 0.41684606
+      point c42 phase 0.12154743 value 0.54026812
+      point c43 phase 0.13664483 value 0.66189917
+      point c44 phase 0.15361749 value 0.77675815
+      point c45 phase 0.17269833 value 0.87789435
+      point c46 phase 0.19414919 value 0.95571515
+      point c47 phase 0.21826447 value 0.99715708
+      point c48 phase 0.24537511 value 0.98452532
+      point c49 phase 0.27585316 value 0.92400559
+      point c50 phase 0.31011689 value 0.86021478
+      point c51 phase 0.34863652 value 0.79552557
+      point c52 phase 0.39194068 value 0.73166613
+      point c53 phase 0.44062364 value 0.671058
+      point c54 phase 0.49535352 value 0.61702622
+      point c55 phase 0.5568814 value 0.57406961
+      point c56 phase 0.62605166 value 0.54819813
+      point c57 phase 0.70381356 value 0.54403853
+      point c58 phase 0.79123426 value 0.54403853
+      point c59 phase 0.8895135 value 0.54403853
+      point c60 phase 1 value 0.54403853
+    }
+    node contour-audio to_audio
+    node bend delay_line mode time time 0.00505332s mod_depth 1 interpolation lagrange3 max_time 0.0201066s
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.161261
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus onset-audio-fall4-a onset.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus contour-control-contour-audio-control contour.control -> contour-audio.control
+    bus hi-10-audio-bend-audio hi-10.audio -> bend.audio
+    bus contour-audio-audio-bend-time-mod contour-audio.audio -> bend.time_mod
+    bus bend-audio-register-a bend.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile talking-drum-head {
+  root 261.626hz
+  mode m0 frequency 261.626hz decay 0.22s gain 1 after_decay 0.22s after_gain 0
+  mode m1 frequency 416.77hz decay 0.155153s gain 0.547136 after_decay 0.155153s after_gain 0
+  mode m2 frequency 558.832hz decay 0.124515s gain 0.23363 after_decay 0.124515s after_gain 0
+  mode m3 frequency 600.692hz decay 0.117949s gain 0.130577 after_decay 0.117949s after_gain 0
+  mode m4 frequency 694.093hz decay 0.105833s gain 0.0909719 after_decay 0.105833s after_gain 0
+  mode m5 frequency 763.423hz decay 0.0985391s gain 0.0695766 after_decay 0.0985391s after_gain 0
+  mode m6 frequency 825.69hz decay 0.0929116s gain 0.0472306 after_decay 0.0929116s after_gain 0
+  mode m7 frequency 915.951hz decay 0.0859565s gain 0.025008 after_decay 0.0859565s after_gain 0
+  mode m8 frequency 941.852hz decay 0.0841775s gain 0.0183909 after_decay 0.0841775s after_gain 0
+  mode m9 frequency 1062.2hz decay 0.076918s gain 0.00811476 after_decay 0.076918s after_gain 0
+}

@@ -1,0 +1,42 @@
+crump-module 2
+instrument string-machine "String Machine" graph {
+  polyphony 12
+  voicing poly retrigger always glide 0ms glide_mode always note_priority last steal_priority release_oldest seed 30311
+  parameter level "Level" ratio 0 1 0.136 0.136
+  parameter attack "Attack" seconds 5ms 3s 350ms 350ms automatable
+  parameter release "Release" seconds 50ms 6s 800ms 800ms automatable
+  parameter tone "Tone" hz 800hz 12khz 3800hz 3800hz automatable modulatable
+  parameter space "Space" ratio 0 1 0.3 0.3 automatable
+  faceplate {
+    control attack "Attack" "Bowed swell into each chord" maps attack
+    control release "Release" "Tail after Note Off" maps release
+    control tone "Tone" "Brightness" maps tone
+    control space "Space" "Echo and hall" maps space
+    control level "Level" "Output level" maps level
+  }
+  graph voice 8 {
+    node ensemble unison waveform saw voices 6 detune 0.11st width 1 drift 0.04st glide 0s mod_depth 0.06st velocity_amount 0.2 level $level
+    node chorus lfo waveform sine rate 0.9hz depth 1
+    node amplitude envelope mode ahdsr attack $attack hold 0ms decay 1s sustain 0.9 release $release attack_curve 0.2 decay_curve 0 release_curve -0.2 retrigger always
+    node tone-filter stereo_filter model svf_clean mode lowpass cutoff $tone resonance 0.05 drive 0 mix 1 pan 0 mod_depth 0hz velocity_depth 0hz key_track 0.3 key_reference 261.625565hz
+    node thin stereo_filter model svf_clean mode highpass cutoff 220hz resonance 0.05 drive 0 mix 1 pan 0 mod_depth 0hz velocity_depth 0hz key_track 0 key_reference 261.625565hz
+    node out output
+    bus ensemble-pitch note.pitch -> ensemble.pitch
+    bus ensemble-gain amplitude.control -> ensemble.gain
+    bus ensemble-velocity note.velocity -> ensemble.velocity
+    bus ensemble-chorus chorus.control -> ensemble.mod
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus tone-audio ensemble.audio -> tone-filter.audio
+    bus tone-key note.pitch -> tone-filter.key
+    bus thin-audio tone-filter.audio -> thin.audio
+    bus output thin.audio -> out.audio
+  }
+  graph shared 8 {
+    node echo delay time 187.5ms feedback 0.3 mix $space
+    node hall reverb room 0.7 damping 0.5 mix $space
+    node shared-out output
+    bus voice-sum voice_sum.audio -> echo.audio
+    bus echo-hall echo.audio -> hall.audio
+    bus shared-output hall.audio -> shared-out.audio
+  }
+}

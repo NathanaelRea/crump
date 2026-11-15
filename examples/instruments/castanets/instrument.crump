@@ -1,81 +1,70 @@
 crump-module 2
 instrument castanets "Castanets" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.4 0.4
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z38-soft-0 asset castanets-60-soft-0 keys C2 E2 velocity 0 0.65 root D2
-      zone z43-soft-0 asset castanets-60-soft-0 keys F2 A2 velocity 0 0.65 root G2
-      zone z48-soft-0 asset castanets-60-soft-0 keys A#2 D3 velocity 0 0.65 root C3
-      zone z53-soft-0 asset castanets-60-soft-0 keys D#3 G3 velocity 0 0.65 root F3
-      zone z58-soft-0 asset castanets-60-soft-0 keys G#3 C4 velocity 0 0.65 root A#3
-      zone z63-soft-0 asset castanets-60-soft-0 keys C#4 F4 velocity 0 0.65 root D#4
-      zone z68-soft-0 asset castanets-60-soft-0 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone z73-soft-0 asset castanets-60-soft-0 keys B4 D#5 velocity 0 0.65 root C#5
-      zone z78-soft-0 asset castanets-60-soft-0 keys E5 G#5 velocity 0 0.65 root F#5
-      zone z83-soft-0 asset castanets-60-soft-0 keys A5 C#6 velocity 0 0.65 root B5
-      zone z38-hard-0 asset castanets-60-hard-0 keys C2 E2 velocity 0.65 1 root D2
-      zone z43-hard-0 asset castanets-60-hard-0 keys F2 A2 velocity 0.65 1 root G2
-      zone z48-hard-0 asset castanets-60-hard-0 keys A#2 D3 velocity 0.65 1 root C3
-      zone z53-hard-0 asset castanets-60-hard-0 keys D#3 G3 velocity 0.65 1 root F3
-      zone z58-hard-0 asset castanets-60-hard-0 keys G#3 C4 velocity 0.65 1 root A#3
-      zone z63-hard-0 asset castanets-60-hard-0 keys C#4 F4 velocity 0.65 1 root D#4
-      zone z68-hard-0 asset castanets-60-hard-0 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone z73-hard-0 asset castanets-60-hard-0 keys B4 D#5 velocity 0.65 1 root C#5
-      zone z78-hard-0 asset castanets-60-hard-0 keys E5 G#5 velocity 0.65 1 root F#5
-      zone z83-hard-0 asset castanets-60-hard-0 keys A5 C#6 velocity 0.65 1 root B5
-      zone z38-soft-1 asset castanets-60-soft-1 keys C2 E2 velocity 0 0.65 root D2
-      zone z43-soft-1 asset castanets-60-soft-1 keys F2 A2 velocity 0 0.65 root G2
-      zone z48-soft-1 asset castanets-60-soft-1 keys A#2 D3 velocity 0 0.65 root C3
-      zone z53-soft-1 asset castanets-60-soft-1 keys D#3 G3 velocity 0 0.65 root F3
-      zone z58-soft-1 asset castanets-60-soft-1 keys G#3 C4 velocity 0 0.65 root A#3
-      zone z63-soft-1 asset castanets-60-soft-1 keys C#4 F4 velocity 0 0.65 root D#4
-      zone z68-soft-1 asset castanets-60-soft-1 keys F#4 A#4 velocity 0 0.65 root G#4
-      zone z73-soft-1 asset castanets-60-soft-1 keys B4 D#5 velocity 0 0.65 root C#5
-      zone z78-soft-1 asset castanets-60-soft-1 keys E5 G#5 velocity 0 0.65 root F#5
-      zone z83-soft-1 asset castanets-60-soft-1 keys A5 C#6 velocity 0 0.65 root B5
-      zone z38-hard-1 asset castanets-60-hard-1 keys C2 E2 velocity 0.65 1 root D2
-      zone z43-hard-1 asset castanets-60-hard-1 keys F2 A2 velocity 0.65 1 root G2
-      zone z48-hard-1 asset castanets-60-hard-1 keys A#2 D3 velocity 0.65 1 root C3
-      zone z53-hard-1 asset castanets-60-hard-1 keys D#3 G3 velocity 0.65 1 root F3
-      zone z58-hard-1 asset castanets-60-hard-1 keys G#3 C4 velocity 0.65 1 root A#3
-      zone z63-hard-1 asset castanets-60-hard-1 keys C#4 F4 velocity 0.65 1 root D#4
-      zone z68-hard-1 asset castanets-60-hard-1 keys F#4 A#4 velocity 0.65 1 root G#4
-      zone z73-hard-1 asset castanets-60-hard-1 keys B4 D#5 velocity 0.65 1 root C#5
-      zone z78-hard-1 asset castanets-60-hard-1 keys E5 G#5 velocity 0.65 1 root F#5
-      zone z83-hard-1 asset castanets-60-hard-1 keys A5 C#6 velocity 0.65 1 root B5
-    }
+  graph voice 20 {
+    # Two shells meeting a millisecond apart.
+    node strike1 exciter kind impact contact 0.00021296s hardness $hardness level 1
+    node second-shell delay_line mode time time 0.00145s interpolation linear max_time 5ms
+    node gain2 math operation scale amount 0.58
+    node plus3 math operation add
+    node body4 modal_bank profile castanets-shells max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss5 noise level 1
+    node fall6 math operation add
+    node fall6-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall6-leak math operation scale amount 0.98278872462
+    node times7 math operation multiply
+    node hi-8 lowpass mode highpass cutoff 1500hz resonance 0.308309
+    node lo-9 lowpass mode lowpass cutoff 12000hz resonance 0.308309
+    node gain10 math operation scale amount 0.0554256
+    node plus11 math operation add
+    node hi-12 lowpass mode highpass cutoff 650hz resonance 0.308309
+    node hi-13 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.0933134
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-second-shell-audio strike1.audio -> second-shell.audio
+    bus second-shell-audio-gain2-a second-shell.audio -> gain2.a
+    bus strike1-audio-plus3-a strike1.audio -> plus3.a
+    bus gain2-audio-plus3-b gain2.audio -> plus3.b
+    bus plus3-audio-body4-audio plus3.audio -> body4.audio
+    bus note-pitch-body4-pitch note.pitch -> body4.pitch
+    bus note-gate-body4-gate note.gate -> body4.gate
+    bus fall6-audio-fall6-previous-audio fall6.audio -> fall6-previous.audio
+    bus strike1-audio-fall6-a strike1.audio -> fall6.a
+    bus fall6-previous-audio-fall6-leak-a fall6-previous.audio -> fall6-leak.a
+    bus fall6-leak-audio-fall6-b fall6-leak.audio -> fall6.b
+    bus hiss5-audio-times7-a hiss5.audio -> times7.a
+    bus fall6-audio-times7-b fall6.audio -> times7.b
+    bus times7-audio-hi-8-audio times7.audio -> hi-8.audio
+    bus hi-8-audio-lo-9-audio hi-8.audio -> lo-9.audio
+    bus lo-9-audio-gain10-a lo-9.audio -> gain10.a
+    bus body4-audio-plus11-a body4.audio -> plus11.a
+    bus gain10-audio-plus11-b gain10.audio -> plus11.b
+    bus plus11-audio-hi-12-audio plus11.audio -> hi-12.audio
+    bus hi-12-audio-hi-13-audio hi-12.audio -> hi-13.audio
+    bus hi-13-audio-trim-a hi-13.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset castanets-60-soft-0 "Castanets" wav "media/60-soft-0.wav" sha256 "69e003aa5d20f1aba67662929b359ba58b671f9b6d580418cdbd031001efc7e9" {
-  usage multisample
-}
-asset castanets-60-hard-0 "Castanets" wav "media/60-hard-0.wav" sha256 "346ce0c9526aa191f308f0de551239795bd040ccb293267c7c106f27d5ba301e" {
-  usage multisample
-}
-asset castanets-60-soft-1 "Castanets" wav "media/60-soft-1.wav" sha256 "9ea43bf94e4378f53750c14c89a668581ac228a68b94b71cd5f476b4565f5217" {
-  usage multisample
-}
-asset castanets-60-hard-1 "Castanets" wav "media/60-hard-1.wav" sha256 "3b6866e1ccffb4b743acfed11d3c9c5d3ffff0fde4791953a43fb4fde3c35477" {
-  usage multisample
+profile castanets-shells {
+  root 261.626hz
+  mode m0 frequency 2150hz decay 0.012s gain 1 after_decay 0.012s after_gain 0
+  mode m1 frequency 3350hz decay 0.008s gain 0.7 after_decay 0.008s after_gain 0
+  mode m2 frequency 4800hz decay 0.005s gain 0.4 after_decay 0.005s after_gain 0
+  mode m3 frequency 6400hz decay 0.0035s gain 0.2 after_decay 0.0035s after_gain 0
 }

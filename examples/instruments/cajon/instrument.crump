@@ -1,0 +1,159 @@
+crump-module 2
+instrument cajon "Cajón" graph {
+  polyphony 4
+  parameter upper-stroke "Upper stroke" ratio 0 1 0 0 modulatable
+  parameter lower-stroke "Lower stroke" ratio 0 1 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.942 0.942
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-step note_key per_voice unipolar reference C4 range 1st
+    route key-upper source key-step target upper-stroke depth 1 map unipolar curve linear order 0 bypass false
+    route key-lower source key-step target lower-stroke depth -1 map unipolar curve linear order 0 bypass false
+  }
+  graph voice 47 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.00333793s hardness $hardness level 1
+    node body2 modal_bank profile cajon-bass-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.99653379897
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 2.59808
+    node hiss9 noise level 1
+    node fall10 math operation add
+    node fall10-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall10-leak math operation scale amount 0.999479302277
+    node times11 math operation multiply
+    node hi-12 lowpass mode highpass cutoff 1400hz resonance 0.308309
+    node lo-13 lowpass mode lowpass cutoff 11500hz resonance 0.308309
+    node gain14 math operation scale amount 0.736122
+    node mix15 sum max_inputs 3
+    node hi-16 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node shape17 shaper curve tanh drive 0.786549 bias 0
+    node gain18 math operation scale amount $lower-stroke
+    node strike19 exciter kind impact contact 0.000667586s hardness 0.53 level 1
+    node body20 modal_bank profile cajon-slap-head max_modes 10 key_track 0 decay_scale 1 brightness 0 level 1
+    node hiss21 noise level 1
+    node fall22 math operation add
+    node fall22-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall22-leak math operation scale amount 0.997399221234
+    node times23 math operation multiply
+    node hi-24 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-25 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain26 math operation scale amount 2.59808
+    node hiss27 noise level 1
+    node times28 math operation multiply
+    node hi-29 lowpass mode highpass cutoff 1400hz resonance 0.308309
+    node lo-30 lowpass mode lowpass cutoff 11500hz resonance 0.308309
+    node gain31 math operation scale amount 1.17779
+    node mix32 sum max_inputs 3
+    node hi-33 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node shape34 shaper curve tanh drive 0.460494 bias 0
+    node gain35 math operation scale amount $upper-stroke
+    node plus36 math operation add
+    node trim math operation scale amount 0.218489
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus onset-audio-fall4-a onset.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus fall10-audio-fall10-previous-audio fall10.audio -> fall10-previous.audio
+    bus onset-audio-fall10-a onset.audio -> fall10.a
+    bus fall10-previous-audio-fall10-leak-a fall10-previous.audio -> fall10-leak.a
+    bus fall10-leak-audio-fall10-b fall10-leak.audio -> fall10.b
+    bus hiss9-audio-times11-a hiss9.audio -> times11.a
+    bus fall10-audio-times11-b fall10.audio -> times11.b
+    bus times11-audio-hi-12-audio times11.audio -> hi-12.audio
+    bus hi-12-audio-lo-13-audio hi-12.audio -> lo-13.audio
+    bus lo-13-audio-gain14-a lo-13.audio -> gain14.a
+    bus body2-audio-mix15-inputs body2.audio -> mix15.inputs
+    bus gain8-audio-mix15-inputs gain8.audio -> mix15.inputs
+    bus gain14-audio-mix15-inputs gain14.audio -> mix15.inputs
+    bus mix15-audio-hi-16-audio mix15.audio -> hi-16.audio
+    bus hi-16-audio-shape17-audio hi-16.audio -> shape17.audio
+    bus shape17-audio-gain18-a shape17.audio -> gain18.a
+    bus note-gate-strike19-gate note.gate -> strike19.gate
+    bus note-velocity-strike19-velocity note.velocity -> strike19.velocity
+    bus strike19-audio-body20-audio strike19.audio -> body20.audio
+    bus note-pitch-body20-pitch note.pitch -> body20.pitch
+    bus note-gate-body20-gate note.gate -> body20.gate
+    bus fall22-audio-fall22-previous-audio fall22.audio -> fall22-previous.audio
+    bus onset-audio-fall22-a onset.audio -> fall22.a
+    bus fall22-previous-audio-fall22-leak-a fall22-previous.audio -> fall22-leak.a
+    bus fall22-leak-audio-fall22-b fall22-leak.audio -> fall22.b
+    bus hiss21-audio-times23-a hiss21.audio -> times23.a
+    bus fall22-audio-times23-b fall22.audio -> times23.b
+    bus times23-audio-hi-24-audio times23.audio -> hi-24.audio
+    bus hi-24-audio-lo-25-audio hi-24.audio -> lo-25.audio
+    bus lo-25-audio-gain26-a lo-25.audio -> gain26.a
+    bus hiss27-audio-times28-a hiss27.audio -> times28.a
+    bus fall10-audio-times28-b fall10.audio -> times28.b
+    bus times28-audio-hi-29-audio times28.audio -> hi-29.audio
+    bus hi-29-audio-lo-30-audio hi-29.audio -> lo-30.audio
+    bus lo-30-audio-gain31-a lo-30.audio -> gain31.a
+    bus body20-audio-mix32-inputs body20.audio -> mix32.inputs
+    bus gain26-audio-mix32-inputs gain26.audio -> mix32.inputs
+    bus gain31-audio-mix32-inputs gain31.audio -> mix32.inputs
+    bus mix32-audio-hi-33-audio mix32.audio -> hi-33.audio
+    bus hi-33-audio-shape34-audio hi-33.audio -> shape34.audio
+    bus shape34-audio-gain35-a shape34.audio -> gain35.a
+    bus gain18-audio-plus36-a gain18.audio -> plus36.a
+    bus gain35-audio-plus36-b gain35.audio -> plus36.b
+    bus plus36-audio-trim-a plus36.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile cajon-bass-head {
+  root 85hz
+  mode m0 frequency 85hz decay 0.09s gain 1 after_decay 0.09s after_gain 0
+  mode m1 frequency 135.405hz decay 0.0634718s gain 0.671992 after_decay 0.0634718s after_gain 0
+  mode m2 frequency 181.56hz decay 0.050938s gain 0.352424 after_decay 0.050938s after_gain 0
+  mode m3 frequency 195.16hz decay 0.0482518s gain 0.241919 after_decay 0.0482518s after_gain 0
+  mode m4 frequency 225.505hz decay 0.0432952s gain 0.207005 after_decay 0.0432952s after_gain 0
+  mode m5 frequency 248.03hz decay 0.0403115s gain 0.194449 after_decay 0.0403115s after_gain 0
+  mode m6 frequency 268.26hz decay 0.0380093s gain 0.162119 after_decay 0.0380093s after_gain 0
+  mode m7 frequency 297.585hz decay 0.035164s gain 0.105428 after_decay 0.035164s after_gain 0
+  mode m8 frequency 306hz decay 0.0344362s gain 0.0952245 after_decay 0.0344362s after_gain 0
+  mode m9 frequency 345.1hz decay 0.0314665s gain 0.0516049 after_decay 0.0314665s after_gain 0
+}
+profile cajon-slap-head {
+  root 120hz
+  mode m0 frequency 120hz decay 0.05s gain 1 after_decay 0.05s after_gain 0
+  mode m1 frequency 191.16hz decay 0.0352621s gain 0.624045 after_decay 0.0352621s after_gain 0
+  mode m2 frequency 256.32hz decay 0.0282989s gain 0.303927 after_decay 0.0282989s after_gain 0
+  mode m3 frequency 275.52hz decay 0.0268066s gain 0.193743 after_decay 0.0268066s after_gain 0
+  mode m4 frequency 318.36hz decay 0.0240529s gain 0.153953 after_decay 0.0240529s after_gain 0
+  mode m5 frequency 350.16hz decay 0.0223953s gain 0.134296 after_decay 0.0223953s after_gain 0
+  mode m6 frequency 378.72hz decay 0.0211163s gain 0.103979 after_decay 0.0211163s after_gain 0
+  mode m7 frequency 420.12hz decay 0.0195356s gain 0.0627944 after_decay 0.0195356s after_gain 0
+  mode m8 frequency 432hz decay 0.0191312s gain 0.05267 after_decay 0.0191312s after_gain 0
+  mode m9 frequency 487.2hz decay 0.0174814s gain 0.0265068 after_decay 0.0174814s after_gain 0
+}

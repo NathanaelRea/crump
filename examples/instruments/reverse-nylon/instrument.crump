@@ -1,93 +1,117 @@
 crump-module 2
 instrument reverse-nylon "Reverse Nylon" graph {
-  polyphony 16
-  parameter level "Level" ratio 0 1 0.2 0.2
-  parameter tune "Tune" semitones -12st 12st 0st 0st
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
   parameter pan "Pan" pan -1 1 0 0
-  parameter touch "Touch" ratio 0 1 0.5 0.5
   faceplate {
+    control ring "Ring" "How long the body rings" maps ring
     control level "Level" "Output level" maps level
-    control tune "Tune" "Repitch the instrument" maps tune
     control pan "Pan" "Stereo position" maps pan
-    control touch "Touch" "Velocity amplitude response" maps touch
   }
-  graph voice 8 {
-    node source multisample {
-      playback one_shot
-      tune $tune
-      rate 1
-      velocity_amount $touch
-      level $level
-      pan $pan
-      zone z36-soft-0 asset reverse-nylon-36-soft-0 keys C1 D#2 velocity 0 0.65 root C2
-      zone z36-hard-0 asset reverse-nylon-36-hard-0 keys C1 D#2 velocity 0.65 1 root C2
-      zone z43-soft-0 asset reverse-nylon-43-soft-0 keys E2 A2 velocity 0 0.65 root G2
-      zone z43-hard-0 asset reverse-nylon-43-hard-0 keys E2 A2 velocity 0.65 1 root G2
-      zone z48-soft-0 asset reverse-nylon-48-soft-0 keys A#2 D#3 velocity 0 0.65 root C3
-      zone z48-hard-0 asset reverse-nylon-48-hard-0 keys A#2 D#3 velocity 0.65 1 root C3
-      zone z55-soft-0 asset reverse-nylon-55-soft-0 keys E3 A3 velocity 0 0.65 root G3
-      zone z55-hard-0 asset reverse-nylon-55-hard-0 keys E3 A3 velocity 0.65 1 root G3
-      zone z60-soft-0 asset reverse-nylon-60-soft-0 keys A#3 D#4 velocity 0 0.65 root C4
-      zone z60-hard-0 asset reverse-nylon-60-hard-0 keys A#3 D#4 velocity 0.65 1 root C4
-      zone z67-soft-0 asset reverse-nylon-67-soft-0 keys E4 A4 velocity 0 0.65 root G4
-      zone z67-hard-0 asset reverse-nylon-67-hard-0 keys E4 A4 velocity 0.65 1 root G4
-      zone z72-soft-0 asset reverse-nylon-72-soft-0 keys A#4 D#5 velocity 0 0.65 root C5
-      zone z72-hard-0 asset reverse-nylon-72-hard-0 keys A#4 D#5 velocity 0.65 1 root C5
-      zone z79-soft-0 asset reverse-nylon-79-soft-0 keys E5 G6 velocity 0 0.65 root G5
-      zone z79-hard-0 asset reverse-nylon-79-hard-0 keys E5 G6 velocity 0.65 1 root G5
+  modulation {
+    source key-level note_key per_voice bipolar reference C4 range 12st
+    route key-gain-low source key-level target key-gain depth 0.160922 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
     }
+    route key-gain-high source key-level target key-gain depth -0.24329 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 35 {
+    # A plucked string: a pitch-tuned delay loop with a per-trip loss, a pickup and a body.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node held math operation add
+    node held-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node held-leak math operation scale amount 1
+    node period-later delay_line mode pitch ratio 1 interpolation linear max_time 0.1s
+    node period math operation subtract
+    node pluck-window shaper curve hard_clip drive 64 bias 0
+    node pluck-noise noise level 1
+    node pluck math operation multiply
+    node pluck-tone lowpass mode lowpass cutoff 810hz resonance 0.308309 velocity_depth 1170hz
+    node string-in math operation add
+    node string delay_line mode pitch ratio 1 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node string-loss linear_phase_lowpass amount 0.1
+    node string-keep math operation scale amount 0.99999
+    node string-pickup delay_line mode pitch ratio 0.3 interpolation linear max_time 0.05s
+    node string-out math operation subtract
+    node gain1 math operation scale amount 0.7
+    node gain2 math operation scale amount 1.73205
+    node string-tone lowpass mode lowpass cutoff 810hz resonance 0.308309 velocity_depth 1170hz
+    node string-decay math operation add
+    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node string-decay-leak math operation scale amount 0.999981060785
+    node times3 math operation multiply
+    node body4 modal_bank profile reverse-nylon-box max_modes 3 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain5 math operation scale amount 0.5
+    node plus6 math operation add
+    node hi-7 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node swell envelope mode ahdsr attack 0.31s hold 0s decay 0.01s sustain 0 release 0.01s attack_curve -0.6
+    node swell-audio to_audio
+    node times8 math operation multiply
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.874549
+    node level math operation scale amount $level
+    node place pan position $pan
     node out output
-    bus pitch note.pitch -> source.pitch
-    bus gate note.gate -> source.gate
-    bus velocity note.velocity -> source.velocity
-    bus output source.audio -> out.audio
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus held-audio-held-previous-audio held.audio -> held-previous.audio
+    bus onset-audio-held-a onset.audio -> held.a
+    bus held-previous-audio-held-leak-a held-previous.audio -> held-leak.a
+    bus held-leak-audio-held-b held-leak.audio -> held.b
+    bus note-pitch-period-later-pitch note.pitch -> period-later.pitch
+    bus held-audio-period-later-audio held.audio -> period-later.audio
+    bus held-audio-period-a held.audio -> period.a
+    bus period-later-audio-period-b period-later.audio -> period.b
+    bus period-audio-pluck-window-audio period.audio -> pluck-window.audio
+    bus pluck-noise-audio-pluck-a pluck-noise.audio -> pluck.a
+    bus pluck-window-audio-pluck-b pluck-window.audio -> pluck.b
+    bus pluck-audio-pluck-tone-audio pluck.audio -> pluck-tone.audio
+    bus note-velocity-pluck-tone-velocity note.velocity -> pluck-tone.velocity
+    bus pluck-tone-audio-string-in-a pluck-tone.audio -> string-in.a
+    bus note-pitch-string-pitch note.pitch -> string.pitch
+    bus string-in-audio-string-audio string-in.audio -> string.audio
+    bus string-audio-string-loss-audio string.audio -> string-loss.audio
+    bus string-loss-audio-string-keep-a string-loss.audio -> string-keep.a
+    bus string-keep-audio-string-in-b string-keep.audio -> string-in.b
+    bus note-pitch-string-pickup-pitch note.pitch -> string-pickup.pitch
+    bus string-audio-string-pickup-audio string.audio -> string-pickup.audio
+    bus string-audio-string-out-a string.audio -> string-out.a
+    bus string-pickup-audio-gain1-a string-pickup.audio -> gain1.a
+    bus gain1-audio-string-out-b gain1.audio -> string-out.b
+    bus string-out-audio-gain2-a string-out.audio -> gain2.a
+    bus gain2-audio-string-tone-audio gain2.audio -> string-tone.audio
+    bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
+    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
+    bus onset-audio-string-decay-a onset.audio -> string-decay.a
+    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
+    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
+    bus string-tone-audio-times3-a string-tone.audio -> times3.a
+    bus string-decay-audio-times3-b string-decay.audio -> times3.b
+    bus times3-audio-body4-audio times3.audio -> body4.audio
+    bus note-pitch-body4-pitch note.pitch -> body4.pitch
+    bus note-gate-body4-gate note.gate -> body4.gate
+    bus body4-audio-gain5-a body4.audio -> gain5.a
+    bus times3-audio-plus6-a times3.audio -> plus6.a
+    bus gain5-audio-plus6-b gain5.audio -> plus6.b
+    bus plus6-audio-hi-7-audio plus6.audio -> hi-7.audio
+    bus note-gate-swell-gate note.gate -> swell.gate
+    bus swell-control-swell-audio-control swell.control -> swell-audio.control
+    bus hi-7-audio-times8-a hi-7.audio -> times8.a
+    bus swell-audio-audio-times8-b swell-audio.audio -> times8.b
+    bus times8-audio-register-a times8.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
   }
 }
-asset reverse-nylon-36-soft-0 "Reverse Nylon" wav "media/36-soft-0.wav" sha256 "40fed07af13556fb13822918401766a790feeee10fd05c5d6463db9a256d6b06" {
-  usage multisample
-}
-asset reverse-nylon-36-hard-0 "Reverse Nylon" wav "media/36-hard-0.wav" sha256 "39cc3bf642aea22932137bccb7f04ef4c97edceab410e84756a163add7a2d831" {
-  usage multisample
-}
-asset reverse-nylon-43-soft-0 "Reverse Nylon" wav "media/43-soft-0.wav" sha256 "24e70f4ed651cc23bbe72eaf6099c366ba3c86df7f9f72f4811f9473d4c7c45a" {
-  usage multisample
-}
-asset reverse-nylon-43-hard-0 "Reverse Nylon" wav "media/43-hard-0.wav" sha256 "6bb39b857ae3422909c0244ce821fa3f60240a8bb496065480686063f508e0b2" {
-  usage multisample
-}
-asset reverse-nylon-48-soft-0 "Reverse Nylon" wav "media/48-soft-0.wav" sha256 "d9b41a151db81320a77eccf171f550962da89cc58a661404b7843133b1cf9286" {
-  usage multisample
-}
-asset reverse-nylon-48-hard-0 "Reverse Nylon" wav "media/48-hard-0.wav" sha256 "709902d2f5665661cfb110e36cdc3bc7527bf49b6a0945fe24b37a60c33553eb" {
-  usage multisample
-}
-asset reverse-nylon-55-soft-0 "Reverse Nylon" wav "media/55-soft-0.wav" sha256 "12697877ae9870b71ef516946e1a17592b9cb484730143aa45f01137fc68e096" {
-  usage multisample
-}
-asset reverse-nylon-55-hard-0 "Reverse Nylon" wav "media/55-hard-0.wav" sha256 "f6241d4b75013f3d82629d83d8d0168e47dce0a39f5392054a3ee36cc4350ac3" {
-  usage multisample
-}
-asset reverse-nylon-60-soft-0 "Reverse Nylon" wav "media/60-soft-0.wav" sha256 "ecdf930d96f4230bb78687f0079b4aa0d0324b509c48332a9cf4acf3ee568b06" {
-  usage multisample
-}
-asset reverse-nylon-60-hard-0 "Reverse Nylon" wav "media/60-hard-0.wav" sha256 "b4f702d0a11f3d0902653d2ca3a4313e6d02697943710fc6563b5094fd46036d" {
-  usage multisample
-}
-asset reverse-nylon-67-soft-0 "Reverse Nylon" wav "media/67-soft-0.wav" sha256 "df0246ed3ce5a6d719bc773a2ec32521a73cc56d73aedcf38cba5ef20140305a" {
-  usage multisample
-}
-asset reverse-nylon-67-hard-0 "Reverse Nylon" wav "media/67-hard-0.wav" sha256 "d93e8b078a977cb746e1f49b84eeab4a24f9ae54b0a373d7731e4899da86e043" {
-  usage multisample
-}
-asset reverse-nylon-72-soft-0 "Reverse Nylon" wav "media/72-soft-0.wav" sha256 "e453dc0c38c65731adb7b852ff23a6c13af0f8fd85868e8301c1c9aaf737142a" {
-  usage multisample
-}
-asset reverse-nylon-72-hard-0 "Reverse Nylon" wav "media/72-hard-0.wav" sha256 "b8c5d70c31ee4c7831092d73be3fd652e23c765fca386ed384c2ed4b4eca555a" {
-  usage multisample
-}
-asset reverse-nylon-79-soft-0 "Reverse Nylon" wav "media/79-soft-0.wav" sha256 "a1dc4fc69d3e8f35de55da4d472f8e7b13d92aee37d65109a1e7a3b22d74a2e4" {
-  usage multisample
-}
-asset reverse-nylon-79-hard-0 "Reverse Nylon" wav "media/79-hard-0.wav" sha256 "119cf027019811978ae20bc498ba9cfb8197b20caef51543c72f6507437fd38b" {
-  usage multisample
+profile reverse-nylon-box {
+  root 261.626hz
+  mode m0 frequency 110hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 205hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 420hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
 }

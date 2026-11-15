@@ -1,0 +1,83 @@
+crump-module 2
+instrument steel-pan "Steel Pan" graph {
+  polyphony 8
+  parameter ring "Ring" ratio 0.1 4 0.6674 0.6674 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter hardness "Hardness" ratio 0 1 0.1 0.1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control ring "Ring" "Decay time of the body" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-range note_key per_voice bipolar reference D5 range 14st
+    source key-level note_key per_voice bipolar reference C5 range 12st
+    route ring-key source key-range target ring depth -0.269862 map bipolar curve linear order 0 bypass false
+    route key-gain-low source key-level target key-gain depth 0.0573723 map bipolar curve linear order 0 bypass false {
+      clamp -1 0
+    }
+    route key-gain-high source key-level target key-gain depth 0.375209 map bipolar curve linear order 0 bypass false {
+      clamp 0 1
+    }
+  }
+  graph voice 17 {
+    # A strike on a tuned body with explicit mode ratios, plus a contact tick.
+    node strike1 exciter kind impact contact 0.000336111s hardness $hardness level 1
+    node body2 modal_bank profile steel-pan-body max_modes 12 key_track 1 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node fall4 math operation add
+    node fall4-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node fall4-leak math operation scale amount 0.989637398915
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 2000hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 12000hz resonance 0.308309
+    node gain8 math operation scale amount 0.427252
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.137169
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus fall4-audio-fall4-previous-audio fall4.audio -> fall4-previous.audio
+    bus strike1-audio-fall4-a strike1.audio -> fall4.a
+    bus fall4-previous-audio-fall4-leak-a fall4-previous.audio -> fall4-leak.a
+    bus fall4-leak-audio-fall4-b fall4-leak.audio -> fall4.b
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-register-a hi-10.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile steel-pan-body {
+  root 261.626hz
+  mode m0 frequency 261.416hz decay 0.25s gain 0.325 after_decay 0.25s after_gain 0
+  mode m1 frequency 522.833hz decay 0.18s gain 0.607911 after_decay 0.18s after_gain 0
+  mode m2 frequency 784.249hz decay 0.09s gain 0.170564 after_decay 0.09s after_gain 0
+  mode m3 frequency 1045.67hz decay 0.09s gain 0.425387 after_decay 0.09s after_gain 0
+  mode m4 frequency 1568.5hz decay 0.05s gain 0.149191 after_decay 0.05s after_gain 0
+  mode m5 frequency 2091.33hz decay 0.04s gain 0.0930204 after_decay 0.04s after_gain 0
+  mode m6 frequency 261.835hz decay 0.25s gain 0.175 after_decay 0.25s after_gain 0
+  mode m7 frequency 523.67hz decay 0.18s gain 0.327337 after_decay 0.18s after_gain 0
+  mode m8 frequency 785.505hz decay 0.09s gain 0.0918424 after_decay 0.09s after_gain 0
+  mode m9 frequency 1047.34hz decay 0.09s gain 0.229055 after_decay 0.09s after_gain 0
+  mode m10 frequency 1571.01hz decay 0.05s gain 0.0803336 after_decay 0.05s after_gain 0
+  mode m11 frequency 2094.68hz decay 0.04s gain 0.0500879 after_decay 0.04s after_gain 0
+}
