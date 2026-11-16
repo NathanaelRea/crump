@@ -1,22 +1,23 @@
 //! Instrument definitions and Composable DSP Graph validation.
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     diagnostic::{Diagnostic, Diagnostics},
+    graph_schedule::SameFrameDependencies,
     model::{
         GlideMode, Graph, GraphDomain, Instrument, InstrumentKind, MULTISAMPLE_ZONE_SYNTAX,
         NodeKind, NotePriority, PresentationItemKind, Project, RetriggerPolicy, SettingValue,
         StealPriority, Unit, VoicingMode, parse_pitch,
     },
+    node_definition::{Cardinality, NumericDomain, SettingKind, SignalType, input_bus_limit},
     time::{Meter, parse_musical_time},
 };
 
 use super::{
     MAX_GRAPH_NODES, MAX_GRAPH_VOICES, MAX_INSTRUMENT_TAGS, MAX_MULTISAMPLE_ZONES,
-    MAX_PRESENTATION_ITEMS, MAX_PRESENTATION_SECTIONS, MAX_SAMPLE_SLICES, MAX_SPECTRAL_PEAKS,
-    MAX_SPECTRAL_SOURCES_PER_VOICE, MAX_STEREO_SUM_INPUTS, located_error, source_site_error,
-    valid_id, valid_key,
+    MAX_PRESENTATION_ITEMS, MAX_PRESENTATION_SECTIONS, MAX_SAMPLE_SLICES,
+    MAX_SPECTRAL_SOURCES_PER_VOICE, located_error, source_site_error, valid_id, valid_key,
 };
 
 /// Reuses the authoritative graph contract as a defensive compiler boundary.
@@ -801,10 +802,6 @@ fn validate_faceplate(instrument: &Instrument, diagnostics: &mut Diagnostics) {
     }
 }
 
-const fn node_kind_has_runtime(_kind: NodeKind) -> bool {
-    true
-}
-
 fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diagnostics) {
     if graph.max_nodes == 0 || graph.max_nodes > MAX_GRAPH_NODES {
         located_error(
@@ -856,48 +853,36 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
         if node.kind == NodeKind::Output {
             outputs += 1;
         }
-        if node_kind_has_runtime(node.kind) {
-            if node.kind == NodeKind::AnalogOscillator {
-                validate_analog_directives(node, &parameters, diagnostics);
-            } else if node.kind == NodeKind::Wavetable {
-                validate_wavetable_directives(node, &parameters, diagnostics);
-            } else if node.kind == NodeKind::SampleSource {
-                validate_sample_source_directives(node, &parameters, diagnostics);
-            } else if node.kind == NodeKind::Multisample {
-                validate_multisample_directives(node, diagnostics);
-            } else if node.kind == NodeKind::Spectral {
-                validate_spectral_settings(node, &parameters, diagnostics);
-            } else if node.kind == NodeKind::Lfo {
-                validate_lfo_directives(node, diagnostics);
-            } else if node.kind == NodeKind::Shaper {
-                validate_shaper_directives(node, diagnostics);
-            } else if node.kind == NodeKind::BiquadChain {
-                validate_biquad_chain_directives(node, diagnostics);
-            } else if node.kind == NodeKind::Envelope {
-                validate_envelope_mode(node, diagnostics);
-            } else if !node.directives.is_empty() {
-                located_error(
-                    diagnostics,
-                    "CRV050",
-                    format!(
-                        "{} node does not support structured directives",
-                        node_kind_name(node.kind)
-                    ),
-                    &node.location,
-                );
-            }
-            validate_node_settings(node, &parameters, diagnostics);
-        } else {
+        if node.kind == NodeKind::AnalogOscillator {
+            validate_analog_directives(node, &parameters, diagnostics);
+        } else if node.kind == NodeKind::Wavetable {
+            validate_wavetable_directives(node, &parameters, diagnostics);
+        } else if node.kind == NodeKind::SampleSource {
+            validate_sample_source_directives(node, &parameters, diagnostics);
+        } else if node.kind == NodeKind::Multisample {
+            validate_multisample_directives(node, diagnostics);
+        } else if node.kind == NodeKind::Spectral {
+            validate_spectral_settings(node, &parameters, diagnostics);
+        } else if node.kind == NodeKind::Lfo {
+            validate_lfo_directives(node, diagnostics);
+        } else if node.kind == NodeKind::Shaper {
+            validate_shaper_directives(node, diagnostics);
+        } else if node.kind == NodeKind::BiquadChain {
+            validate_biquad_chain_directives(node, diagnostics);
+        } else if node.kind == NodeKind::Envelope {
+            validate_envelope_mode(node, diagnostics);
+        } else if !node.directives.is_empty() {
             located_error(
                 diagnostics,
-                "CRV059",
+                "CRV050",
                 format!(
-                    "{} source is reserved in source version 2 but has no runtime implementation",
-                    node_kind_name(node.kind)
+                    "{} node does not support structured directives",
+                    node.kind.definition().name
                 ),
                 &node.location,
             );
         }
+        validate_node_settings(node, &parameters, diagnostics);
     }
     if outputs != 1 {
         located_error(
@@ -911,15 +896,6 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
     let mut bus_ids = BTreeSet::new();
     let mut input_counts: BTreeMap<(&str, &str), usize> = BTreeMap::new();
     let mut voice_sum_connections = 0_usize;
-    // Same-frame dependencies. A Bus into a feedback-breaking Node is consumed after the
-    // frame, so it never orders Nodes and may close a loop.
-    let mut adjacency: BTreeMap<&str, Vec<&str>> =
-        nodes.keys().map(|id| (*id, Vec::new())).collect();
-    let breaks_feedback = |id: &str| {
-        nodes
-            .get(id)
-            .is_some_and(|node| node.kind.breaks_feedback())
-    };
     let mut reverse: BTreeMap<&str, Vec<&str>> = nodes.keys().map(|id| (*id, Vec::new())).collect();
     for connection in &graph.connections {
         let duplicate = !bus_ids.insert(connection.id.as_str());
@@ -951,7 +927,7 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
         );
         let to_type = input_type(&connection.to.node, &connection.to.port, &nodes);
         match (from_type, to_type) {
-            (Ok(from), Ok(to)) if signal_compatible(from, to) => {}
+            (Ok(from), Ok(to)) if from.feeds(to) => {}
             (Ok(from), Ok(to)) => located_error(
                 diagnostics,
                 "CRV044",
@@ -973,46 +949,39 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
             .entry((connection.to.node.as_str(), connection.to.port.as_str()))
             .or_default();
         *count += 1;
-        let summing_limit = nodes
-            .get(connection.to.node.as_str())
-            .filter(|node| node.kind.is_summing() && connection.to.port == "inputs")
-            .map(|node| match node.setting("max_inputs") {
-                Some(SettingValue::Number(value)) if value.is_finite() => {
-                    (*value as usize).clamp(1, MAX_STEREO_SUM_INPUTS)
-                }
-                _ => MAX_STEREO_SUM_INPUTS,
-            });
-        if summing_limit.is_none() && *count > 1 {
-            located_error(
-                diagnostics,
-                "CRV046",
-                format!(
-                    "single-cardinality input {} has more than one Bus",
-                    connection.to
-                ),
-                &connection.location,
-            );
-        } else if summing_limit.is_some_and(|limit| *count > limit) {
-            located_error(
-                diagnostics,
-                "CRV061",
-                format!(
-                    "summing input {} exceeds its {}-Bus bound",
-                    connection.to,
-                    summing_limit.unwrap_or(MAX_STEREO_SUM_INPUTS)
-                ),
-                &connection.location,
-            );
+        if let Some(target) = nodes.get(connection.to.node.as_str()) {
+            let limit = input_bus_limit(target, &connection.to.port);
+            let summing = target
+                .kind
+                .definition()
+                .input(&connection.to.port)
+                .is_some_and(|spec| spec.cardinality == Cardinality::Summing);
+            if *count > limit && !summing {
+                located_error(
+                    diagnostics,
+                    "CRV046",
+                    format!(
+                        "single-cardinality input {} has more than one Bus",
+                        connection.to
+                    ),
+                    &connection.location,
+                );
+            } else if *count > limit {
+                located_error(
+                    diagnostics,
+                    "CRV061",
+                    format!(
+                        "summing input {} exceeds its {limit}-Bus bound",
+                        connection.to
+                    ),
+                    &connection.location,
+                );
+            }
         }
-        if !matches!(connection.from.node.as_str(), "note" | "voice_sum") {
-            if !breaks_feedback(connection.to.node.as_str())
-                && let Some(edges) = adjacency.get_mut(connection.from.node.as_str())
-            {
-                edges.push(connection.to.node.as_str());
-            }
-            if let Some(edges) = reverse.get_mut(connection.to.node.as_str()) {
-                edges.push(connection.from.node.as_str());
-            }
+        if !matches!(connection.from.node.as_str(), "note" | "voice_sum")
+            && let Some(edges) = reverse.get_mut(connection.to.node.as_str())
+        {
+            edges.push(connection.from.node.as_str());
         }
     }
 
@@ -1027,9 +996,8 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
         );
     }
 
-    // Same-frame graph-Control routes are per-voice dependency edges: their source Node must
-    // execute before every voice Node consuming the destination Parameter. Shared graphs omit
-    // every per-voice route and therefore must not inherit these graph-local edges.
+    // Graph-port routes also let their source Node contribute to the output. Shared graphs omit
+    // every per-voice route.
     if graph.domain == GraphDomain::Voice {
         for route in &instrument.modulation_routes {
             let source_nodes = std::iter::once(route.source.as_str())
@@ -1052,11 +1020,6 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
                     .iter()
                     .filter(|node| node.references_parameter(&route.target))
                 {
-                    if !consumer.kind.breaks_feedback()
-                        && let Some(edges) = adjacency.get_mut(source_node)
-                    {
-                        edges.push(consumer.id.as_str());
-                    }
                     if let Some(edges) = reverse.get_mut(consumer.id.as_str()) {
                         edges.push(source_node);
                     }
@@ -1066,9 +1029,9 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
     }
 
     for node in &graph.nodes {
-        for required in required_inputs(node.kind) {
+        for required in node.kind.definition().required_inputs() {
             if input_counts
-                .get(&(node.id.as_str(), *required))
+                .get(&(node.id.as_str(), required))
                 .copied()
                 .unwrap_or(0)
                 == 0
@@ -1083,7 +1046,7 @@ fn validate_graph(instrument: &Instrument, graph: &Graph, diagnostics: &mut Diag
         }
     }
     validate_primitive_inputs(graph, &parameters, &input_counts, diagnostics);
-    if let Some(cycle) = find_cycle(&adjacency) {
+    if let Err(cycle) = SameFrameDependencies::of(instrument, graph).order() {
         located_error(
             diagnostics,
             "CRV048",
@@ -1118,7 +1081,7 @@ fn validate_node_settings(
     parameters: &BTreeMap<&str, &crate::model::Parameter>,
     diagnostics: &mut Diagnostics,
 ) {
-    let schema = setting_schema(node.kind);
+    let definition = node.kind.definition();
     let mut keys = BTreeSet::new();
     for setting in &node.settings {
         let key = setting.key.as_str();
@@ -1129,23 +1092,19 @@ fn validate_node_settings(
                 "CRV050",
                 format!(
                     "duplicate `{key}` setting for {} node",
-                    node_kind_name(node.kind)
+                    node.kind.definition().name
                 ),
                 &setting.key_site,
             );
             continue;
         }
-        let Some(expected) = schema
-            .iter()
-            .find(|spec| spec.key == key)
-            .map(|spec| spec.kind)
-        else {
+        let Some(expected) = definition.setting(key).map(|spec| spec.kind) else {
             source_site_error(
                 diagnostics,
                 "CRV050",
                 format!(
                     "unknown `{key}` setting for {} node",
-                    node_kind_name(node.kind)
+                    node.kind.definition().name
                 ),
                 &setting.key_site,
             );
@@ -2466,186 +2425,6 @@ fn validate_analog_directive_amount(
     }
 }
 
-#[derive(Clone, Copy)]
-struct NumericDomain {
-    minimum: f64,
-    maximum: Option<f64>,
-}
-
-impl NumericDomain {
-    const fn bounded(minimum: f64, maximum: f64) -> Self {
-        Self {
-            minimum,
-            maximum: Some(maximum),
-        }
-    }
-
-    fn contains(self, value: f64) -> bool {
-        value >= self.minimum && self.maximum.is_none_or(|maximum| value <= maximum)
-    }
-
-    fn label(self) -> String {
-        self.maximum.map_or_else(
-            || format!("{} or greater", self.minimum),
-            |maximum| format!("{}..={maximum}", self.minimum),
-        )
-    }
-}
-
-fn setting_domain(kind: NodeKind, key: &str) -> Option<NumericDomain> {
-    match (kind, key) {
-        (NodeKind::Exciter, "contact") => Some(NumericDomain::bounded(0.00002, 0.02)),
-        (NodeKind::Exciter, "hardness") | (NodeKind::ModalBank, "key_track") => {
-            Some(NumericDomain::bounded(0.0, 1.0))
-        }
-        (NodeKind::Exciter, "rate") => Some(NumericDomain::bounded(1.0, 10000.0)),
-        (NodeKind::Exciter, "duration") => Some(NumericDomain::bounded(0.005, 2.0)),
-        (NodeKind::Exciter, "attack") => Some(NumericDomain::bounded(0.0, 1.0)),
-        (NodeKind::ModalBank, "rise") => Some(NumericDomain::bounded(0.0, 1.0)),
-        (NodeKind::ModalBank, "decay_scale") => Some(NumericDomain::bounded(0.1, 4.0)),
-        (NodeKind::ModalBank, "brightness") => Some(NumericDomain::bounded(-2.0, 2.0)),
-        (NodeKind::Exciter | NodeKind::ModalBank, "level") => {
-            Some(NumericDomain::bounded(0.0, 4.0))
-        }
-        (
-            NodeKind::Oscillator
-            | NodeKind::Unison
-            | NodeKind::AnalogOscillator
-            | NodeKind::Wavetable
-            | NodeKind::SampleSource
-            | NodeKind::Multisample
-            | NodeKind::Granular
-            | NodeKind::Spectral
-            | NodeKind::Noise
-            | NodeKind::Amplifier,
-            "level",
-        )
-        | (NodeKind::Mixer | NodeKind::StereoMixer, "a_level" | "b_level") => {
-            Some(NumericDomain::bounded(0.0, 4.0))
-        }
-        (NodeKind::Oscillator, "detune") => Some(NumericDomain::bounded(-96.0, 96.0)),
-        (
-            NodeKind::Oscillator
-            | NodeKind::Unison
-            | NodeKind::AnalogOscillator
-            | NodeKind::Wavetable,
-            "glide",
-        ) => Some(NumericDomain::bounded(0.0, 5.0)),
-        (NodeKind::Unison | NodeKind::AnalogOscillator | NodeKind::Wavetable, "detune") => {
-            Some(NumericDomain::bounded(0.0, 2.0))
-        }
-        (NodeKind::Unison | NodeKind::AnalogOscillator | NodeKind::Wavetable, "drift") => {
-            Some(NumericDomain::bounded(0.0, 0.5))
-        }
-        (NodeKind::Unison, "mod_depth") => Some(NumericDomain::bounded(-24.0, 24.0)),
-        (
-            NodeKind::Unison | NodeKind::AnalogOscillator | NodeKind::Wavetable,
-            "width" | "velocity_amount",
-        ) => Some(NumericDomain::bounded(0.0, 1.0)),
-        (NodeKind::AnalogOscillator, "blend" | "am_depth")
-        | (NodeKind::Wavetable, "blend" | "table_position") => {
-            Some(NumericDomain::bounded(0.0, 1.0))
-        }
-        (NodeKind::AnalogOscillator | NodeKind::Wavetable, "pan") => {
-            Some(NumericDomain::bounded(-1.0, 1.0))
-        }
-        (NodeKind::AnalogOscillator | NodeKind::Wavetable, "coarse" | "fm_depth") => {
-            Some(NumericDomain::bounded(-48.0, 48.0))
-        }
-        (NodeKind::AnalogOscillator | NodeKind::Wavetable, "fine") => {
-            Some(NumericDomain::bounded(-1.0, 1.0))
-        }
-        (NodeKind::AnalogOscillator, "pm_depth" | "phase" | "random_phase" | "drive")
-        | (NodeKind::Wavetable, "pm_depth" | "phase" | "random_phase") => {
-            Some(NumericDomain::bounded(0.0, 1.0))
-        }
-        (NodeKind::AnalogOscillator | NodeKind::Wavetable, "warp_amount") => {
-            Some(NumericDomain::bounded(-1.0, 1.0))
-        }
-        (
-            NodeKind::SampleSource | NodeKind::Multisample,
-            "start" | "end" | "loop_start" | "loop_end" | "velocity_amount",
-        ) => Some(NumericDomain::bounded(0.0, 1.0)),
-        (NodeKind::SampleSource | NodeKind::Multisample, "rate") => {
-            Some(NumericDomain::bounded(0.125, 8.0))
-        }
-        (NodeKind::SampleSource | NodeKind::Multisample, "tune") => {
-            Some(NumericDomain::bounded(-48.0, 48.0))
-        }
-        (NodeKind::SampleSource | NodeKind::Multisample, "pan") => {
-            Some(NumericDomain::bounded(-1.0, 1.0))
-        }
-        (NodeKind::Granular, "position" | "spray" | "direction_probability" | "stereo_spread") => {
-            Some(NumericDomain::bounded(0.0, 1.0))
-        }
-        (NodeKind::Granular, "scan") => Some(NumericDomain::bounded(-2.0, 2.0)),
-        (NodeKind::Granular, "size") => Some(NumericDomain::bounded(0.005, 1.0)),
-        (NodeKind::Granular, "density") => Some(NumericDomain::bounded(0.1, 1_000.0)),
-        (NodeKind::Granular, "tune") => Some(NumericDomain::bounded(-48.0, 48.0)),
-        (NodeKind::Spectral, "scan" | "phase_randomization") => {
-            Some(NumericDomain::bounded(0.0, 1.0))
-        }
-        (NodeKind::Spectral, "rate") => Some(NumericDomain::bounded(-4.0, 4.0)),
-        (NodeKind::Spectral, "tune") => Some(NumericDomain::bounded(-48.0, 48.0)),
-        (NodeKind::Spectral, "low" | "high") => Some(NumericDomain::bounded(20.0, 21_600.0)),
-        (NodeKind::Envelope, "attack" | "hold" | "decay") => Some(NumericDomain::bounded(0.0, 8.0)),
-        (NodeKind::Envelope, "sustain") => Some(NumericDomain::bounded(0.0, 1.0)),
-        (NodeKind::Envelope, "attack_curve" | "decay_curve" | "release_curve") => {
-            Some(NumericDomain::bounded(-1.0, 1.0))
-        }
-        (NodeKind::Envelope, "release") => Some(NumericDomain::bounded(0.0, 8.0)),
-        (NodeKind::Lowpass | NodeKind::StereoFilter, "cutoff" | "key_reference") => {
-            Some(NumericDomain::bounded(10.0, 21_600.0))
-        }
-        (NodeKind::Lowpass | NodeKind::StereoFilter, "mod_depth" | "velocity_depth") => {
-            Some(NumericDomain::bounded(-21_600.0, 21_600.0))
-        }
-        (NodeKind::Lowpass | NodeKind::StereoFilter, "resonance") => {
-            Some(NumericDomain::bounded(0.0, 1.0))
-        }
-        (NodeKind::Lowpass | NodeKind::StereoFilter, "key_track") => {
-            Some(NumericDomain::bounded(0.0, 2.0))
-        }
-        (NodeKind::StereoFilter, "drive" | "mix") => Some(NumericDomain::bounded(0.0, 1.0)),
-        (NodeKind::StereoFilter, "pan") => Some(NumericDomain::bounded(-1.0, 1.0)),
-        (NodeKind::Saturation, "drive") => Some(NumericDomain::bounded(0.0, 8.0)),
-        (NodeKind::Pan, "position") => Some(NumericDomain::bounded(-1.0, 1.0)),
-        (NodeKind::Delay, "time") => Some(NumericDomain::bounded(0.001, 2.0)),
-        (NodeKind::Delay, "feedback") => Some(NumericDomain::bounded(0.0, 0.95)),
-        (NodeKind::Delay | NodeKind::Reverb, "mix") | (NodeKind::Reverb, "room") => {
-            Some(NumericDomain::bounded(0.0, 1.0))
-        }
-        (NodeKind::Reverb, "damping") => Some(NumericDomain::bounded(0.0, 0.95)),
-        (NodeKind::Lfo, "rate") => Some(NumericDomain::bounded(0.01, 50.0)),
-        (NodeKind::Lfo, "depth" | "phase" | "random_phase") => {
-            Some(NumericDomain::bounded(0.0, 1.0))
-        }
-        (NodeKind::Lfo, "swing") => Some(NumericDomain::bounded(-1.0, 1.0)),
-        (NodeKind::DelayLine, "time") => Some(NumericDomain::bounded(0.0, 2.0)),
-        (NodeKind::DelayLine, "max_time") => Some(NumericDomain::bounded(0.001, 2.0)),
-        (NodeKind::DelayLine, "ratio") => Some(NumericDomain::bounded(0.01, 16.0)),
-        (NodeKind::DelayLine, "mod_depth") => Some(NumericDomain::bounded(0.0, 1.0)),
-        (NodeKind::DelayLine, "tune_compensation") => Some(NumericDomain::bounded(0.0, 16.0)),
-        (NodeKind::Math | NodeKind::StereoMath, "amount") => {
-            Some(NumericDomain::bounded(-64.0, 64.0))
-        }
-        (NodeKind::Shaper, "drive") => Some(NumericDomain::bounded(0.0, 64.0)),
-        (NodeKind::Shaper, "bias") => Some(NumericDomain::bounded(-16.0, 16.0)),
-        (NodeKind::Shaper, "asymmetry") | (NodeKind::LinearPhaseLowpass, "amount") => {
-            Some(NumericDomain::bounded(0.0, 1.0))
-        }
-        (NodeKind::DcBlock, "cutoff") => Some(NumericDomain::bounded(1.0, 500.0)),
-        (NodeKind::Biquad, "frequency" | "key_reference")
-        | (NodeKind::OnePole, "cutoff")
-        | (NodeKind::Constant, "frequency") => Some(NumericDomain::bounded(1.0, 24_000.0)),
-        (NodeKind::Biquad, "q") => Some(NumericDomain::bounded(0.05, 64.0)),
-        (NodeKind::Biquad, "gain") => Some(NumericDomain::bounded(-48.0, 48.0)),
-        (NodeKind::Biquad, "key_track") => Some(NumericDomain::bounded(0.0, 1.0)),
-        (NodeKind::OnePole, "time") => Some(NumericDomain::bounded(0.000_01, 60.0)),
-        _ => None,
-    }
-}
-
 fn validate_setting_domain(
     node: &crate::model::GraphNode,
     key: &str,
@@ -2654,7 +2433,7 @@ fn validate_setting_domain(
     site: &crate::model::ValueSite,
     diagnostics: &mut Diagnostics,
 ) {
-    let Some(domain) = setting_domain(node.kind, key) else {
+    let Some(domain) = node.kind.definition().domain(key) else {
         return;
     };
     if !domain.contains(value) {
@@ -2680,29 +2459,6 @@ fn validate_setting_domain(
             ),
             site,
         );
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SignalType {
-    AudioMono,
-    AudioStereo,
-    Hertz,
-    Gate,
-    Unipolar,
-    Control,
-}
-
-impl SignalType {
-    const fn label(self) -> &'static str {
-        match self {
-            Self::AudioMono => "mono Audio",
-            Self::AudioStereo => "stereo Audio",
-            Self::Hertz => "hertz Control",
-            Self::Gate => "gate Control",
-            Self::Unipolar => "unipolar Control",
-            Self::Control => "uni- or bipolar Control",
-        }
     }
 }
 
@@ -2735,10 +2491,10 @@ fn output_type(
     let graph_node = nodes
         .get(node)
         .ok_or_else(|| format!("connection references missing node `{node}`"))?;
-    node_output(graph_node.kind, port).ok_or_else(|| {
+    graph_node.kind.definition().output(port).ok_or_else(|| {
         format!(
             "{} node `{node}` has no `{port}` output",
-            node_kind_name(graph_node.kind)
+            graph_node.kind.definition().name
         )
     })
 }
@@ -2754,1207 +2510,17 @@ fn input_type(
     let graph_node = nodes
         .get(node)
         .ok_or_else(|| format!("connection references missing node `{node}`"))?;
-    node_input(graph_node.kind, port).ok_or_else(|| {
-        format!(
-            "{} node `{node}` has no `{port}` input",
-            node_kind_name(graph_node.kind)
-        )
-    })
-}
-
-fn node_output(kind: NodeKind, port: &str) -> Option<SignalType> {
-    match (kind, port) {
-        (NodeKind::Exciter | NodeKind::ModalBank, "audio") => Some(SignalType::AudioMono),
-        (
-            NodeKind::Oscillator
-            | NodeKind::Noise
-            | NodeKind::Mixer
-            | NodeKind::Sum
-            | NodeKind::Lowpass
-            | NodeKind::Amplifier
-            | NodeKind::Saturation
-            | NodeKind::StereoToMono,
-            "audio",
-        ) => Some(SignalType::AudioMono),
-        (
-            NodeKind::Unison
-            | NodeKind::AnalogOscillator
-            | NodeKind::Wavetable
-            | NodeKind::SampleSource
-            | NodeKind::Multisample
-            | NodeKind::Granular
-            | NodeKind::Spectral
-            | NodeKind::StereoFilter
-            | NodeKind::Pan
-            | NodeKind::Delay
-            | NodeKind::Reverb
-            | NodeKind::MonoToStereo
-            | NodeKind::StereoMixer
-            | NodeKind::StereoSum,
-            "audio",
-        ) => Some(SignalType::AudioStereo),
-        (NodeKind::Envelope, "control") => Some(SignalType::Unipolar),
-        (NodeKind::Lfo | NodeKind::ToControl, "control") => Some(SignalType::Control),
-        (
-            NodeKind::DelayLine
-            | NodeKind::Math
-            | NodeKind::Shaper
-            | NodeKind::ToAudio
-            | NodeKind::DcBlock
-            | NodeKind::LinearPhaseLowpass
-            | NodeKind::Biquad
-            | NodeKind::OnePole
-            | NodeKind::BiquadChain,
-            "audio",
-        ) => Some(SignalType::AudioMono),
-        (NodeKind::StereoMath, "audio") => Some(SignalType::AudioStereo),
-        (NodeKind::Constant, "pitch") => Some(SignalType::Hertz),
-        _ => None,
-    }
-}
-
-fn node_input(kind: NodeKind, port: &str) -> Option<SignalType> {
-    match (kind, port) {
-        (NodeKind::Exciter | NodeKind::ModalBank, "gate") => Some(SignalType::Gate),
-        (NodeKind::Exciter, "velocity") => Some(SignalType::Unipolar),
-        (NodeKind::ModalBank, "pitch") => Some(SignalType::Hertz),
-        (NodeKind::ModalBank, "audio") => Some(SignalType::AudioMono),
-        (
-            NodeKind::Oscillator
-            | NodeKind::Unison
-            | NodeKind::AnalogOscillator
-            | NodeKind::Wavetable
-            | NodeKind::SampleSource
-            | NodeKind::Multisample
-            | NodeKind::Granular
-            | NodeKind::Spectral,
-            "pitch",
-        ) => Some(SignalType::Hertz),
-        (
-            NodeKind::Unison
-            | NodeKind::AnalogOscillator
-            | NodeKind::Wavetable
-            | NodeKind::SampleSource
-            | NodeKind::Multisample,
-            "gain" | "velocity",
-        ) => Some(SignalType::Unipolar),
-        (NodeKind::Unison, "mod") => Some(SignalType::Control),
-        (NodeKind::AnalogOscillator, "fm" | "pm" | "sync" | "am")
-        | (NodeKind::Wavetable, "fm" | "pm" | "sync") => Some(SignalType::AudioMono),
-        (
-            NodeKind::Envelope
-            | NodeKind::SampleSource
-            | NodeKind::Multisample
-            | NodeKind::Granular,
-            "gate",
-        ) => Some(SignalType::Gate),
-        (NodeKind::Mixer, "a" | "b") => Some(SignalType::AudioMono),
-        (NodeKind::StereoMixer, "a" | "b") => Some(SignalType::AudioStereo),
-        (NodeKind::StereoSum, "inputs") => Some(SignalType::AudioStereo),
-        (NodeKind::Sum, "inputs") => Some(SignalType::AudioMono),
-        (
-            NodeKind::Lowpass
-            | NodeKind::Amplifier
-            | NodeKind::Saturation
-            | NodeKind::Pan
-            | NodeKind::MonoToStereo,
-            "audio",
-        ) => Some(SignalType::AudioMono),
-        (
-            NodeKind::Lowpass | NodeKind::StereoFilter | NodeKind::Biquad | NodeKind::BiquadChain,
-            "key",
-        ) => Some(SignalType::Hertz),
-        (NodeKind::Lowpass | NodeKind::StereoFilter, "mod") => Some(SignalType::Control),
-        (NodeKind::Lowpass | NodeKind::StereoFilter, "velocity") => Some(SignalType::Unipolar),
-        (NodeKind::Amplifier, "gain") => Some(SignalType::Unipolar),
-        (
-            NodeKind::Delay
-            | NodeKind::Reverb
-            | NodeKind::Output
-            | NodeKind::StereoToMono
-            | NodeKind::StereoFilter,
-            "audio",
-        ) => Some(SignalType::AudioStereo),
-        (
-            NodeKind::DelayLine
-            | NodeKind::Shaper
-            | NodeKind::ToControl
-            | NodeKind::DcBlock
-            | NodeKind::LinearPhaseLowpass
-            | NodeKind::Biquad
-            | NodeKind::OnePole
-            | NodeKind::BiquadChain,
-            "audio",
-        )
-        | (NodeKind::DelayLine, "time_mod")
-        | (NodeKind::Math, "a" | "b") => Some(SignalType::AudioMono),
-        (NodeKind::DelayLine, "pitch") => Some(SignalType::Hertz),
-        (NodeKind::StereoMath, "a" | "b") => Some(SignalType::AudioStereo),
-        (NodeKind::ToAudio, "control") => Some(SignalType::Control),
-        _ => None,
-    }
-}
-
-const fn required_inputs(kind: NodeKind) -> &'static [&'static str] {
-    match kind {
-        NodeKind::Exciter => &["gate", "velocity"],
-        NodeKind::ModalBank => &["gate", "pitch", "audio"],
-        NodeKind::Oscillator
-        | NodeKind::Unison
-        | NodeKind::AnalogOscillator
-        | NodeKind::Wavetable => &["pitch"],
-        NodeKind::SampleSource => &["pitch", "gate"],
-        NodeKind::Multisample => &["pitch", "gate", "velocity"],
-        NodeKind::Granular => &["pitch", "gate"],
-        NodeKind::Spectral => &["pitch"],
-        NodeKind::Noise | NodeKind::Lfo | NodeKind::Constant => &[],
-        NodeKind::Envelope => &["gate"],
-        NodeKind::Mixer | NodeKind::StereoMixer => &["a"],
-        NodeKind::StereoSum | NodeKind::Sum => &["inputs"],
-        NodeKind::Lowpass
-        | NodeKind::Saturation
-        | NodeKind::Pan
-        | NodeKind::MonoToStereo
-        | NodeKind::StereoToMono => &["audio"],
-        NodeKind::Amplifier => &["audio", "gain"],
-        NodeKind::Delay | NodeKind::Reverb | NodeKind::Output | NodeKind::StereoFilter => {
-            &["audio"]
-        }
-        NodeKind::DelayLine
-        | NodeKind::Shaper
-        | NodeKind::ToControl
-        | NodeKind::DcBlock
-        | NodeKind::LinearPhaseLowpass
-        | NodeKind::Biquad
-        | NodeKind::OnePole
-        | NodeKind::BiquadChain => &["audio"],
-        NodeKind::Math | NodeKind::StereoMath => &["a"],
-        NodeKind::ToAudio => &["control"],
-    }
-}
-
-const fn signal_compatible(from: SignalType, to: SignalType) -> bool {
-    from as u8 == to as u8 || matches!((from, to), (SignalType::Unipolar, SignalType::Control))
-}
-
-#[derive(Clone, Copy)]
-struct SettingSpec {
-    key: &'static str,
-    kind: SettingKind,
-}
-
-#[derive(Clone, Copy)]
-enum SettingKind {
-    Number(Unit),
-    Duration,
-    LfoRate,
-    Identifier,
-    Pitch,
-    Integer { minimum: u16, maximum: u16 },
-    Text(&'static [&'static str]),
-}
-
-const fn setting_schema(kind: NodeKind) -> &'static [SettingSpec] {
-    use SettingKind::{Duration, Identifier, Integer, LfoRate, Number, Pitch, Text};
-    match kind {
-        NodeKind::Exciter => &[
-            SettingSpec {
-                key: "kind",
-                kind: Text(&["impact", "collisions", "texture"]),
-            },
-            SettingSpec {
-                key: "contact",
-                kind: Number(Unit::Seconds),
-            },
-            SettingSpec {
-                key: "attack",
-                kind: Number(Unit::Seconds),
-            },
-            SettingSpec {
-                key: "hardness",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "rate",
-                kind: Number(Unit::Hertz),
-            },
-            SettingSpec {
-                key: "duration",
-                kind: Number(Unit::Seconds),
-            },
-            SettingSpec {
-                key: "level",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-        NodeKind::ModalBank => &[
-            SettingSpec {
-                key: "rise",
-                kind: Number(Unit::Seconds),
-            },
-            SettingSpec {
-                key: "profile",
-                kind: Identifier,
-            },
-            SettingSpec {
-                key: "max_modes",
-                kind: Integer {
-                    minimum: 1,
-                    maximum: 256,
-                },
-            },
-            SettingSpec {
-                key: "decay_scale",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "brightness",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "key_track",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "level",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-        NodeKind::Oscillator => &[
-            SettingSpec {
-                key: "waveform",
-                kind: Text(&["sine", "saw", "square", "triangle"]),
-            },
-            SettingSpec {
-                key: "detune",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "glide",
-                kind: Number(Unit::Seconds),
-            },
-            SettingSpec {
-                key: "level",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-        NodeKind::Unison => &[
-            SettingSpec {
-                key: "waveform",
-                kind: Text(&["sine", "saw", "square", "triangle"]),
-            },
-            SettingSpec {
-                key: "voices",
-                kind: Integer {
-                    minimum: 1,
-                    maximum: 8,
-                },
-            },
-            SettingSpec {
-                key: "detune",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "width",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "drift",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "glide",
-                kind: Number(Unit::Seconds),
-            },
-            SettingSpec {
-                key: "mod_depth",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "velocity_amount",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "level",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-        NodeKind::AnalogOscillator => &[
-            SettingSpec {
-                key: "waveform",
-                kind: Text(&["sine", "saw", "square", "pulse", "triangle"]),
-            },
-            SettingSpec {
-                key: "voices",
-                kind: Integer {
-                    minimum: 1,
-                    maximum: 8,
-                },
-            },
-            SettingSpec {
-                key: "unison",
-                kind: Integer {
-                    minimum: 1,
-                    maximum: 8,
-                },
-            },
-            SettingSpec {
-                key: "coarse",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "fine",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "detune",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "blend",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "width",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "drift",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "glide",
-                kind: Number(Unit::Seconds),
-            },
-            SettingSpec {
-                key: "fm_depth",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "pm_depth",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "am_mode",
-                kind: Text(&["am", "ring"]),
-            },
-            SettingSpec {
-                key: "am_depth",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "phase",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "random_phase",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "warp",
-                kind: Text(&["none", "pulse_width", "bend", "remap"]),
-            },
-            SettingSpec {
-                key: "warp_amount",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "distortion",
-                kind: Text(&["none", "soft_clip", "tanh"]),
-            },
-            SettingSpec {
-                key: "drive",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "velocity_amount",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "level",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "pan",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-        NodeKind::Wavetable => &[
-            SettingSpec {
-                key: "asset",
-                kind: Identifier,
-            },
-            SettingSpec {
-                key: "voices",
-                kind: Integer {
-                    minimum: 1,
-                    maximum: 8,
-                },
-            },
-            SettingSpec {
-                key: "unison",
-                kind: Integer {
-                    minimum: 1,
-                    maximum: 8,
-                },
-            },
-            SettingSpec {
-                key: "coarse",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "fine",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "table_position",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "phase",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "random_phase",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "detune",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "blend",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "width",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "drift",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "glide",
-                kind: Number(Unit::Seconds),
-            },
-            SettingSpec {
-                key: "fm_depth",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "pm_depth",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "warp",
-                kind: Text(&["none", "pulse_width", "bend", "remap"]),
-            },
-            SettingSpec {
-                key: "warp_amount",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "velocity_amount",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "level",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "pan",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-        NodeKind::SampleSource => &[
-            SettingSpec {
-                key: "asset",
-                kind: Identifier,
-            },
-            SettingSpec {
-                key: "selected_slice",
-                kind: Identifier,
-            },
-            SettingSpec {
-                key: "start",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "end",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "loop_mode",
-                kind: Text(&["off", "forward", "ping_pong"]),
-            },
-            SettingSpec {
-                key: "loop_start",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "loop_end",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "loop_crossfade",
-                kind: Integer {
-                    minimum: 0,
-                    maximum: 8_192,
-                },
-            },
-            SettingSpec {
-                key: "direction",
-                kind: Text(&["forward", "reverse"]),
-            },
-            SettingSpec {
-                key: "playback",
-                kind: Text(&["gated", "one_shot"]),
-            },
-            SettingSpec {
-                key: "root",
-                kind: Pitch,
-            },
-            SettingSpec {
-                key: "tune",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "rate",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "velocity_amount",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "level",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "pan",
-                kind: Number(Unit::Pan),
-            },
-        ],
-        NodeKind::Multisample => &[
-            SettingSpec {
-                key: "playback",
-                kind: Text(&["gated", "one_shot"]),
-            },
-            SettingSpec {
-                key: "tune",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "rate",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "velocity_amount",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "level",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "pan",
-                kind: Number(Unit::Pan),
-            },
-        ],
-        NodeKind::Granular => &[
-            SettingSpec {
-                key: "asset",
-                kind: Identifier,
-            },
-            SettingSpec {
-                key: "max_grains",
-                kind: Integer {
-                    minimum: 1,
-                    maximum: 64,
-                },
-            },
-            SettingSpec {
-                key: "position",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "scan",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "size",
-                kind: Number(Unit::Seconds),
-            },
-            SettingSpec {
-                key: "density",
-                kind: Number(Unit::Hertz),
-            },
-            SettingSpec {
-                key: "root",
-                kind: Pitch,
-            },
-            SettingSpec {
-                key: "tune",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "spray",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "window",
-                kind: Text(&["hann", "triangle", "tukey"]),
-            },
-            SettingSpec {
-                key: "edge",
-                kind: Text(&["wrap", "reflect", "clamp"]),
-            },
-            SettingSpec {
-                key: "direction_probability",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "stereo_spread",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "freeze",
-                kind: Number(Unit::Boolean),
-            },
-            SettingSpec {
-                key: "seed",
-                kind: Integer {
-                    minimum: 0,
-                    maximum: u16::MAX,
-                },
-            },
-            SettingSpec {
-                key: "level",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-        NodeKind::Noise => &[SettingSpec {
-            key: "level",
-            kind: Number(Unit::Ratio),
-        }],
-        NodeKind::Envelope => &[
-            SettingSpec {
-                key: "mode",
-                kind: Text(&["adsr", "ahdsr"]),
-            },
-            SettingSpec {
-                key: "attack",
-                kind: Duration,
-            },
-            SettingSpec {
-                key: "hold",
-                kind: Duration,
-            },
-            SettingSpec {
-                key: "decay",
-                kind: Duration,
-            },
-            SettingSpec {
-                key: "sustain",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "release",
-                kind: Duration,
-            },
-            SettingSpec {
-                key: "attack_curve",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "decay_curve",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "release_curve",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "retrigger",
-                kind: Text(&["always", "legato"]),
-            },
-        ],
-        NodeKind::Mixer | NodeKind::StereoMixer => &[
-            SettingSpec {
-                key: "a_level",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "b_level",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-        NodeKind::MonoToStereo | NodeKind::StereoToMono => &[],
-        NodeKind::StereoSum | NodeKind::Sum => &[SettingSpec {
-            key: "max_inputs",
-            kind: Integer {
-                minimum: 1,
-                maximum: MAX_STEREO_SUM_INPUTS as u16,
-            },
-        }],
-        NodeKind::Lowpass => &[
-            SettingSpec {
-                key: "mode",
-                kind: Text(&["lowpass", "highpass", "bandpass", "notch"]),
-            },
-            SettingSpec {
-                key: "cutoff",
-                kind: Number(Unit::Hertz),
-            },
-            SettingSpec {
-                key: "resonance",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "mod_depth",
-                kind: Number(Unit::Hertz),
-            },
-            SettingSpec {
-                key: "velocity_depth",
-                kind: Number(Unit::Hertz),
-            },
-            SettingSpec {
-                key: "key_track",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "key_reference",
-                kind: Number(Unit::Hertz),
-            },
-        ],
-        NodeKind::StereoFilter => &[
-            SettingSpec {
-                key: "model",
-                kind: Text(&["svf_clean", "ladder_drive"]),
-            },
-            SettingSpec {
-                key: "mode",
-                kind: Text(&["lowpass", "highpass", "bandpass", "notch"]),
-            },
-            SettingSpec {
-                key: "cutoff",
-                kind: Number(Unit::Hertz),
-            },
-            SettingSpec {
-                key: "resonance",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "drive",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "mix",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "pan",
-                kind: Number(Unit::Pan),
-            },
-            SettingSpec {
-                key: "mod_depth",
-                kind: Number(Unit::Hertz),
-            },
-            SettingSpec {
-                key: "velocity_depth",
-                kind: Number(Unit::Hertz),
-            },
-            SettingSpec {
-                key: "key_track",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "key_reference",
-                kind: Number(Unit::Hertz),
-            },
-        ],
-        NodeKind::Amplifier => &[SettingSpec {
-            key: "level",
-            kind: Number(Unit::Ratio),
-        }],
-        NodeKind::Saturation => &[SettingSpec {
-            key: "drive",
-            kind: Number(Unit::Ratio),
-        }],
-        NodeKind::Pan => &[SettingSpec {
-            key: "position",
-            kind: Number(Unit::Pan),
-        }],
-        NodeKind::Delay => &[
-            SettingSpec {
-                key: "time",
-                kind: Number(Unit::Seconds),
-            },
-            SettingSpec {
-                key: "feedback",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "mix",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-        NodeKind::Reverb => &[
-            SettingSpec {
-                key: "room",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "damping",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "mix",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-        NodeKind::Output => &[],
-        NodeKind::Lfo => &[
-            SettingSpec {
-                key: "rate",
-                kind: LfoRate,
-            },
-            SettingSpec {
-                key: "depth",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "phase",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "random_phase",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "swing",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "waveform",
-                kind: Text(&["sine", "triangle", "saw", "square", "sample_hold", "custom"]),
-            },
-            SettingSpec {
-                key: "mode",
-                kind: Text(&["loop", "one_shot"]),
-            },
-            SettingSpec {
-                key: "direction",
-                kind: Text(&["forward", "reverse", "ping_pong"]),
-            },
-            SettingSpec {
-                key: "polarity",
-                kind: Text(&["unipolar", "bipolar"]),
-            },
-            SettingSpec {
-                key: "retrigger",
-                kind: Text(&["note", "transport"]),
-            },
-        ],
-        NodeKind::DelayLine => &[
-            SettingSpec {
-                key: "mode",
-                kind: Text(&["time", "pitch"]),
-            },
-            SettingSpec {
-                key: "time",
-                kind: Number(Unit::Seconds),
-            },
-            SettingSpec {
-                key: "ratio",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "max_time",
-                kind: Number(Unit::Seconds),
-            },
-            SettingSpec {
-                key: "mod_depth",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "interpolation",
-                kind: Text(&["linear", "lagrange3", "allpass"]),
-            },
-            SettingSpec {
-                key: "tune_compensation",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-        NodeKind::Math | NodeKind::StereoMath => &[
-            SettingSpec {
-                key: "operation",
-                kind: Text(&[
-                    "add", "subtract", "multiply", "min", "max", "abs", "negate", "offset", "scale",
-                ]),
-            },
-            SettingSpec {
-                key: "amount",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-        NodeKind::Shaper => &[
-            SettingSpec {
-                key: "curve",
-                kind: Text(&[
-                    "tanh",
-                    "hard_clip",
-                    "soft_clip",
-                    "one_sided",
-                    "asymmetric",
-                    "table",
-                ]),
-            },
-            SettingSpec {
-                key: "drive",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "bias",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "asymmetry",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-        NodeKind::ToAudio | NodeKind::ToControl => &[],
-        NodeKind::DcBlock => &[SettingSpec {
-            key: "cutoff",
-            kind: Number(Unit::Hertz),
-        }],
-        NodeKind::LinearPhaseLowpass => &[SettingSpec {
-            key: "amount",
-            kind: Number(Unit::Ratio),
-        }],
-        NodeKind::Biquad => &[
-            SettingSpec {
-                key: "mode",
-                kind: Text(&[
-                    "lowpass",
-                    "highpass",
-                    "bandpass",
-                    "notch",
-                    "peak",
-                    "lowshelf",
-                    "highshelf",
-                    "allpass",
-                ]),
-            },
-            SettingSpec {
-                key: "frequency",
-                kind: Number(Unit::Hertz),
-            },
-            SettingSpec {
-                key: "q",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "gain",
-                kind: Number(Unit::Decibels),
-            },
-            SettingSpec {
-                key: "key_track",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "key_reference",
-                kind: Number(Unit::Hertz),
-            },
-        ],
-        NodeKind::BiquadChain => &[],
-        NodeKind::Constant => &[SettingSpec {
-            key: "frequency",
-            kind: Number(Unit::Hertz),
-        }],
-        NodeKind::OnePole => &[
-            SettingSpec {
-                key: "mode",
-                kind: Text(&["lowpass", "highpass", "leak"]),
-            },
-            SettingSpec {
-                key: "cutoff",
-                kind: Number(Unit::Hertz),
-            },
-            SettingSpec {
-                key: "time",
-                kind: Number(Unit::Seconds),
-            },
-        ],
-        NodeKind::Spectral => &[
-            SettingSpec {
-                key: "asset",
-                kind: Identifier,
-            },
-            SettingSpec {
-                key: "algorithm",
-                kind: Text(&[crate::engine::spectral::SPECTRAL_ANALYSIS_ALGORITHM]),
-            },
-            SettingSpec {
-                key: "max_peaks",
-                kind: Integer {
-                    minimum: 1,
-                    maximum: MAX_SPECTRAL_PEAKS as u16,
-                },
-            },
-            SettingSpec {
-                key: "scan",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "rate",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "root",
-                kind: Pitch,
-            },
-            SettingSpec {
-                key: "tune",
-                kind: Number(Unit::Semitones),
-            },
-            SettingSpec {
-                key: "low",
-                kind: Number(Unit::Hertz),
-            },
-            SettingSpec {
-                key: "high",
-                kind: Number(Unit::Hertz),
-            },
-            SettingSpec {
-                key: "transients",
-                kind: Text(&["preserve", "reset", "suppress"]),
-            },
-            SettingSpec {
-                key: "phase_randomization",
-                kind: Number(Unit::Ratio),
-            },
-            SettingSpec {
-                key: "freeze",
-                kind: Number(Unit::Boolean),
-            },
-            SettingSpec {
-                key: "seed",
-                kind: Integer {
-                    minimum: 0,
-                    maximum: u16::MAX,
-                },
-            },
-            SettingSpec {
-                key: "level",
-                kind: Number(Unit::Ratio),
-            },
-        ],
-    }
-}
-
-const fn node_kind_name(kind: NodeKind) -> &'static str {
-    match kind {
-        NodeKind::Exciter => "exciter",
-        NodeKind::ModalBank => "modal_bank",
-        NodeKind::Oscillator => "oscillator",
-        NodeKind::Unison => "unison",
-        NodeKind::Noise => "noise",
-        NodeKind::Envelope => "envelope",
-        NodeKind::Mixer => "mixer",
-        NodeKind::Lowpass => "lowpass",
-        NodeKind::StereoFilter => "stereo_filter",
-        NodeKind::Amplifier => "amplifier",
-        NodeKind::Saturation => "saturation",
-        NodeKind::Pan => "pan",
-        NodeKind::Delay => "delay",
-        NodeKind::Reverb => "reverb",
-        NodeKind::Output => "output",
-        NodeKind::Lfo => "lfo",
-        NodeKind::MonoToStereo => "mono_to_stereo",
-        NodeKind::StereoToMono => "stereo_to_mono",
-        NodeKind::StereoMixer => "stereo_mixer",
-        NodeKind::StereoSum => "stereo_sum",
-        NodeKind::Sum => "sum",
-        NodeKind::AnalogOscillator => "analog_oscillator",
-        NodeKind::Wavetable => "wavetable",
-        NodeKind::SampleSource => "sample_source",
-        NodeKind::Multisample => "multisample",
-        NodeKind::Granular => "granular",
-        NodeKind::Spectral => "spectral",
-        NodeKind::DelayLine => "delay_line",
-        NodeKind::Math => "math",
-        NodeKind::StereoMath => "stereo_math",
-        NodeKind::Shaper => "shaper",
-        NodeKind::ToAudio => "to_audio",
-        NodeKind::ToControl => "to_control",
-        NodeKind::DcBlock => "dc_block",
-        NodeKind::LinearPhaseLowpass => "linear_phase_lowpass",
-        NodeKind::Biquad => "biquad",
-        NodeKind::OnePole => "onepole",
-        NodeKind::BiquadChain => "biquad_chain",
-        NodeKind::Constant => "constant",
-    }
-}
-
-/// Returns one same-frame dependency cycle, starting and ending at its smallest Node ID.
-fn find_cycle<'a>(adjacency: &BTreeMap<&'a str, Vec<&'a str>>) -> Option<Vec<&'a str>> {
-    let mut indegree: BTreeMap<&str, usize> = adjacency.keys().map(|node| (*node, 0)).collect();
-    let mut predecessors: BTreeMap<&str, Vec<&str>> =
-        adjacency.keys().map(|node| (*node, Vec::new())).collect();
-    for (source, destinations) in adjacency {
-        for destination in destinations {
-            if let Some(count) = indegree.get_mut(destination) {
-                *count += 1;
-                predecessors.get_mut(destination)?.push(source);
-            }
-        }
-    }
-    let mut ready: VecDeque<_> = indegree
-        .iter()
-        .filter_map(|(node, count)| (*count == 0).then_some(*node))
-        .collect();
-    while let Some(node) = ready.pop_front() {
-        indegree.remove(node);
-        if let Some(destinations) = adjacency.get(node) {
-            for destination in destinations {
-                if let Some(count) = indegree.get_mut(destination) {
-                    *count -= 1;
-                    if *count == 0 {
-                        ready.push_back(destination);
-                    }
-                }
-            }
-        }
-    }
-    // Every remaining Node has a remaining predecessor, including downstream sinks.
-    // Walking backwards must therefore revisit a Node on a cycle.
-    let start = *indegree.keys().next()?;
-    let mut path = vec![start];
-    let mut node = start;
-    loop {
-        let next = predecessors
-            .get(node)?
-            .iter()
-            .copied()
-            .filter(|next| indegree.contains_key(next))
-            .min()?;
-        if let Some(position) = path.iter().position(|seen| *seen == next) {
-            let mut cycle = path.split_off(position);
-            cycle.reverse();
-            let smallest = cycle
-                .iter()
-                .enumerate()
-                .min_by_key(|(_, id)| **id)
-                .map_or(0, |(index, _)| index);
-            cycle.rotate_left(smallest);
-            cycle.push(cycle[0]);
-            return Some(cycle);
-        }
-        path.push(next);
-        node = next;
-    }
+    graph_node
+        .kind
+        .definition()
+        .input(port)
+        .map(|spec| spec.signal)
+        .ok_or_else(|| {
+            format!(
+                "{} node `{node}` has no `{port}` input",
+                graph_node.kind.definition().name
+            )
+        })
 }
 
 fn reverse_reachable<'a>(

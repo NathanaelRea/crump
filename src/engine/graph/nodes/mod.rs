@@ -238,16 +238,22 @@ pub(super) fn authored_node_heap_bytes(
         ),
         NodeKind::StereoFilter => std::mem::size_of::<filter::StereoFilterState>() as u64,
         NodeKind::BiquadChain => std::mem::size_of::<primitives::BiquadChainState>() as u64,
-        NodeKind::DelayLine => primitives::delay_line_state_bytes(primitives::delay_line_capacity(
-            authored_node_number(
+        NodeKind::DelayLine => {
+            let max_time = authored_node_number(
                 instrument,
                 node,
                 "max_time",
                 primitives::DEFAULT_DELAY_LINE_MAX_SECONDS,
-            )
-            .clamp(0.0, primitives::MAX_DELAY_LINE_SECONDS),
-            sample_rate,
-        )),
+            );
+            let max_time = NodeKind::DelayLine
+                .definition()
+                .domain("max_time")
+                .map_or(max_time, |domain| domain.clamp(max_time));
+            primitives::delay_line_state_bytes(primitives::delay_line_capacity(
+                max_time,
+                sample_rate,
+            ))
+        }
         _ => 0,
     }
 }
@@ -1485,10 +1491,11 @@ impl NodeProgram {
                     primitives::DEFAULT_DELAY_LINE_MAX_SECONDS,
                 )?
                 .constant;
-                if !(0.001..=primitives::MAX_DELAY_LINE_SECONDS).contains(&max_time) {
+                let domain = NodeKind::DelayLine.definition().domain("max_time");
+                if !domain.is_some_and(|domain| domain.contains(max_time)) {
                     return Err(EngineError::Compile(format!(
-                        "delay_line max_time must be between 1ms and {}s",
-                        primitives::MAX_DELAY_LINE_SECONDS
+                        "delay_line max_time must be within {} seconds",
+                        domain.map_or_else(String::new, |domain| domain.label())
                     )));
                 }
                 NodeProgramKind::DelayLine(DelayLineConfig {

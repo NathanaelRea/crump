@@ -2,7 +2,7 @@
 
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     io::{self, Stdout},
     path::{Path, PathBuf},
     process::Command,
@@ -114,87 +114,15 @@ fn timeline_ascii_fallback() -> bool {
     locale_is_ascii || std::env::var("TERM").is_ok_and(|term| term.eq_ignore_ascii_case("dumb"))
 }
 
+/// Graph View order: the order the runtime processes Nodes in. A graph that has no valid
+/// order (only possible for an unpublished candidate) falls back to declaration order.
 fn graph_processing_node_indexes(
     instrument: &crate::model::Instrument,
     graph: &Graph,
 ) -> Vec<usize> {
-    let indexes = graph
-        .nodes
-        .iter()
-        .enumerate()
-        .map(|(index, node)| (node.id.as_str(), index))
-        .collect::<BTreeMap<_, _>>();
-    let mut outgoing = graph
-        .nodes
-        .iter()
-        .map(|node| (node.id.as_str(), BTreeSet::<&str>::new()))
-        .collect::<BTreeMap<_, _>>();
-    for connection in &graph.connections {
-        if connection.from.node != "note"
-            && let Some(destinations) = outgoing.get_mut(connection.from.node.as_str())
-        {
-            destinations.insert(connection.to.node.as_str());
-        }
-    }
-    if graph.domain == crate::model::GraphDomain::Voice {
-        for route in &instrument.modulation_routes {
-            let source_nodes = std::iter::once(route.source.as_str())
-                .chain(route.auxiliary.as_deref())
-                .filter_map(|source_id| {
-                    instrument
-                        .modulation_sources
-                        .iter()
-                        .find(|source| source.id == source_id)
-                })
-                .filter_map(|source| match &source.kind {
-                    crate::model::InstrumentModulationSourceKind::GraphPort { node, .. } => {
-                        Some(node.as_str())
-                    }
-                    _ => None,
-                });
-            for source_node in source_nodes {
-                if let Some(destinations) = outgoing.get_mut(source_node) {
-                    destinations.extend(graph.nodes.iter().filter_map(|node| {
-                        node.references_parameter(&route.target)
-                            .then_some(node.id.as_str())
-                    }));
-                }
-            }
-        }
-    }
-    let mut incoming = graph
-        .nodes
-        .iter()
-        .map(|node| (node.id.as_str(), 0_usize))
-        .collect::<BTreeMap<_, _>>();
-    for destinations in outgoing.values() {
-        for destination in destinations {
-            if let Some(count) = incoming.get_mut(destination) {
-                *count += 1;
-            }
-        }
-    }
-    let mut ready = incoming
-        .iter()
-        .filter_map(|(id, count)| (*count == 0).then_some(*id))
-        .collect::<BTreeSet<_>>();
-    let mut order = Vec::with_capacity(graph.nodes.len());
-    while let Some(id) = ready.pop_first() {
-        order.push(indexes[id]);
-        for destination in &outgoing[id] {
-            if let Some(count) = incoming.get_mut(destination) {
-                *count = count.saturating_sub(1);
-                if *count == 0 {
-                    ready.insert(destination);
-                }
-            }
-        }
-    }
-    if order.len() == graph.nodes.len() {
-        order
-    } else {
-        (0..graph.nodes.len()).collect()
-    }
+    crate::graph_schedule::SameFrameDependencies::of(instrument, graph)
+        .order()
+        .unwrap_or_else(|_| (0..graph.nodes.len()).collect())
 }
 
 fn graph_processing_bus_indexes(graph: &Graph, node_order: &[usize]) -> Vec<usize> {

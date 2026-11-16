@@ -3,11 +3,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
+    graph_schedule::SameFrameDependencies,
     model::{
         Graph, GraphDomain, Instrument, InstrumentModulationScope, ModulationScope, NodeKind,
         ParameterTarget, Project, SettingValue,
     },
-    validate::{MAX_STEREO_SUM_INPUTS, validate_graph_for_compile},
+    node_definition::{SignalType, input_bus_limit},
+    validate::validate_graph_for_compile,
 };
 
 use super::super::{
@@ -408,16 +410,15 @@ impl CompiledGraph {
             )));
         }
         validate_runtime_graph(graph)?;
-        let order = topological_order(graph)?;
+        let order = SameFrameDependencies::of(instrument, graph)
+            .order()
+            .map_err(|_| {
+                EngineError::Compile("graph contains a cycle without a delay_line".to_owned())
+            })?;
         let ordered_indexes: BTreeMap<_, _> = order
             .iter()
             .enumerate()
-            .map(|(index, id)| (id.as_str(), index))
-            .collect();
-        let authored_nodes: BTreeMap<_, _> = graph
-            .nodes
-            .iter()
-            .map(|node| (node.id.as_str(), node))
+            .map(|(index, node)| (graph.nodes[*node].id.as_str(), index))
             .collect();
         let parameters: BTreeMap<_, _> = instrument
             .parameters
@@ -427,10 +428,8 @@ impl CompiledGraph {
         let mut nodes = Vec::with_capacity(order.len());
         let mut output_index = None;
         let mut has_envelope = false;
-        for id in &order {
-            let authored = authored_nodes
-                .get(id.as_str())
-                .ok_or_else(|| EngineError::Compile(format!("missing graph node `{id}`")))?;
+        for node in &order {
+            let authored = &graph.nodes[*node];
             let mut inputs: BTreeMap<String, Vec<SignalSource>> = BTreeMap::new();
             let mut authored_inputs = graph
                 .connections
@@ -1828,16 +1827,6 @@ fn resolve_source_values(
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RuntimeSignalType {
-    AudioMono,
-    AudioStereo,
-    Hertz,
-    Gate,
-    Unipolar,
-    Control,
-}
-
 fn validate_runtime_graph(graph: &Graph) -> Result<(), EngineError> {
     let nodes: BTreeMap<_, _> = graph
         .nodes
@@ -1861,9 +1850,9 @@ fn validate_runtime_graph(graph: &Graph) -> Result<(), EngineError> {
                 ));
             }
             match connection.from.port.as_str() {
-                "pitch" => Some(RuntimeSignalType::Hertz),
-                "gate" => Some(RuntimeSignalType::Gate),
-                "velocity" => Some(RuntimeSignalType::Unipolar),
+                "pitch" => Some(SignalType::Hertz),
+                "gate" => Some(SignalType::Gate),
+                "velocity" => Some(SignalType::Unipolar),
                 _ => None,
             }
         } else if connection.from.node == "voice_sum" {
@@ -1873,11 +1862,11 @@ fn validate_runtime_graph(graph: &Graph) -> Result<(), EngineError> {
                 ));
             }
             voice_sum_connections = voice_sum_connections.saturating_add(1);
-            Some(RuntimeSignalType::AudioStereo)
+            Some(SignalType::AudioStereo)
         } else {
             nodes
                 .get(connection.from.node.as_str())
-                .and_then(|node| runtime_node_output(node.kind, &connection.from.port))
+                .and_then(|node| node.kind.definition().output(&connection.from.port))
         }
         .ok_or_else(|| EngineError::Compile(format!("invalid Bus source `{}`", connection.from)))?;
         let target_node = nodes
@@ -1886,10 +1875,15 @@ fn validate_runtime_graph(graph: &Graph) -> Result<(), EngineError> {
             .ok_or_else(|| {
                 EngineError::Compile(format!("missing node `{}`", connection.to.node))
             })?;
-        let to = runtime_node_input(target_node.kind, &connection.to.port).ok_or_else(|| {
-            EngineError::Compile(format!("invalid Bus target `{}`", connection.to))
-        })?;
-        if !runtime_signal_compatible(from, to) {
+        let to = target_node
+            .kind
+            .definition()
+            .input(&connection.to.port)
+            .map(|spec| spec.signal)
+            .ok_or_else(|| {
+                EngineError::Compile(format!("invalid Bus target `{}`", connection.to))
+            })?;
+        if !from.feeds(to) {
             return Err(EngineError::Compile(format!(
                 "Bus `{}` requires an explicit signal conversion",
                 connection.id
@@ -1899,18 +1893,7 @@ fn validate_runtime_graph(graph: &Graph) -> Result<(), EngineError> {
             .entry((connection.to.node.as_str(), connection.to.port.as_str()))
             .or_default();
         *count += 1;
-        let summing_limit =
-            (target_node.kind.is_summing() && connection.to.port == "inputs").then(|| {
-                match target_node.setting("max_inputs") {
-                    Some(crate::model::SettingValue::Number(value)) if value.is_finite() => {
-                        (*value as usize).clamp(1, MAX_STEREO_SUM_INPUTS)
-                    }
-                    _ => MAX_STEREO_SUM_INPUTS,
-                }
-            });
-        if (summing_limit.is_none() && *count > 1)
-            || summing_limit.is_some_and(|limit| *count > limit)
-        {
+        if *count > input_bus_limit(target_node, &connection.to.port) {
             return Err(EngineError::Compile(format!(
                 "input {} exceeds its bounded Bus cardinality",
                 connection.to
@@ -1923,9 +1906,9 @@ fn validate_runtime_graph(graph: &Graph) -> Result<(), EngineError> {
         )));
     }
     for node in &graph.nodes {
-        for required in runtime_required_inputs(node.kind) {
+        for required in node.kind.definition().required_inputs() {
             if cardinality
-                .get(&(node.id.as_str(), *required))
+                .get(&(node.id.as_str(), required))
                 .copied()
                 .unwrap_or(0)
                 == 0
@@ -1938,249 +1921,6 @@ fn validate_runtime_graph(graph: &Graph) -> Result<(), EngineError> {
         }
     }
     Ok(())
-}
-
-fn runtime_node_output(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> {
-    match (kind, port) {
-        (NodeKind::Exciter | NodeKind::ModalBank, "audio") => Some(RuntimeSignalType::AudioMono),
-        (
-            NodeKind::Oscillator
-            | NodeKind::Noise
-            | NodeKind::Mixer
-            | NodeKind::Sum
-            | NodeKind::Lowpass
-            | NodeKind::Amplifier
-            | NodeKind::Saturation
-            | NodeKind::StereoToMono,
-            "audio",
-        ) => Some(RuntimeSignalType::AudioMono),
-        (
-            NodeKind::Unison
-            | NodeKind::AnalogOscillator
-            | NodeKind::Wavetable
-            | NodeKind::SampleSource
-            | NodeKind::Multisample
-            | NodeKind::Granular
-            | NodeKind::Spectral
-            | NodeKind::StereoFilter
-            | NodeKind::Pan
-            | NodeKind::Delay
-            | NodeKind::Reverb
-            | NodeKind::MonoToStereo
-            | NodeKind::StereoMixer
-            | NodeKind::StereoSum,
-            "audio",
-        ) => Some(RuntimeSignalType::AudioStereo),
-        (NodeKind::Envelope, "control") => Some(RuntimeSignalType::Unipolar),
-        (NodeKind::Lfo | NodeKind::ToControl, "control") => Some(RuntimeSignalType::Control),
-        (
-            NodeKind::DelayLine
-            | NodeKind::Math
-            | NodeKind::Shaper
-            | NodeKind::ToAudio
-            | NodeKind::DcBlock
-            | NodeKind::LinearPhaseLowpass
-            | NodeKind::Biquad
-            | NodeKind::OnePole
-            | NodeKind::BiquadChain,
-            "audio",
-        ) => Some(RuntimeSignalType::AudioMono),
-        (NodeKind::StereoMath, "audio") => Some(RuntimeSignalType::AudioStereo),
-        (NodeKind::Constant, "pitch") => Some(RuntimeSignalType::Hertz),
-        _ => None,
-    }
-}
-
-fn runtime_node_input(kind: NodeKind, port: &str) -> Option<RuntimeSignalType> {
-    match (kind, port) {
-        (NodeKind::Exciter | NodeKind::ModalBank, "gate") => Some(RuntimeSignalType::Gate),
-        (NodeKind::Exciter, "velocity") => Some(RuntimeSignalType::Unipolar),
-        (NodeKind::ModalBank, "pitch") => Some(RuntimeSignalType::Hertz),
-        (NodeKind::ModalBank, "audio") => Some(RuntimeSignalType::AudioMono),
-        (
-            NodeKind::Oscillator
-            | NodeKind::Unison
-            | NodeKind::AnalogOscillator
-            | NodeKind::Wavetable
-            | NodeKind::SampleSource
-            | NodeKind::Multisample
-            | NodeKind::Granular
-            | NodeKind::Spectral,
-            "pitch",
-        ) => Some(RuntimeSignalType::Hertz),
-        (
-            NodeKind::Unison
-            | NodeKind::AnalogOscillator
-            | NodeKind::Wavetable
-            | NodeKind::SampleSource
-            | NodeKind::Multisample,
-            "gain" | "velocity",
-        ) => Some(RuntimeSignalType::Unipolar),
-        (NodeKind::Unison, "mod") => Some(RuntimeSignalType::Control),
-        (NodeKind::AnalogOscillator, "fm" | "pm" | "sync" | "am")
-        | (NodeKind::Wavetable, "fm" | "pm" | "sync") => Some(RuntimeSignalType::AudioMono),
-        (
-            NodeKind::Envelope
-            | NodeKind::SampleSource
-            | NodeKind::Multisample
-            | NodeKind::Granular,
-            "gate",
-        ) => Some(RuntimeSignalType::Gate),
-        (NodeKind::Mixer, "a" | "b") => Some(RuntimeSignalType::AudioMono),
-        (NodeKind::StereoMixer, "a" | "b") => Some(RuntimeSignalType::AudioStereo),
-        (NodeKind::StereoSum, "inputs") => Some(RuntimeSignalType::AudioStereo),
-        (NodeKind::Sum, "inputs") => Some(RuntimeSignalType::AudioMono),
-        (
-            NodeKind::Lowpass
-            | NodeKind::Amplifier
-            | NodeKind::Saturation
-            | NodeKind::Pan
-            | NodeKind::MonoToStereo,
-            "audio",
-        ) => Some(RuntimeSignalType::AudioMono),
-        (
-            NodeKind::Delay
-            | NodeKind::Reverb
-            | NodeKind::Output
-            | NodeKind::StereoToMono
-            | NodeKind::StereoFilter,
-            "audio",
-        ) => Some(RuntimeSignalType::AudioStereo),
-        (
-            NodeKind::Lowpass | NodeKind::StereoFilter | NodeKind::Biquad | NodeKind::BiquadChain,
-            "key",
-        ) => Some(RuntimeSignalType::Hertz),
-        (NodeKind::Lowpass | NodeKind::StereoFilter, "mod") => Some(RuntimeSignalType::Control),
-        (NodeKind::Lowpass | NodeKind::StereoFilter, "velocity") => {
-            Some(RuntimeSignalType::Unipolar)
-        }
-        (NodeKind::Amplifier, "gain") => Some(RuntimeSignalType::Unipolar),
-        (
-            NodeKind::DelayLine
-            | NodeKind::Shaper
-            | NodeKind::ToControl
-            | NodeKind::DcBlock
-            | NodeKind::LinearPhaseLowpass
-            | NodeKind::Biquad
-            | NodeKind::OnePole
-            | NodeKind::BiquadChain,
-            "audio",
-        )
-        | (NodeKind::DelayLine, "time_mod")
-        | (NodeKind::Math, "a" | "b") => Some(RuntimeSignalType::AudioMono),
-        (NodeKind::DelayLine, "pitch") => Some(RuntimeSignalType::Hertz),
-        (NodeKind::StereoMath, "a" | "b") => Some(RuntimeSignalType::AudioStereo),
-        (NodeKind::ToAudio, "control") => Some(RuntimeSignalType::Control),
-        _ => None,
-    }
-}
-
-const fn runtime_required_inputs(kind: NodeKind) -> &'static [&'static str] {
-    match kind {
-        NodeKind::Exciter => &["gate", "velocity"],
-        NodeKind::ModalBank => &["gate", "pitch", "audio"],
-        NodeKind::Oscillator
-        | NodeKind::Unison
-        | NodeKind::AnalogOscillator
-        | NodeKind::Wavetable => &["pitch"],
-        NodeKind::SampleSource => &["pitch", "gate"],
-        NodeKind::Multisample => &["pitch", "gate", "velocity"],
-        NodeKind::Granular => &["pitch", "gate"],
-        NodeKind::Spectral => &["pitch"],
-        NodeKind::Noise | NodeKind::Lfo | NodeKind::Constant => &[],
-        NodeKind::Envelope => &["gate"],
-        NodeKind::Mixer | NodeKind::StereoMixer => &["a"],
-        NodeKind::StereoSum | NodeKind::Sum => &["inputs"],
-        NodeKind::Lowpass
-        | NodeKind::Saturation
-        | NodeKind::Pan
-        | NodeKind::MonoToStereo
-        | NodeKind::StereoToMono => &["audio"],
-        NodeKind::Amplifier => &["audio", "gain"],
-        NodeKind::Delay | NodeKind::Reverb | NodeKind::Output | NodeKind::StereoFilter => {
-            &["audio"]
-        }
-        NodeKind::DelayLine
-        | NodeKind::Shaper
-        | NodeKind::ToControl
-        | NodeKind::DcBlock
-        | NodeKind::LinearPhaseLowpass
-        | NodeKind::Biquad
-        | NodeKind::OnePole
-        | NodeKind::BiquadChain => &["audio"],
-        NodeKind::Math | NodeKind::StereoMath => &["a"],
-        NodeKind::ToAudio => &["control"],
-    }
-}
-
-const fn runtime_signal_compatible(from: RuntimeSignalType, to: RuntimeSignalType) -> bool {
-    from as u8 == to as u8
-        || matches!(
-            (from, to),
-            (RuntimeSignalType::Unipolar, RuntimeSignalType::Control)
-        )
-}
-
-fn topological_order(graph: &Graph) -> Result<Vec<String>, EngineError> {
-    let mut incoming: BTreeMap<&str, usize> = graph
-        .nodes
-        .iter()
-        .map(|node| (node.id.as_str(), 0))
-        .collect();
-    let mut outgoing: BTreeMap<&str, Vec<&str>> = graph
-        .nodes
-        .iter()
-        .map(|node| (node.id.as_str(), Vec::new()))
-        .collect();
-    let breaks_feedback = graph
-        .nodes
-        .iter()
-        .filter(|node| node.kind.breaks_feedback())
-        .map(|node| node.id.as_str())
-        .collect::<BTreeSet<_>>();
-    for connection in &graph.connections {
-        if matches!(connection.from.node.as_str(), "note" | "voice_sum")
-            || breaks_feedback.contains(connection.to.node.as_str())
-        {
-            continue;
-        }
-        *incoming
-            .get_mut(connection.to.node.as_str())
-            .ok_or_else(|| {
-                EngineError::Compile(format!("missing node `{}`", connection.to.node))
-            })? += 1;
-        outgoing
-            .get_mut(connection.from.node.as_str())
-            .ok_or_else(|| {
-                EngineError::Compile(format!("missing node `{}`", connection.from.node))
-            })?
-            .push(connection.to.node.as_str());
-    }
-    let mut ready: BTreeSet<_> = incoming
-        .iter()
-        .filter_map(|(id, count)| (*count == 0).then_some(*id))
-        .collect();
-    let mut order = Vec::with_capacity(graph.nodes.len());
-    while let Some(id) = ready.pop_first() {
-        order.push(id.to_owned());
-        if let Some(destinations) = outgoing.get(id) {
-            for destination in destinations {
-                let count = incoming
-                    .get_mut(destination)
-                    .ok_or_else(|| EngineError::Compile(format!("missing node `{destination}`")))?;
-                *count -= 1;
-                if *count == 0 {
-                    ready.insert(destination);
-                }
-            }
-        }
-    }
-    if order.len() != graph.nodes.len() {
-        return Err(EngineError::Compile(
-            "graph contains a cycle without a delay_line".to_owned(),
-        ));
-    }
-    Ok(order)
 }
 
 fn midi_frequency(pitch: u8) -> f32 {

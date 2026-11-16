@@ -166,6 +166,40 @@ fn graph_inspection_order_includes_same_frame_modulation_dependencies() {
 }
 
 #[test]
+fn graph_inspection_order_follows_feedback_loops_through_delay_lines() {
+    let bundle = crate::project::load_project(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/examples/waveguides/plucked-string"
+    ))
+    .expect("waveguide example");
+    let project = bundle.project.expect("Project");
+    let instrument = &project.song.instruments[0];
+    let graph = instrument.graph.as_ref().expect("graph");
+    let nodes = graph_processing_node_indexes(instrument, graph);
+    // The loop `excite -> string -> loss -> decay -> damp -> excite` declares `damp` after
+    // `excite`, so declaration order cannot satisfy its same-frame Buses.
+    assert_ne!(nodes, (0..graph.nodes.len()).collect::<Vec<_>>());
+    let ranks = nodes
+        .iter()
+        .enumerate()
+        .map(|(rank, index)| (graph.nodes[*index].id.as_str(), rank))
+        .collect::<BTreeMap<_, _>>();
+    for bus in &graph.connections {
+        let into_delay_line = graph
+            .nodes
+            .iter()
+            .any(|node| node.id == bus.to.node && node.kind.breaks_feedback());
+        if bus.from.node != "note" && !into_delay_line {
+            assert!(
+                ranks[bus.from.node.as_str()] < ranks[bus.to.node.as_str()],
+                "Bus `{}` runs backwards",
+                bus.id
+            );
+        }
+    }
+}
+
+#[test]
 fn exact_automation_entry_preserves_value_and_curve_precision() {
     let root = tempfile::tempdir().expect("temporary Project");
     let source = fs::read_to_string(concat!(
