@@ -15,11 +15,22 @@ use crate::{
     time::{MusicalTime, parse_musical_time},
 };
 
-mod publication;
-
-pub use publication::{
-    ActiveRefresh, AuditionRuntimePolicy, RuntimePublicationError, RuntimePublicationPort,
-};
+/// Position of `frame` inside a resolved audition range, used to carry transport across publication.
+///
+/// A looping range wraps the frame to its loop phase; a one-shot range clamps it into
+/// `[start, end)`. Both the controller's preparation and the callback's crossfade use
+/// this rule so a moved range keeps the listener at the same relative point.
+#[must_use]
+pub(crate) fn range_offset(frame: u64, start: u64, end: u64, looping: bool) -> u64 {
+    if looping {
+        let length = end.saturating_sub(start).max(1);
+        frame.saturating_sub(start) % length
+    } else {
+        frame
+            .clamp(start, end.saturating_sub(1))
+            .saturating_sub(start)
+    }
+}
 
 use super::{
     CompiledProject, EngineError, ProcessorMeter, RuntimeTelemetry, SongRuntime,
@@ -481,7 +492,6 @@ impl AuditionPlan {
         if self.range.looping {
             runtime.enable_audition_loop(start, end)?;
         }
-        #[cfg(any(feature = "pipewire", test))]
         if options.explicit_seek {
             runtime.request_audition_seek();
         }

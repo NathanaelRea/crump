@@ -47,7 +47,7 @@ use crate::{
         execute as execute_production_view,
     },
     project::{ProjectBundle, RevisionId},
-    realtime::{PipeWirePlayer, PlayerTelemetry, RealtimeError, StreamStatus},
+    realtime::{PlaybackBackend, Player, PlayerTelemetry, RealtimeError, StreamStatus},
 };
 
 const TICK_RATE: Duration = Duration::from_millis(40);
@@ -309,7 +309,8 @@ struct Workspace {
     modal: Option<Modal>,
     status: String,
     quit: bool,
-    player: Option<PipeWirePlayer>,
+    player: Option<Player>,
+    playback_backend: PlaybackBackend,
     playback_paused: bool,
     telemetry: PlayerTelemetry,
     mix_channel_indexes: BTreeMap<String, usize>,
@@ -563,6 +564,7 @@ impl Workspace {
             status: status.to_owned(),
             quit: false,
             player: None,
+            playback_backend: PlaybackBackend::default(),
             playback_paused: false,
             telemetry: PlayerTelemetry::default(),
             mix_channel_indexes: BTreeMap::new(),
@@ -821,6 +823,7 @@ impl Workspace {
             initial_frame,
             explicit_seek,
             mode,
+            backend: self.playback_backend,
         };
         match self.worker.submit(move || {
             let started = Instant::now();

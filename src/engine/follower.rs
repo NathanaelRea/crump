@@ -287,7 +287,6 @@ impl EnvelopeFollowerRuntime {
         self.states.fill(EnvelopeFollowerState::default());
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn adopt_compatible_state(&mut self, current: &mut Self) -> bool {
         if self.program.routes != current.program.routes
             || self.states.len() != current.states.len()

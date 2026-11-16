@@ -573,7 +573,6 @@ impl CompiledGraph {
         })
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn transition_compatible(&self, replacement: &Self) -> bool {
         self.control_count == replacement.control_count
             && self.sample_rate.to_bits() == replacement.sample_rate.to_bits()
@@ -594,7 +593,6 @@ impl CompiledGraph {
                 .all(|(current, replacement)| current.transition_target(replacement).is_ok())
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn compatible_transition_targets(
         &self,
         replacement: &Self,
@@ -1356,7 +1354,6 @@ impl GraphVoice {
         self.transition_changed[index.0]
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn begin_route_transition(&mut self, changed: &[bool], frames: u64) {
         self.transition_origin
             .copy_from_slice(&self.effective_controls);
@@ -1395,7 +1392,6 @@ impl SharedGraphRuntime {
         self.transition_frames = 0;
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn begin_route_transition(&mut self, changed: &[bool], frames: u64) {
         self.transition_origin
             .copy_from_slice(&self.effective_controls);

@@ -319,7 +319,11 @@ impl CompiledControlProgram {
             .get(track_id)
             .map(|lanes| TrackParameterLockRuntime {
                 lanes: lanes.clone(),
-                effective: vec![0.0; self.targets.len()],
+                effective: self
+                    .targets
+                    .iter()
+                    .map(|target| target.base.clamp(target.minimum, target.maximum))
+                    .collect(),
                 pre_instrument_unconstrained: vec![0.0; self.targets.len()],
                 transition_origin: vec![0.0; self.targets.len()],
                 transition_pre_instrument_origin: vec![0.0; self.targets.len()],
@@ -502,7 +506,6 @@ impl CompiledControlProgram {
             transition_changed: vec![false; target_count],
             transition_position: 0,
             transition_frames: 0,
-            apply_parameter_locks: false,
         }
     }
 
@@ -547,8 +550,7 @@ impl CompiledControlProgram {
                     },
                 });
         }
-        let mut runtime = self.into_runtime();
-        runtime.apply_parameter_locks = true;
+        let runtime = self.into_runtime();
         ControlInspector {
             runtime,
             instrument_targets,
@@ -559,53 +561,9 @@ impl CompiledControlProgram {
     #[must_use]
     pub fn snapshot_at(&self, frame: u64) -> Vec<ControlValueSnapshot> {
         let mut runtime = self.runtime();
-        runtime.apply_parameter_locks = true;
-        runtime.evaluate_frame(frame);
-        self.targets
-            .iter()
-            .enumerate()
-            .map(|(index, target)| {
-                let provenance = runtime.provenance[index];
-                let mut instrument_modulation_routes = self
-                    .instrument_routes
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, route)| route.target == ControlIndex(index))
-                    .map(|(route_index, route)| {
-                        route.snapshot(Some(runtime.instrument_route_values[route_index]))
-                    })
-                    .chain(
-                        self.instrument_local_routes
-                            .iter()
-                            .filter(|route| route.target == ControlIndex(index))
-                            .map(|route| route.snapshot(None)),
-                    )
-                    .collect::<Vec<_>>();
-                instrument_modulation_routes.sort_by(|left, right| {
-                    left.order
-                        .cmp(&right.order)
-                        .then_with(|| left.route.cmp(&right.route))
-                });
-                ControlValueSnapshot {
-                    target: target.target.clone(),
-                    unit: target.unit,
-                    frame,
-                    base: target.base,
-                    automation: provenance.automation,
-                    parameter_lock: provenance.parameter_lock,
-                    modulation: provenance.modulation,
-                    modulation_routes: target
-                        .routes
-                        .iter()
-                        .map(|route| route.snapshot(frame))
-                        .collect(),
-                    instrument_modulation_routes,
-                    unconstrained: provenance.unconstrained,
-                    effective: runtime.effective[index],
-                    clamped: provenance.clamped,
-                    held_non_finite: provenance.held_non_finite,
-                }
-            })
+        runtime.evaluate_inspection_frame(frame);
+        (0..self.targets.len())
+            .map(|index| runtime.snapshot_index(frame, index))
             .collect()
     }
 }
@@ -647,7 +605,7 @@ impl ControlInspector {
     ) -> Option<ControlValueSnapshot> {
         self.evaluate(frame);
         let index = self.runtime.program.indexes.get(target)?.0;
-        Some(self.snapshot_index(frame, index))
+        Some(self.runtime.snapshot_index(frame, index))
     }
 
     /// Evaluates only Instrument-owned routes for the requested Instrument.
@@ -683,53 +641,7 @@ impl ControlInspector {
         self.runtime
             .effective
             .copy_from_slice(&self.runtime.transition_origin);
-        self.runtime.evaluate_frame(frame);
-    }
-
-    fn snapshot_index(&self, frame: u64, index: usize) -> ControlValueSnapshot {
-        let program = &self.runtime.program;
-        let target = &program.targets[index];
-        let provenance = self.runtime.provenance[index];
-        let mut instrument_modulation_routes = program
-            .instrument_routes
-            .iter()
-            .enumerate()
-            .filter(|(_, route)| route.target == ControlIndex(index))
-            .map(|(route_index, route)| {
-                route.snapshot(Some(self.runtime.instrument_route_values[route_index]))
-            })
-            .chain(
-                program
-                    .instrument_local_routes
-                    .iter()
-                    .filter(|route| route.target == ControlIndex(index))
-                    .map(|route| route.snapshot(None)),
-            )
-            .collect::<Vec<_>>();
-        instrument_modulation_routes.sort_by(|left, right| {
-            left.order
-                .cmp(&right.order)
-                .then_with(|| left.route.cmp(&right.route))
-        });
-        ControlValueSnapshot {
-            target: target.target.clone(),
-            unit: target.unit,
-            frame,
-            base: target.base,
-            automation: provenance.automation,
-            parameter_lock: provenance.parameter_lock,
-            modulation: provenance.modulation,
-            modulation_routes: target
-                .routes
-                .iter()
-                .map(|route| route.snapshot(frame))
-                .collect(),
-            instrument_modulation_routes,
-            unconstrained: provenance.unconstrained,
-            effective: self.runtime.effective[index],
-            clamped: provenance.clamped,
-            held_non_finite: provenance.held_non_finite,
-        }
+        self.runtime.evaluate_inspection_frame(frame);
     }
 }
 
@@ -1525,28 +1437,36 @@ pub(crate) struct TrackParameterLockRuntime {
 
 impl TrackParameterLockRuntime {
     /// Overlays only this Track's active locks onto the Song-wide unlocked controls.
-    pub(crate) fn project<'a>(
-        &'a mut self,
-        frame: u64,
-        effective: &'a [f64],
-        pre_instrument_unconstrained: &'a [f64],
-    ) -> (&'a [f64], &'a [f64]) {
-        self.effective.copy_from_slice(effective);
+    ///
+    /// A locked target resolves through the same lock fold as inspection, so it
+    /// still receives additive Modulation before its domain constraint.
+    pub(crate) fn project(&mut self, frame: u64, controls: &ControlRuntime) -> (&[f64], &[f64]) {
+        let effective = controls.values();
         self.pre_instrument_unconstrained
-            .copy_from_slice(pre_instrument_unconstrained);
+            .copy_from_slice(controls.pre_instrument_unconstrained_values());
         let lanes = if self.transition_active {
             self.transition_lanes.as_deref()
         } else {
             Some(self.lanes.as_ref())
         };
-        if let Some(lanes) = lanes {
-            for lane in lanes {
-                if let Some(value) = lane.lane.value_at(frame) {
-                    self.effective[lane.target.0] = value;
-                    self.pre_instrument_unconstrained[lane.target.0] = value;
+        // Lanes are sorted by target, so unlocked spans copy in place while each
+        // locked target still sees its own previous projected value.
+        let mut copied = 0;
+        for lane in lanes.into_iter().flatten() {
+            let index = lane.target.0;
+            self.effective[copied..index].copy_from_slice(&effective[copied..index]);
+            self.effective[index] = match lane.lane.value_at(frame) {
+                Some(lock) => {
+                    self.pre_instrument_unconstrained[index] = lock;
+                    controls
+                        .resolve_parameter_lock(lane.target, lock, self.effective[index])
+                        .effective
                 }
-            }
+                None => effective[index],
+            };
+            copied = index + 1;
         }
+        self.effective[copied..].copy_from_slice(&effective[copied..]);
         if self.transition_active && self.transition_position < self.transition_frames {
             self.transition_position = self.transition_position.saturating_add(1);
             let progress = self.transition_position as f64 / self.transition_frames as f64;
@@ -1668,6 +1588,42 @@ struct CompiledPoint {
     interpolation: AutomationInterpolation,
 }
 
+/// One target's domain-constrained value for a frame.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Constrained {
+    /// The folded value before domain constraint, possibly non-finite.
+    pub(crate) unconstrained: f64,
+    /// The finite unconstrained value retained for later same-frame readers.
+    held_unconstrained: f64,
+    pub(crate) effective: f64,
+    clamped: bool,
+    held_non_finite: bool,
+}
+
+impl Constrained {
+    /// Clamps a finite value into the target domain, or holds `previous`.
+    fn of(unconstrained: f64, target: &CompiledTarget, previous: f64) -> Self {
+        if unconstrained.is_finite() {
+            let effective = unconstrained.clamp(target.minimum, target.maximum);
+            Self {
+                unconstrained,
+                held_unconstrained: unconstrained,
+                effective,
+                clamped: effective != unconstrained,
+                held_non_finite: false,
+            }
+        } else {
+            Self {
+                unconstrained,
+                held_unconstrained: previous,
+                effective: previous,
+                clamped: false,
+                held_non_finite: true,
+            }
+        }
+    }
+}
+
 /// Preallocated mutable control evaluator used once per authored sample frame.
 #[derive(Debug, Clone)]
 pub(crate) struct ControlRuntime {
@@ -1684,7 +1640,6 @@ pub(crate) struct ControlRuntime {
     transition_changed: Vec<bool>,
     transition_position: u64,
     transition_frames: u64,
-    apply_parameter_locks: bool,
 }
 
 impl ControlRuntime {
@@ -1700,20 +1655,9 @@ impl ControlRuntime {
         // Establish every absolute value before evaluating the same-frame macro DAG.
         for (index, target) in self.program.targets.iter().enumerate() {
             let automation = target.lane.as_ref().and_then(|lane| lane.value_at(frame));
-            let parameter_lock = self
-                .apply_parameter_locks
-                .then(|| {
-                    target
-                        .parameter_locks
-                        .as_ref()
-                        .and_then(|lane| lane.value_at(frame))
-                })
-                .flatten();
-            let absolute = parameter_lock.or(automation).unwrap_or(target.base);
-            self.unconstrained[index] = absolute;
+            self.unconstrained[index] = automation.unwrap_or(target.base);
             self.provenance[index] = RuntimeProvenance {
                 automation,
-                parameter_lock,
                 ..RuntimeProvenance::default()
             };
         }
@@ -1768,34 +1712,130 @@ impl ControlRuntime {
             self.unconstrained[index] += song_modulation;
             let unconstrained = self.unconstrained[index];
             let previous = self.effective[index];
-            let (constrained, held_non_finite) = if unconstrained.is_finite() {
-                (unconstrained.clamp(target.minimum, target.maximum), false)
-            } else {
-                (previous, true)
-            };
-            let effective = if held_non_finite {
+            let constrained = Constrained::of(unconstrained, target, previous);
+            let effective = if constrained.held_non_finite {
                 previous
             } else if let Some(progress) = transition_progress
                 && self.transition_changed[index]
             {
                 self.transition_origin[index]
-                    + (constrained - self.transition_origin[index]) * progress
+                    + (constrained.effective - self.transition_origin[index]) * progress
             } else {
-                constrained
+                constrained.effective
             };
-            self.unconstrained[index] = if unconstrained.is_finite() {
-                unconstrained
-            } else {
-                previous
-            };
+            self.unconstrained[index] = constrained.held_unconstrained;
             self.effective[index] = effective;
             self.provenance[index].modulation += song_modulation;
             self.provenance[index].unconstrained = unconstrained;
-            self.provenance[index].clamped =
-                unconstrained.is_finite() && constrained != unconstrained;
-            self.provenance[index].held_non_finite = held_non_finite;
+            self.provenance[index].clamped = constrained.clamped;
+            self.provenance[index].held_non_finite = constrained.held_non_finite;
             // Audio-derived routes publish a fresh future contribution for every sample.
             self.modulation[index] = 0.0;
+        }
+    }
+
+    /// Reports one target's evaluated provenance for inspection.
+    fn snapshot_index(&self, frame: u64, index: usize) -> ControlValueSnapshot {
+        let program = &self.program;
+        let target = &program.targets[index];
+        let provenance = self.provenance[index];
+        let mut instrument_modulation_routes = program
+            .instrument_routes
+            .iter()
+            .enumerate()
+            .filter(|(_, route)| route.target == ControlIndex(index))
+            .map(|(route_index, route)| {
+                route.snapshot(Some(self.instrument_route_values[route_index]))
+            })
+            .chain(
+                program
+                    .instrument_local_routes
+                    .iter()
+                    .filter(|route| route.target == ControlIndex(index))
+                    .map(|route| route.snapshot(None)),
+            )
+            .collect::<Vec<_>>();
+        instrument_modulation_routes.sort_by(|left, right| {
+            left.order
+                .cmp(&right.order)
+                .then_with(|| left.route.cmp(&right.route))
+        });
+        ControlValueSnapshot {
+            target: target.target.clone(),
+            unit: target.unit,
+            frame,
+            base: target.base,
+            automation: provenance.automation,
+            parameter_lock: provenance.parameter_lock,
+            modulation: provenance.modulation,
+            modulation_routes: target
+                .routes
+                .iter()
+                .map(|route| route.snapshot(frame))
+                .collect(),
+            instrument_modulation_routes,
+            unconstrained: provenance.unconstrained,
+            effective: self.effective[index],
+            clamped: provenance.clamped,
+            held_non_finite: provenance.held_non_finite,
+        }
+    }
+
+    /// Resolves one active Parameter lock against this frame's evaluated modulation.
+    ///
+    /// This is the single lock fold shared by playback and inspection. The lock
+    /// replaces the target's absolute value; global Instrument routes then add in
+    /// compiled order and Song-owned contributions follow, exactly as
+    /// `evaluate_frame` folds an unlocked target. Song-global Parameter sources
+    /// cannot read a lockable target, so the lock never changes those routes.
+    pub(crate) fn resolve_parameter_lock(
+        &self,
+        index: ControlIndex,
+        lock: f64,
+        previous: f64,
+    ) -> Constrained {
+        let mut unconstrained = lock;
+        for (route, value) in self
+            .program
+            .instrument_routes
+            .iter()
+            .zip(&self.instrument_route_values)
+        {
+            if route.target == index {
+                unconstrained += value.contribution;
+            }
+        }
+        unconstrained += self.song_modulation[index.0];
+        Constrained::of(unconstrained, &self.program.targets[index.0], previous)
+    }
+
+    /// Evaluates one off-callback frame with every Song-merged Parameter lock applied.
+    ///
+    /// Inspection starts from a fresh runtime, so a held non-finite lock falls back
+    /// to the initial constrained base exactly as an unlocked target does.
+    fn evaluate_inspection_frame(&mut self, frame: u64) {
+        self.evaluate_frame(frame);
+        for index in 0..self.program.targets.len() {
+            let Some(lock) = self.program.targets[index]
+                .parameter_locks
+                .as_ref()
+                .and_then(|lane| lane.value_at(frame))
+            else {
+                continue;
+            };
+            let resolved = self.resolve_parameter_lock(
+                ControlIndex(index),
+                lock,
+                self.transition_origin[index],
+            );
+            self.pre_instrument_unconstrained[index] = lock;
+            self.unconstrained[index] = resolved.held_unconstrained;
+            self.effective[index] = resolved.effective;
+            let provenance = &mut self.provenance[index];
+            provenance.parameter_lock = Some(lock);
+            provenance.unconstrained = resolved.unconstrained;
+            provenance.clamped = resolved.clamped;
+            provenance.held_non_finite = resolved.held_non_finite;
         }
     }
 
@@ -1806,7 +1846,6 @@ impl ControlRuntime {
     /// never participates in playback/render evaluation within one revision.
     /// This runs on the callback at a publication boundary, but only compares and copies
     /// fixed, preallocated arrays. Program ownership is swapped without allocation.
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn begin_publication_handoff(
         &mut self,
         replacement: &mut Self,
@@ -1939,18 +1978,15 @@ impl ControlRuntime {
         &self.song_modulation
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn transition_changed(&self) -> &[bool] {
         &self.transition_changed
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn track_parameter_locks_differ(&self, replacement: &Self, track_id: &str) -> bool {
         self.program.track_parameter_locks.get(track_id)
             != replacement.program.track_parameter_locks.get(track_id)
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn reset_transition_changes(&mut self) {
         self.transition_changed.fill(false);
     }
@@ -2417,6 +2453,60 @@ project "Control" {
             .into_inspector()
             .snapshot_instrument_routes_at(frame, "lead");
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn locked_targets_keep_modulation_in_the_track_projection_and_inspection() {
+        let source = include_str!("../../tests/fixtures/minimal.crump")
+            .replace(
+                "      parameter tone \"Tone\" hz 100hz 10000hz 3000hz 3200hz",
+                "      parameter tone \"Tone\" hz 100hz 10000hz 3000hz 3200hz automatable modulatable",
+            )
+            .replace(
+                "      note 0beat C4 1beat 0.8",
+                "      lock closed at 0beat parameter tone value 1000hz\n      note 0beat C4 1beat 0.8",
+            )
+            .replace(
+                "    track lead \"Lead\" instrument lead level -9db pan -0.1 {",
+                "    modulation wobble lfo global bipolar sine free 2hz target instrument/lead/tone depth 400hz {\n    }\n    track lead \"Lead\" instrument lead level -9db pan -0.1 {",
+            );
+        let document = parse_project(Path::new("project.crump"), &source);
+        assert!(
+            !document.diagnostics.has_errors(),
+            "{:?}",
+            document.diagnostics.as_slice()
+        );
+        let parsed = document.project.expect("Project with a modulated lock");
+        let diagnostics = validate_project(&parsed);
+        assert!(!diagnostics.has_errors(), "{:?}", diagnostics.as_slice());
+        let program = CompiledControlProgram::compile(&parsed).expect("control program");
+        let target = ParameterTarget::Instrument {
+            instrument: "lead".to_owned(),
+            parameter: "tone".to_owned(),
+        };
+        let index = program.index(&target).expect("tone index");
+        let mut song = program.runtime();
+        let mut track = program
+            .track_parameter_lock_runtime("lead")
+            .expect("lead Track lock runtime");
+        let mut modulated = false;
+        for frame in 0..48_000 {
+            song.evaluate_frame(frame);
+            let (effective, pre_instrument) = track.project(frame, &song);
+            if frame % 6_000 != 1_500 {
+                continue;
+            }
+            let inspected = program
+                .snapshot_at(frame)
+                .into_iter()
+                .find(|snapshot| snapshot.target == target)
+                .expect("tone snapshot");
+            assert_eq!(inspected.parameter_lock, Some(1_000.0));
+            assert_eq!(pre_instrument[index.0], 1_000.0);
+            assert_eq!(effective[index.0], inspected.effective, "frame {frame}");
+            modulated |= (inspected.effective - 1_000.0).abs() > 1.0;
+        }
+        assert!(modulated, "Song Modulation must still move a locked target");
     }
 
     #[test]

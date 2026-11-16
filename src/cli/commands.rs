@@ -576,7 +576,7 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
             json!([]),
         ));
     }
-    let mut player = PipeWirePlayer::start(prepared.into_runtime())
+    let mut player = Player::start(prepared.into_runtime())
         .map_err(|error| Failure::operational("play", "audio_unavailable", error))?;
     let raw_mode = RawModeGuard::new(interactive);
     let started = std::time::Instant::now();
