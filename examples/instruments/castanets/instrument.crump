@@ -1,0 +1,65 @@
+crump-module 2
+instrument castanets "Castanets" graph {
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.4 0.4
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  graph voice 18 {
+    # Two shells meeting a millisecond apart.
+    node strike1 exciter kind impact contact 0.00021296s hardness $hardness level 1
+    node second-shell delay_line mode time time 0.00145s interpolation linear max_time 5ms
+    node gain2 math operation scale amount 0.58
+    node plus3 math operation add
+    node body4 modal_bank profile castanets-shells max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss5 noise level 1
+    node fall6 onepole mode leak time 0.0012s
+    node times7 math operation multiply
+    node hi-8 lowpass mode highpass cutoff 1500hz resonance 0.308309
+    node lo-9 lowpass mode lowpass cutoff 12000hz resonance 0.308309
+    node gain10 math operation scale amount 0.0554256
+    node plus11 math operation add
+    node hi-12 lowpass mode highpass cutoff 650hz resonance 0.308309
+    node hi-13 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.0933134
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-second-shell-audio strike1.audio -> second-shell.audio
+    bus second-shell-audio-gain2-a second-shell.audio -> gain2.a
+    bus strike1-audio-plus3-a strike1.audio -> plus3.a
+    bus gain2-audio-plus3-b gain2.audio -> plus3.b
+    bus plus3-audio-body4-audio plus3.audio -> body4.audio
+    bus note-pitch-body4-pitch note.pitch -> body4.pitch
+    bus note-gate-body4-gate note.gate -> body4.gate
+    bus strike1-audio-fall6-audio strike1.audio -> fall6.audio
+    bus hiss5-audio-times7-a hiss5.audio -> times7.a
+    bus fall6-audio-times7-b fall6.audio -> times7.b
+    bus times7-audio-hi-8-audio times7.audio -> hi-8.audio
+    bus hi-8-audio-lo-9-audio hi-8.audio -> lo-9.audio
+    bus lo-9-audio-gain10-a lo-9.audio -> gain10.a
+    bus body4-audio-plus11-a body4.audio -> plus11.a
+    bus gain10-audio-plus11-b gain10.audio -> plus11.b
+    bus plus11-audio-hi-12-audio plus11.audio -> hi-12.audio
+    bus hi-12-audio-hi-13-audio hi-12.audio -> hi-13.audio
+    bus hi-13-audio-trim-a hi-13.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile castanets-shells {
+  root 261.626hz
+  mode m0 frequency 2150hz decay 0.012s gain 1 after_decay 0.012s after_gain 0
+  mode m1 frequency 3350hz decay 0.008s gain 0.7 after_decay 0.008s after_gain 0
+  mode m2 frequency 4800hz decay 0.005s gain 0.4 after_decay 0.005s after_gain 0
+  mode m3 frequency 6400hz decay 0.0035s gain 0.2 after_decay 0.0035s after_gain 0
+}

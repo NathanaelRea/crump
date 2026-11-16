@@ -1,0 +1,235 @@
+crump-module 2
+instrument opera-gong "Opera Gong" graph {
+  polyphony 2
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter bloom "Bloom" ratio 0 1 0.6 0.6
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the gong rings" maps ring
+    control bloom "Bloom" "How much the shimmer swells after the strike" maps bloom
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  graph voice 21 {
+    # An opera gong: measured inharmonic modes beat in close clusters; the strike energy blooms into the upper cluster and the pitch falls as the plate relaxes.
+    node mallet exciter kind impact contact 0.0015s hardness 0.4 level 1
+    node plate modal_bank profile opera-gong-plate max_modes 48 key_track 0 decay_scale $ring brightness 0 rise 0.05s level 1
+    node tension shaper curve tanh drive 4 bias 0
+    node tension-coupling math operation scale amount 0.00012
+    node bloom modal_bank profile opera-gong-bloom max_modes 44 key_track 0 decay_scale $ring brightness 0 rise 0.25s level 1
+    node bloom-level math operation scale amount $bloom
+    node plate-sum math operation add
+    node hiss1 noise level 1
+    node fall2 onepole mode leak time 0.03s
+    node times3 math operation multiply
+    node hi-4 lowpass mode highpass cutoff 300hz resonance 0.308309
+    node lo-5 lowpass mode lowpass cutoff 6000hz resonance 0.308309
+    node mallet-noise math operation scale amount 0.04
+    node struck math operation add
+    node contour lfo {
+      waveform custom
+      rate 0.16666667hz
+      depth 1
+      phase 0
+      random_phase 0
+      mode one_shot
+      direction forward
+      polarity bipolar
+      retrigger note
+      point c0 phase 0 value -0.99942555
+      point c1 phase 0.001 value -0.99942028
+      point c2 phase 0.00112421 value -0.99941881
+      point c3 phase 0.0012638482 value -0.99941696
+      point c4 phase 0.0014208308 value -0.99941462
+      point c5 phase 0.0015973123 value -0.99941164
+      point c6 phase 0.0017957145 value -0.99940785
+      point c7 phase 0.0020187603 value -0.99940307
+      point c8 phase 0.0022695105 value -0.99939701
+      point c9 phase 0.0025514065 value -0.99938933
+      point c10 phase 0.0028683168 value -0.99937961
+      point c11 phase 0.0032245905 value -0.9993673
+      point c12 phase 0.003625117 value -0.99935172
+      point c13 phase 0.004075393 value -0.999332
+      point c14 phase 0.0045815977 value -0.99930706
+      point c15 phase 0.0051506781 value -0.99927549
+      point c16 phase 0.005790444 value -0.99923556
+      point c17 phase 0.0065096752 value -0.99918507
+      point c18 phase 0.0073182422 value -0.9991212
+      point c19 phase 0.0082272413 value -0.99904043
+      point c20 phase 0.0092491473 value -0.99893831
+      point c21 phase 0.010397984 value -0.99880918
+      point c22 phase 0.011689518 value -0.99864592
+      point c23 phase 0.013141474 value -0.99843954
+      point c24 phase 0.014773777 value -0.99817865
+      point c25 phase 0.016608828 value -0.99784887
+      point c26 phase 0.018671811 value -0.99743206
+      point c27 phase 0.020991037 value -0.99690523
+      point c28 phase 0.023598335 value -0.99623943
+      point c29 phase 0.026529485 value -0.99539802
+      point c30 phase 0.029824713 value -0.99433476
+      point c31 phase 0.033529241 value -0.99299122
+      point c32 phase 0.03769391 value -0.99129365
+      point c33 phase 0.042375872 value -0.98914937
+      point c34 phase 0.04763938 value -0.98647703
+      point c35 phase 0.053556669 value -0.98316681
+      point c36 phase 0.060208945 value -0.97905916
+      point c37 phase 0.0676875 value -0.97395365
+      point c38 phase 0.076094967 value -0.96759848
+      point c39 phase 0.085546725 value -0.95968118
+      point c40 phase 0.096172487 value -0.94993303
+      point c41 phase 0.10811808 value -0.93796961
+      point c42 phase 0.12154743 value -0.92325283
+      point c43 phase 0.13664483 value -0.90520316
+      point c44 phase 0.15361749 value -0.88326421
+      point c45 phase 0.17269833 value -0.85655456
+      point c46 phase 0.19414919 value -0.82430281
+      point c47 phase 0.21826447 value -0.78542092
+      point c48 phase 0.24537511 value -0.73887257
+      point c49 phase 0.27585316 value -0.68334092
+      point c50 phase 0.31011689 value -0.6174731
+      point c51 phase 0.34863652 value -0.53977911
+      point c52 phase 0.39194068 value -0.44863855
+      point c53 phase 0.44062364 value -0.34231865
+      point c54 phase 0.49535352 value -0.21896983
+      point c55 phase 0.5568814 value -0.076625571
+      point c56 phase 0.62605166 value 0.086799738
+      point c57 phase 0.70381356 value 0.27357083
+      point c58 phase 0.79123426 value 0.48615391
+      point c59 phase 0.8895135 value 0.72727573
+      point c60 phase 1 value 1
+    }
+    node contour-audio to_audio
+    node bend delay_line mode time time 0.108799s mod_depth 1 interpolation lagrange3 max_time 0.227598s
+    node trim math operation scale amount 0.175368
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-mallet-gate note.gate -> mallet.gate
+    bus note-velocity-mallet-velocity note.velocity -> mallet.velocity
+    bus mallet-audio-plate-audio mallet.audio -> plate.audio
+    bus note-pitch-plate-pitch note.pitch -> plate.pitch
+    bus note-gate-plate-gate note.gate -> plate.gate
+    bus plate-audio-tension-audio plate.audio -> tension.audio
+    bus tension-audio-tension-coupling-a tension.audio -> tension-coupling.a
+    bus tension-coupling-audio-bloom-audio tension-coupling.audio -> bloom.audio
+    bus note-pitch-bloom-pitch note.pitch -> bloom.pitch
+    bus note-gate-bloom-gate note.gate -> bloom.gate
+    bus bloom-audio-bloom-level-a bloom.audio -> bloom-level.a
+    bus plate-audio-plate-sum-a plate.audio -> plate-sum.a
+    bus bloom-level-audio-plate-sum-b bloom-level.audio -> plate-sum.b
+    bus mallet-audio-fall2-audio mallet.audio -> fall2.audio
+    bus hiss1-audio-times3-a hiss1.audio -> times3.a
+    bus fall2-audio-times3-b fall2.audio -> times3.b
+    bus times3-audio-hi-4-audio times3.audio -> hi-4.audio
+    bus hi-4-audio-lo-5-audio hi-4.audio -> lo-5.audio
+    bus lo-5-audio-mallet-noise-a lo-5.audio -> mallet-noise.a
+    bus plate-sum-audio-struck-a plate-sum.audio -> struck.a
+    bus mallet-noise-audio-struck-b mallet-noise.audio -> struck.b
+    bus contour-control-contour-audio-control contour.control -> contour-audio.control
+    bus struck-audio-bend-audio struck.audio -> bend.audio
+    bus contour-audio-audio-bend-time-mod contour-audio.audio -> bend.time_mod
+    bus bend-audio-trim-a bend.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile opera-gong-plate {
+  root 259.28hz
+  mode m0 frequency 259.28hz decay 0.4545s gain 0.9346 after_decay 0.4545s after_gain 0
+  mode m1 frequency 432.86hz decay 0.9735s gain 0.0568 after_decay 0.9735s after_gain 0
+  mode m2 frequency 466.55hz decay 1.65s gain 0.1199 after_decay 1.65s after_gain 0
+  mode m3 frequency 518.92hz decay 0.4095s gain 0.0273 after_decay 0.4095s after_gain 0
+  mode m4 frequency 628.97hz decay 0.32325s gain 0.0544 after_decay 0.32325s after_gain 0
+  mode m5 frequency 674.01hz decay 0.633s gain 0.0593 after_decay 0.633s after_gain 0
+  mode m6 frequency 682.43hz decay 1.12275s gain 0.0387 after_decay 1.12275s after_gain 0
+  mode m7 frequency 692.14hz decay 0.513s gain 0.0893 after_decay 0.513s after_gain 0
+  mode m8 frequency 704.04hz decay 1.65s gain 0.0843 after_decay 1.65s after_gain 0
+  mode m9 frequency 716.67hz decay 1.65s gain 0.0313 after_decay 1.65s after_gain 0
+  mode m10 frequency 732.24hz decay 0.60975s gain 1 after_decay 0.60975s after_gain 0
+  mode m11 frequency 742.86hz decay 1.07925s gain 0.1567 after_decay 1.07925s after_gain 0
+  mode m12 frequency 755.86hz decay 1.65s gain 0.0254 after_decay 1.65s after_gain 0
+  mode m13 frequency 762.08hz decay 1.65s gain 0.0737 after_decay 1.65s after_gain 0
+  mode m14 frequency 772.16hz decay 1.65s gain 0.1196 after_decay 1.65s after_gain 0
+  mode m15 frequency 782.23hz decay 0.4155s gain 0.2192 after_decay 0.4155s after_gain 0
+  mode m16 frequency 791.75hz decay 0.68775s gain 0.074 after_decay 0.68775s after_gain 0
+  mode m17 frequency 799.44hz decay 1.5795s gain 0.0251 after_decay 1.5795s after_gain 0
+  mode m18 frequency 806.58hz decay 0.82425s gain 0.1766 after_decay 0.82425s after_gain 0
+  mode m19 frequency 826.17hz decay 0.75375s gain 0.0757 after_decay 0.75375s after_gain 0
+  mode m20 frequency 866.09hz decay 0.3465s gain 0.2911 after_decay 0.3465s after_gain 0
+  mode m21 frequency 878.36hz decay 1.65s gain 0.0467 after_decay 1.65s after_gain 0
+  mode m22 frequency 888.43hz decay 0.50775s gain 0.285 after_decay 0.50775s after_gain 0
+  mode m23 frequency 963.32hz decay 1.65s gain 0.037 after_decay 1.65s after_gain 0
+  mode m24 frequency 991.7hz decay 0.67575s gain 0.0312 after_decay 0.67575s after_gain 0
+  mode m25 frequency 1120.61hz decay 0.81225s gain 0.0283 after_decay 0.81225s after_gain 0
+  mode m26 frequency 1140.2hz decay 1.65s gain 0.0384 after_decay 1.65s after_gain 0
+  mode m27 frequency 1329.53hz decay 1.65s gain 0.0329 after_decay 1.65s after_gain 0
+  mode m28 frequency 1338.13hz decay 1.15275s gain 0.0829 after_decay 1.15275s after_gain 0
+  mode m29 frequency 1350.95hz decay 1.65s gain 0.0257 after_decay 1.65s after_gain 0
+  mode m30 frequency 1361.76hz decay 1.65s gain 0.1123 after_decay 1.65s after_gain 0
+  mode m31 frequency 1380.62hz decay 1.65s gain 0.0261 after_decay 1.65s after_gain 0
+  mode m32 frequency 1399.66hz decay 1.65s gain 0.0345 after_decay 1.65s after_gain 0
+  mode m33 frequency 1409.18hz decay 1.65s gain 0.0285 after_decay 1.65s after_gain 0
+  mode m34 frequency 1448.36hz decay 1.37025s gain 0.2015 after_decay 1.37025s after_gain 0
+  mode m35 frequency 1471.98hz decay 0.723s gain 0.0561 after_decay 0.723s after_gain 0
+  mode m36 frequency 1565.55hz decay 1.65s gain 0.0354 after_decay 1.65s after_gain 0
+  mode m37 frequency 1587.34hz decay 0.7155s gain 0.117 after_decay 0.7155s after_gain 0
+  mode m38 frequency 1666.99hz decay 0.31875s gain 0.0477 after_decay 0.31875s after_gain 0
+  mode m39 frequency 1797.55hz decay 1.65s gain 0.0389 after_decay 1.65s after_gain 0
+  mode m40 frequency 1847.72hz decay 0.65325s gain 0.0475 after_decay 0.65325s after_gain 0
+  mode m41 frequency 2070.01hz decay 0.399s gain 0.0349 after_decay 0.399s after_gain 0
+  mode m42 frequency 2091.25hz decay 0.459s gain 0.0286 after_decay 0.459s after_gain 0
+  mode m43 frequency 2531.25hz decay 0.381s gain 0.0285 after_decay 0.381s after_gain 0
+  mode m44 frequency 3308.72hz decay 0.639s gain 0.0301 after_decay 0.639s after_gain 0
+  mode m45 frequency 3574.22hz decay 0.31125s gain 0.0733 after_decay 0.31125s after_gain 0
+  mode m46 frequency 3721.07hz decay 0.6285s gain 0.0435 after_decay 0.6285s after_gain 0
+  mode m47 frequency 4236.15hz decay 0.37875s gain 0.1179 after_decay 0.37875s after_gain 0
+}
+profile opera-gong-bloom {
+  root 259.28hz
+  mode m0 frequency 628.97hz decay 0.420225s gain 0.0544 after_decay 0.420225s after_gain 0
+  mode m1 frequency 674.01hz decay 0.8229s gain 0.0593 after_decay 0.8229s after_gain 0
+  mode m2 frequency 682.43hz decay 1.45958s gain 0.0387 after_decay 1.45958s after_gain 0
+  mode m3 frequency 692.14hz decay 0.6669s gain 0.0893 after_decay 0.6669s after_gain 0
+  mode m4 frequency 704.04hz decay 2.145s gain 0.0843 after_decay 2.145s after_gain 0
+  mode m5 frequency 716.67hz decay 2.145s gain 0.0313 after_decay 2.145s after_gain 0
+  mode m6 frequency 732.24hz decay 0.792675s gain 1 after_decay 0.792675s after_gain 0
+  mode m7 frequency 742.86hz decay 1.40303s gain 0.1567 after_decay 1.40303s after_gain 0
+  mode m8 frequency 755.86hz decay 2.145s gain 0.0254 after_decay 2.145s after_gain 0
+  mode m9 frequency 762.08hz decay 2.145s gain 0.0737 after_decay 2.145s after_gain 0
+  mode m10 frequency 772.16hz decay 2.145s gain 0.1196 after_decay 2.145s after_gain 0
+  mode m11 frequency 782.23hz decay 0.54015s gain 0.2192 after_decay 0.54015s after_gain 0
+  mode m12 frequency 791.75hz decay 0.894075s gain 0.074 after_decay 0.894075s after_gain 0
+  mode m13 frequency 799.44hz decay 2.05335s gain 0.0251 after_decay 2.05335s after_gain 0
+  mode m14 frequency 806.58hz decay 1.07152s gain 0.1766 after_decay 1.07152s after_gain 0
+  mode m15 frequency 826.17hz decay 0.979875s gain 0.0757 after_decay 0.979875s after_gain 0
+  mode m16 frequency 866.09hz decay 0.45045s gain 0.2911 after_decay 0.45045s after_gain 0
+  mode m17 frequency 878.36hz decay 2.145s gain 0.0467 after_decay 2.145s after_gain 0
+  mode m18 frequency 888.43hz decay 0.660075s gain 0.285 after_decay 0.660075s after_gain 0
+  mode m19 frequency 963.32hz decay 2.145s gain 0.037 after_decay 2.145s after_gain 0
+  mode m20 frequency 991.7hz decay 0.878475s gain 0.0312 after_decay 0.878475s after_gain 0
+  mode m21 frequency 1120.61hz decay 1.05593s gain 0.0283 after_decay 1.05593s after_gain 0
+  mode m22 frequency 1140.2hz decay 2.145s gain 0.0384 after_decay 2.145s after_gain 0
+  mode m23 frequency 1329.53hz decay 2.145s gain 0.0329 after_decay 2.145s after_gain 0
+  mode m24 frequency 1338.13hz decay 1.49857s gain 0.0829 after_decay 1.49857s after_gain 0
+  mode m25 frequency 1350.95hz decay 2.145s gain 0.0257 after_decay 2.145s after_gain 0
+  mode m26 frequency 1361.76hz decay 2.145s gain 0.1123 after_decay 2.145s after_gain 0
+  mode m27 frequency 1380.62hz decay 2.145s gain 0.0261 after_decay 2.145s after_gain 0
+  mode m28 frequency 1399.66hz decay 2.145s gain 0.0345 after_decay 2.145s after_gain 0
+  mode m29 frequency 1409.18hz decay 2.145s gain 0.0285 after_decay 2.145s after_gain 0
+  mode m30 frequency 1448.36hz decay 1.78133s gain 0.2015 after_decay 1.78133s after_gain 0
+  mode m31 frequency 1471.98hz decay 0.9399s gain 0.0561 after_decay 0.9399s after_gain 0
+  mode m32 frequency 1565.55hz decay 2.145s gain 0.0354 after_decay 2.145s after_gain 0
+  mode m33 frequency 1587.34hz decay 0.93015s gain 0.117 after_decay 0.93015s after_gain 0
+  mode m34 frequency 1666.99hz decay 0.414375s gain 0.0477 after_decay 0.414375s after_gain 0
+  mode m35 frequency 1797.55hz decay 2.145s gain 0.0389 after_decay 2.145s after_gain 0
+  mode m36 frequency 1847.72hz decay 0.849225s gain 0.0475 after_decay 0.849225s after_gain 0
+  mode m37 frequency 2070.01hz decay 0.5187s gain 0.0349 after_decay 0.5187s after_gain 0
+  mode m38 frequency 2091.25hz decay 0.5967s gain 0.0286 after_decay 0.5967s after_gain 0
+  mode m39 frequency 2531.25hz decay 0.4953s gain 0.0285 after_decay 0.4953s after_gain 0
+  mode m40 frequency 3308.72hz decay 0.8307s gain 0.0301 after_decay 0.8307s after_gain 0
+  mode m41 frequency 3574.22hz decay 0.404625s gain 0.0733 after_decay 0.404625s after_gain 0
+  mode m42 frequency 3721.07hz decay 0.81705s gain 0.0435 after_decay 0.81705s after_gain 0
+  mode m43 frequency 4236.15hz decay 0.492375s gain 0.1179 after_decay 0.492375s after_gain 0
+}

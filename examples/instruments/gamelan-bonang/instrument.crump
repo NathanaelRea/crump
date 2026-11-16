@@ -1,0 +1,54 @@
+crump-module 2
+instrument gamelan-bonang "Gamelan Bonang" graph {
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-gain-curve key_curve per_voice bipolar {
+      point f3 key F3 value -0.252433
+      point f4 key F4 value 0
+      point f5 key F5 value 1
+    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.81656 map bipolar curve linear order 0 bypass false
+  }
+  graph voice 8 {
+    # A strike on a tuned body with explicit mode ratios, plus a contact tick.
+    node strike1 exciter kind impact contact 0.0015125s hardness 0 level 1
+    node body2 modal_bank profile gamelan-bonang-body max_modes 8 key_track 1 decay_scale $ring brightness 0 level 1
+    node hi-3 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.194226
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-hi-3-audio body2.audio -> hi-3.audio
+    bus hi-3-audio-register-a hi-3.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile gamelan-bonang-body {
+  root 261.626hz
+  mode m0 frequency 261.102hz decay 0.4s gain 0.65 after_decay 0.4s after_gain 0
+  mode m1 frequency 344.655hz decay 1.6s gain 0.27356 after_decay 1.6s after_gain 0
+  mode m2 frequency 355.099hz decay 1.6s gain 0.11371 after_decay 1.6s after_gain 0
+  mode m3 frequency 704.976hz decay 0.4s gain 0.0531734 after_decay 0.4s after_gain 0
+  mode m4 frequency 262.149hz decay 0.4s gain 0.35 after_decay 0.4s after_gain 0
+  mode m5 frequency 346.036hz decay 1.6s gain 0.147302 after_decay 1.6s after_gain 0
+  mode m6 frequency 356.522hz decay 1.6s gain 0.0612283 after_decay 1.6s after_gain 0
+  mode m7 frequency 707.802hz decay 0.4s gain 0.0286318 after_decay 0.4s after_gain 0
+}

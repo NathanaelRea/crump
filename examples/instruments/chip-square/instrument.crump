@@ -1,0 +1,36 @@
+crump-module 2
+instrument chip-square "Chip Square" graph {
+  polyphony 4
+  voicing poly retrigger always glide 0ms glide_mode always note_priority last steal_priority release_oldest seed 30307
+  parameter level "Level" ratio 0 1 0.088 0.088
+  parameter width "Pulse Width" ratio 0 0.9 0 0 automatable modulatable
+  parameter release "Release" seconds 5ms 1s 30ms 30ms automatable
+  faceplate {
+    control width "Pulse Width" "0 is a square; higher narrows the pulse toward a thin buzz" maps width
+    control release "Release" "Tail after Note Off" maps release
+    control level "Level" "Output level" maps level
+  }
+  graph voice 5 {
+    node pulse analog_oscillator {
+      waveform square
+      unison 1
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 0
+      velocity_amount 0.4
+      level $level
+      pan 0
+      warp duty pulse_width amount $width
+    }
+    node amplitude envelope mode ahdsr attack 1ms hold 0ms decay 120ms sustain 0.75 release $release attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+    node dc-block stereo_filter model svf_clean mode highpass cutoff 35hz resonance 0 drive 0 mix 1 pan 0 mod_depth 0hz velocity_depth 0hz key_track 0 key_reference 261.625565hz
+    node out output
+    bus pulse-pitch note.pitch -> pulse.pitch
+    bus pulse-gain amplitude.control -> pulse.gain
+    bus pulse-velocity note.velocity -> pulse.velocity
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus dc-audio pulse.audio -> dc-block.audio
+    bus output dc-block.audio -> out.audio
+  }
+}

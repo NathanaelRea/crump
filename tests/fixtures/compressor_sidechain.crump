@@ -1,0 +1,84 @@
+crump 1
+project "Compressor Sidechain" {
+  id compressor_sidechain
+  seed 77
+  sample_rate 48000
+  render_tail 1s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+
+    instrument bass "Sub Bass" graph {
+      polyphony 4
+      parameter tone "Tone" hz 40hz 400hz 120hz 140hz
+      faceplate {
+        control tone "Tone" "Bass low-pass cutoff" maps tone
+      }
+      graph 8 {
+        node oscillator oscillator waveform sine level 0.5
+        node envelope envelope attack 5ms decay 80ms sustain 0.85 release 120ms
+        node filter lowpass cutoff $tone resonance 0.1
+        node amplifier amplifier level 0.8
+        node position pan position 0
+        node output output
+        connect note.pitch -> oscillator.pitch
+        connect note.gate -> envelope.gate
+        connect oscillator.audio -> filter.audio
+        connect filter.audio -> amplifier.audio
+        connect envelope.control -> amplifier.gain
+        connect amplifier.audio -> position.audio
+        connect position.audio -> output.audio
+      }
+    }
+
+    instrument kick "Kick" stock_drums {
+      polyphony 4
+      parameter tone "Tone" ratio 0 1 0.5 0.45
+      parameter punch "Punch" ratio 0 1 0.5 0.8
+      faceplate {
+        control tone "Tone" "Kick brightness" maps tone
+        control punch "Punch" "Kick transient" maps punch
+      }
+    }
+
+    pattern bassline 1bar {
+      note 0beat C2 4beat 0.8
+    }
+
+    pattern kickbeat 1bar {
+      hit 0beat kick 1
+      hit 1beat kick 0.85
+      hit 2beat kick 0.95
+      hit 3beat kick 0.85
+    }
+
+    track bass "Bass" instrument bass level -6db pan 0 {
+      panner balance 0
+      processor bass_comp compressor {
+        setting threshold -24db
+        setting ratio 4
+        setting attack 0.001s
+        setting release 0.1s
+        setting knee 0db
+        setting makeup 0db
+        setting mix 1
+        setting detector peak
+        sidechain input detector
+      }
+      output master
+      clip bass_clip pattern bassline start 0bar duration 1bar mode once
+    }
+
+    track kick "Kick Trigger" instrument kick level -3db pan 0 {
+      panner balance 0
+      output master
+      clip kick_clip pattern kickbeat start 0bar duration 1bar mode once
+    }
+
+    sidechain kick_to_bass from track/kick tap pre to processor/bass_comp/detector
+
+    master level 0db {
+    }
+  }
+}

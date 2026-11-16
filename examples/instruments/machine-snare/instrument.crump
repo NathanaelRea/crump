@@ -1,0 +1,108 @@
+crump-module 2
+instrument machine-snare "Machine Snare" graph {
+  polyphony 4
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+  }
+  graph voice 33 {
+    # A drum-machine voice: swept sine, square clusters, noise and click.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall1 onepole mode leak time 0.01s
+    node shape2 shaper {
+      curve table
+      drive 1
+      bias 0
+      point p0 input 0 output 0
+      point p1 input 0.08 output 0.0870624
+      point p2 input 0.16 output 0.172764
+      point p3 input 0.24 output 0.257148
+      point p4 input 0.32 output 0.340253
+      point p5 input 0.4 output 0.422117
+      point p6 input 0.48 output 0.502778
+      point p7 input 0.56 output 0.582269
+      point p8 input 0.64 output 0.660625
+      point p9 input 0.72 output 0.737877
+      point p10 input 0.8 output 0.814056
+      point p11 input 0.88 output 0.889192
+      point p12 input 0.96 output 0.963312
+      point p13 input 1.04 output 1.03644
+      point p14 input 1.12 output 1.10861
+      point p15 input 1.2 output 1.17985
+    }
+    node fall3 onepole mode leak time 0.11s
+    node tone4-pitch constant frequency 180hz
+    node tone4 analog_oscillator waveform sine level 1.41421 fm_depth 3.15641st am_mode ring am_depth 1
+    node tone4-mono stereo_to_mono
+    node gain5 math operation scale amount 0.8
+    node fall6 onepole mode leak time 0.07s
+    node tone7-pitch constant frequency 329.4hz
+    node tone7 analog_oscillator waveform sine level 0.707107 fm_depth 3.15641st am_mode ring am_depth 1
+    node tone7-mono stereo_to_mono
+    node hiss8 noise level 1
+    node fall9 onepole mode leak time 0.13s
+    node rise10 math operation subtract
+    node fall11 onepole mode leak time 0.0004981s
+    node gain12 math operation scale amount 1.02556
+    node times13 math operation multiply
+    node hi-14 lowpass mode highpass cutoff 1800hz resonance 0.308309
+    node lo-15 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain16 math operation scale amount 0.842465
+    node hiss17 noise level 1
+    node fall18 onepole mode leak time 0.0012s
+    node times19 math operation multiply
+    node hi-20 lowpass mode highpass cutoff 1500hz resonance 0.308309
+    node lo-21 lowpass mode lowpass cutoff 12000hz resonance 0.308309
+    node gain22 math operation scale amount 0.259785
+    node mix23 sum max_inputs 4
+    node hi-24 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.139319
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus onset-audio-fall1-audio onset.audio -> fall1.audio
+    bus fall1-audio-shape2-audio fall1.audio -> shape2.audio
+    bus onset-audio-fall3-audio onset.audio -> fall3.audio
+    bus tone4-pitch-pitch-tone4-pitch tone4-pitch.pitch -> tone4.pitch
+    bus shape2-audio-tone4-fm shape2.audio -> tone4.fm
+    bus fall3-audio-tone4-am fall3.audio -> tone4.am
+    bus tone4-audio-tone4-mono-audio tone4.audio -> tone4-mono.audio
+    bus tone4-mono-audio-gain5-a tone4-mono.audio -> gain5.a
+    bus onset-audio-fall6-audio onset.audio -> fall6.audio
+    bus tone7-pitch-pitch-tone7-pitch tone7-pitch.pitch -> tone7.pitch
+    bus shape2-audio-tone7-fm shape2.audio -> tone7.fm
+    bus fall6-audio-tone7-am fall6.audio -> tone7.am
+    bus tone7-audio-tone7-mono-audio tone7.audio -> tone7-mono.audio
+    bus onset-audio-fall9-audio onset.audio -> fall9.audio
+    bus fall9-audio-rise10-a fall9.audio -> rise10.a
+    bus onset-audio-fall11-audio onset.audio -> fall11.audio
+    bus fall11-audio-rise10-b fall11.audio -> rise10.b
+    bus rise10-audio-gain12-a rise10.audio -> gain12.a
+    bus hiss8-audio-times13-a hiss8.audio -> times13.a
+    bus gain12-audio-times13-b gain12.audio -> times13.b
+    bus times13-audio-hi-14-audio times13.audio -> hi-14.audio
+    bus hi-14-audio-lo-15-audio hi-14.audio -> lo-15.audio
+    bus lo-15-audio-gain16-a lo-15.audio -> gain16.a
+    bus onset-audio-fall18-audio onset.audio -> fall18.audio
+    bus hiss17-audio-times19-a hiss17.audio -> times19.a
+    bus fall18-audio-times19-b fall18.audio -> times19.b
+    bus times19-audio-hi-20-audio times19.audio -> hi-20.audio
+    bus hi-20-audio-lo-21-audio hi-20.audio -> lo-21.audio
+    bus lo-21-audio-gain22-a lo-21.audio -> gain22.a
+    bus gain5-audio-mix23-inputs gain5.audio -> mix23.inputs
+    bus tone7-mono-audio-mix23-inputs tone7-mono.audio -> mix23.inputs
+    bus gain16-audio-mix23-inputs gain16.audio -> mix23.inputs
+    bus gain22-audio-mix23-inputs gain22.audio -> mix23.inputs
+    bus mix23-audio-hi-24-audio mix23.audio -> hi-24.audio
+    bus hi-24-audio-trim-a hi-24.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}

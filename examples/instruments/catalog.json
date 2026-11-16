@@ -1,0 +1,2555 @@
+[
+  {
+    "id": "felt-floor",
+    "name": "Felt Floor",
+    "category": "Kicks",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 7919,
+    "model": "membrane"
+  },
+  {
+    "id": "warehouse-skin",
+    "name": "Warehouse Skin",
+    "category": "Kicks",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 15838,
+    "model": "membrane"
+  },
+  {
+    "id": "disco-beater",
+    "name": "Disco Beater",
+    "category": "Kicks",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 23757,
+    "model": "membrane"
+  },
+  {
+    "id": "deep-pillow",
+    "name": "Deep Pillow",
+    "category": "Kicks",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 31676,
+    "model": "membrane"
+  },
+  {
+    "id": "dry-birch",
+    "name": "Dry Birch",
+    "category": "Backbeats",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 39595,
+    "model": "membrane"
+  },
+  {
+    "id": "disco-wire",
+    "name": "Disco Wire",
+    "category": "Backbeats",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 47514,
+    "model": "membrane"
+  },
+  {
+    "id": "brush-ghost",
+    "name": "Brush Ghost",
+    "category": "Backbeats",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 55433,
+    "model": "membrane"
+  },
+  {
+    "id": "three-hands",
+    "name": "Three Hands",
+    "category": "Backbeats",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 63352,
+    "model": "clap"
+  },
+  {
+    "id": "basement-crowd",
+    "name": "Basement Crowd",
+    "category": "Backbeats",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 71271,
+    "model": "clap"
+  },
+  {
+    "id": "palm-snap",
+    "name": "Palm Snap",
+    "category": "Backbeats",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 79190,
+    "model": "clap"
+  },
+  {
+    "id": "brass-tick",
+    "name": "Brass Tick",
+    "category": "Hats and metal",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 87109,
+    "model": "metal"
+  },
+  {
+    "id": "dark-closed",
+    "name": "Dark Closed",
+    "category": "Hats and metal",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 95028,
+    "model": "metal"
+  },
+  {
+    "id": "offbeat-sizzle",
+    "name": "Offbeat Sizzle",
+    "category": "Hats and metal",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 102947,
+    "model": "metal"
+  },
+  {
+    "id": "pedal-chick",
+    "name": "Pedal Chick",
+    "category": "Hats and metal",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 110866,
+    "model": "metal"
+  },
+  {
+    "id": "ride-shoulder",
+    "name": "Ride Shoulder",
+    "category": "Hats and metal",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 118785
+  },
+  {
+    "id": "thin-crash",
+    "name": "Thin Crash",
+    "category": "Hats and metal",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 126704
+  },
+  {
+    "id": "conga-open",
+    "name": "Conga Open",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 134623,
+    "model": "membrane"
+  },
+  {
+    "id": "conga-mute",
+    "name": "Conga Mute",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 142542,
+    "model": "membrane"
+  },
+  {
+    "id": "conga-slap",
+    "name": "Conga Slap",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 150461,
+    "model": "membrane"
+  },
+  {
+    "id": "bongo-high",
+    "name": "Bongo High",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 158380,
+    "model": "membrane"
+  },
+  {
+    "id": "bongo-low",
+    "name": "Bongo Low",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 166299,
+    "model": "membrane"
+  },
+  {
+    "id": "djembe-center",
+    "name": "Djembe Center",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 174218,
+    "model": "membrane"
+  },
+  {
+    "id": "tabla-sketch",
+    "name": "Tabla Sketch",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 182137,
+    "model": "membrane"
+  },
+  {
+    "id": "wood-rim",
+    "name": "Wood Rim",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 190056
+  },
+  {
+    "id": "cuban-clave",
+    "name": "Cuban Clave",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 197975
+  },
+  {
+    "id": "hollow-block",
+    "name": "Hollow Block",
+    "category": "Hand percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 205894
+  },
+  {
+    "id": "egg-shaker",
+    "name": "Egg Shaker",
+    "category": "Shakers",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 213813,
+    "model": "collisions"
+  },
+  {
+    "id": "gourd-maraca",
+    "name": "Gourd Maraca",
+    "category": "Shakers",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 221732,
+    "model": "collisions"
+  },
+  {
+    "id": "cabasa-turn",
+    "name": "Cabasa Turn",
+    "category": "Shakers",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 229651,
+    "model": "collisions"
+  },
+  {
+    "id": "tambourine-shake",
+    "name": "Tambourine Shake",
+    "category": "Shakers",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 237570
+  },
+  {
+    "id": "finger-bass",
+    "name": "Finger Bass",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 245489,
+    "model": "string",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "palm-bass",
+    "name": "Palm Bass",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 253408,
+    "model": "string",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "pick-bass",
+    "name": "Pick Bass",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 261327,
+    "model": "string",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "upright-pluck",
+    "name": "Upright Pluck",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 269246,
+    "model": "string",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "slap-string",
+    "name": "Slap String",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 277165,
+    "model": "string",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "deep-rubber",
+    "name": "Deep Rubber",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 285084,
+    "model": "string",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "house-grand",
+    "name": "House Grand",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 293003
+  },
+  {
+    "id": "sunday-upright",
+    "name": "Sunday Upright",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 300922
+  },
+  {
+    "id": "felt-afterhours",
+    "name": "Felt Afterhours",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 308841,
+    "model": "hammer",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "tack-keys",
+    "name": "Tack Keys",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 316760
+  },
+  {
+    "id": "warm-tines",
+    "name": "Warm Tines",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 324679,
+    "model": "bar",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "barking-tines",
+    "name": "Barking Tines",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 332598,
+    "model": "bar",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "reed-keys",
+    "name": "Reed Keys",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 340517,
+    "model": "bar",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "clav-pluck",
+    "name": "Clav Pluck",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 348436,
+    "model": "string",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "nylon-thumb",
+    "name": "Nylon Thumb",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 356355,
+    "model": "string",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "disco-mute",
+    "name": "Disco Mute",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 364274,
+    "model": "string",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "steel-finger",
+    "name": "Steel Finger",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 372193,
+    "model": "string",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "small-harp",
+    "name": "Small Harp",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 380112,
+    "model": "string",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "rosewood-marimba",
+    "name": "Rosewood Marimba",
+    "category": "Mallets",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 388031,
+    "model": "bar",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "soft-vibraphone",
+    "name": "Soft Vibraphone",
+    "category": "Mallets",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 395950,
+    "model": "bar",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "thumb-kalimba",
+    "name": "Thumb Kalimba",
+    "category": "Mallets",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 403869,
+    "model": "tine",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "buzz-balafon",
+    "name": "Buzz Balafon",
+    "category": "Mallets",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 411788
+  },
+  {
+    "id": "glass-drop",
+    "name": "Glass Drop",
+    "category": "Mallets",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 419707,
+    "model": "bar",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "bell-chime",
+    "name": "Bell Chime",
+    "category": "Mallets",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 427626,
+    "model": "bar",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "piano-cut",
+    "name": "Piano Cut",
+    "category": "Resampling",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 435545
+  },
+  {
+    "id": "dusty-keys",
+    "name": "Dusty Keys",
+    "category": "Resampling",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 443464,
+    "model": "piano",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "dub-tines",
+    "name": "Dub Tines",
+    "category": "Resampling",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 451383,
+    "model": "bar",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "reverse-nylon",
+    "name": "Reverse Nylon",
+    "category": "Resampling",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 459302,
+    "model": "string",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "motor-vibes",
+    "name": "Motor Vibes",
+    "category": "Resampling",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 467221,
+    "model": "bar",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "room-chop",
+    "name": "Room Chop",
+    "category": "Resampling",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 475140,
+    "model": "string",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "solo-violin",
+    "name": "Solo Violin",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 483059,
+    "model": "bowed",
+    "range": [
+      55,
+      100
+    ],
+    "audition_note": 67,
+    "sustained": true
+  },
+  {
+    "id": "viola",
+    "name": "Viola",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 490978,
+    "model": "bowed",
+    "range": [
+      48,
+      88
+    ],
+    "audition_note": 60,
+    "sustained": true
+  },
+  {
+    "id": "cello",
+    "name": "Cello",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 498897,
+    "model": "bowed",
+    "range": [
+      36,
+      81
+    ],
+    "audition_note": 48,
+    "sustained": true
+  },
+  {
+    "id": "contrabass",
+    "name": "Contrabass",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 506816,
+    "model": "bowed",
+    "range": [
+      26,
+      67
+    ],
+    "audition_note": 36,
+    "sustained": true
+  },
+  {
+    "id": "string-section",
+    "name": "String Section",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 514735,
+    "model": "bowed",
+    "range": [
+      28,
+      98
+    ],
+    "audition_note": 60,
+    "sustained": true
+  },
+  {
+    "id": "pizzicato-strings",
+    "name": "Pizzicato Strings",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 522654,
+    "model": "pizzicato",
+    "range": [
+      28,
+      98
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "concert-harp",
+    "name": "Concert Harp",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 530573,
+    "model": "string",
+    "range": [
+      23,
+      103
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "piccolo",
+    "name": "Piccolo",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 538492,
+    "model": "sustained",
+    "range": [
+      72,
+      108
+    ],
+    "audition_note": 86,
+    "sustained": true
+  },
+  {
+    "id": "concert-flute",
+    "name": "Concert Flute",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 546411,
+    "model": "sustained",
+    "range": [
+      59,
+      98
+    ],
+    "audition_note": 72,
+    "sustained": true
+  },
+  {
+    "id": "oboe",
+    "name": "Oboe",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 554330,
+    "model": "sustained",
+    "range": [
+      57,
+      94
+    ],
+    "audition_note": 69,
+    "sustained": true
+  },
+  {
+    "id": "clarinet",
+    "name": "Clarinet",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 562249,
+    "model": "sustained",
+    "range": [
+      49,
+      94
+    ],
+    "audition_note": 62,
+    "sustained": true
+  },
+  {
+    "id": "bassoon",
+    "name": "Bassoon",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 570168,
+    "model": "sustained",
+    "range": [
+      33,
+      77
+    ],
+    "audition_note": 48,
+    "sustained": true
+  },
+  {
+    "id": "trumpet",
+    "name": "Trumpet",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 578087,
+    "model": "sustained",
+    "range": [
+      52,
+      89
+    ],
+    "audition_note": 67,
+    "sustained": true
+  },
+  {
+    "id": "french-horn",
+    "name": "French Horn",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 586006,
+    "model": "sustained",
+    "range": [
+      38,
+      79
+    ],
+    "audition_note": 53,
+    "sustained": true
+  },
+  {
+    "id": "tenor-trombone",
+    "name": "Tenor Trombone",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 593925,
+    "model": "sustained",
+    "range": [
+      38,
+      79
+    ],
+    "audition_note": 50,
+    "sustained": true
+  },
+  {
+    "id": "tuba",
+    "name": "Tuba",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 601844,
+    "model": "sustained",
+    "range": [
+      26,
+      66
+    ],
+    "audition_note": 36,
+    "sustained": true
+  },
+  {
+    "id": "brass-section",
+    "name": "Brass Section",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 609763,
+    "model": "sustained",
+    "range": [
+      30,
+      84
+    ],
+    "audition_note": 55,
+    "sustained": true
+  },
+  {
+    "id": "timpani",
+    "name": "Timpani",
+    "category": "Orchestral percussion",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 617682,
+    "model": "timpani",
+    "range": [
+      33,
+      64
+    ],
+    "audition_note": 45
+  },
+  {
+    "id": "concert-bass-drum",
+    "name": "Concert Bass Drum",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 625601,
+    "model": "membrane"
+  },
+  {
+    "id": "concert-snare",
+    "name": "Concert Snare",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 633520,
+    "model": "snare"
+  },
+  {
+    "id": "clash-cymbals",
+    "name": "Clash Cymbals",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 641439,
+    "model": "metal"
+  },
+  {
+    "id": "suspended-cymbal",
+    "name": "Suspended Cymbal",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 649358,
+    "model": "metal"
+  },
+  {
+    "id": "tam-tam",
+    "name": "Tam-tam",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 657277,
+    "model": "plate"
+  },
+  {
+    "id": "triangle",
+    "name": "Triangle",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 665196,
+    "model": "metal"
+  },
+  {
+    "id": "castanets",
+    "name": "Castanets",
+    "category": "Orchestral percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 673115,
+    "model": "clack"
+  },
+  {
+    "id": "glockenspiel",
+    "name": "Glockenspiel",
+    "category": "Tuned percussion",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 681034,
+    "model": "bar",
+    "range": [
+      77,
+      110
+    ],
+    "audition_note": 88
+  },
+  {
+    "id": "xylophone",
+    "name": "Xylophone",
+    "category": "Tuned percussion",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 688953,
+    "model": "bar",
+    "range": [
+      64,
+      108
+    ],
+    "audition_note": 77
+  },
+  {
+    "id": "tubular-bells",
+    "name": "Tubular Bells",
+    "category": "Tuned percussion",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 696872,
+    "model": "bar",
+    "range": [
+      58,
+      79
+    ],
+    "audition_note": 67
+  },
+  {
+    "id": "celesta",
+    "name": "Celesta",
+    "category": "Orchestral keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 704791,
+    "model": "bar",
+    "range": [
+      58,
+      108
+    ],
+    "audition_note": 72
+  },
+  {
+    "id": "pipe-organ",
+    "name": "Pipe Organ",
+    "category": "Orchestral keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 712710,
+    "model": "organ",
+    "range": [
+      28,
+      96
+    ],
+    "audition_note": 60,
+    "sustained": true
+  },
+  {
+    "id": "harpsichord",
+    "name": "Harpsichord",
+    "category": "Orchestral keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 720629,
+    "model": "courses",
+    "range": [
+      29,
+      89
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "choir-aahs",
+    "name": "Choir Aahs",
+    "category": "Voices",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 728548,
+    "model": "choir",
+    "range": [
+      36,
+      86
+    ],
+    "audition_note": 60,
+    "sustained": true
+  },
+  {
+    "id": "acid-line",
+    "name": "Acid Line",
+    "category": "Synth bass",
+    "pitched": true,
+    "kind": "native",
+    "seed": 736467,
+    "collection": "expansion",
+    "audition": {
+      "audition": 36,
+      "range": [
+        24,
+        60
+      ],
+      "phrase": "acid"
+    },
+    "about": "Squelchy resonant saw bass in the style of a TB-303: overlapping notes slide, harder notes open the filter further."
+  },
+  {
+    "id": "sub-sine",
+    "name": "Sub Sine",
+    "category": "Synth bass",
+    "pitched": true,
+    "kind": "native",
+    "seed": 744386,
+    "collection": "expansion",
+    "audition": {
+      "audition": 33,
+      "range": [
+        21,
+        57
+      ],
+      "phrase": "bassline"
+    },
+    "about": "Pure sine sub-bass that sits under a kick; Drive adds harmonics so it reads on small speakers."
+  },
+  {
+    "id": "reese-bass",
+    "name": "Reese Bass",
+    "category": "Synth bass",
+    "pitched": true,
+    "kind": "native",
+    "seed": 752305,
+    "collection": "expansion",
+    "audition": {
+      "audition": 33,
+      "range": [
+        21,
+        57
+      ],
+      "phrase": "sustained",
+      "release": 0.2
+    },
+    "about": "Detuned saw stack with a slow phasing growl, dark and wide: drum and bass and deep house."
+  },
+  {
+    "id": "wobble-bass",
+    "name": "Wobble Bass",
+    "category": "Synth bass",
+    "pitched": true,
+    "kind": "native",
+    "seed": 760224,
+    "collection": "expansion",
+    "audition": {
+      "audition": 33,
+      "range": [
+        21,
+        57
+      ],
+      "phrase": "sustained",
+      "release": 0.2
+    },
+    "about": "Saw bass whose filter wobbles in eighth notes at the Project tempo."
+  },
+  {
+    "id": "log-drum-bass",
+    "name": "Log Drum Bass",
+    "category": "Synth bass",
+    "pitched": true,
+    "kind": "native",
+    "seed": 768143,
+    "collection": "expansion",
+    "audition": {
+      "audition": 41,
+      "range": [
+        28,
+        64
+      ],
+      "phrase": "bassline"
+    },
+    "about": "Amapiano log drum: a woody, pitched knock that drops into its note and decays quickly."
+  },
+  {
+    "id": "supersaw-lead",
+    "name": "Supersaw Lead",
+    "category": "Synth leads",
+    "pitched": true,
+    "kind": "native",
+    "seed": 776062,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        96
+      ],
+      "phrase": "lead"
+    },
+    "about": "Seven detuned saws: the bright, wide trance and big-room lead."
+  },
+  {
+    "id": "chip-square",
+    "name": "Chip Square",
+    "category": "Synth leads",
+    "pitched": true,
+    "kind": "native",
+    "seed": 783981,
+    "collection": "expansion",
+    "audition": {
+      "audition": 72,
+      "range": [
+        36,
+        108
+      ],
+      "phrase": "lead"
+    },
+    "about": "Bare square or pulse wave with no filter, like a game console sound chip."
+  },
+  {
+    "id": "sync-lead",
+    "name": "Sync Lead",
+    "category": "Synth leads",
+    "pitched": true,
+    "kind": "native",
+    "seed": 791900,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        96
+      ],
+      "phrase": "lead"
+    },
+    "about": "Hard-synced saw whose overtones sweep down at each note: a biting 80s lead."
+  },
+  {
+    "id": "hoover",
+    "name": "Hoover",
+    "category": "Synth leads",
+    "pitched": true,
+    "kind": "native",
+    "seed": 799819,
+    "collection": "expansion",
+    "audition": {
+      "audition": 48,
+      "range": [
+        24,
+        84
+      ],
+      "phrase": "stab"
+    },
+    "about": "Rave hoover: a detuned pulse-saw stack that scoops up into each note with a sub octave."
+  },
+  {
+    "id": "synth-brass",
+    "name": "Synth Brass",
+    "category": "Synth pads and keys",
+    "pitched": true,
+    "kind": "native",
+    "seed": 807738,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        96
+      ],
+      "phrase": "ensemble",
+      "release": 0.3
+    },
+    "about": "Polysynth brass stab: saw chords whose filter swells open, then settles."
+  },
+  {
+    "id": "string-machine",
+    "name": "String Machine",
+    "category": "Synth pads and keys",
+    "pitched": true,
+    "kind": "native",
+    "seed": 815657,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        96
+      ],
+      "phrase": "ensemble",
+      "release": 0.8
+    },
+    "about": "Ensemble string machine: chorused saws with a slow bowed attack and thin low end."
+  },
+  {
+    "id": "analog-pad",
+    "name": "Analog Pad",
+    "category": "Synth pads and keys",
+    "pitched": true,
+    "kind": "native",
+    "seed": 823576,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        96
+      ],
+      "phrase": "ensemble",
+      "release": 1.5
+    },
+    "about": "Warm, slow polysynth pad that breathes with a slow filter LFO."
+  },
+  {
+    "id": "fm-bell",
+    "name": "FM Bell",
+    "category": "Synth pads and keys",
+    "pitched": true,
+    "kind": "native",
+    "seed": 831495,
+    "collection": "expansion",
+    "audition": {
+      "audition": 72,
+      "range": [
+        48,
+        108
+      ],
+      "phrase": "struck"
+    },
+    "about": "Bright two-operator FM bell at a 3.5:1 ratio, clangy at the strike and ringing pure."
+  },
+  {
+    "id": "fm-tines",
+    "name": "FM Tines",
+    "category": "Synth pads and keys",
+    "pitched": true,
+    "kind": "native",
+    "seed": 839414,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        28,
+        103
+      ],
+      "phrase": "keys",
+      "release": 0.4
+    },
+    "about": "FM electric piano: a mellow body with a short metallic tine bark that grows with velocity."
+  },
+  {
+    "id": "rave-stab",
+    "name": "Rave Stab",
+    "category": "Synth pads and keys",
+    "pitched": true,
+    "kind": "native",
+    "seed": 847333,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        84
+      ],
+      "phrase": "stab"
+    },
+    "about": "Minor-seventh chord on every key: a snappy filtered rave and house stab."
+  },
+  {
+    "id": "noise-riser",
+    "name": "Noise Riser",
+    "category": "Synth FX",
+    "pitched": true,
+    "kind": "native",
+    "seed": 855252,
+    "collection": "expansion",
+    "audition": {
+      "audition": 60,
+      "range": [
+        36,
+        84
+      ],
+      "phrase": "riser"
+    },
+    "about": "Filtered noise sweep that rises while the key is held: a build-up effect."
+  },
+  {
+    "id": "boom-kick",
+    "name": "Boom Kick",
+    "category": "Drum machines",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 863171,
+    "collection": "expansion",
+    "about": "Long, pitched 808-style boom: a swept sine you can play as a bass line.",
+    "model": "machine_tuned",
+    "range": [
+      24,
+      55
+    ],
+    "audition_note": 31
+  },
+  {
+    "id": "punch-kick",
+    "name": "Punch Kick",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 871090,
+    "collection": "expansion",
+    "about": "Short, punchy 909-style kick with a fast pitch drop and a beater click.",
+    "model": "machine"
+  },
+  {
+    "id": "machine-snare",
+    "name": "Machine Snare",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 879009,
+    "collection": "expansion",
+    "about": "808-style snare: two tuned tones under a bright noise burst.",
+    "model": "machine"
+  },
+  {
+    "id": "snap-snare",
+    "name": "Snap Snare",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 886928,
+    "collection": "expansion",
+    "about": "909-style snare: noisier, snappier and brighter than the 808.",
+    "model": "machine"
+  },
+  {
+    "id": "machine-clap",
+    "name": "Machine Clap",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 894847,
+    "collection": "expansion",
+    "about": "808-style clap: staggered noise bursts with a short room-like tail.",
+    "model": "layered"
+  },
+  {
+    "id": "machine-cowbell",
+    "name": "Machine Cowbell",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 902766,
+    "collection": "expansion",
+    "about": "808-style cowbell: two square waves at 540 and 800 Hz through a band-pass.",
+    "model": "machine"
+  },
+  {
+    "id": "machine-hat",
+    "name": "Machine Hat",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 910685,
+    "collection": "expansion",
+    "about": "808-style closed hat: six detuned square waves through a high band-pass.",
+    "model": "machine"
+  },
+  {
+    "id": "machine-open-hat",
+    "name": "Machine Open Hat",
+    "category": "Drum machines",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 918604,
+    "collection": "expansion",
+    "about": "808-style open hat: the same metallic squares with a long decay.",
+    "model": "machine"
+  },
+  {
+    "id": "machine-tom",
+    "name": "Machine Tom",
+    "category": "Drum machines",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 926523,
+    "collection": "expansion",
+    "about": "Analog drum-machine tom: a pitched, swept sine you can tune across the keys.",
+    "model": "machine_tuned",
+    "range": [
+      38,
+      72
+    ],
+    "audition_note": 52
+  },
+  {
+    "id": "kit-toms",
+    "name": "Kit Toms",
+    "category": "Drum kit",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 934442,
+    "collection": "expansion",
+    "about": "Acoustic rack and floor toms, tuned across the keys from floor (low) to high rack.",
+    "model": "layered_tuned",
+    "range": [
+      36,
+      62
+    ],
+    "audition_note": 48
+  },
+  {
+    "id": "china-cymbal",
+    "name": "China Cymbal",
+    "category": "Drum kit",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 942361,
+    "collection": "expansion",
+    "about": "Trashy, bright China cymbal with a fast, rattly decay.",
+    "model": "metal"
+  },
+  {
+    "id": "ride-bell",
+    "name": "Ride Bell",
+    "category": "Drum kit",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 950280,
+    "collection": "expansion",
+    "about": "Bell of a ride cymbal: a clear, pinging metallic tone over a little wash.",
+    "model": "layered"
+  },
+  {
+    "id": "cajon",
+    "name": "Cajón",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 958199,
+    "collection": "expansion",
+    "about": "Flamenco cajón: deep bass tone up to C4, snare-wire slap above C4.",
+    "model": "membrane",
+    "strokes": {
+      "bass": 48,
+      "slap": 73
+    }
+  },
+  {
+    "id": "darbuka",
+    "name": "Darbuka",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 966118,
+    "collection": "expansion",
+    "about": "Goblet drum: resonant doum up to C4, sharp tek at the rim above C4.",
+    "model": "layered",
+    "strokes": {
+      "doum": 48,
+      "tek": 73
+    }
+  },
+  {
+    "id": "frame-drum",
+    "name": "Frame Drum",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 974037,
+    "collection": "expansion",
+    "about": "Hand frame drum (bodhrán, tar): soft low boom up to C4, bright rim above C4.",
+    "model": "membrane",
+    "strokes": {
+      "bass": 48,
+      "rim": 73
+    }
+  },
+  {
+    "id": "taiko",
+    "name": "Taiko",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 981956,
+    "collection": "expansion",
+    "about": "Japanese taiko: a huge low don up to C4, a rim ka click above C4.",
+    "model": "membrane",
+    "strokes": {
+      "don": 48,
+      "ka": 73
+    }
+  },
+  {
+    "id": "udu",
+    "name": "Udu",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 989875,
+    "collection": "expansion",
+    "about": "Nigerian clay pot drum: an airy, rising bass bloop up to C4, a clay tap above C4.",
+    "model": "layered",
+    "strokes": {
+      "bass": 48,
+      "tap": 73
+    }
+  },
+  {
+    "id": "talking-drum",
+    "name": "Talking Drum",
+    "category": "World percussion",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 997794,
+    "collection": "expansion",
+    "about": "West African talking drum: each stroke bends up in pitch as the cords are squeezed.",
+    "model": "tuned_drum",
+    "range": [
+      48,
+      72
+    ],
+    "audition_note": 57
+  },
+  {
+    "id": "agogo",
+    "name": "Agogô",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 1005713,
+    "collection": "expansion",
+    "about": "Brazilian double bell: low bell up to C4, high bell above C4.",
+    "model": "modes",
+    "strokes": {
+      "low": 48,
+      "high": 73
+    }
+  },
+  {
+    "id": "guiro",
+    "name": "Guiro",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 1013632,
+    "collection": "expansion",
+    "about": "Scraped gourd: a long down-scrape up to C4, a short flick above C4.",
+    "model": "scrape",
+    "strokes": {
+      "long": 48,
+      "short": 73
+    }
+  },
+  {
+    "id": "cuica",
+    "name": "Cuíca",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 1021551,
+    "collection": "expansion",
+    "about": "Brazilian friction drum: a squeaking, sliding laugh; low up to C4, high above C4.",
+    "model": "friction",
+    "strokes": {
+      "low": 48,
+      "high": 73
+    }
+  },
+  {
+    "id": "sleigh-bells",
+    "name": "Sleigh Bells",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 1029470,
+    "collection": "expansion",
+    "about": "A shaken strap of small jingle bells.",
+    "model": "collisions"
+  },
+  {
+    "id": "temple-blocks",
+    "name": "Temple Blocks",
+    "category": "World percussion",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1037389,
+    "collection": "expansion",
+    "about": "Hollow wooden temple blocks, tuned across the keys.",
+    "model": "modes_tuned",
+    "range": [
+      60,
+      84
+    ],
+    "audition_note": 72
+  },
+  {
+    "id": "slit-drum",
+    "name": "Slit Drum",
+    "category": "World percussion",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1045308,
+    "collection": "expansion",
+    "about": "Wooden slit or log drum: a short, round, pitched knock.",
+    "model": "modes_tuned",
+    "range": [
+      40,
+      69
+    ],
+    "audition_note": 52
+  },
+  {
+    "id": "vibraslap",
+    "name": "Vibraslap",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 1053227,
+    "collection": "expansion",
+    "about": "The rattling buzz of a vibraslap's loose teeth in a wooden box.",
+    "model": "collisions"
+  },
+  {
+    "id": "mark-tree",
+    "name": "Mark Tree",
+    "category": "World percussion",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 1061146,
+    "collection": "expansion",
+    "about": "Hand sweep across a mark tree's small chimes: upward up to C4, downward above C4.",
+    "model": "chimes",
+    "strokes": {
+      "up": 48,
+      "down": 73
+    }
+  },
+  {
+    "id": "steel-pan",
+    "name": "Steel Pan",
+    "category": "World mallets",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1069065,
+    "collection": "expansion",
+    "about": "Trinidadian tenor steel pan: a sweet, slightly beating metallic note with octave overtones.",
+    "model": "modes_tuned",
+    "range": [
+      60,
+      89
+    ],
+    "audition_note": 72
+  },
+  {
+    "id": "handpan",
+    "name": "Handpan",
+    "category": "World mallets",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1076984,
+    "collection": "expansion",
+    "about": "Handpan (hang): soft, long-ringing steel notes with octave and twelfth overtones.",
+    "model": "modes_tuned",
+    "range": [
+      50,
+      79
+    ],
+    "audition_note": 62
+  },
+  {
+    "id": "singing-bowl",
+    "name": "Singing Bowl",
+    "category": "World mallets",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1084903,
+    "collection": "expansion",
+    "about": "Struck Tibetan singing bowl: long ringing tone that slowly beats.",
+    "model": "modes_tuned",
+    "range": [
+      55,
+      84
+    ],
+    "audition_note": 69
+  },
+  {
+    "id": "gamelan-saron",
+    "name": "Gamelan Saron",
+    "category": "World mallets",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1092822,
+    "collection": "expansion",
+    "about": "Javanese saron: a bronze bar struck with a mallet, nearly pure and short.",
+    "model": "modes_tuned",
+    "range": [
+      60,
+      84
+    ],
+    "audition_note": 69
+  },
+  {
+    "id": "gamelan-bonang",
+    "name": "Gamelan Bonang",
+    "category": "World mallets",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1100741,
+    "collection": "expansion",
+    "about": "Javanese bonang: a small bronze kettle gong, gong-like and slightly beating.",
+    "model": "modes_tuned",
+    "range": [
+      55,
+      79
+    ],
+    "audition_note": 65
+  },
+  {
+    "id": "music-box",
+    "name": "Music Box",
+    "category": "World mallets",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1108660,
+    "collection": "expansion",
+    "about": "Music box comb: tiny, pure plucked metal tines with a mechanical click.",
+    "model": "modes_tuned",
+    "range": [
+      60,
+      96
+    ],
+    "audition_note": 79
+  },
+  {
+    "id": "opera-gong",
+    "name": "Opera Gong",
+    "category": "World mallets",
+    "pitched": false,
+    "kind": "acoustic",
+    "seed": 1116579,
+    "collection": "expansion",
+    "about": "Chinese opera gong: a small gong whose pitch slides down slightly as it rings.",
+    "model": "modes"
+  },
+  {
+    "id": "banjo",
+    "name": "Banjo",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1124498,
+    "collection": "expansion",
+    "about": "Five-string banjo: a bright, twangy pluck with a short drum-head body.",
+    "model": "plucked",
+    "range": [
+      48,
+      84
+    ],
+    "audition_note": 62
+  },
+  {
+    "id": "mandolin",
+    "name": "Mandolin",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1132417,
+    "collection": "expansion",
+    "about": "Mandolin: paired steel strings, bright and short.",
+    "model": "plucked",
+    "range": [
+      55,
+      88
+    ],
+    "audition_note": 69
+  },
+  {
+    "id": "ukulele",
+    "name": "Ukulele",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1140336,
+    "collection": "expansion",
+    "about": "Ukulele: soft, short nylon pluck with a small body.",
+    "model": "plucked",
+    "range": [
+      55,
+      84
+    ],
+    "audition_note": 67
+  },
+  {
+    "id": "clean-electric",
+    "name": "Clean Electric",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1148255,
+    "collection": "expansion",
+    "about": "Clean electric guitar: a long, round single-coil pluck without amp drive.",
+    "model": "plucked",
+    "range": [
+      40,
+      86
+    ],
+    "audition_note": 64
+  },
+  {
+    "id": "crunch-guitar",
+    "name": "Crunch Guitar",
+    "category": "Guitar",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1156174,
+    "collection": "expansion",
+    "about": "Electric guitar through an overdriven amp and cabinet: crunchy and sustained.",
+    "model": "plucked",
+    "range": [
+      40,
+      86
+    ],
+    "audition_note": 52
+  },
+  {
+    "id": "fretless-bass",
+    "name": "Fretless Bass",
+    "category": "Bass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1164093,
+    "collection": "expansion",
+    "about": "Fretless electric bass: a warm, singing tone with a slight growl.",
+    "model": "plucked",
+    "range": [
+      28,
+      67
+    ],
+    "audition_note": 40
+  },
+  {
+    "id": "sitar",
+    "name": "Sitar",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1172012,
+    "collection": "expansion",
+    "about": "Sitar: a buzzing bright pluck from the curved jawari bridge, with sympathetic strings ringing.",
+    "model": "plucked",
+    "range": [
+      48,
+      79
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "koto",
+    "name": "Koto",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1179931,
+    "collection": "expansion",
+    "about": "Japanese koto: a clear, bright silk-string pluck with a long ring.",
+    "model": "plucked",
+    "range": [
+      50,
+      86
+    ],
+    "audition_note": 64
+  },
+  {
+    "id": "shamisen",
+    "name": "Shamisen",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1187850,
+    "collection": "expansion",
+    "about": "Japanese shamisen: a percussive plectrum snap on a skin body with a buzzing sawari.",
+    "model": "plucked",
+    "range": [
+      48,
+      81
+    ],
+    "audition_note": 62
+  },
+  {
+    "id": "oud",
+    "name": "Oud",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1195769,
+    "collection": "expansion",
+    "about": "Middle Eastern oud: warm, fretless paired-string pluck with a deep body.",
+    "model": "plucked",
+    "range": [
+      40,
+      77
+    ],
+    "audition_note": 57
+  },
+  {
+    "id": "hammered-dulcimer",
+    "name": "Hammered Dulcimer",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1203688,
+    "collection": "expansion",
+    "about": "Hammered dulcimer (santur, cimbalom): bright, ringing struck string courses.",
+    "model": "hammer",
+    "range": [
+      50,
+      88
+    ],
+    "audition_note": 64
+  },
+  {
+    "id": "erhu",
+    "name": "Erhu",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1211607,
+    "collection": "expansion",
+    "about": "Chinese two-string fiddle: a nasal, expressive bowed tone with a wide vibrato.",
+    "model": "bowed",
+    "range": [
+      62,
+      93
+    ],
+    "audition_note": 69,
+    "sustained": true
+  },
+  {
+    "id": "hurdy-gurdy",
+    "name": "Hurdy-Gurdy",
+    "category": "World strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1219526,
+    "collection": "expansion",
+    "about": "Hurdy-gurdy: a wheel-bowed melody string over fixed G drones.",
+    "model": "hurdy",
+    "range": [
+      55,
+      86
+    ],
+    "audition_note": 67,
+    "sustained": true
+  },
+  {
+    "id": "tremolo-strings",
+    "name": "Tremolo Strings",
+    "category": "Strings",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1227445,
+    "collection": "expansion",
+    "about": "String section playing tremolo: rapid, shimmering bow strokes.",
+    "model": "bowed",
+    "range": [
+      28,
+      98
+    ],
+    "audition_note": 60,
+    "sustained": true
+  },
+  {
+    "id": "alto-sax",
+    "name": "Alto Sax",
+    "category": "Saxophones",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1235364,
+    "collection": "expansion",
+    "about": "Alto saxophone: a reedy, vocal tone with a jazz vibrato.",
+    "model": "sustained",
+    "range": [
+      49,
+      81
+    ],
+    "audition_note": 63,
+    "sustained": true
+  },
+  {
+    "id": "tenor-sax",
+    "name": "Tenor Sax",
+    "category": "Saxophones",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1243283,
+    "collection": "expansion",
+    "about": "Tenor saxophone: warmer and breathier than the alto.",
+    "model": "sustained",
+    "range": [
+      44,
+      76
+    ],
+    "audition_note": 58,
+    "sustained": true
+  },
+  {
+    "id": "baritone-sax",
+    "name": "Baritone Sax",
+    "category": "Saxophones",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1251202,
+    "collection": "expansion",
+    "about": "Baritone saxophone: a big, honking low reed.",
+    "model": "sustained",
+    "range": [
+      36,
+      69
+    ],
+    "audition_note": 48,
+    "sustained": true
+  },
+  {
+    "id": "english-horn",
+    "name": "English Horn",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1259121,
+    "collection": "expansion",
+    "about": "English horn (cor anglais): a darker, mellower oboe.",
+    "model": "sustained",
+    "range": [
+      52,
+      84
+    ],
+    "audition_note": 62,
+    "sustained": true
+  },
+  {
+    "id": "bass-clarinet",
+    "name": "Bass Clarinet",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1267040,
+    "collection": "expansion",
+    "about": "Bass clarinet: a woody, hollow low reed with odd harmonics.",
+    "model": "sustained",
+    "range": [
+      34,
+      77
+    ],
+    "audition_note": 50,
+    "sustained": true
+  },
+  {
+    "id": "contrabassoon",
+    "name": "Contrabassoon",
+    "category": "Woodwinds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1274959,
+    "collection": "expansion",
+    "about": "Contrabassoon: the orchestra's lowest reed, dark and buzzy.",
+    "model": "sustained",
+    "range": [
+      22,
+      53
+    ],
+    "audition_note": 34,
+    "sustained": true
+  },
+  {
+    "id": "recorder",
+    "name": "Recorder",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1282878,
+    "collection": "expansion",
+    "about": "Alto recorder: a simple, pure flute tone with a soft chiff.",
+    "model": "sustained",
+    "range": [
+      65,
+      93
+    ],
+    "audition_note": 77,
+    "sustained": true
+  },
+  {
+    "id": "pan-flute",
+    "name": "Pan Flute",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1290797,
+    "collection": "expansion",
+    "about": "Pan flute: breathy, airy pipes with a soft attack.",
+    "model": "sustained",
+    "range": [
+      55,
+      91
+    ],
+    "audition_note": 69,
+    "sustained": true
+  },
+  {
+    "id": "shakuhachi",
+    "name": "Shakuhachi",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1298716,
+    "collection": "expansion",
+    "about": "Japanese bamboo flute: a very breathy, expressive tone that scoops into notes.",
+    "model": "sustained",
+    "range": [
+      52,
+      84
+    ],
+    "audition_note": 62,
+    "sustained": true
+  },
+  {
+    "id": "bansuri",
+    "name": "Bansuri",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1306635,
+    "collection": "expansion",
+    "about": "Indian bamboo flute: breathy and warm with a gentle vibrato.",
+    "model": "sustained",
+    "range": [
+      52,
+      86
+    ],
+    "audition_note": 64,
+    "sustained": true
+  },
+  {
+    "id": "ocarina",
+    "name": "Ocarina",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1314554,
+    "collection": "expansion",
+    "about": "Ocarina: an almost pure, round, hollow tone.",
+    "model": "sustained",
+    "range": [
+      60,
+      89
+    ],
+    "audition_note": 72,
+    "sustained": true
+  },
+  {
+    "id": "duduk",
+    "name": "Duduk",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1322473,
+    "collection": "expansion",
+    "about": "Armenian duduk: a mellow, plaintive double reed.",
+    "model": "sustained",
+    "range": [
+      55,
+      81
+    ],
+    "audition_note": 64,
+    "sustained": true
+  },
+  {
+    "id": "harmonica",
+    "name": "Harmonica",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1330392,
+    "collection": "expansion",
+    "about": "Harmonica: a bright, buzzy free reed that bends into notes.",
+    "model": "sustained",
+    "range": [
+      60,
+      96
+    ],
+    "audition_note": 72,
+    "sustained": true
+  },
+  {
+    "id": "accordion",
+    "name": "Accordion",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1338311,
+    "collection": "expansion",
+    "about": "Accordion with a musette register: three slightly detuned reeds that beat.",
+    "model": "organ",
+    "range": [
+      53,
+      93
+    ],
+    "audition_note": 65,
+    "sustained": true
+  },
+  {
+    "id": "bagpipes",
+    "name": "Bagpipes",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1346230,
+    "collection": "expansion",
+    "about": "Bagpipes: a loud, reedy chanter over fixed A drones.",
+    "model": "layered_tuned",
+    "range": [
+      62,
+      84
+    ],
+    "audition_note": 69,
+    "sustained": true
+  },
+  {
+    "id": "didgeridoo",
+    "name": "Didgeridoo",
+    "category": "World winds",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1354149,
+    "collection": "expansion",
+    "about": "Didgeridoo: a buzzing low drone whose vowel shifts as the player moves the mouth.",
+    "model": "drone",
+    "range": [
+      31,
+      50
+    ],
+    "audition_note": 38,
+    "sustained": true
+  },
+  {
+    "id": "flugelhorn",
+    "name": "Flugelhorn",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1362068,
+    "collection": "expansion",
+    "about": "Flugelhorn: a softer, darker, rounder trumpet.",
+    "model": "sustained",
+    "range": [
+      52,
+      82
+    ],
+    "audition_note": 65,
+    "sustained": true
+  },
+  {
+    "id": "muted-trumpet",
+    "name": "Muted Trumpet",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1369987,
+    "collection": "expansion",
+    "about": "Trumpet with a harmon mute: thin, nasal and buzzy.",
+    "model": "sustained",
+    "range": [
+      54,
+      86
+    ],
+    "audition_note": 67,
+    "sustained": true
+  },
+  {
+    "id": "euphonium",
+    "name": "Euphonium",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1377906,
+    "collection": "expansion",
+    "about": "Euphonium: a mellow, round tenor brass.",
+    "model": "sustained",
+    "range": [
+      34,
+      72
+    ],
+    "audition_note": 50,
+    "sustained": true
+  },
+  {
+    "id": "bass-trombone",
+    "name": "Bass Trombone",
+    "category": "Brass",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1385825,
+    "collection": "expansion",
+    "about": "Bass trombone: a heavy, dark low brass.",
+    "model": "sustained",
+    "range": [
+      28,
+      65
+    ],
+    "audition_note": 41,
+    "sustained": true
+  },
+  {
+    "id": "drawbar-organ",
+    "name": "Drawbar Organ",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1393744,
+    "collection": "expansion",
+    "about": "Tonewheel organ with percussion and key click through a fast rotary speaker.",
+    "model": "tonewheel",
+    "range": [
+      36,
+      96
+    ],
+    "audition_note": 60,
+    "sustained": true
+  },
+  {
+    "id": "tape-flute",
+    "name": "Tape Flute",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1401663,
+    "collection": "expansion",
+    "about": "Tape-replay flute keyboard: wobbly, lo-fi flute notes that stop after eight seconds.",
+    "model": "sustained",
+    "range": [
+      43,
+      77
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "tape-strings",
+    "name": "Tape Strings",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1409582,
+    "collection": "expansion",
+    "about": "Tape-replay strings: a small, wobbly string ensemble that stops after eight seconds.",
+    "model": "sustained",
+    "range": [
+      43,
+      77
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "glass-harmonica",
+    "name": "Glass Harmonica",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1417501,
+    "collection": "expansion",
+    "about": "Glass harmonica: pure, ethereal tones of rubbed glass with a slow swell.",
+    "model": "sustained",
+    "range": [
+      55,
+      91
+    ],
+    "audition_note": 72,
+    "sustained": true
+  },
+  {
+    "id": "honky-tonk",
+    "name": "Honky-Tonk",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1425420,
+    "collection": "expansion",
+    "about": "Honky-tonk upright: a piano with its string courses noticeably out of tune with each other.",
+    "model": "piano",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "prepared-piano",
+    "name": "Prepared Piano",
+    "category": "Keys",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1433339,
+    "collection": "expansion",
+    "about": "Prepared piano: dull, muted strings with bolts and rattles in them.",
+    "model": "prepared",
+    "range": [
+      24,
+      91
+    ],
+    "audition_note": 60
+  },
+  {
+    "id": "choir-oohs",
+    "name": "Choir Oohs",
+    "category": "Voices",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1441258,
+    "collection": "expansion",
+    "about": "Mixed choir singing a soft 'oo'.",
+    "model": "choir",
+    "range": [
+      36,
+      86
+    ],
+    "audition_note": 60,
+    "sustained": true
+  },
+  {
+    "id": "soprano-voice",
+    "name": "Soprano Voice",
+    "category": "Voices",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1449177,
+    "collection": "expansion",
+    "about": "Solo operatic soprano singing 'ah' with a wide vibrato.",
+    "model": "choir",
+    "range": [
+      60,
+      93
+    ],
+    "audition_note": 72,
+    "sustained": true
+  },
+  {
+    "id": "bass-voice",
+    "name": "Bass Voice",
+    "category": "Voices",
+    "pitched": true,
+    "kind": "acoustic",
+    "seed": 1457096,
+    "collection": "expansion",
+    "about": "Solo bass singer on a deep 'oh'.",
+    "model": "choir",
+    "range": [
+      36,
+      64
+    ],
+    "audition_note": 48,
+    "sustained": true
+  }
+]

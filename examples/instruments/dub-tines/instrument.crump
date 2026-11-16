@@ -1,0 +1,80 @@
+crump-module 2
+instrument dub-tines "Dub Tines" graph {
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-gain-curve key_curve per_voice bipolar {
+      point c3 key C3 value -0.690484
+      point c4 key C4 value 0
+      point c5 key C5 value -1
+    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.0337097 map bipolar curve linear order 0 bypass false
+  }
+  graph voice 20 {
+    # A mallet on a tuned bar's modes, optionally through a pickup.
+    node strike1 exciter kind impact contact 0.000164038s hardness $hardness level 1
+    node body2 modal_bank profile dub-tines-bar max_modes 4 key_track 1 decay_scale $ring brightness 0 level 1
+    node shape3 shaper curve tanh drive 1.77227 bias 0
+    node gain4 math operation scale amount 0.564248
+    node times5 math operation multiply
+    node gain6 math operation scale amount 0.18
+    node plus7 math operation add
+    node hi-8 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node lo-9 lowpass mode lowpass cutoff 2600hz resonance 0.308309
+    node echo10 delay_line mode time time 0.368854s interpolation linear max_time 0.378854s
+    node gain11 math operation scale amount 0.32
+    node echo12 delay_line mode time time 0.737708s interpolation linear max_time 0.747708s
+    node gain13 math operation scale amount 0.12
+    node mix14 sum max_inputs 3
+    node gain15 math operation scale amount 0.7
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.318083
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-shape3-audio body2.audio -> shape3.audio
+    bus shape3-audio-gain4-a shape3.audio -> gain4.a
+    bus body2-audio-times5-a body2.audio -> times5.a
+    bus body2-audio-times5-b body2.audio -> times5.b
+    bus times5-audio-gain6-a times5.audio -> gain6.a
+    bus gain4-audio-plus7-a gain4.audio -> plus7.a
+    bus gain6-audio-plus7-b gain6.audio -> plus7.b
+    bus plus7-audio-hi-8-audio plus7.audio -> hi-8.audio
+    bus hi-8-audio-lo-9-audio hi-8.audio -> lo-9.audio
+    bus lo-9-audio-echo10-audio lo-9.audio -> echo10.audio
+    bus echo10-audio-gain11-a echo10.audio -> gain11.a
+    bus lo-9-audio-echo12-audio lo-9.audio -> echo12.audio
+    bus echo12-audio-gain13-a echo12.audio -> gain13.a
+    bus lo-9-audio-mix14-inputs lo-9.audio -> mix14.inputs
+    bus gain11-audio-mix14-inputs gain11.audio -> mix14.inputs
+    bus gain13-audio-mix14-inputs gain13.audio -> mix14.inputs
+    bus mix14-audio-gain15-a mix14.audio -> gain15.a
+    bus gain15-audio-register-a gain15.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile dub-tines-bar {
+  root 261.626hz
+  mode m0 frequency 261.834hz decay 1.94641s gain 1 after_decay 1.94641s after_gain 0
+  mode m1 frequency 523.669hz decay 0.578456s gain 0.106328 after_decay 0.578456s after_gain 0
+  mode m2 frequency 1640.92hz decay 0.0783343s gain 0.0658898 after_decay 0.0783343s after_gain 0
+  mode m3 frequency 4595.19hz decay 0.0129146s gain 0.0203185 after_decay 0.0129146s after_gain 0
+}

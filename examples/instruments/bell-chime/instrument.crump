@@ -1,0 +1,55 @@
+crump-module 2
+instrument bell-chime "Bell Chime" graph {
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-gain-curve key_curve per_voice bipolar {
+      point c3 key C3 value 1
+      point c4 key C4 value 0
+      point c5 key C5 value -0.0388818
+    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.041067 map bipolar curve linear order 0 bypass false
+  }
+  graph voice 8 {
+    # A mallet on a tuned bar's modes, optionally through a pickup.
+    node strike1 exciter kind impact contact 0.000179881s hardness $hardness level 1
+    node body2 modal_bank profile bell-chime-bar max_modes 7 key_track 1 decay_scale $ring brightness 0 level 1
+    node hi-3 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.13412
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-hi-3-audio body2.audio -> hi-3.audio
+    bus hi-3-audio-register-a hi-3.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile bell-chime-bar {
+  root 261.626hz
+  mode m0 frequency 196.638hz decay 2.98518s gain 0.25 after_decay 2.98518s after_gain 0
+  mode m1 frequency 510.186hz decay 1.95181s gain 0.450579 after_decay 1.95181s after_gain 0
+  mode m2 frequency 571.373hz decay 1.85573s gain 0.0236608 after_decay 1.85573s after_gain 0
+  mode m3 frequency 315.994hz decay 2.41634s gain 0.553731 after_decay 2.41634s after_gain 0
+  mode m4 frequency 1049.57hz decay 1.4152s gain 0.225371 after_decay 1.4152s after_gain 0
+  mode m5 frequency 760.949hz decay 1.63326s gain 0.391703 after_decay 1.63326s after_gain 0
+  mode m6 frequency 607.863hz decay 1.80522s gain 0.0391465 after_decay 1.80522s after_gain 0
+}

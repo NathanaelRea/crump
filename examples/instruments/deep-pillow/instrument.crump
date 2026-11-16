@@ -1,0 +1,73 @@
+crump-module 2
+instrument deep-pillow "Deep Pillow" graph {
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+  }
+  graph voice 19 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.000409293s hardness 0 level 1
+    node fall2 onepole mode leak time 0.06402s
+    node fall3 onepole mode leak time 0.017s
+    node tone4-pitch constant frequency 51.556hz
+    node tone4 analog_oscillator waveform sine level 1.41421 fm_depth 1.91863st am_mode ring am_depth 1
+    node tone4-mono stereo_to_mono
+    node body5 modal_bank profile deep-pillow-head max_modes 9 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss6 noise level 1
+    node fall7 onepole mode leak time 0.003713s
+    node times8 math operation multiply
+    node hi-9 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-10 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain11 math operation scale amount 0.00559655
+    node mix12 sum max_inputs 3
+    node hi-13 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.273302
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-fall2-audio strike1.audio -> fall2.audio
+    bus strike1-audio-fall3-audio strike1.audio -> fall3.audio
+    bus tone4-pitch-pitch-tone4-pitch tone4-pitch.pitch -> tone4.pitch
+    bus fall3-audio-tone4-fm fall3.audio -> tone4.fm
+    bus fall2-audio-tone4-am fall2.audio -> tone4.am
+    bus tone4-audio-tone4-mono-audio tone4.audio -> tone4-mono.audio
+    bus strike1-audio-body5-audio strike1.audio -> body5.audio
+    bus note-pitch-body5-pitch note.pitch -> body5.pitch
+    bus note-gate-body5-gate note.gate -> body5.gate
+    bus strike1-audio-fall7-audio strike1.audio -> fall7.audio
+    bus hiss6-audio-times8-a hiss6.audio -> times8.a
+    bus fall7-audio-times8-b fall7.audio -> times8.b
+    bus times8-audio-hi-9-audio times8.audio -> hi-9.audio
+    bus hi-9-audio-lo-10-audio hi-9.audio -> lo-10.audio
+    bus lo-10-audio-gain11-a lo-10.audio -> gain11.a
+    bus tone4-mono-audio-mix12-inputs tone4-mono.audio -> mix12.inputs
+    bus body5-audio-mix12-inputs body5.audio -> mix12.inputs
+    bus gain11-audio-mix12-inputs gain11.audio -> mix12.inputs
+    bus mix12-audio-hi-13-audio mix12.audio -> hi-13.audio
+    bus hi-13-audio-trim-a hi-13.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile deep-pillow-head {
+  root 51.5563hz
+  mode m0 frequency 82.1291hz decay 0.0451441s gain 0.333021 after_decay 0.0451441s after_gain 0
+  mode m1 frequency 110.124hz decay 0.0362294s gain 0.0865529 after_decay 0.0362294s after_gain 0
+  mode m2 frequency 118.373hz decay 0.0343189s gain 0.0294438 after_decay 0.0343189s after_gain 0
+  mode m3 frequency 136.779hz decay 0.0307935s gain 0.0124857 after_decay 0.0307935s after_gain 0
+  mode m4 frequency 150.441hz decay 0.0286714s gain 0.00581224 after_decay 0.0286714s after_gain 0
+  mode m5 frequency 162.712hz decay 0.027034s gain 0.00240149 after_decay 0.027034s after_gain 0
+  mode m6 frequency 180.498hz decay 0.0250103s gain 0.000773948 after_decay 0.0250103s after_gain 0
+  mode m7 frequency 185.603hz decay 0.0244926s gain 0.000346426 after_decay 0.0244926s after_gain 0
+  mode m8 frequency 209.318hz decay 0.0223804s gain 9.30381e-05 after_decay 0.0223804s after_gain 0
+}

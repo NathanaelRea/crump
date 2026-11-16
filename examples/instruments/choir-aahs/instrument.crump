@@ -1,0 +1,195 @@
+crump-module 2
+instrument choir-aahs "Choir Aahs" graph {
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 1.11s 1.11s modulatable
+  parameter release "Release" seconds 0.02s 4s 0.45s 0.45s
+  parameter vibrato-depth "Vibrato" ratio 0 2 0.0490909 0.0490909 modulatable
+  parameter upper-part "Upper part" ratio 0 1 0.5 0.5 modulatable
+  parameter lower-part "Lower part" ratio 0 1 0.5 0.5 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control attack "Attack" "How quickly the note speaks" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source register note_key per_voice bipolar reference B3 range 8st
+    source key-gain-curve key_curve per_voice unipolar {
+      point c3 key C3 value 1
+      point c4 key C4 value 0
+      point c5 key C5 value 0.783997
+    }
+    route attack-velocity source velocity target attack depth -0.75s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.27272727 map unipolar curve linear order 0 bypass false
+    route upper-part-key source register target upper-part depth 0.5 map bipolar curve linear order 0 bypass false
+    route lower-part-key source register target lower-part depth -0.5 map bipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(1.05) order 0 bypass false
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.225733 map unipolar curve linear order 0 bypass false
+  }
+  graph voice 50 {
+    # Singers: a glottal saw through vowel formants that follow the voice part.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node vibrato lfo waveform sine rate 5.4hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-wait envelope mode ahdsr attack 0s hold 0.25s decay 0.45s sustain 0 release 0.45s
+    node vibrato-wait-audio to_audio
+    node vibrato-ramp math operation scale amount -1
+    node vibrato-in math operation offset amount 1
+    node times1 math operation multiply
+    node gain2 math operation scale amount $vibrato-depth
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain3 math operation scale amount 0.05
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node scoop onepole mode leak time 0.06s
+    node gain4 math operation scale amount -0.228261
+    node mix5 sum max_inputs 3
+    node glottis analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 unison 8 detune 0.12st blend 1 width 0 fm_depth 1st
+    node glottis-mono stereo_to_mono
+    node velocity-tone lowpass mode lowpass cutoff 30hz resonance 0.308309 velocity_depth 21000hz
+    node breath noise level 1
+    node hi-6 lowpass mode highpass cutoff 400hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 7000hz resonance 0.308309
+    node breath-amp to_audio
+    node times8 math operation multiply
+    node gain9 math operation scale amount 0.02875
+    node plus10 math operation add
+    node body11 modal_bank profile choir-aahs-lower-vowel max_modes 4 key_track 0 decay_scale 1 brightness 0 level 1
+    node body12 modal_bank profile choir-aahs-lower-vowel-between max_modes 9 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain13 math operation scale amount -1
+    node plus14 math operation add
+    node body15 modal_bank profile choir-aahs-upper-vowel max_modes 8 key_track 0 decay_scale 1 brightness 0 level 1
+    node body16 modal_bank profile choir-aahs-upper-vowel-between max_modes 5 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain17 math operation scale amount -1
+    node plus18 math operation add
+    node gain19 math operation scale amount $lower-part
+    node gain20 math operation scale amount $upper-part
+    node plus21 math operation add
+    node air noise level 1
+    node hi-22 lowpass mode highpass cutoff 3500hz resonance 0.308309
+    node air-amp to_audio
+    node times23 math operation multiply
+    node gain24 math operation scale amount 0.192539
+    node plus25 math operation add
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-26 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.00608118
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-wait-gate note.gate -> vibrato-wait.gate
+    bus vibrato-wait-control-vibrato-wait-audio-control vibrato-wait.control -> vibrato-wait-audio.control
+    bus vibrato-wait-audio-audio-vibrato-ramp-a vibrato-wait-audio.audio -> vibrato-ramp.a
+    bus vibrato-ramp-audio-vibrato-in-a vibrato-ramp.audio -> vibrato-in.a
+    bus vibrato-audio-audio-times1-a vibrato-audio.audio -> times1.a
+    bus vibrato-in-audio-times1-b vibrato-in.audio -> times1.b
+    bus times1-audio-gain2-a times1.audio -> gain2.a
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain3-a drift-audio.audio -> gain3.a
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus onset-audio-scoop-audio onset.audio -> scoop.audio
+    bus scoop-audio-gain4-a scoop.audio -> gain4.a
+    bus gain2-audio-mix5-inputs gain2.audio -> mix5.inputs
+    bus gain3-audio-mix5-inputs gain3.audio -> mix5.inputs
+    bus gain4-audio-mix5-inputs gain4.audio -> mix5.inputs
+    bus note-pitch-glottis-pitch note.pitch -> glottis.pitch
+    bus note-velocity-glottis-velocity note.velocity -> glottis.velocity
+    bus mix5-audio-glottis-fm mix5.audio -> glottis.fm
+    bus amplitude-control-glottis-gain amplitude.control -> glottis.gain
+    bus glottis-audio-glottis-mono-audio glottis.audio -> glottis-mono.audio
+    bus glottis-mono-audio-velocity-tone-audio glottis-mono.audio -> velocity-tone.audio
+    bus note-velocity-velocity-tone-velocity note.velocity -> velocity-tone.velocity
+    bus breath-audio-hi-6-audio breath.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus amplitude-control-breath-amp-control amplitude.control -> breath-amp.control
+    bus lo-7-audio-times8-a lo-7.audio -> times8.a
+    bus breath-amp-audio-times8-b breath-amp.audio -> times8.b
+    bus times8-audio-gain9-a times8.audio -> gain9.a
+    bus velocity-tone-audio-plus10-a velocity-tone.audio -> plus10.a
+    bus gain9-audio-plus10-b gain9.audio -> plus10.b
+    bus plus10-audio-body11-audio plus10.audio -> body11.audio
+    bus note-pitch-body11-pitch note.pitch -> body11.pitch
+    bus note-gate-body11-gate note.gate -> body11.gate
+    bus plus10-audio-body12-audio plus10.audio -> body12.audio
+    bus note-pitch-body12-pitch note.pitch -> body12.pitch
+    bus note-gate-body12-gate note.gate -> body12.gate
+    bus body12-audio-gain13-a body12.audio -> gain13.a
+    bus body11-audio-plus14-a body11.audio -> plus14.a
+    bus gain13-audio-plus14-b gain13.audio -> plus14.b
+    bus plus10-audio-body15-audio plus10.audio -> body15.audio
+    bus note-pitch-body15-pitch note.pitch -> body15.pitch
+    bus note-gate-body15-gate note.gate -> body15.gate
+    bus plus10-audio-body16-audio plus10.audio -> body16.audio
+    bus note-pitch-body16-pitch note.pitch -> body16.pitch
+    bus note-gate-body16-gate note.gate -> body16.gate
+    bus body16-audio-gain17-a body16.audio -> gain17.a
+    bus body15-audio-plus18-a body15.audio -> plus18.a
+    bus gain17-audio-plus18-b gain17.audio -> plus18.b
+    bus plus14-audio-gain19-a plus14.audio -> gain19.a
+    bus plus18-audio-gain20-a plus18.audio -> gain20.a
+    bus gain19-audio-plus21-a gain19.audio -> plus21.a
+    bus gain20-audio-plus21-b gain20.audio -> plus21.b
+    bus air-audio-hi-22-audio air.audio -> hi-22.audio
+    bus amplitude-control-air-amp-control amplitude.control -> air-amp.control
+    bus hi-22-audio-times23-a hi-22.audio -> times23.a
+    bus air-amp-audio-times23-b air-amp.audio -> times23.b
+    bus times23-audio-gain24-a times23.audio -> gain24.a
+    bus plus21-audio-plus25-a plus21.audio -> plus25.a
+    bus gain24-audio-plus25-b gain24.audio -> plus25.b
+    bus plus25-audio-dynamics-gain-a plus25.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-26-audio dynamics-gain.audio -> hi-26.audio
+    bus hi-26-audio-register-a hi-26.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile choir-aahs-lower-vowel {
+  root 261.626hz
+  mode m0 frequency 50hz decay 0.0127324s gain 0.069033 after_decay 0.0127324s after_gain 0
+  mode m1 frequency 625hz decay 0.00454728s gain 1 after_decay 0.00454728s after_gain 0
+  mode m2 frequency 1251.26hz decay 0.000508785s gain 0.355009 after_decay 0.000508785s after_gain 0
+  mode m3 frequency 2675hz decay 0.00254648s gain 0.2439 after_decay 0.00254648s after_gain 0
+}
+profile choir-aahs-lower-vowel-between {
+  root 261.626hz
+  mode m0 frequency 111.831hz decay 0.00569267s gain 0.0292013 after_decay 0.00569267s after_gain 0
+  mode m1 frequency 250.126hz decay 0.0025452s gain 0.182075 after_decay 0.0025452s after_gain 0
+  mode m2 frequency 559.438hz decay 0.00113796s gain 0.79917 after_decay 0.00113796s after_gain 0
+  mode m3 frequency 1060hz decay 0.00397887s gain 0.460556 after_decay 0.00397887s after_gain 0
+  mode m4 frequency 2450hz decay 0.00276791s gain 0.242216 after_decay 0.00276791s after_gain 0
+  mode m5 frequency 2798.59hz decay 0.000227478s gain 0.0348429 after_decay 0.000227478s after_gain 0
+  mode m6 frequency 3000hz decay 0.00235785s gain 0.0385301 after_decay 0.00235785s after_gain 0
+  mode m7 frequency 6259.42hz decay 0.000101706s gain 0.0651449 after_decay 0.000101706s after_gain 0
+  mode m8 frequency 14000hz decay 0.0001s gain 0.194396 after_decay 0.0001s after_gain 0
+}
+profile choir-aahs-upper-vowel {
+  root 261.626hz
+  mode m0 frequency 50hz decay 0.0127324s gain 0.077436 after_decay 0.0127324s after_gain 0
+  mode m1 frequency 800hz decay 0.00397887s gain 1 after_decay 0.00397887s after_gain 0
+  mode m2 frequency 1251.26hz decay 0.000508785s gain 0.394102 after_decay 0.000508785s after_gain 0
+  mode m3 frequency 2798.59hz decay 0.000227478s gain 0.0652588 after_decay 0.000227478s after_gain 0
+  mode m4 frequency 2850hz decay 0.00265258s gain 0.0411017 after_decay 0.00265258s after_gain 0
+  mode m5 frequency 3700hz decay 0.00244854s gain 0.0107663 after_decay 0.00244854s after_gain 0
+  mode m6 frequency 6259.42hz decay 0.000101706s gain 0.106444 after_decay 0.000101706s after_gain 0
+  mode m7 frequency 14000hz decay 0.0001s gain 0.236262 after_decay 0.0001s after_gain 0
+}
+profile choir-aahs-upper-vowel-between {
+  root 261.626hz
+  mode m0 frequency 111.831hz decay 0.00569267s gain 0.117985 after_decay 0.00569267s after_gain 0
+  mode m1 frequency 250.126hz decay 0.0025452s gain 0.0362527 after_decay 0.0025452s after_gain 0
+  mode m2 frequency 559.438hz decay 0.00113796s gain 0.0552751 after_decay 0.00113796s after_gain 0
+  mode m3 frequency 1150hz decay 0.00353678s gain 0.789322 after_decay 0.00353678s after_gain 0
+  mode m4 frequency 4950hz decay 0.00227364s gain 0.011172 after_decay 0.00227364s after_gain 0
+}

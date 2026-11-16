@@ -1,0 +1,52 @@
+crump-module 1
+instrument textured-percussion "Textured Percussion" graph {
+  polyphony 8
+  parameter tone "Tone" hertz 180hz 12khz 1800hz 1800hz modulatable
+  parameter sweep "Sweep" hertz -12khz 12khz 4200hz 4200hz modulatable
+  parameter decay "Decay" seconds 10ms 2s 220ms 220ms automatable
+  parameter texture "Texture" ratio 0 2 0.8 0.8 automatable
+  faceplate {
+    control tone "Tone" "Sets the multimode-filter body" maps tone
+    control sweep "Sweep" "Moves noise through the hit" maps sweep
+    control decay "Decay" "Controls the transient envelope" maps decay
+    control texture "Texture" "Blends deterministic noise against body" maps texture
+  }
+  graph 12 {
+    node body oscillator waveform sine detune -24st level 0.55
+    node grit noise level $texture
+    node sources mixer a_level 1 b_level 1
+    node amplitude envelope attack 1ms decay $decay sustain 0 release 60ms
+    node timbre envelope attack 1ms decay 130ms sustain 0 release 50ms
+    node filter filter mode bandpass cutoff $tone resonance 0.42 mod_depth $sweep velocity_depth 900hz key_track 0.15 key_reference 130.812783hz
+    node amp amplifier
+    node touch amplifier
+    node color saturation drive 1.8
+    node place pan position 0
+    node output output
+    connect note.pitch -> body.pitch
+    connect body.audio -> sources.a
+    connect grit.audio -> sources.b
+    connect note.gate -> amplitude.gate
+    connect note.gate -> timbre.gate
+    connect note.pitch -> filter.key
+    connect note.velocity -> filter.velocity
+    connect timbre.control -> filter.mod
+    connect sources.audio -> filter.audio
+    connect filter.audio -> amp.audio
+    connect amplitude.control -> amp.gain
+    connect amp.audio -> touch.audio
+    connect note.velocity -> touch.gain
+    connect touch.audio -> color.audio
+    connect color.audio -> place.audio
+    connect place.audio -> output.audio
+  }
+  processor textured-percussion-space reverb {
+    setting pre_delay 4ms
+    setting diffusion 0.45
+    setting decay 0.35
+    setting damping 0.62
+    setting modulation 0.08
+    setting width 0.7
+    setting mix 0.12
+  }
+}

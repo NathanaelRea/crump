@@ -1,0 +1,64 @@
+crump-module 2
+instrument log-drum-bass "Log Drum Bass" graph {
+  polyphony 4
+  voicing poly retrigger always glide 0ms glide_mode always note_priority last steal_priority release_oldest seed 30305
+  parameter level "Level" ratio 0 1 0.064 0.064
+  parameter bend-offset "Bend" semitones -24st 24st 0st 0st modulatable
+  parameter decay "Decay" seconds 80ms 1.5s 420ms 420ms automatable
+  parameter tone "Tone" hz 150hz 5khz 900hz 900hz automatable modulatable
+  faceplate {
+    control decay "Decay" "Length of the woody thump" maps decay
+    control tone "Tone" "Brightness of the knock" maps tone
+    control level "Level" "Output level" maps level
+  }
+  modulation {
+    source drop port drop-envelope.control per_voice unipolar
+    route pitch-drop source drop target bend-offset depth 7st map unipolar curve linear order 0 bypass false
+  }
+  graph voice 8 {
+    node body analog_oscillator {
+      waveform triangle
+      unison 1
+      coarse $bend-offset
+      fine 0st
+      phase 0
+      random_phase 0
+      velocity_amount 0.5
+      level $level
+      pan 0
+    }
+    node knock analog_oscillator {
+      waveform sine
+      unison 1
+      coarse 19st
+      fine 0st
+      phase 0
+      random_phase 0
+      velocity_amount 0.8
+      level 0.12
+      pan 0
+    }
+    node sources stereo_mixer a_level 1 b_level 1
+    node drop-envelope envelope mode ahdsr attack 0ms hold 0ms decay 45ms sustain 0 release 20ms attack_curve 0 decay_curve -0.6 release_curve 0 retrigger always
+    node amplitude envelope mode ahdsr attack 1ms hold 10ms decay $decay sustain 0 release 120ms attack_curve 0 decay_curve -0.3 release_curve 0 retrigger always
+    node knock-envelope envelope mode ahdsr attack 0ms hold 0ms decay 30ms sustain 0 release 20ms attack_curve 0 decay_curve -0.5 release_curve 0 retrigger always
+    node tone-filter stereo_filter model svf_clean mode lowpass cutoff $tone resonance 0.25 drive 0.2 mix 1 pan 0 mod_depth 2khz velocity_depth 600hz key_track 0.5 key_reference 87.307058hz
+    node out output
+    bus body-pitch note.pitch -> body.pitch
+    bus body-gain amplitude.control -> body.gain
+    bus body-velocity note.velocity -> body.velocity
+    bus knock-pitch note.pitch -> knock.pitch
+    bus knock-gain knock-envelope.control -> knock.gain
+    bus knock-velocity note.velocity -> knock.velocity
+    bus drop-gate note.gate -> drop-envelope.gate
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus knock-gate note.gate -> knock-envelope.gate
+    bus mix-a body.audio -> sources.a
+    bus mix-b knock.audio -> sources.b
+    bus filter-audio sources.audio -> tone-filter.audio
+    bus filter-sweep knock-envelope.control -> tone-filter.mod
+    bus filter-key note.pitch -> tone-filter.key
+    bus filter-velocity note.velocity -> tone-filter.velocity
+    bus output tone-filter.audio -> out.audio
+  }
+}

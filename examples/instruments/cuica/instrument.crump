@@ -1,0 +1,203 @@
+crump-module 2
+instrument cuica "Cuíca" graph {
+  polyphony 4
+  parameter upper-stroke "Upper stroke" ratio 0 1 0 0 modulatable
+  parameter lower-stroke "Lower stroke" ratio 0 1 1 1 modulatable
+  parameter hold-tone1 "Fixed pitch" semitones -48st 48st 4.01955st 4.01955st modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-step note_key per_voice unipolar reference C4 range 1st
+    source key-position note_key per_voice bipolar reference C4 range 48st
+    route key-upper source key-step target upper-stroke depth 1 map unipolar curve linear order 0 bypass false
+    route key-lower source key-step target lower-stroke depth -1 map unipolar curve linear order 0 bypass false
+    route hold-tone1-key source key-position target hold-tone1 depth -48st map bipolar curve linear order 0 bypass false
+  }
+  graph voice 48 {
+    # A rubbed friction drum: a gliding squeak through the skin.
+    node low-squeeze lfo {
+      waveform custom
+      rate 2.5hz
+      depth 1
+      phase 0
+      random_phase 0
+      mode one_shot
+      direction forward
+      polarity bipolar
+      retrigger note
+      point p0 phase 0 value -0.4
+      point p1 phase 0.125 value 0
+      point p2 phase 0.625 value -1
+      point p3 phase 1 value -1
+    }
+    node low-squeeze-audio to_audio
+    node tone1 analog_oscillator waveform saw coarse $hold-tone1 level 0.810285 fm_depth 5st
+    node tone1-mono stereo_to_mono
+    node lo-2 lowpass mode lowpass cutoff 2640hz resonance 0.308309
+    node low-pressure lfo {
+      waveform custom
+      rate 2.5hz
+      depth 1
+      phase 0
+      random_phase 0
+      mode one_shot
+      direction forward
+      polarity bipolar
+      retrigger note
+      point p0 phase 0 value 0
+      point p1 phase 0.05 value 1
+      point p2 phase 0.5 value 0.7
+      point p3 phase 0.875 value 0
+      point p4 phase 1 value 0
+    }
+    node low-pressure-audio to_audio
+    node times3 math operation multiply
+    node body4 modal_bank profile cuica-low-skin max_modes 3 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain5 math operation scale amount 0.4
+    node plus6 math operation add
+    node hiss7 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall8 onepole mode leak time 2s
+    node times9 math operation multiply
+    node hi-10 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-11 lowpass mode lowpass cutoff 5000hz resonance 0.308309
+    node times12 math operation multiply
+    node gain13 math operation scale amount 0.0311769
+    node plus14 math operation add
+    node hi-15 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node gain16 math operation scale amount $lower-stroke
+    node high-squeeze lfo {
+      waveform custom
+      rate 2.8571429hz
+      depth 1
+      phase 0
+      random_phase 0
+      mode one_shot
+      direction forward
+      polarity bipolar
+      retrigger note
+      point p0 phase 0 value -1
+      point p1 phase 0.17142857 value 0
+      point p2 phase 0.51428571 value 0.5
+      point p3 phase 0.85714286 value 0.33333333
+      point p4 phase 1 value 0.33333333
+    }
+    node high-squeeze-audio to_audio
+    node tone17-pitch constant frequency 620hz
+    node tone17 analog_oscillator waveform saw level 0.810285 fm_depth 3st
+    node tone17-mono stereo_to_mono
+    node lo-18 lowpass mode lowpass cutoff 4960hz resonance 0.308309
+    node high-pressure lfo {
+      waveform custom
+      rate 2.8571429hz
+      depth 1
+      phase 0
+      random_phase 0
+      mode one_shot
+      direction forward
+      polarity bipolar
+      retrigger note
+      point p0 phase 0 value 0
+      point p1 phase 0.057142857 value 1
+      point p2 phase 0.42857143 value 0.8
+      point p3 phase 0.85714286 value 0
+      point p4 phase 1 value 0
+    }
+    node high-pressure-audio to_audio
+    node times19 math operation multiply
+    node body20 modal_bank profile cuica-high-skin max_modes 3 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain21 math operation scale amount 0.4
+    node plus22 math operation add
+    node hiss23 noise level 1
+    node times24 math operation multiply
+    node hi-25 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-26 lowpass mode lowpass cutoff 5000hz resonance 0.308309
+    node times27 math operation multiply
+    node gain28 math operation scale amount 0.0311769
+    node plus29 math operation add
+    node hi-30 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node gain31 math operation scale amount $upper-stroke
+    node plus32 math operation add
+    node trim math operation scale amount 0.0123877
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus low-squeeze-control-low-squeeze-audio-control low-squeeze.control -> low-squeeze-audio.control
+    bus note-pitch-tone1-pitch note.pitch -> tone1.pitch
+    bus low-squeeze-audio-audio-tone1-fm low-squeeze-audio.audio -> tone1.fm
+    bus tone1-audio-tone1-mono-audio tone1.audio -> tone1-mono.audio
+    bus tone1-mono-audio-lo-2-audio tone1-mono.audio -> lo-2.audio
+    bus low-pressure-control-low-pressure-audio-control low-pressure.control -> low-pressure-audio.control
+    bus lo-2-audio-times3-a lo-2.audio -> times3.a
+    bus low-pressure-audio-audio-times3-b low-pressure-audio.audio -> times3.b
+    bus times3-audio-body4-audio times3.audio -> body4.audio
+    bus note-pitch-body4-pitch note.pitch -> body4.pitch
+    bus note-gate-body4-gate note.gate -> body4.gate
+    bus times3-audio-gain5-a times3.audio -> gain5.a
+    bus body4-audio-plus6-a body4.audio -> plus6.a
+    bus gain5-audio-plus6-b gain5.audio -> plus6.b
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus onset-audio-fall8-audio onset.audio -> fall8.audio
+    bus hiss7-audio-times9-a hiss7.audio -> times9.a
+    bus fall8-audio-times9-b fall8.audio -> times9.b
+    bus times9-audio-hi-10-audio times9.audio -> hi-10.audio
+    bus hi-10-audio-lo-11-audio hi-10.audio -> lo-11.audio
+    bus lo-11-audio-times12-a lo-11.audio -> times12.a
+    bus low-pressure-audio-audio-times12-b low-pressure-audio.audio -> times12.b
+    bus times12-audio-gain13-a times12.audio -> gain13.a
+    bus plus6-audio-plus14-a plus6.audio -> plus14.a
+    bus gain13-audio-plus14-b gain13.audio -> plus14.b
+    bus plus14-audio-hi-15-audio plus14.audio -> hi-15.audio
+    bus hi-15-audio-gain16-a hi-15.audio -> gain16.a
+    bus high-squeeze-control-high-squeeze-audio-control high-squeeze.control -> high-squeeze-audio.control
+    bus tone17-pitch-pitch-tone17-pitch tone17-pitch.pitch -> tone17.pitch
+    bus high-squeeze-audio-audio-tone17-fm high-squeeze-audio.audio -> tone17.fm
+    bus tone17-audio-tone17-mono-audio tone17.audio -> tone17-mono.audio
+    bus tone17-mono-audio-lo-18-audio tone17-mono.audio -> lo-18.audio
+    bus high-pressure-control-high-pressure-audio-control high-pressure.control -> high-pressure-audio.control
+    bus lo-18-audio-times19-a lo-18.audio -> times19.a
+    bus high-pressure-audio-audio-times19-b high-pressure-audio.audio -> times19.b
+    bus times19-audio-body20-audio times19.audio -> body20.audio
+    bus note-pitch-body20-pitch note.pitch -> body20.pitch
+    bus note-gate-body20-gate note.gate -> body20.gate
+    bus times19-audio-gain21-a times19.audio -> gain21.a
+    bus body20-audio-plus22-a body20.audio -> plus22.a
+    bus gain21-audio-plus22-b gain21.audio -> plus22.b
+    bus hiss23-audio-times24-a hiss23.audio -> times24.a
+    bus fall8-audio-times24-b fall8.audio -> times24.b
+    bus times24-audio-hi-25-audio times24.audio -> hi-25.audio
+    bus hi-25-audio-lo-26-audio hi-25.audio -> lo-26.audio
+    bus lo-26-audio-times27-a lo-26.audio -> times27.a
+    bus high-pressure-audio-audio-times27-b high-pressure-audio.audio -> times27.b
+    bus times27-audio-gain28-a times27.audio -> gain28.a
+    bus plus22-audio-plus29-a plus22.audio -> plus29.a
+    bus gain28-audio-plus29-b gain28.audio -> plus29.b
+    bus plus29-audio-hi-30-audio plus29.audio -> hi-30.audio
+    bus hi-30-audio-gain31-a hi-30.audio -> gain31.a
+    bus gain16-audio-plus32-a gain16.audio -> plus32.a
+    bus gain31-audio-plus32-b gain31.audio -> plus32.b
+    bus plus32-audio-trim-a plus32.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile cuica-low-skin {
+  root 261.626hz
+  mode m0 frequency 450hz decay 0.004s gain 1 after_decay 0.004s after_gain 0
+  mode m1 frequency 1100hz decay 0.004s gain 0.6 after_decay 0.004s after_gain 0
+  mode m2 frequency 2300hz decay 0.004s gain 0.3 after_decay 0.004s after_gain 0
+}
+profile cuica-high-skin {
+  root 261.626hz
+  mode m0 frequency 450hz decay 0.004s gain 1 after_decay 0.004s after_gain 0
+  mode m1 frequency 1100hz decay 0.004s gain 0.6 after_decay 0.004s after_gain 0
+  mode m2 frequency 2300hz decay 0.004s gain 0.3 after_decay 0.004s after_gain 0
+}

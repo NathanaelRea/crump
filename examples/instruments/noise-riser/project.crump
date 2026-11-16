@@ -1,0 +1,22 @@
+crump 2
+import "instrument.crump"
+project "Noise Riser" {
+  id example-noise-riser
+  seed 855252
+  sample_rate 48000
+  render_tail 2s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C4 8beat 0.92
+      note 8beat C4 4beat 0.5
+      note 12beat C5 4beat 0.8
+      note 16beat C4 14beat 0.85
+    }
+    track instrument "Noise Riser" instrument noise-riser level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

@@ -1,0 +1,53 @@
+crump-module 2
+instrument glass-drop "Glass Drop" graph {
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-gain-curve key_curve per_voice bipolar {
+      point c3 key C3 value -0.18723
+      point c4 key C4 value 0
+      point c5 key C5 value 1
+    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.0684739 map bipolar curve linear order 0 bypass false
+  }
+  graph voice 8 {
+    # A mallet on a tuned bar's modes, optionally through a pickup.
+    node strike1 exciter kind impact contact 0.000123374s hardness $hardness level 1
+    node body2 modal_bank profile glass-drop-bar max_modes 5 key_track 1 decay_scale $ring brightness 0 level 1
+    node hi-3 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.0561
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-hi-3-audio body2.audio -> hi-3.audio
+    bus hi-3-audio-register-a hi-3.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile glass-drop-bar {
+  root 261.626hz
+  mode m0 frequency 261.627hz decay 1.02688s gain 1 after_decay 1.02688s after_gain 0
+  mode m1 frequency 778.626hz decay 0.274572s gain 1.28013 after_decay 0.274572s after_gain 0
+  mode m2 frequency 1573.91hz decay 0.117214s gain 0.905058 after_decay 0.117214s after_gain 0
+  mode m3 frequency 1946.78hz decay 0.090636s gain 0.486856 after_decay 0.090636s after_gain 0
+  mode m4 frequency 2419.84hz decay 0.0696692s gain 0.667719 after_decay 0.0696692s after_gain 0
+}

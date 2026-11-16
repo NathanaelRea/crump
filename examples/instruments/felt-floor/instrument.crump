@@ -1,0 +1,76 @@
+crump-module 2
+instrument felt-floor "Felt Floor" graph {
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+  }
+  graph voice 20 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.00234938s hardness 0 level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall2 onepole mode leak time 0.094s
+    node fall3 onepole mode leak time 0.017s
+    node tone4-pitch constant frequency 58.7836hz
+    node tone4 analog_oscillator waveform sine level 1.41421 fm_depth 11.3581st am_mode ring am_depth 1
+    node tone4-mono stereo_to_mono
+    node body5 modal_bank profile felt-floor-head max_modes 9 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss6 noise level 1
+    node fall7 onepole mode leak time 0.007433s
+    node times8 math operation multiply
+    node hi-9 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-10 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain11 math operation scale amount 0.756045
+    node mix12 sum max_inputs 3
+    node hi-13 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.130953
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus onset-audio-fall2-audio onset.audio -> fall2.audio
+    bus onset-audio-fall3-audio onset.audio -> fall3.audio
+    bus tone4-pitch-pitch-tone4-pitch tone4-pitch.pitch -> tone4.pitch
+    bus fall3-audio-tone4-fm fall3.audio -> tone4.fm
+    bus fall2-audio-tone4-am fall2.audio -> tone4.am
+    bus tone4-audio-tone4-mono-audio tone4.audio -> tone4-mono.audio
+    bus strike1-audio-body5-audio strike1.audio -> body5.audio
+    bus note-pitch-body5-pitch note.pitch -> body5.pitch
+    bus note-gate-body5-gate note.gate -> body5.gate
+    bus onset-audio-fall7-audio onset.audio -> fall7.audio
+    bus hiss6-audio-times8-a hiss6.audio -> times8.a
+    bus fall7-audio-times8-b fall7.audio -> times8.b
+    bus times8-audio-hi-9-audio times8.audio -> hi-9.audio
+    bus hi-9-audio-lo-10-audio hi-9.audio -> lo-10.audio
+    bus lo-10-audio-gain11-a lo-10.audio -> gain11.a
+    bus tone4-mono-audio-mix12-inputs tone4-mono.audio -> mix12.inputs
+    bus body5-audio-mix12-inputs body5.audio -> mix12.inputs
+    bus gain11-audio-mix12-inputs gain11.audio -> mix12.inputs
+    bus mix12-audio-hi-13-audio mix12.audio -> hi-13.audio
+    bus hi-13-audio-trim-a hi-13.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile felt-floor-head {
+  root 58.7836hz
+  mode m0 frequency 93.6422hz decay 0.0663179s gain 0.428494 after_decay 0.0663179s after_gain 0
+  mode m1 frequency 125.562hz decay 0.0532221s gain 0.143294 after_decay 0.0532221s after_gain 0
+  mode m2 frequency 134.967hz decay 0.0504155s gain 0.062721 after_decay 0.0504155s after_gain 0
+  mode m3 frequency 155.953hz decay 0.0452366s gain 0.0342218 after_decay 0.0452366s after_gain 0
+  mode m4 frequency 171.53hz decay 0.0421191s gain 0.0204979 after_decay 0.0421191s after_gain 0
+  mode m5 frequency 185.521hz decay 0.0397137s gain 0.0108973 after_decay 0.0397137s after_gain 0
+  mode m6 frequency 205.801hz decay 0.0367408s gain 0.00451879 after_decay 0.0367408s after_gain 0
+  mode m7 frequency 211.621hz decay 0.0359804s gain 0.00260252 after_decay 0.0359804s after_gain 0
+  mode m8 frequency 238.661hz decay 0.0328774s gain 0.000899326 after_decay 0.0328774s after_gain 0
+}

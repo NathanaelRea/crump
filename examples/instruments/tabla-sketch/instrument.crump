@@ -1,0 +1,62 @@
+crump-module 2
+instrument tabla-sketch "Tabla Sketch" graph {
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.2725 0.2725
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  graph voice 14 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.000834483s hardness $hardness level 1
+    node body2 modal_bank profile tabla-sketch-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node fall4 onepole mode leak time 0.009s
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 0.190526
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.125227
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus strike1-audio-fall4-audio strike1.audio -> fall4.audio
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-trim-a hi-10.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile tabla-sketch-head {
+  root 310hz
+  mode m0 frequency 310hz decay 0.15s gain 1 after_decay 0.15s after_gain 0
+  mode m1 frequency 493.83hz decay 0.105786s gain 0.585773 after_decay 0.105786s after_gain 0
+  mode m2 frequency 662.16hz decay 0.0848966s gain 0.267791 after_decay 0.0848966s after_gain 0
+  mode m3 frequency 711.76hz decay 0.0804197s gain 0.160238 after_decay 0.0804197s after_gain 0
+  mode m4 frequency 822.43hz decay 0.0721586s gain 0.11952 after_decay 0.0721586s after_gain 0
+  mode m5 frequency 904.58hz decay 0.0671858s gain 0.097866 after_decay 0.0671858s after_gain 0
+  mode m6 frequency 978.36hz decay 0.0633488s gain 0.0711256 after_decay 0.0633488s after_gain 0
+  mode m7 frequency 1085.31hz decay 0.0586067s gain 0.0403195 after_decay 0.0586067s after_gain 0
+  mode m8 frequency 1116hz decay 0.0573937s gain 0.0317447 after_decay 0.0573937s after_gain 0
+  mode m9 frequency 1258.6hz decay 0.0524441s gain 0.0149961 after_decay 0.0524441s after_gain 0
+}

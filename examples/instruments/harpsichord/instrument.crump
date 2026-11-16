@@ -1,0 +1,131 @@
+crump-module 2
+instrument harpsichord "Harpsichord" graph {
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-gain-curve key_curve per_voice bipolar {
+      point c3 key C3 value -1
+      point c4 key C4 value 0
+      point c5 key C5 value 0.0287863
+    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.277055 map bipolar curve linear order 0 bypass false
+  }
+  graph voice 40 {
+    # Paired strings plucked together: pitch-tuned delay loops.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node held math operation add
+    node held-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node held-leak math operation scale amount 1
+    node period-later delay_line mode pitch ratio 1 interpolation linear max_time 0.1s
+    node period math operation subtract
+    node pluck-window shaper curve hard_clip drive 64 bias 0
+    node pluck-noise noise level 1
+    node pluck math operation multiply
+    node pluck-tone lowpass mode lowpass cutoff 4500hz resonance 0.308309 velocity_depth 6500hz
+    node course1-in math operation add
+    node course1 delay_line mode pitch ratio 1 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node course1-loss linear_phase_lowpass amount 1
+    node course1-keep math operation scale amount 0.99999
+    node course1-pickup delay_line mode pitch ratio 0.09 interpolation linear max_time 0.05s
+    node course1-out math operation subtract
+    node gain1 math operation scale amount 0.7
+    node gain2 math operation scale amount 1.03923
+    node course2-late delay_line mode time time 0.0015s interpolation linear max_time 0.0035s
+    node course2-in math operation add
+    node course2 delay_line mode pitch ratio 0.99826863 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node course2-loss linear_phase_lowpass amount 1
+    node course2-keep math operation scale amount 0.99999
+    node course2-pickup delay_line mode pitch ratio 0.0898442 interpolation linear max_time 0.05s
+    node course2-out math operation subtract
+    node gain3 math operation scale amount 0.7
+    node gain4 math operation scale amount 0.866025
+    node plus5 math operation add
+    node string-tone lowpass mode lowpass cutoff 4500hz resonance 0.308309 velocity_depth 6500hz
+    node string-decay onepole mode leak time 1.6s
+    node times6 math operation multiply
+    node body7 modal_bank profile harpsichord-box max_modes 5 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain8 math operation scale amount 0.32
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 24hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.198191
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus held-audio-held-previous-audio held.audio -> held-previous.audio
+    bus onset-audio-held-a onset.audio -> held.a
+    bus held-previous-audio-held-leak-a held-previous.audio -> held-leak.a
+    bus held-leak-audio-held-b held-leak.audio -> held.b
+    bus note-pitch-period-later-pitch note.pitch -> period-later.pitch
+    bus held-audio-period-later-audio held.audio -> period-later.audio
+    bus held-audio-period-a held.audio -> period.a
+    bus period-later-audio-period-b period-later.audio -> period.b
+    bus period-audio-pluck-window-audio period.audio -> pluck-window.audio
+    bus pluck-noise-audio-pluck-a pluck-noise.audio -> pluck.a
+    bus pluck-window-audio-pluck-b pluck-window.audio -> pluck.b
+    bus pluck-audio-pluck-tone-audio pluck.audio -> pluck-tone.audio
+    bus note-velocity-pluck-tone-velocity note.velocity -> pluck-tone.velocity
+    bus pluck-tone-audio-course1-in-a pluck-tone.audio -> course1-in.a
+    bus note-pitch-course1-pitch note.pitch -> course1.pitch
+    bus course1-in-audio-course1-audio course1-in.audio -> course1.audio
+    bus course1-audio-course1-loss-audio course1.audio -> course1-loss.audio
+    bus course1-loss-audio-course1-keep-a course1-loss.audio -> course1-keep.a
+    bus course1-keep-audio-course1-in-b course1-keep.audio -> course1-in.b
+    bus note-pitch-course1-pickup-pitch note.pitch -> course1-pickup.pitch
+    bus course1-audio-course1-pickup-audio course1.audio -> course1-pickup.audio
+    bus course1-audio-course1-out-a course1.audio -> course1-out.a
+    bus course1-pickup-audio-gain1-a course1-pickup.audio -> gain1.a
+    bus gain1-audio-course1-out-b gain1.audio -> course1-out.b
+    bus course1-out-audio-gain2-a course1-out.audio -> gain2.a
+    bus pluck-tone-audio-course2-late-audio pluck-tone.audio -> course2-late.audio
+    bus course2-late-audio-course2-in-a course2-late.audio -> course2-in.a
+    bus note-pitch-course2-pitch note.pitch -> course2.pitch
+    bus course2-in-audio-course2-audio course2-in.audio -> course2.audio
+    bus course2-audio-course2-loss-audio course2.audio -> course2-loss.audio
+    bus course2-loss-audio-course2-keep-a course2-loss.audio -> course2-keep.a
+    bus course2-keep-audio-course2-in-b course2-keep.audio -> course2-in.b
+    bus note-pitch-course2-pickup-pitch note.pitch -> course2-pickup.pitch
+    bus course2-audio-course2-pickup-audio course2.audio -> course2-pickup.audio
+    bus course2-audio-course2-out-a course2.audio -> course2-out.a
+    bus course2-pickup-audio-gain3-a course2-pickup.audio -> gain3.a
+    bus gain3-audio-course2-out-b gain3.audio -> course2-out.b
+    bus course2-out-audio-gain4-a course2-out.audio -> gain4.a
+    bus gain2-audio-plus5-a gain2.audio -> plus5.a
+    bus gain4-audio-plus5-b gain4.audio -> plus5.b
+    bus plus5-audio-string-tone-audio plus5.audio -> string-tone.audio
+    bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
+    bus onset-audio-string-decay-audio onset.audio -> string-decay.audio
+    bus string-tone-audio-times6-a string-tone.audio -> times6.a
+    bus string-decay-audio-times6-b string-decay.audio -> times6.b
+    bus times6-audio-body7-audio times6.audio -> body7.audio
+    bus note-pitch-body7-pitch note.pitch -> body7.pitch
+    bus note-gate-body7-gate note.gate -> body7.gate
+    bus body7-audio-gain8-a body7.audio -> gain8.a
+    bus times6-audio-plus9-a times6.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-register-a hi-10.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile harpsichord-box {
+  root 261.626hz
+  mode m0 frequency 140hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 330hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 700hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m3 frequency 1600hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m4 frequency 3200hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+}

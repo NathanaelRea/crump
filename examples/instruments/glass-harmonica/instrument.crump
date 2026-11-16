@@ -1,0 +1,116 @@
+crump-module 2
+instrument glass-harmonica "Glass Harmonica" graph {
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 1.07727s 1.07727s modulatable
+  parameter release "Release" seconds 0.02s 4s 0.6s 0.6s
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control attack "Attack" "How quickly the note speaks" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-gain-curve key_curve per_voice bipolar {
+      point c4 key C4 value -0.0739495
+      point c5 key C5 value 0
+      point c6 key C6 value 1
+    }
+    route attack-velocity source velocity target attack depth -0.68181818s map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(1.563) order 0 bypass false
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.475224 map bipolar curve linear order 0 bypass false
+  }
+  graph voice 30 {
+    # A blown, bowed or sung tone: a saw through a fixed resonator bank fitted to the body.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain1 math operation scale amount 0.01
+    node reed analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 unison 2 detune 0.025st blend 1 width 0 fm_depth 1st
+    node reed-mono stereo_to_mono
+    node velocity-tone lowpass mode lowpass cutoff 30hz resonance 0.308309 velocity_depth 21000hz
+    node breath noise level 1
+    node hi-2 lowpass mode highpass cutoff 1500hz resonance 0.308309
+    node lo-3 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node breath-comb-in math operation add
+    node breath-comb delay_line mode pitch ratio 1 interpolation linear max_time 0.05s
+    node gain4 math operation scale amount 0.7
+    node gain5 math operation scale amount 0.3
+    node gain6 math operation scale amount 0.05
+    node gain7 math operation scale amount 0.95
+    node plus8 math operation add
+    node breath-amp to_audio
+    node gain9 math operation scale amount 1
+    node times10 math operation multiply
+    node gain11 math operation scale amount 0.192406
+    node plus12 math operation add
+    node body13 modal_bank profile glass-harmonica-body max_modes 14 key_track 0 decay_scale 1 brightness 0 level 1
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-14 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.00521601
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain1-a drift-audio.audio -> gain1.a
+    bus note-pitch-reed-pitch note.pitch -> reed.pitch
+    bus note-velocity-reed-velocity note.velocity -> reed.velocity
+    bus gain1-audio-reed-fm gain1.audio -> reed.fm
+    bus amplitude-control-reed-gain amplitude.control -> reed.gain
+    bus reed-audio-reed-mono-audio reed.audio -> reed-mono.audio
+    bus reed-mono-audio-velocity-tone-audio reed-mono.audio -> velocity-tone.audio
+    bus note-velocity-velocity-tone-velocity note.velocity -> velocity-tone.velocity
+    bus breath-audio-hi-2-audio breath.audio -> hi-2.audio
+    bus hi-2-audio-lo-3-audio hi-2.audio -> lo-3.audio
+    bus lo-3-audio-breath-comb-in-a lo-3.audio -> breath-comb-in.a
+    bus note-pitch-breath-comb-pitch note.pitch -> breath-comb.pitch
+    bus breath-comb-in-audio-breath-comb-audio breath-comb-in.audio -> breath-comb.audio
+    bus breath-comb-audio-gain4-a breath-comb.audio -> gain4.a
+    bus gain4-audio-breath-comb-in-b gain4.audio -> breath-comb-in.b
+    bus breath-comb-in-audio-gain5-a breath-comb-in.audio -> gain5.a
+    bus lo-3-audio-gain6-a lo-3.audio -> gain6.a
+    bus gain5-audio-gain7-a gain5.audio -> gain7.a
+    bus gain6-audio-plus8-a gain6.audio -> plus8.a
+    bus gain7-audio-plus8-b gain7.audio -> plus8.b
+    bus amplitude-control-breath-amp-control amplitude.control -> breath-amp.control
+    bus breath-amp-audio-gain9-a breath-amp.audio -> gain9.a
+    bus plus8-audio-times10-a plus8.audio -> times10.a
+    bus gain9-audio-times10-b gain9.audio -> times10.b
+    bus times10-audio-gain11-a times10.audio -> gain11.a
+    bus velocity-tone-audio-plus12-a velocity-tone.audio -> plus12.a
+    bus gain11-audio-plus12-b gain11.audio -> plus12.b
+    bus plus12-audio-body13-audio plus12.audio -> body13.audio
+    bus note-pitch-body13-pitch note.pitch -> body13.pitch
+    bus note-gate-body13-gate note.gate -> body13.gate
+    bus body13-audio-dynamics-gain-a body13.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-14-audio dynamics-gain.audio -> hi-14.audio
+    bus hi-14-audio-register-a hi-14.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile glass-harmonica-body {
+  root 261.626hz
+  mode m0 frequency 50hz decay 0.0159155s gain 0.246242 after_decay 0.0159155s after_gain 0
+  mode m1 frequency 77.1282hz decay 0.0103176s gain 0.330293 after_decay 0.0103176s after_gain 0
+  mode m2 frequency 118.975hz decay 0.00668859s gain 0.384852 after_decay 0.00668859s after_gain 0
+  mode m3 frequency 183.526hz decay 0.00433602s gain 0.438213 after_decay 0.00433602s after_gain 0
+  mode m4 frequency 283.101hz decay 0.00281092s gain 0.489974 after_decay 0.00281092s after_gain 0
+  mode m5 frequency 436.701hz decay 0.00182224s gain 0.555611 after_decay 0.00182224s after_gain 0
+  mode m6 frequency 673.64hz decay 0.00118131s gain 0.579353 after_decay 0.00118131s after_gain 0
+  mode m7 frequency 1039.13hz decay 0.000765808s gain 1 after_decay 0.000765808s after_gain 0
+  mode m8 frequency 1602.93hz decay 0.000496451s gain 0.882537 after_decay 0.000496451s after_gain 0
+  mode m9 frequency 2472.61hz decay 0.000321835s gain 0.774558 after_decay 0.000321835s after_gain 0
+  mode m10 frequency 3814.16hz decay 0.000208637s gain 0.589402 after_decay 0.000208637s after_gain 0
+  mode m11 frequency 5883.59hz decay 0.000135253s gain 0.112281 after_decay 0.000135253s after_gain 0
+  mode m12 frequency 9075.8hz decay 0.0001s gain 0.049528 after_decay 0.0001s after_gain 0
+  mode m13 frequency 14000hz decay 0.0001s gain 0.221509 after_decay 0.0001s after_gain 0
+}

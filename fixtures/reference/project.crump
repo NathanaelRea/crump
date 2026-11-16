@@ -1,0 +1,117 @@
+crump 1
+import "instruments/lead.crump"
+import "instruments/bass.crump"
+import "instruments/drums.crump"
+project "Neon Steps" {
+  id neon-steps
+  seed 20260819
+  sample_rate 48000
+  render_tail 2s
+  song {
+    tempo 112bpm
+    meter 4/4
+    end 16bar
+    pattern lead_a 2bar {
+      note 0beat E4 1/2beat 0.76
+      note 1beat G4 1/2beat 0.7
+      note 2beat B4 1beat 0.8
+      note 7/2beat A4 1/2beat 0.68
+      note 4beat E4 1/2beat 0.74
+      note 5beat D5 1/2beat 0.8
+      note 6beat B4 1/2beat 0.72
+      note 7beat G4 1beat 0.76
+    }
+    pattern lead_b 2bar {
+      note 0beat E4 1/2beat 0.78
+      note 1beat G4 1/2beat 0.72
+      note 2beat B4 1/2beat 0.82
+      note 3beat D5 1/2beat 0.8
+      note 4beat E5 1beat 0.86
+      note 11/2beat D5 1/2beat 0.74
+      note 6beat B4 1/2beat 0.78
+      note 7beat A4 1beat 0.72
+    }
+    pattern bass_a 1bar {
+      note 0beat E2 3/4beat 0.8
+      note 1beat E2 1/2beat 0.66
+      note 2beat B1 3/4beat 0.76
+      note 3beat D2 1/2beat 0.7
+    }
+    pattern bass_b 1bar {
+      note 0beat C2 3/4beat 0.78
+      note 1beat D2 1/2beat 0.68
+      note 2beat E2 3/4beat 0.82
+      note 3beat G2 1/2beat 0.74
+    }
+    pattern beat_a 1bar {
+      hit 0beat kick 0.92
+      hit 1beat snare 0.76
+      hit 2beat kick 0.86
+      hit 3beat snare 0.78
+      hit 1/2beat hat 0.46
+      hit 3/2beat hat 0.5
+      hit 5/2beat hat 0.46
+      hit 7/2beat hat 0.54
+    }
+    pattern beat_b 1bar {
+      hit 0beat kick 0.94
+      hit 1beat snare 0.8
+      hit 3/2beat kick 0.62
+      hit 2beat kick 0.88
+      hit 3beat clap 0.72
+      hit 0beat hat 0.38
+      hit 1/2beat hat 0.52
+      hit 1beat hat 0.42
+      hit 3/2beat hat 0.56
+      hit 2beat hat 0.4
+      hit 5/2beat hat 0.54
+      hit 3beat hat 0.44
+      hit 7/2beat hat 0.6
+    }
+    automation lead-cutoff target instrument/lead/cutoff {
+      point intro 0bar 2600hz linear
+      point lift 4bar 7200hz power(1.5)
+      point release 12bar 4200hz linear
+      point end 16bar 1800hz step
+    }
+    automation lead-delay target instrument/lead/delay_mix {
+      point intro 0bar 0.12 linear
+      point lift 4bar 0.3 step
+      point release 12bar 0.2 linear
+      point end 16bar 0.08 step
+    }
+    automation lead-room target instrument/lead/room {
+      point intro 0bar 0.18 linear
+      point lift 4bar 0.42 linear
+      point release 12bar 0.3 linear
+      point end 16bar 0.5 step
+    }
+    automation lead-level target track/lead/level {
+      point intro 0bar -15db linear
+      point lift 4bar -10db step
+      point release 12bar -12db linear
+      point end 16bar -24db step
+    }
+    automation lead-balance target track/lead/balance {
+      point intro 0bar -0.18 linear
+      point lift 4bar 0.12 power(2)
+      point release 12bar -0.06 linear
+      point end 16bar 0 step
+    }
+    track lead "Neon Lead" instrument lead level -12db pan -0.08 {
+      clip lead_intro pattern lead_a start 0bar duration 4bar mode loop
+      clip lead_lift pattern lead_b start 4bar duration 8bar mode loop
+      clip lead_outro pattern lead_a start 12bar duration 4bar mode loop
+    }
+    track bass "Pulse Bass" instrument bass level -11db pan 0.04 {
+      clip bass_intro pattern bass_a start 0bar duration 4bar mode loop
+      clip bass_middle pattern bass_b start 4bar duration 8bar mode loop
+      clip bass_outro pattern bass_a start 12bar duration 4bar mode loop
+    }
+    track drums "Circuit Drums" instrument drums level -9db pan 0 {
+      clip drums_intro pattern beat_a start 0bar duration 4bar mode loop
+      clip drums_middle pattern beat_b start 4bar duration 8bar mode loop
+      clip drums_outro pattern beat_a start 12bar duration 4bar mode loop
+    }
+  }
+}

@@ -1,0 +1,56 @@
+crump 1
+project "Cookbook 04 Bass Booster" {
+  id cookbook-04-bass-booster
+  seed 4004
+  sample_rate 48000
+  render_tail 250ms
+  song {
+    tempo 240bpm
+    meter 4/4
+    end 1bar
+    instrument drums "Low Source" stock_drums {
+      polyphony 4
+      parameter tone "Tone" ratio 0 1 0.4 0.35
+      parameter punch "Punch" ratio 0 1 0.7 0.82
+      faceplate {
+        control tone "Tone" "Controls the low source brightness" maps tone
+        control punch "Punch" "Controls the low source impact" maps punch
+      }
+    }
+    pattern pulse 1bar {
+      hit 0beat kick 0.9
+      hit 2beat kick 0.82
+    }
+    track source "Low Source" instrument drums level -8db pan 0 {
+      send parallel-boost target return/boost tap post level -12db
+      output group/music
+      clip pulse-loop pattern pulse start 0bar duration 1bar mode loop
+    }
+    group music "Music" level 0db {
+      processor group-trim utility {
+        setting gain 0db
+      }
+      output master
+    }
+    return boost "Parallel Bass Boost" level -6db {
+      processor boost-band eq {
+        setting high_pass 35hz
+        setting low_pass 180hz
+      }
+      processor boost-drive saturation {
+        setting drive 3
+        setting mix 1
+        setting output -6db
+        setting mode soft_clip
+      }
+      output master
+    }
+    master level -1db {
+      processor ceiling limiter {
+        setting ceiling -1db
+        setting release 80ms
+        setting lookahead 5ms
+      }
+    }
+  }
+}

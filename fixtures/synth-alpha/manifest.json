@@ -1,0 +1,376 @@
+{
+  "schema_version": 2,
+  "authority": "mixed-production-and-design-fixture-contract",
+  "production_compatibility": "declared-per-fixture",
+  "proposal_contract_status": "milestone-5-runnable",
+  "current_compatibility_contract": "docs/native-synthesis-contract.md",
+  "current_architecture_decision": "docs/adr/0022-deterministic-spectral-peak-runtime.md",
+  "fixture_language": "declared-per-fixture",
+  "fixtures": [
+    {
+      "path": "fixtures/synth-alpha/hybrid-synth.crump",
+      "sha256": "f34d82fbce107d3f4b4804a1b22485975d2168dbb2dd45d38b6ac1db072b6a8f",
+      "runnable": false,
+      "role": "representative-complete-instrument",
+      "source_mode": "integrated",
+      "required_tokens": [
+        "graph voice 64",
+        "graph shared 32",
+        "voice_sum.audio",
+        "presentation {",
+        "section source-panel sources",
+        "section mixer-panel source_mixer",
+        "section filter-panel filters",
+        "section modulator-panel envelopes_lfos",
+        "section matrix-panel modulation",
+        "section voice-panel voicing",
+        "section route-panel routing",
+        "section effect-panel effects",
+        "modulation {",
+        "source velocity note_velocity",
+        "source key-position note_key",
+        "source random-one random_hold",
+        "source macro-one parameter",
+        "curve power(0.7)",
+        "curve smoothstep",
+        "auxiliary macro-one multiply",
+        "clamp -1 1",
+        "scale 0.8",
+        "node granular-e granular",
+        "node spectral-f spectral"
+      ]
+    },
+    {
+      "path": "fixtures/synth-alpha/minimal-wavetable.crump",
+      "sha256": "7976c49eadc54bc1723cdf98c8c5383799c7a1a51f07647e4efe9c0ee0149d83",
+      "runnable": true,
+      "role": "minimal-source",
+      "source_mode": "wavetable",
+      "required_tokens": [
+        "crump 2",
+        "usage wavetable",
+        "node source wavetable",
+        "frame_length 2048",
+        "normalization preserve",
+        "morph linear"
+      ]
+    },
+    {
+      "path": "fixtures/synth-alpha/wavetable-demo.crump",
+      "sha256": "5ae8a28f49f8d7d5c6f781ea39742b5988e4b00784ea2c3dd87b4ec27f92aeab",
+      "runnable": true,
+      "role": "reference-patch-project",
+      "source_mode": "wavetable",
+      "required_tokens": [
+        "crump 2",
+        "normalization global_peak",
+        "morph catmull_rom",
+        "node source wavetable",
+        "warp bend-stage bend",
+        "route scan-position",
+        "pattern phrase 1bar"
+      ]
+    },
+    {
+      "path": "fixtures/synth-alpha/minimal-sample-source.crump",
+      "sha256": "885f3e9beac3d250d880cff320b621c7bd3525c565e9c2b4c48a51bf975a9792",
+      "runnable": true,
+      "role": "minimal-source",
+      "source_mode": "sample",
+      "required_tokens": [
+        "crump 2",
+        "usage sample",
+        "node source sample_source",
+        "selected_slice whole",
+        "loop_mode off",
+        "loop_crossfade 64",
+        "playback gated",
+        "slice whole 0 48000"
+      ]
+    },
+    {
+      "path": "fixtures/synth-alpha/minimal-multisample.crump",
+      "sha256": "184e629cf19868455e8f9c63524cc1ab5c9c7ff99bbdd191ba1fa3b6a3a3cd58",
+      "runnable": true,
+      "role": "minimal-source",
+      "source_mode": "multisample",
+      "required_tokens": [
+        "crump 2",
+        "usage multisample",
+        "node source multisample",
+        "round_robin low-rr 0",
+        "zone low",
+        "zone high"
+      ]
+    },
+    {
+      "path": "fixtures/synth-alpha/minimal-granular.crump",
+      "sha256": "2fa2fb703e5478a94bbfdadfa69a05707c8ba6fcf21d4c232963cdf095e0abe6",
+      "runnable": true,
+      "role": "minimal-source",
+      "source_mode": "granular",
+      "required_tokens": [
+        "crump 2",
+        "usage granular",
+        "node source granular",
+        "max_grains 16",
+        "window hann",
+        "edge reflect",
+        "bus source-gate"
+      ]
+    },
+    {
+      "path": "fixtures/synth-alpha/minimal-spectral.crump",
+      "sha256": "e78443a2811fc347959b23d6886dddceae459dd923860ad8d37146c8144267b9",
+      "runnable": true,
+      "role": "minimal-source",
+      "source_mode": "spectral",
+      "required_tokens": [
+        "crump 2",
+        "usage spectral",
+        "node source spectral",
+        "crump-spectral-peaks-v1",
+        "max_peaks 128",
+        "transients reset",
+        "bus source-pitch"
+      ]
+    },
+    {
+      "path": "fixtures/synth-alpha/maximum-topology.crump",
+      "sha256": "5e3bc0506cf38d70b15b55a8fb589ace9d4ca23a552e38601abb8717df92ac3c",
+      "runnable": true,
+      "role": "maximum-qualification-profile",
+      "source_mode": "integrated",
+      "required_tokens": [
+        "crump 2",
+        "instrument qualification-max-v1",
+        "polyphony 7",
+        "graph voice 64",
+        "graph shared 64",
+        "voice_sum.audio",
+        "route route-64",
+        "source lfo-16"
+      ]
+    },
+    {
+      "path": "fixtures/synth-alpha/maximum-granular-spectral.crump",
+      "sha256": "bb79f75d903efcd3216c886300156ae87b2cfec96b8f3459f85eb05666b1cc2d",
+      "runnable": true,
+      "role": "independent-source-mode-maxima",
+      "source_mode": "granular-spectral",
+      "required_tokens": [
+        "crump 2",
+        "instrument source-mode-maxima-v1",
+        "polyphony 5",
+        "max_grains 64",
+        "max_peaks 128",
+        "node grain-b granular",
+        "node spectral-b spectral"
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "id": "wt-basic",
+      "path": "fixtures/synth-alpha/media/basic-table.wav",
+      "sha256": "2302bf70124b6017439eb385a62677b13284f112e968a2725d64e8f738bf3ca7",
+      "frames": 8192,
+      "channels": 1,
+      "sample_rate": 48000,
+      "uses": [
+        "wavetable"
+      ],
+      "origin": "procedurally generated by fixtures/synth-alpha/generate_assets.py",
+      "license": "MIT"
+    },
+    {
+      "id": "source-texture",
+      "path": "fixtures/synth-alpha/media/sample-source.wav",
+      "sha256": "ae8757e2a42ad7602b7bd6825ab0987444677a8e7f8515d0447e86aa01907de9",
+      "frames": 48000,
+      "channels": 1,
+      "sample_rate": 48000,
+      "uses": [
+        "sample",
+        "granular",
+        "spectral"
+      ],
+      "origin": "procedurally generated by fixtures/synth-alpha/generate_assets.py",
+      "license": "MIT"
+    },
+    {
+      "id": "zone-low",
+      "path": "fixtures/synth-alpha/media/multisample-low.wav",
+      "sha256": "5675332919d951ff59291a90b991e596a443e5b368b4360dfca3b157e161a0e0",
+      "frames": 24000,
+      "channels": 1,
+      "sample_rate": 48000,
+      "uses": [
+        "multisample"
+      ],
+      "origin": "procedurally generated by fixtures/synth-alpha/generate_assets.py",
+      "license": "MIT"
+    },
+    {
+      "id": "zone-high",
+      "path": "fixtures/synth-alpha/media/multisample-high.wav",
+      "sha256": "1e3309e6b805299f66308bd603d304387cba4e7affadf63f57d6835e82d5345d",
+      "frames": 24000,
+      "channels": 1,
+      "sample_rate": 48000,
+      "uses": [
+        "multisample"
+      ],
+      "origin": "procedurally generated by fixtures/synth-alpha/generate_assets.py",
+      "license": "MIT"
+    }
+  ],
+  "limits": {
+    "primary_sources_per_instrument": 8,
+    "sources_of_one_asset_kind_per_voice": 4,
+    "voice_graph_nodes": 64,
+    "shared_graph_nodes": 64,
+    "instrument_polyphony": 64,
+    "project_graph_voices": 512,
+    "unison_lanes_per_source": 8,
+    "unison_lanes_per_voice": 32,
+    "envelopes_per_instrument": 8,
+    "lfos_per_instrument": 16,
+    "macros_per_instrument": 8,
+    "instrument_routes": 256,
+    "route_operators": 16,
+    "filters_per_instrument": 8,
+    "wavetable_frames_per_asset": 256,
+    "sample_slices_per_source": 256,
+    "multisample_zones_per_instrument": 256,
+    "grains_per_source_voice": 64,
+    "grains_per_voice": 128,
+    "spectral_peaks_per_frame": 128,
+    "spectral_sources_per_voice": 2,
+    "aggregate_work_units_per_frame": 65536,
+    "publication_peak_bytes": 1073741824,
+    "resident_publication_runtimes": 2
+  },
+  "qualification_max": {
+    "profile": "qualification-max-v1",
+    "path": "fixtures/synth-alpha/maximum-topology.crump",
+    "polyphony": 7,
+    "primary_sources": 8,
+    "unison_lanes_per_voice": 16,
+    "envelopes": 8,
+    "lfos": 16,
+    "macros": 8,
+    "routes": 64,
+    "filters": 8,
+    "grains_per_voice": 64,
+    "spectral_sources_per_voice": 1,
+    "spectral_peaks_per_frame": 128,
+    "estimated_work_units_per_frame": 36864,
+    "estimated_publication_peak_bytes": 25440256,
+    "prototype_measurement": "prototypes/synth-alpha/measurement-2026-08-22.json",
+    "actual_admitted_resources": {
+      "graph_voices": 7,
+      "graph_node_instances": 28646,
+      "shared_graphs": 1,
+      "shared_graph_work_units_per_frame": 16,
+      "control_targets": 23,
+      "work_units_per_frame": 28696,
+      "publication_transition_work_units_per_frame": 57458,
+      "runtime_bytes": 1726288,
+      "publication_peak_bytes": 3452576,
+      "admitted": true,
+      "feature_domain": "pipewire-enabled production build"
+    }
+  },
+  "source_mode_maxima": {
+    "profile": "granular-spectral-independent-maxima-v1",
+    "path": "fixtures/synth-alpha/maximum-granular-spectral.crump",
+    "polyphony": 5,
+    "first_rejected_polyphony": 6,
+    "granular_sources_per_voice": 2,
+    "grains_per_source_voice": 64,
+    "grains_per_voice": 128,
+    "spectral_sources_per_voice": 2,
+    "spectral_peaks_per_source": 128,
+    "actual_admitted_resources": {
+      "graph_voices": 5,
+      "graph_node_instances": 30770,
+      "shared_graphs": 0,
+      "shared_graph_work_units_per_frame": 0,
+      "control_targets": 4,
+      "work_units_per_frame": 30794,
+      "publication_transition_work_units_per_frame": 61616,
+      "runtime_bytes": 1039687,
+      "publication_peak_bytes": 2079374,
+      "admitted": true,
+      "feature_domain": "pipewire-enabled production build"
+    }
+  },
+  "decisions": [
+    {
+      "id": "wavetable-formats-import-morph-normalization",
+      "status": "accepted",
+      "disposition": "Exact mono WAV, explicit frame metadata, preserve/global/per-frame peak policy, linear or Catmull-Rom morph."
+    },
+    {
+      "id": "presentation-source-roles",
+      "status": "accepted",
+      "disposition": "Non-authoritative durable section metadata with custom-topology fallback and exact source sites."
+    },
+    {
+      "id": "resource-ceilings",
+      "status": "accepted",
+      "disposition": "Independent structural limits plus aggregate admission and qualification-max-v1 probe evidence."
+    },
+    {
+      "id": "oscillator-warp-order",
+      "status": "accepted",
+      "disposition": "Typed FM/PM/sync, at most two ordered phase warps, table read, AM/ring, then one post-read distortion."
+    },
+    {
+      "id": "filter-palette",
+      "status": "candidate_needs_producer_validation",
+      "disposition": "Implement and level-match svf_clean and ladder_drive; producer evidence selects the supported palette and defaults."
+    },
+    {
+      "id": "modulation-sources-curves-aux-order",
+      "status": "accepted",
+      "disposition": "Stable Instrument sources/routes, linear/power/smoothstep, multiplicative auxiliary, macro DAG, explicit ownership tiers."
+    },
+    {
+      "id": "voice-shared-boundary",
+      "status": "accepted",
+      "disposition": "Explicit graph voice/shared domains with one latency-aligned voice-sum crossing and no shared-to-voice edge."
+    },
+    {
+      "id": "sample-loop-slice-rate-sfz",
+      "status": "accepted",
+      "disposition": "Normalized half-open regions, explicit loops/slices, repitch only; SFZ import deferred outside initial alpha."
+    },
+    {
+      "id": "granular-algorithm",
+      "status": "accepted",
+      "disposition": "Sample-accurate density accumulator, fixed grain pool, semantic spawn identity, Hann/triangle/Tukey windows."
+    },
+    {
+      "id": "spectral-algorithm",
+      "status": "accepted",
+      "disposition": "2048/256 periodic-Hann analysis retaining at most 128 deterministic sinusoidal peaks per frame."
+    },
+    {
+      "id": "missing-creative-processors",
+      "status": "deferred_until_demonstrated_gap",
+      "disposition": "Reuse current processors; add only when a complete-track patch and listening evidence demonstrate a specific missing capability."
+    },
+    {
+      "id": "starter-content-policy",
+      "status": "accepted",
+      "disposition": "Original procedural fixture assets under MIT; reference patches and audition phrases remain later content work."
+    },
+    {
+      "id": "producer-reference-hardware-protocol",
+      "status": "qualification_input",
+      "disposition": "Protocol is fixed; evaluator, lawful reference excerpts, CPU/interface/device IDs are named before qualification and cannot be fabricated in Milestone 0."
+    }
+  ]
+}

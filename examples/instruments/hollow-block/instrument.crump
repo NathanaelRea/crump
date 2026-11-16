@@ -1,0 +1,147 @@
+crump-module 2
+instrument hollow-block "Hollow Block" graph {
+  polyphony 4
+  parameter level "Level" ratio 0 1.5 1 1
+  parameter hardness "Contact hardness" ratio 0 1 0.5 0.5
+  parameter ring "Damping" ratio 0.5 1.5 1 1
+  parameter development "Development" ratio 0 1 0.5 0.5 automatable modulatable macro
+  parameter grain "Body grain" ratio 0 1.5 1 1
+  parameter rise-8 "Resonance development" seconds 0.004s 0.012s 0.004s 0.004s modulatable
+  faceplate {
+    control level "Level" "Overall instrument level" maps level
+    control hardness "Contact hardness" "Shape of the contact force" maps hardness
+    control ring "Damping" "Decay scale of the coherently struck resonances" maps ring
+    control development "Development" "Buildup of the coherently struck resonances" maps development
+    control grain "Body grain" "Independent grain remaining around the lower body" maps grain
+  }
+  modulation {
+    source development-source parameter development instrument unipolar
+    route rise-8 source development-source target rise-8 depth 0.008s map unipolar curve linear order 0 bypass false
+  }
+  graph voice 64 {
+    node force-0 exciter kind texture contact 8e-05s hardness $hardness attack 0.004s duration 0.04s level 1
+    node band-0 modal_bank profile hollow-block-band-0-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-1 exciter kind texture contact 8e-05s hardness $hardness attack 0.008s duration 0.075s level 1
+    node band-1 modal_bank profile hollow-block-band-1-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-2 exciter kind texture contact 8e-05s hardness $hardness attack 0.02s duration 0.04s level 1
+    node band-2 modal_bank profile hollow-block-band-2-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-3 exciter kind texture contact 8e-05s hardness $hardness attack 0.03s duration 0.08s level 1
+    node band-3 modal_bank profile hollow-block-band-3-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-4 exciter kind texture contact 8e-05s hardness $hardness attack 0.004s duration 0.04s level 1
+    node band-4 modal_bank profile hollow-block-band-4-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-5 exciter kind texture contact 8e-05s hardness $hardness attack 0.02s duration 0.04s level 1
+    node band-5 modal_bank profile hollow-block-band-5-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-8 exciter kind texture contact 8e-05s hardness $hardness attack 0.004s duration 0.011s level 1
+    node band-8 modal_bank profile hollow-block-band-8-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-10 exciter kind texture contact 8e-05s hardness $hardness attack 0.012s duration 0.024s level 1
+    node band-10 modal_bank profile hollow-block-band-10-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-16 exciter kind impact contact 8e-05s hardness $hardness attack 0.0s duration 0.025s level 1
+    node band-16 modal_bank profile hollow-block-band-16-profile max_modes 4 key_track 0 rise $rise-8 decay_scale $ring level 1
+    node bands sum max_inputs 9
+    node level mixer a_level $level b_level 0
+    node lowcut-0 filter mode highpass cutoff 950hz resonance 0 key_track 0
+    node lowcut-1 filter mode highpass cutoff 950hz resonance 0 key_track 0
+    node stereo mono_to_stereo
+    node out output
+    node output-gain mixer a_level 0.354813389234 b_level 0
+    bus gate-0 note.gate -> force-0.gate
+    bus velocity-0 note.velocity -> force-0.velocity
+    bus force-0 force-0.audio -> band-0.audio
+    bus trigger-0 note.gate -> band-0.gate
+    bus pitch-0 note.pitch -> band-0.pitch
+    bus gate-1 note.gate -> force-1.gate
+    bus velocity-1 note.velocity -> force-1.velocity
+    bus force-1 force-1.audio -> band-1.audio
+    bus trigger-1 note.gate -> band-1.gate
+    bus pitch-1 note.pitch -> band-1.pitch
+    bus gate-2 note.gate -> force-2.gate
+    bus velocity-2 note.velocity -> force-2.velocity
+    bus force-2 force-2.audio -> band-2.audio
+    bus trigger-2 note.gate -> band-2.gate
+    bus pitch-2 note.pitch -> band-2.pitch
+    bus gate-3 note.gate -> force-3.gate
+    bus velocity-3 note.velocity -> force-3.velocity
+    bus force-3 force-3.audio -> band-3.audio
+    bus trigger-3 note.gate -> band-3.gate
+    bus pitch-3 note.pitch -> band-3.pitch
+    bus gate-4 note.gate -> force-4.gate
+    bus velocity-4 note.velocity -> force-4.velocity
+    bus force-4 force-4.audio -> band-4.audio
+    bus trigger-4 note.gate -> band-4.gate
+    bus pitch-4 note.pitch -> band-4.pitch
+    bus gate-5 note.gate -> force-5.gate
+    bus velocity-5 note.velocity -> force-5.velocity
+    bus force-5 force-5.audio -> band-5.audio
+    bus trigger-5 note.gate -> band-5.gate
+    bus pitch-5 note.pitch -> band-5.pitch
+    bus gate-6 note.gate -> force-8.gate
+    bus velocity-6 note.velocity -> force-8.velocity
+    bus force-6 force-8.audio -> band-8.audio
+    bus trigger-6 note.gate -> band-8.gate
+    bus pitch-6 note.pitch -> band-8.pitch
+    bus gate-7 note.gate -> force-10.gate
+    bus velocity-7 note.velocity -> force-10.velocity
+    bus force-7 force-10.audio -> band-10.audio
+    bus trigger-7 note.gate -> band-10.gate
+    bus pitch-7 note.pitch -> band-10.pitch
+    bus gate-8 note.gate -> force-16.gate
+    bus velocity-8 note.velocity -> force-16.velocity
+    bus force-8 force-16.audio -> band-16.audio
+    bus trigger-8 note.gate -> band-16.gate
+    bus pitch-8 note.pitch -> band-16.pitch
+    bus band-16-sum band-16.audio -> bands.inputs
+    bus band-0-sum band-0.audio -> bands.inputs
+    bus band-1-sum band-1.audio -> bands.inputs
+    bus band-2-sum band-2.audio -> bands.inputs
+    bus band-3-sum band-3.audio -> bands.inputs
+    bus band-4-sum band-4.audio -> bands.inputs
+    bus band-5-sum band-5.audio -> bands.inputs
+    bus band-8-sum band-8.audio -> bands.inputs
+    bus band-10-sum band-10.audio -> bands.inputs
+    bus level bands.audio -> level.a
+    bus lowcut-0 level.audio -> lowcut-0.audio
+    bus lowcut-1 lowcut-0.audio -> lowcut-1.audio
+    bus stereo lowcut-1.audio -> output-gain.a
+    bus output-gain output-gain.audio -> stereo.audio
+    bus output stereo.audio -> out.audio
+  }
+}
+profile hollow-block-band-1-profile {
+  root 261.625565hz
+  mode m0 frequency 1340.33203125hz decay 0.00489707517206s gain 0.00432983305224 after_decay 0.00489707517206s after_gain 0
+}
+profile hollow-block-band-2-profile {
+  root 261.625565hz
+  mode m0 frequency 1340.33203125hz decay 0.00489707517206s gain 0.0027933443456 after_decay 0.00489707517206s after_gain 0
+}
+profile hollow-block-band-3-profile {
+  root 261.625565hz
+  mode m0 frequency 1340.33203125hz decay 0.00489707517206s gain 0.00249141090868 after_decay 0.00489707517206s after_gain 0
+}
+profile hollow-block-band-4-profile {
+  root 261.625565hz
+  mode m0 frequency 1234.76752692hz decay 0.00489707517206s gain 0.00285599470294 after_decay 0.00489707517206s after_gain 0
+}
+profile hollow-block-band-5-profile {
+  root 261.625565hz
+  mode m0 frequency 1250.33203125hz decay 0.00489707517206s gain 1.30090005392e-12 after_decay 0.00489707517206s after_gain 0
+}
+profile hollow-block-band-8-profile {
+  root 261.625565hz
+  mode m0 frequency 1160.33203125hz decay 0.00489707517206s gain 1.84342037177e-07 after_decay 0.00489707517206s after_gain 0
+}
+profile hollow-block-band-10-profile {
+  root 261.625565hz
+  mode m0 frequency 1234.76752692hz decay 0.00489707517206s gain 3.17926571194e-12 after_decay 0.00489707517206s after_gain 0
+}
+profile hollow-block-band-16-profile {
+  root 261.625565hz
+  mode m0 frequency 1265.33203125hz decay 0.01s gain 0.302314126791 after_decay 0.01s after_gain 0
+  mode m1 frequency 1340.33203125hz decay 0.01s gain 0.98273090063 after_decay 0.01s after_gain 0
+  mode m2 frequency 1365.33203125hz decay 0.0094606799818s gain 4.60679016066e-10 after_decay 0.0094606799818s after_gain 0
+  mode m3 frequency 1415.33203125hz decay 0.00849302070309s gain 0.541134313905 after_decay 0.00849302070309s after_gain 0
+}
+profile hollow-block-band-0-profile {
+  root 261.625565hz
+  mode m0 frequency 1340.33203125hz decay 0.00489707517206s gain 3.17621646738e-13 after_decay 0.00489707517206s after_gain 0
+}

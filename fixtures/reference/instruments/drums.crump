@@ -1,0 +1,10 @@
+crump-module 1
+instrument drums "Circuit Drums" stock_drums {
+  polyphony 12
+  parameter tone "Tone" ratio 0 1 0.5 0.62
+  parameter punch "Punch" ratio 0 1 0.5 0.74
+  faceplate {
+    control tone "Tone" "Percussion brightness" maps tone
+    control punch "Punch" "Kick transient" maps punch
+  }
+}

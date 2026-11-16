@@ -1,0 +1,149 @@
+crump-module 2
+instrument kit-toms "Kit Toms" graph {
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3755 0.3755
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-gain-curve key_curve per_voice unipolar {
+      point c2 key C2 value 0.74815
+      point c3 key C3 value 0
+      point c4 key C4 value 1
+    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.148132 map unipolar curve linear order 0 bypass false
+  }
+  graph voice 39 {
+    # Layers of simpler models tuned to the key, each peak-normalised.
+    node strike1 exciter kind impact contact 0.00183586s hardness $hardness level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall2 onepole mode leak time 0.35s
+    node fall3 onepole mode leak time 0.017s
+    node tone4 analog_oscillator waveform sine coarse 0st level 1.41421 fm_depth 3.86314st am_mode ring am_depth 1
+    node tone4-mono stereo_to_mono
+    node body5 modal_bank profile kit-toms-l0-head max_modes 9 key_track 1 decay_scale $ring brightness 0 level 1
+    node hiss6 noise level 1
+    node fall7 onepole mode leak time 0.004s
+    node times8 math operation multiply
+    node hi-9 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-10 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain11 math operation scale amount 0.207846
+    node mix12 sum max_inputs 3
+    node gain13 math operation scale amount 0.432381
+    node fall14 onepole mode leak time 0.025s
+    node shape15 shaper {
+      curve table
+      drive 1
+      bias 0
+      point p0 input 0 output 0
+      point p1 input 0.08 output 0.0967302
+      point p2 input 0.16 output 0.189809
+      point p3 input 0.24 output 0.279503
+      point p4 input 0.32 output 0.366049
+      point p5 input 0.4 output 0.44966
+      point p6 input 0.48 output 0.53053
+      point p7 input 0.56 output 0.608832
+      point p8 input 0.64 output 0.684724
+      point p9 input 0.72 output 0.758351
+      point p10 input 0.8 output 0.829843
+      point p11 input 0.88 output 0.899321
+      point p12 input 0.96 output 0.966895
+      point p13 input 1.04 output 1.03267
+      point p14 input 1.12 output 1.09673
+      point p15 input 1.2 output 1.15917
+    }
+    node fall16 onepole mode leak time 0.2s
+    node tone17 analog_oscillator waveform sine coarse -6.17488st level 1.41421 fm_depth 7.01955st am_mode ring am_depth 1
+    node tone17-mono stereo_to_mono
+    node gain18 math operation scale amount 1
+    node gain19 math operation scale amount 0.713448
+    node hiss20 noise level 1
+    node fall21 onepole mode leak time 0.03s
+    node rise22 math operation subtract
+    node fall23 onepole mode leak time 0.0004918s
+    node gain24 math operation scale amount 1.08876
+    node times25 math operation multiply
+    node hi-26 lowpass mode highpass cutoff 500hz resonance 0.308309
+    node lo-27 lowpass mode lowpass cutoff 4000hz resonance 0.308309
+    node gain28 math operation scale amount 1.46999
+    node gain29 math operation scale amount 1.08696
+    node mix30 sum max_inputs 3
+    node hi-31 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.104886
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus onset-audio-fall2-audio onset.audio -> fall2.audio
+    bus onset-audio-fall3-audio onset.audio -> fall3.audio
+    bus note-pitch-tone4-pitch note.pitch -> tone4.pitch
+    bus fall3-audio-tone4-fm fall3.audio -> tone4.fm
+    bus fall2-audio-tone4-am fall2.audio -> tone4.am
+    bus tone4-audio-tone4-mono-audio tone4.audio -> tone4-mono.audio
+    bus strike1-audio-body5-audio strike1.audio -> body5.audio
+    bus note-pitch-body5-pitch note.pitch -> body5.pitch
+    bus note-gate-body5-gate note.gate -> body5.gate
+    bus onset-audio-fall7-audio onset.audio -> fall7.audio
+    bus hiss6-audio-times8-a hiss6.audio -> times8.a
+    bus fall7-audio-times8-b fall7.audio -> times8.b
+    bus times8-audio-hi-9-audio times8.audio -> hi-9.audio
+    bus hi-9-audio-lo-10-audio hi-9.audio -> lo-10.audio
+    bus lo-10-audio-gain11-a lo-10.audio -> gain11.a
+    bus tone4-mono-audio-mix12-inputs tone4-mono.audio -> mix12.inputs
+    bus body5-audio-mix12-inputs body5.audio -> mix12.inputs
+    bus gain11-audio-mix12-inputs gain11.audio -> mix12.inputs
+    bus mix12-audio-gain13-a mix12.audio -> gain13.a
+    bus onset-audio-fall14-audio onset.audio -> fall14.audio
+    bus fall14-audio-shape15-audio fall14.audio -> shape15.audio
+    bus onset-audio-fall16-audio onset.audio -> fall16.audio
+    bus note-pitch-tone17-pitch note.pitch -> tone17.pitch
+    bus shape15-audio-tone17-fm shape15.audio -> tone17.fm
+    bus fall16-audio-tone17-am fall16.audio -> tone17.am
+    bus tone17-audio-tone17-mono-audio tone17.audio -> tone17-mono.audio
+    bus tone17-mono-audio-gain18-a tone17-mono.audio -> gain18.a
+    bus gain18-audio-gain19-a gain18.audio -> gain19.a
+    bus onset-audio-fall21-audio onset.audio -> fall21.audio
+    bus fall21-audio-rise22-a fall21.audio -> rise22.a
+    bus onset-audio-fall23-audio onset.audio -> fall23.audio
+    bus fall23-audio-rise22-b fall23.audio -> rise22.b
+    bus rise22-audio-gain24-a rise22.audio -> gain24.a
+    bus hiss20-audio-times25-a hiss20.audio -> times25.a
+    bus gain24-audio-times25-b gain24.audio -> times25.b
+    bus times25-audio-hi-26-audio times25.audio -> hi-26.audio
+    bus hi-26-audio-lo-27-audio hi-26.audio -> lo-27.audio
+    bus lo-27-audio-gain28-a lo-27.audio -> gain28.a
+    bus gain28-audio-gain29-a gain28.audio -> gain29.a
+    bus gain13-audio-mix30-inputs gain13.audio -> mix30.inputs
+    bus gain19-audio-mix30-inputs gain19.audio -> mix30.inputs
+    bus gain29-audio-mix30-inputs gain29.audio -> mix30.inputs
+    bus mix30-audio-hi-31-audio mix30.audio -> hi-31.audio
+    bus hi-31-audio-register-a hi-31.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile kit-toms-l0-head {
+  root 261.626hz
+  mode m0 frequency 416.77hz decay 0.246835s gain 0.602127 after_decay 0.246835s after_gain 0
+  mode m1 frequency 558.832hz decay 0.198092s gain 0.282953 after_decay 0.198092s after_gain 0
+  mode m2 frequency 600.692hz decay 0.187646s gain 0.174037 after_decay 0.187646s after_gain 0
+  mode m3 frequency 694.093hz decay 0.16837s gain 0.133437 after_decay 0.16837s after_gain 0
+  mode m4 frequency 763.423hz decay 0.156767s gain 0.112312 after_decay 0.156767s after_gain 0
+  mode m5 frequency 825.69hz decay 0.147814s gain 0.0839031 after_decay 0.147814s after_gain 0
+  mode m6 frequency 915.951hz decay 0.136749s gain 0.0488906 after_decay 0.136749s after_gain 0
+  mode m7 frequency 941.852hz decay 0.133919s gain 0.0395677 after_decay 0.133919s after_gain 0
+  mode m8 frequency 1062.2hz decay 0.12237s gain 0.0192135 after_decay 0.12237s after_gain 0
+}

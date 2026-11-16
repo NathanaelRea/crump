@@ -1,0 +1,67 @@
+crump 2
+project "Minimal Sample Source" {
+  id minimal-sample-source
+  seed 53
+  sample_rate 48000
+  render_tail 100ms
+  asset source-texture "Deterministic source texture" wav "media/sample-source.wav" sha256 "ae8757e2a42ad7602b7bd6825ab0987444677a8e7f8515d0447e86aa01907de9" {
+    usage sample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument alpha-minimal-sample "Minimal Sample Source" graph {
+      polyphony 4
+      parameter start "Start" ratio 0 0.95 0 0 modulatable
+      faceplate {
+        control start "Start" "Moves the source-region start without stretching" maps start
+      }
+      presentation {
+        section source-panel sources "Sample Source" {
+          node source
+          asset source-texture
+        }
+      }
+      modulation {
+        source velocity note_velocity per_voice unipolar
+        route velocity-start source velocity target start depth 10% map unipolar curve linear order 0 bypass false
+      }
+      graph voice 8 {
+        node source sample_source {
+          asset source-texture
+          selected_slice whole
+          start $start
+          end 1
+          loop_mode off
+          loop_start 0.2
+          loop_end 0.8
+          loop_crossfade 64
+          playback gated
+          direction forward
+          root C4
+          tune 0st
+          rate 1
+          velocity_amount 0.2
+          level 0.5
+          pan 0
+          slice whole 0 48000
+        }
+        node envelope envelope mode ahdsr attack 1ms hold 0ms decay 50ms sustain 1 release 80ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+        node voice-out output
+        bus source-pitch note.pitch -> source.pitch
+        bus source-gate note.gate -> source.gate
+        bus source-velocity note.velocity -> source.velocity
+        bus envelope-gate note.gate -> envelope.gate
+        bus envelope-gain envelope.control -> source.gain
+        bus output-audio source.audio -> voice-out.audio
+      }
+    }
+    pattern phrase 1bar {
+      note 0beat C4 1bar 0.8
+    }
+    track sample "Sample Source" instrument alpha-minimal-sample level -9db pan 0 {
+      clip phrase pattern phrase start 0bar duration 1bar mode once
+    }
+  }
+}

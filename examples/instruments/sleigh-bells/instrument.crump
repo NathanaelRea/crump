@@ -1,0 +1,68 @@
+crump-module 2
+instrument sleigh-bells "Sleigh Bells" graph {
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  graph voice 20 {
+    # Beads or jingles: a burst of random contacts through small resonant shells.
+    node grains1 exciter kind collisions contact 4e-05s hardness 0.5 rate 2600hz duration 0.16s attack 0.01s level 1
+    node body2 modal_bank profile sleigh-bells-shell max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain3 math operation scale amount 2
+    node hiss4 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall5 onepole mode leak time 0.16s
+    node rise6 math operation subtract
+    node fall7 onepole mode leak time 0.009412s
+    node gain8 math operation scale amount 1.26833
+    node times9 math operation multiply
+    node hi-10 lowpass mode highpass cutoff 1000hz resonance 0.308309
+    node lo-11 lowpass mode lowpass cutoff 16000hz resonance 0.308309
+    node gain12 math operation scale amount 0.0866025
+    node plus13 math operation add
+    node hi-14 lowpass mode highpass cutoff 2500hz resonance 0.308309
+    node hi-15 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.0114984
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-grains1-gate note.gate -> grains1.gate
+    bus note-velocity-grains1-velocity note.velocity -> grains1.velocity
+    bus grains1-audio-body2-audio grains1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-gain3-a body2.audio -> gain3.a
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus onset-audio-fall5-audio onset.audio -> fall5.audio
+    bus fall5-audio-rise6-a fall5.audio -> rise6.a
+    bus onset-audio-fall7-audio onset.audio -> fall7.audio
+    bus fall7-audio-rise6-b fall7.audio -> rise6.b
+    bus rise6-audio-gain8-a rise6.audio -> gain8.a
+    bus hiss4-audio-times9-a hiss4.audio -> times9.a
+    bus gain8-audio-times9-b gain8.audio -> times9.b
+    bus times9-audio-hi-10-audio times9.audio -> hi-10.audio
+    bus hi-10-audio-lo-11-audio hi-10.audio -> lo-11.audio
+    bus lo-11-audio-gain12-a lo-11.audio -> gain12.a
+    bus gain3-audio-plus13-a gain3.audio -> plus13.a
+    bus gain12-audio-plus13-b gain12.audio -> plus13.b
+    bus plus13-audio-hi-14-audio plus13.audio -> hi-14.audio
+    bus hi-14-audio-hi-15-audio hi-14.audio -> hi-15.audio
+    bus hi-15-audio-trim-a hi-15.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile sleigh-bells-shell {
+  root 261.626hz
+  mode m0 frequency 2600hz decay 0.035s gain 0.4 after_decay 0.035s after_gain 0
+  mode m1 frequency 6050hz decay 0.035s gain 0.4 after_decay 0.035s after_gain 0
+  mode m2 frequency 6900hz decay 0.035s gain 0.4 after_decay 0.035s after_gain 0
+  mode m3 frequency 10600hz decay 0.035s gain 0.4 after_decay 0.035s after_gain 0
+}

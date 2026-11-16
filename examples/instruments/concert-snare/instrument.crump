@@ -1,0 +1,78 @@
+crump-module 2
+instrument concert-snare "Concert Snare" graph {
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  graph voice 23 {
+    # A stick on a tight head, with snare wires and a click.
+    node strike1 exciter kind impact contact 0.000336111s hardness $hardness level 1
+    node body2 modal_bank profile concert-snare-head max_modes 6 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain3 math operation scale amount 0.251
+    node hiss4 noise level 1
+    node fall5 onepole mode leak time 0.1265s
+    node rise6 math operation subtract
+    node fall7 onepole mode leak time 0.0011887s
+    node gain8 math operation scale amount 1.05519
+    node times9 math operation multiply
+    node hi-10 lowpass mode highpass cutoff 1800hz resonance 0.308309
+    node lo-11 lowpass mode lowpass cutoff 12000hz resonance 0.308309
+    node gain12 math operation scale amount 0.880406
+    node hiss13 noise level 1
+    node fall14 onepole mode leak time 0.0012s
+    node times15 math operation multiply
+    node hi-16 lowpass mode highpass cutoff 3500hz resonance 0.308309
+    node gain17 math operation scale amount 0.264478
+    node mix18 sum max_inputs 3
+    node hi-19 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.147818
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-gain3-a body2.audio -> gain3.a
+    bus strike1-audio-fall5-audio strike1.audio -> fall5.audio
+    bus fall5-audio-rise6-a fall5.audio -> rise6.a
+    bus strike1-audio-fall7-audio strike1.audio -> fall7.audio
+    bus fall7-audio-rise6-b fall7.audio -> rise6.b
+    bus rise6-audio-gain8-a rise6.audio -> gain8.a
+    bus hiss4-audio-times9-a hiss4.audio -> times9.a
+    bus gain8-audio-times9-b gain8.audio -> times9.b
+    bus times9-audio-hi-10-audio times9.audio -> hi-10.audio
+    bus hi-10-audio-lo-11-audio hi-10.audio -> lo-11.audio
+    bus lo-11-audio-gain12-a lo-11.audio -> gain12.a
+    bus strike1-audio-fall14-audio strike1.audio -> fall14.audio
+    bus hiss13-audio-times15-a hiss13.audio -> times15.a
+    bus fall14-audio-times15-b fall14.audio -> times15.b
+    bus times15-audio-hi-16-audio times15.audio -> hi-16.audio
+    bus hi-16-audio-gain17-a hi-16.audio -> gain17.a
+    bus gain3-audio-mix18-inputs gain3.audio -> mix18.inputs
+    bus gain12-audio-mix18-inputs gain12.audio -> mix18.inputs
+    bus gain17-audio-mix18-inputs gain17.audio -> mix18.inputs
+    bus mix18-audio-hi-19-audio mix18.audio -> hi-19.audio
+    bus hi-19-audio-trim-a hi-19.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile concert-snare-head {
+  root 261.626hz
+  mode m0 frequency 280hz decay 0.06s gain 1 after_decay 0.06s after_gain 0
+  mode m1 frequency 445.2hz decay 0.0454269s gain 0.6 after_decay 0.0454269s after_gain 0
+  mode m2 frequency 599.2hz decay 0.0380104s gain 0.4 after_decay 0.0380104s after_gain 0
+  mode m3 frequency 644hz decay 0.0364011s gain 0.3 after_decay 0.0364011s after_gain 0
+  mode m4 frequency 742hz decay 0.0334352s gain 0.2 after_decay 0.0334352s after_gain 0
+  mode m5 frequency 817.6hz decay 0.0315443s gain 0.15 after_decay 0.0315443s after_gain 0
+}

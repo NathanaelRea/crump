@@ -1,0 +1,64 @@
+crump-module 2
+instrument palm-snap "Palm Snap" graph {
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  graph voice 19 {
+    # Hands clapping a few milliseconds apart: delayed noise bursts.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall1 onepole mode leak time 0.01384s
+    node fall2 onepole mode leak time 0.0003888s
+    node gain3 math operation scale amount -1
+    node plus4 math operation add
+    node gain5 math operation scale amount 1.14081
+    node hiss6 noise level 1
+    node times7 math operation multiply
+    node hi-8 lowpass mode highpass cutoff 180.085hz resonance 0.308309
+    node lo-9 lowpass mode lowpass cutoff 4404.73hz resonance 0.308309
+    node gain10 math operation scale amount 1.73205
+    node body11 modal_bank profile palm-snap-box max_modes 3 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain12 math operation scale amount 0.3
+    node plus13 math operation add
+    node hi-14 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.208501
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus onset-audio-fall1-audio onset.audio -> fall1.audio
+    bus onset-audio-fall2-audio onset.audio -> fall2.audio
+    bus fall2-audio-gain3-a fall2.audio -> gain3.a
+    bus fall1-audio-plus4-a fall1.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus plus4-audio-gain5-a plus4.audio -> gain5.a
+    bus hiss6-audio-times7-a hiss6.audio -> times7.a
+    bus gain5-audio-times7-b gain5.audio -> times7.b
+    bus times7-audio-hi-8-audio times7.audio -> hi-8.audio
+    bus hi-8-audio-lo-9-audio hi-8.audio -> lo-9.audio
+    bus lo-9-audio-gain10-a lo-9.audio -> gain10.a
+    bus gain10-audio-body11-audio gain10.audio -> body11.audio
+    bus note-pitch-body11-pitch note.pitch -> body11.pitch
+    bus note-gate-body11-gate note.gate -> body11.gate
+    bus body11-audio-gain12-a body11.audio -> gain12.a
+    bus gain10-audio-plus13-a gain10.audio -> plus13.a
+    bus gain12-audio-plus13-b gain12.audio -> plus13.b
+    bus plus13-audio-hi-14-audio plus13.audio -> hi-14.audio
+    bus hi-14-audio-trim-a hi-14.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile palm-snap-box {
+  root 261.626hz
+  mode m0 frequency 950hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 1510hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 2320hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+}

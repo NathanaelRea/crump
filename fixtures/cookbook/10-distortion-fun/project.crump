@@ -1,0 +1,50 @@
+crump 1
+project "Cookbook 10 Distortion Fun" {
+  id cookbook-10-distortion-fun
+  seed 4010
+  sample_rate 48000
+  render_tail 500ms
+  song {
+    tempo 240bpm
+    meter 4/4
+    end 1bar
+    instrument drums "Percussion Source" stock_drums {
+      polyphony 8
+      parameter tone "Tone" ratio 0 1 0.5 0.62
+      parameter punch "Punch" ratio 0 1 0.5 0.72
+      faceplate {
+        control tone "Tone" "Controls percussion brightness" maps tone
+        control punch "Punch" "Controls percussion impact" maps punch
+      }
+    }
+    pattern beat 1bar {
+      hit 0beat kick 0.9
+      hit 1beat snare 0.72
+      hit 2beat kick 0.84
+      hit 3beat clap 0.68
+    }
+    track source "Processed Source" instrument drums level -10db pan 0 {
+      processor triplet-echo delay {
+        setting tempo_sync true
+        setting division 1/8t
+        setting feedback 0
+        setting mix 0.35
+      }
+      processor hard-drive saturation {
+        setting drive 4.5
+        setting mix 1
+        setting output -8db
+        setting mode tanh
+      }
+      output master
+      clip beat-loop pattern beat start 0bar duration 1bar mode loop
+    }
+    master level -1db {
+      processor ceiling limiter {
+        setting ceiling -1db
+        setting release 80ms
+        setting lookahead 5ms
+      }
+    }
+  }
+}

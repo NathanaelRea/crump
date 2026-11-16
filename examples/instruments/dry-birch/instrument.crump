@@ -1,0 +1,78 @@
+crump-module 2
+instrument dry-birch "Dry Birch" graph {
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 1 1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  graph voice 21 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.00203968s hardness $hardness level 1
+    node body2 modal_bank profile dry-birch-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall4 onepole mode leak time 0.06498s
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 0.857559
+    node hiss9 noise level 1
+    node fall10 onepole mode leak time 0.04544s
+    node times11 math operation multiply
+    node hi-12 lowpass mode highpass cutoff 1400hz resonance 0.308309
+    node lo-13 lowpass mode lowpass cutoff 11500hz resonance 0.308309
+    node gain14 math operation scale amount 0.101622
+    node mix15 sum max_inputs 3
+    node hi-16 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.084498
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus onset-audio-fall4-audio onset.audio -> fall4.audio
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus onset-audio-fall10-audio onset.audio -> fall10.audio
+    bus hiss9-audio-times11-a hiss9.audio -> times11.a
+    bus fall10-audio-times11-b fall10.audio -> times11.b
+    bus times11-audio-hi-12-audio times11.audio -> hi-12.audio
+    bus hi-12-audio-lo-13-audio hi-12.audio -> lo-13.audio
+    bus lo-13-audio-gain14-a lo-13.audio -> gain14.a
+    bus body2-audio-mix15-inputs body2.audio -> mix15.inputs
+    bus gain8-audio-mix15-inputs gain8.audio -> mix15.inputs
+    bus gain14-audio-mix15-inputs gain14.audio -> mix15.inputs
+    bus mix15-audio-hi-16-audio mix15.audio -> hi-16.audio
+    bus hi-16-audio-trim-a hi-16.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile dry-birch-head {
+  root 168.547hz
+  mode m0 frequency 168.547hz decay 0.161488s gain 1 after_decay 0.161488s after_gain 0
+  mode m1 frequency 268.495hz decay 0.113888s gain 0.704703 after_decay 0.113888s after_gain 0
+  mode m2 frequency 360.016hz decay 0.0913987s gain 0.38757 after_decay 0.0913987s after_gain 0
+  mode m3 frequency 386.984hz decay 0.0865789s gain 0.278996 after_decay 0.0865789s after_gain 0
+  mode m4 frequency 447.155hz decay 0.0776851s gain 0.250351 after_decay 0.0776851s after_gain 0
+  mode m5 frequency 491.82hz decay 0.0723314s gain 0.246613 after_decay 0.0723314s after_gain 0
+  mode m6 frequency 531.934hz decay 0.0682006s gain 0.21562 after_decay 0.0682006s after_gain 0
+  mode m7 frequency 590.082hz decay 0.0630953s gain 0.147046 after_decay 0.0630953s after_gain 0
+  mode m8 frequency 606.769hz decay 0.0617894s gain 0.13928 after_decay 0.0617894s after_gain 0
+  mode m9 frequency 684.3hz decay 0.0564607s gain 0.0791539 after_decay 0.0564607s after_gain 0
+}

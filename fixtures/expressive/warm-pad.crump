@@ -1,0 +1,44 @@
+crump-module 1
+instrument warm-pad "Warm Evolving Pad" graph {
+  polyphony 6
+  parameter attack "Attack" seconds 0s 2s 0.3s 0.3s automatable
+  parameter release "Release" seconds 0.05s 8s 2.5s 2.5s automatable
+  parameter width "Width" ratio 0 1 0.85 0.85 modulatable
+  parameter motion "Motion" semitones -1st 1st 0.12st 0.12st modulatable
+  faceplate {
+    control attack "Attack" "Eases chords into the foreground" maps attack
+    control release "Release" "Lets the shared post-voice space continue" maps release
+    control width "Width" "Mono-compatible unison placement" maps width
+    control motion "Motion" "Bounded pitch movement" maps motion
+  }
+  graph 6 {
+    node envelope envelope attack $attack decay 800ms sustain 0.82 release $release
+    node movement lfo waveform sine rate 0.13hz depth 1
+    node cloud unison waveform saw voices 6 detune 0.16st width $width drift 0.025st glide 80ms mod_depth $motion velocity_amount 0.35 level 0.24
+    node output output
+    connect note.gate -> envelope.gate
+    connect note.pitch -> cloud.pitch
+    connect note.velocity -> cloud.velocity
+    connect envelope.control -> cloud.gain
+    connect movement.control -> cloud.mod
+    connect cloud.audio -> output.audio
+  }
+  processor warm-pad-delay delay {
+    setting tempo_sync true
+    setting division 1/8d
+    setting feedback 0.28
+    setting low_pass 7khz
+    setting high_pass 180hz
+    setting mode ping_pong
+    setting mix 0.16
+  }
+  processor warm-pad-space reverb {
+    setting pre_delay 18ms
+    setting diffusion 0.75
+    setting decay 0.82
+    setting damping 0.48
+    setting modulation 0.14
+    setting width 0.9
+    setting mix 0.22
+  }
+}

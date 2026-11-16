@@ -1,0 +1,127 @@
+crump 2
+import "instruments/dh-bass.crump"
+import "instruments/dh-lead.crump"
+import "instruments/dh-pad.crump"
+import "instruments/dh-keys.crump"
+import "instruments/dh-percussion.crump"
+import "instruments/dh-transition.crump"
+import "instruments/dh-evolving-texture.crump"
+import "instruments/dh-granular-texture.crump"
+import "instruments/dh-spectral-transform.crump"
+project "Deep House Starter Audition Phrases" {
+  id deep-house-starter-auditions
+  seed 6173
+  sample_rate 48000
+  render_tail 2s
+  asset wt-basic "Basic four-frame wavetable" wav "media/basic-table.wav" sha256 "2302bf70124b6017439eb385a62677b13284f112e968a2725d64e8f738bf3ca7" {
+    usage wavetable
+    frame_length 2048
+    frames 4
+    normalization preserve
+    morph linear
+  }
+  asset source-texture "Procedural source texture" wav "media/sample-source.wav" sha256 "ae8757e2a42ad7602b7bd6825ab0987444677a8e7f8515d0447e86aa01907de9" {
+    usage sample granular spectral
+  }
+  asset zone-low "Procedural low multisample zone" wav "media/multisample-low.wav" sha256 "5675332919d951ff59291a90b991e596a443e5b368b4360dfca3b157e161a0e0" {
+    usage multisample
+  }
+  asset zone-high "Procedural high multisample zone" wav "media/multisample-high.wav" sha256 "1e3309e6b805299f66308bd603d304387cba4e7affadf63f57d6835e82d5345d" {
+    usage multisample
+  }
+  song {
+    tempo 122bpm
+    meter 4/4
+    end 18bar
+
+    pattern audition-bass 2bar {
+      note 0beat C1 1beat 0.45
+      note 2beat G1 1beat 0.62
+      note 4beat C2 1beat 0.78
+      note 6beat C3 1beat 0.95
+    }
+    pattern audition-lead 2bar {
+      note 0beat C4 1/2beat 0.45
+      note 2beat G4 1/2beat 0.62
+      note 4beat C5 1/2beat 0.78
+      note 6beat C6 1/2beat 0.95
+    }
+    pattern audition-pad 2bar {
+      note 0beat C3 7/4beat 0.35
+      note 0beat G3 7/4beat 0.45
+      note 2beat C4 7/4beat 0.55
+      note 2beat E4 7/4beat 0.65
+      note 4beat G4 7/4beat 0.75
+      note 4beat C5 7/4beat 0.85
+      note 6beat C4 7/4beat 0.6
+      note 6beat G4 7/4beat 0.7
+    }
+    pattern audition-keys 2bar {
+      note 0beat C2 1beat 0.35
+      note 2beat C3 1beat 0.55
+      note 4beat C4 1beat 0.75
+      note 6beat C6 1beat 0.95
+    }
+    pattern audition-percussion 2bar {
+      hit 0beat kick 0.45
+      hit 1beat snare 0.62
+      hit 2beat hat 0.78
+      hit 3beat clap 0.95
+      hit 4beat kick 0.95
+      hit 5beat snare 0.78
+      hit 6beat hat 0.62
+      hit 7beat clap 0.45
+    }
+    pattern audition-transition 2bar {
+      note 0beat C3 2beat 0.4
+      note 3beat C4 2beat 0.65
+      note 6beat C5 2beat 0.9
+    }
+    pattern audition-evolving 2bar {
+      note 0beat C2 2beat 0.35
+      note 2beat C3 2beat 0.52
+      note 4beat C4 2beat 0.68
+      note 6beat C5 2beat 0.85
+    }
+    pattern audition-granular 2bar {
+      note 0beat C2 2beat 0.35
+      note 2beat C3 2beat 0.52
+      note 4beat C4 2beat 0.68
+      note 6beat C5 2beat 0.85
+    }
+    pattern audition-spectral 2bar {
+      note 0beat C2 2beat 0.35
+      note 2beat C3 2beat 0.52
+      note 4beat C4 2beat 0.68
+      note 6beat C5 2beat 0.85
+    }
+
+    track audition-bass "Bass Audition" instrument dh-bass level -18db pan 0 {
+      clip audition-bass-clip pattern audition-bass start 0bar duration 2bar mode loop
+    }
+    track audition-lead "Lead Audition" instrument dh-lead level -18db pan 0 {
+      clip audition-lead-clip pattern audition-lead start 2bar duration 2bar mode loop
+    }
+    track audition-pad "Pad Audition" instrument dh-pad level -18db pan 0 {
+      clip audition-pad-clip pattern audition-pad start 4bar duration 2bar mode loop
+    }
+    track audition-keys "Keys Audition" instrument dh-keys level -18db pan 0 {
+      clip audition-keys-clip pattern audition-keys start 6bar duration 2bar mode loop
+    }
+    track audition-percussion "Percussion Audition" instrument dh-percussion level -18db pan 0 {
+      clip audition-percussion-clip pattern audition-percussion start 8bar duration 2bar mode loop
+    }
+    track audition-transition "Transition Audition" instrument dh-transition level -18db pan 0 {
+      clip audition-transition-clip pattern audition-transition start 10bar duration 2bar mode loop
+    }
+    track audition-evolving "Evolving Texture Audition" instrument dh-evolving-texture level -18db pan 0 {
+      clip audition-evolving-clip pattern audition-evolving start 12bar duration 2bar mode loop
+    }
+    track audition-granular "Granular Texture Audition" instrument dh-granular-texture level -18db pan 0 {
+      clip audition-granular-clip pattern audition-granular start 14bar duration 2bar mode loop
+    }
+    track audition-spectral "Spectral Transform Audition" instrument dh-spectral-transform level -18db pan 0 {
+      clip audition-spectral-clip pattern audition-spectral start 16bar duration 2bar mode loop
+    }
+  }
+}

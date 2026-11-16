@@ -1,0 +1,60 @@
+crump-module 2
+instrument reese-bass "Reese Bass" graph {
+  polyphony 1
+  voicing mono retrigger legato glide 30ms glide_mode legato note_priority last steal_priority release_oldest seed 30303
+  parameter level "Level" ratio 0 1 0.3 0.3
+  parameter cutoff "Cutoff" hz 80hz 6khz 700hz 700hz automatable modulatable
+  parameter detune "Detune" semitones 0st 0.6st 0.2st 0.2st automatable
+  parameter drive "Drive" ratio 0 1 0.45 0.45 automatable modulatable
+  faceplate {
+    control cutoff "Cutoff" "Darkness of the growl" maps cutoff
+    control detune "Detune" "Spread of the saws: the slow phasing movement" maps detune
+    control drive "Drive" "Filter saturation" maps drive
+    control level "Level" "Output level" maps level
+  }
+  graph voice 9 {
+    node saws analog_oscillator {
+      waveform saw
+      unison 4
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 1
+      detune $detune
+      blend 0.9
+      width 0.35
+      drift 0.02st
+      glide 30ms
+      level 0.3
+      pan 0
+    }
+    node sub analog_oscillator {
+      waveform sine
+      unison 1
+      coarse -12st
+      fine 0st
+      phase 0
+      random_phase 0
+      glide 30ms
+      level 0.5
+      pan 0
+    }
+    node sources stereo_mixer a_level 1 b_level 0.45
+    node amplitude envelope mode ahdsr attack 5ms hold 0ms decay 100ms sustain 1 release 200ms attack_curve 0 decay_curve 0 release_curve 0 retrigger legato
+    node filter stereo_filter model ladder_drive mode lowpass cutoff $cutoff resonance 0.05 drive $drive mix 1 pan 0 mod_depth 0hz velocity_depth 500hz key_track 0.3 key_reference 65.406391hz
+    node trim stereo_mixer a_level $level b_level 0
+    node out output
+    bus saws-pitch note.pitch -> saws.pitch
+    bus saws-gain amplitude.control -> saws.gain
+    bus sub-pitch note.pitch -> sub.pitch
+    bus sub-gain amplitude.control -> sub.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus mix-a saws.audio -> sources.a
+    bus mix-b sub.audio -> sources.b
+    bus filter-audio sources.audio -> filter.audio
+    bus filter-key note.pitch -> filter.key
+    bus filter-velocity note.velocity -> filter.velocity
+    bus trim-audio filter.audio -> trim.a
+    bus output trim.audio -> out.audio
+  }
+}

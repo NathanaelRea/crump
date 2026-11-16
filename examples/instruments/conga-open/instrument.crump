@@ -1,0 +1,65 @@
+crump-module 2
+instrument conga-open "Conga Open" graph {
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.1695 0.1695
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  graph voice 15 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.00208621s hardness $hardness level 1
+    node body2 modal_bank profile conga-open-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall4 onepole mode leak time 0.009s
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 0.121244
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.152689
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus onset-audio-fall4-audio onset.audio -> fall4.audio
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-trim-a hi-10.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile conga-open-head {
+  root 205hz
+  mode m0 frequency 205hz decay 0.22s gain 1 after_decay 0.22s after_gain 0
+  mode m1 frequency 326.565hz decay 0.155153s gain 0.567619 after_decay 0.155153s after_gain 0
+  mode m2 frequency 437.88hz decay 0.124515s gain 0.25145 after_decay 0.124515s after_gain 0
+  mode m3 frequency 470.68hz decay 0.117949s gain 0.145797 after_decay 0.117949s after_gain 0
+  mode m4 frequency 543.865hz decay 0.105833s gain 0.105378 after_decay 0.105833s after_gain 0
+  mode m5 frequency 598.19hz decay 0.0985391s gain 0.0836121 after_decay 0.0985391s after_gain 0
+  mode m6 frequency 646.98hz decay 0.0929116s gain 0.0588831 after_decay 0.0929116s after_gain 0
+  mode m7 frequency 717.705hz decay 0.0859565s gain 0.032345 after_decay 0.0859565s after_gain 0
+  mode m8 frequency 738hz decay 0.0841775s gain 0.0246769 after_decay 0.0841775s after_gain 0
+  mode m9 frequency 832.3hz decay 0.076918s gain 0.011296 after_decay 0.076918s after_gain 0
+}

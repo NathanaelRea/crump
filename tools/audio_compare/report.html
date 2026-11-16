@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  />
+  <title>Audio comparison</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font: 16px system-ui;
+      background: #131a22;
+      color: #e7edf4;
+    }
+    body {
+      max-width: 1160px;
+      margin: auto;
+      padding: 28px;
+    }
+    h1 {
+      font-size: 30px;
+    }
+    h2 {
+      font-size: 19px;
+      margin: 26px 0 12px;
+    }
+    p {
+      color: #b8c5d3;
+      line-height: 1.5;
+    }
+    select,
+    button {
+      font: inherit;
+      padding: 8px;
+      background: #233344;
+      color: inherit;
+      border: 1px solid #536477;
+      border-radius: 5px;
+    }
+    label {
+      display: inline-block;
+      margin: 10px 18px 10px 0;
+    }
+    audio {
+      width: 100%;
+      margin: 8px 0;
+    }
+    .pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .card {
+      min-width: 0;
+      padding: 16px;
+      background: #1b2632;
+      border-radius: 8px;
+    }
+    canvas {
+      width: 100%;
+      height: 230px;
+      display: block;
+      background: #111820;
+      border-radius: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    td,
+    th {
+      text-align: left;
+      border-bottom: 1px solid #354658;
+      padding: 9px;
+    }
+    code {
+      overflow-wrap: anywhere;
+    }
+    .legend {
+      font-size: 13px;
+      color: #acbfd1;
+    }
+    .reference {
+      color: #56d9c5;
+    }
+    .candidate {
+      color: #ffb866;
+    }
+    #difference {
+      height: 250px;
+    }
+    footer {
+      overflow-wrap: anywhere;
+      margin-top: 32px;
+      font-size: 13px;
+      color: #a4b4c5;
+    }
+    button {
+      cursor: pointer;
+    }
+    @media (max-width: 700px) {
+      body {
+        padding: 14px;
+      }
+      .pair {
+        grid-template-columns: 1fr;
+      }
+      canvas {
+        height: 210px;
+      }
+      table {
+        font-size: 12px;
+      }
+    }
+  </style>
+  <h1>Audio comparison</h1>
+  <p>
+    Onset-aligned, level-matched mono listening with shared chart scales. Use
+    attack, resonances and band decay to locate differences. The measurements
+    describe similarity; they are not a realism score.
+  </p>
+  <label
+    >Candidate
+    <select id="candidate"></select></label
+  ><button id="stop">Stop audio</button>
+  <div class="pair">
+    <section class="card">
+      <strong class="reference">Reference</strong
+      ><audio id="refAudio" controls preload="metadata"></audio>
+      <p id="refInfo"></p>
+    </section>
+    <section class="card">
+      <strong class="candidate" id="candidateName"></strong
+      ><audio id="candAudio" controls preload="metadata"></audio>
+      <p id="candInfo"></p>
+    </section>
+  </div>
+  <h2>Impact development · first 100 ms</h2>
+  <p class="legend">
+    <span class="reference">Reference</span> /
+    <span class="candidate">candidate</span> · 1 ms RMS, common linear amplitude
+    scale
+  </p>
+  <canvas id="envelope" aria-label="Early amplitude envelope"></canvas>
+  <h2>Frequency balance</h2>
+  <label
+    >Window
+    <select id="window">
+      <option value="0">0–30 ms</option>
+      <option value="1" selected>30–100 ms</option>
+      <option value="2">100–300 ms</option>
+    </select></label
+  >
+  <p class="legend">
+    Hann-windowed magnitude · logarithmic frequency · common dB scale
+  </p>
+  <canvas id="spectrum" aria-label="Windowed magnitude spectrum"></canvas>
+  <h2>Spectrograms</h2>
+  <label
+    >Time range
+    <select id="range"></select
+  ></label>
+  <p class="legend">
+    512-sample Hann, 75% overlap. Both heatmaps use the same −80 to 0 dB scale
+    relative to the pair's largest bin. Warm colors show more energy.
+  </p>
+  <div class="pair">
+    <div>
+      <p class="reference">Reference</p>
+      <canvas id="refMap" aria-label="Reference spectrogram"></canvas>
+    </div>
+    <div>
+      <p class="candidate">Candidate</p>
+      <canvas id="candMap" aria-label="Candidate spectrogram"></canvas>
+    </div>
+  </div>
+  <h2>Candidate minus reference</h2>
+  <p class="legend">
+    Blue: less energy · neutral: equal · red: more energy. Difference clipped at
+    ±24 dB; bins below the shared −80 dB floor are equal.
+  </p>
+  <canvas id="difference" aria-label="Spectrogram difference"></canvas>
+  <h2>Band development</h2>
+  <label
+    >Band
+    <select id="band"></select
+  ></label>
+  <p class="legend">Third-order bandpass, 5 ms RMS · common amplitude scale</p>
+  <canvas id="bandCurve" aria-label="Band amplitude envelope"></canvas>
+  <h2>Measurements</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Measurement</th>
+        <th>Value</th>
+      </tr>
+    </thead>
+    <tbody id="metrics"></tbody>
+  </table>
+  <footer id="method"></footer>
+  <script>
+    const data = __REPORT_DATA__;
+    const $ = (id) => document.getElementById(id),
+      ref = data.entries[0];
+    for (let i = 1; i < data.entries.length; i++)
+      $("candidate").add(new Option(data.entries[i].label, i));
+    for (const seconds of [
+      ...new Set([
+        Math.min(0.1, data.seconds),
+        Math.min(0.3, data.seconds),
+        data.seconds,
+      ]),
+    ])
+      $("range").add(new Option(`${seconds * 1000} ms`, seconds));
+    $("range").value = String(data.seconds);
+    data.bands.forEach((b, i) =>
+      $("band").add(new Option(`${b[0]}–${b[1]} Hz`, i)),
+    );
+    $("band").value = "3";
+    $("refAudio").src = ref.audio;
+    document.addEventListener(
+      "play",
+      (event) => {
+        if (event.target.tagName === "AUDIO")
+          document.querySelectorAll("audio").forEach((a) => {
+            if (a !== event.target) a.pause();
+          });
+      },
+      true,
+    );
+    $("stop").onclick = () =>
+      document.querySelectorAll("audio").forEach((a) => {
+        a.pause();
+        a.currentTime = 0;
+      });
+    function setup(id) {
+      const c = $(id),
+        dpr = devicePixelRatio || 1,
+        w = c.clientWidth,
+        h = c.clientHeight;
+      c.width = w * dpr;
+      c.height = h * dpr;
+      const ctx = c.getContext("2d");
+      ctx.scale(dpr, dpr);
+      ctx.font = "11px system-ui";
+      return { ctx, w, h, l: 52, r: 12, t: 14, b: 30 };
+    }
+    function axes(g, xlabels, ylabels) {
+      let { ctx, w, h, l, r, t, b } = g;
+      ctx.fillStyle = "#9dafc1";
+      ctx.strokeStyle = "#344556";
+      ctx.beginPath();
+      ctx.moveTo(l, t);
+      ctx.lineTo(l, h - b);
+      ctx.lineTo(w - r, h - b);
+      ctx.stroke();
+      for (const [u, label] of xlabels) {
+        ctx.textAlign = "center";
+        ctx.fillText(label, l + u * (w - l - r), h - 9);
+      }
+      for (const [u, label] of ylabels) {
+        ctx.textAlign = "right";
+        ctx.fillText(label, l - 5, t + u * (h - t - b) + 4);
+      }
+    }
+    function linePlot(id, a, b, xmax, { log = false, db = false } = {}) {
+      const g = setup(id),
+        { ctx, w, h, l, r, t, b: bottom } = g,
+        peak = Math.max(...a, ...b, 1e-12),
+        height = h - t - bottom;
+      axes(
+        g,
+        log
+          ? [
+              [0, "60 Hz"],
+              [Math.log(1000 / 60) / Math.log(20000 / 60), "1 kHz"],
+              [1, "20 kHz"],
+            ]
+          : [
+              [0, "0"],
+              [0.5, `${xmax / 2}`],
+              [1, `${xmax} ms`],
+            ],
+        db
+          ? [
+              [0, "0 dB"],
+              [0.5, "−40"],
+              [1, "−80"],
+            ]
+          : [
+              [0, peak.toPrecision(2)],
+              [1, "0"],
+            ],
+      );
+      for (const [values, color] of [
+        [a, "#56d9c5"],
+        [b, "#ffb866"],
+      ]) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        values.forEach((v, i) => {
+          const u = i / (values.length - 1 || 1),
+            vnorm = db
+              ? 1 +
+                Math.max(-80, 20 * Math.log10(Math.max(v / peak, 1e-4))) / 80
+              : v / peak,
+            x = l + u * (w - l - r),
+            y = t + (1 - vnorm) * height;
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        });
+        ctx.stroke();
+      }
+    }
+    function heat(id, grid, reference, peak, diff = false) {
+      const g = setup(id),
+        { ctx, w, h, l, r, t, b } = g,
+        seconds = +$("range").value,
+        n = grid[0].length,
+        cols = Math.max(2, Math.round((n * seconds) / data.seconds)),
+        rows = grid.length;
+      for (let j = 0; j < rows; j++)
+        for (let i = 0; i < cols; i++) {
+          let value = 20 * Math.log10(Math.max(grid[j][i] / peak, 1e-4)),
+            color;
+          if (diff) {
+            value -= 20 * Math.log10(Math.max(reference[j][i] / peak, 1e-4));
+            const amt = Math.min(1, Math.abs(value) / 24),
+              target = value > 0 ? [240, 83, 73] : [54, 139, 241],
+              base = [27, 38, 50];
+            color = `rgb(${base.map((v, k) => Math.round(v + (target[k] - v) * amt)).join(",")})`;
+          } else {
+            let u = (value + 80) / 80;
+            color = `hsl(${245 - u * 220} 82% ${8 + u * 62}%)`;
+          }
+          ctx.fillStyle = color;
+          ctx.fillRect(
+            l + (i * (w - l - r)) / cols,
+            t + ((rows - j - 1) * (h - t - b)) / rows,
+            Math.ceil((w - l - r) / cols),
+            Math.ceil((h - t - b) / rows),
+          );
+        }
+      axes(
+        g,
+        [
+          [0, "0"],
+          [0.5, `${seconds * 500}`],
+          [1, `${seconds * 1000} ms`],
+        ],
+        [
+          [1, "60 Hz"],
+          [1 - Math.log(1000 / 60) / Math.log(20000 / 60), "1 kHz"],
+          [0, "20 kHz"],
+        ],
+      );
+    }
+    function info(entry) {
+      return `${entry.source.filename} · ${entry.source.sample_rate} Hz / ${entry.source.channels} channel(s) · onset ${(entry.onset_frame_48k / 48).toFixed(2)} ms · playback gain ${entry.gain_db.toFixed(1)} dB`;
+    }
+    function update() {
+      const c = data.entries[+$("candidate").value],
+        a = ref.analysis,
+        b = c.analysis,
+        window = +$("window").value,
+        band = +$("band").value;
+      $("candidateName").textContent = c.label;
+      if ($("candAudio").getAttribute("src") !== c.audio) {
+        $("candAudio").pause();
+        $("candAudio").src = c.audio;
+      }
+      $("refInfo").textContent = info(ref);
+      $("candInfo").textContent = info(c);
+      linePlot("envelope", a.envelope, b.envelope, 100);
+      linePlot("spectrum", a.spectra[window], b.spectra[window], 0, {
+        log: true,
+        db: true,
+      });
+      let peak = 1e-12;
+      for (const grid of [a.grid, b.grid])
+        for (const row of grid)
+          for (const value of row) peak = Math.max(peak, value);
+      heat("refMap", a.grid, a.grid, peak);
+      heat("candMap", b.grid, a.grid, peak);
+      heat("difference", b.grid, a.grid, peak, true);
+      const count = Math.max(
+        2,
+        Math.round((a.times.length * +$("range").value) / data.seconds),
+      );
+      linePlot(
+        "bandCurve",
+        a.bands[band].slice(0, count),
+        b.bands[band].slice(0, count),
+        +$("range").value * 1000,
+      );
+      $("metrics").replaceChildren();
+      const rows = [
+        [
+          "Envelope relative error (0 = identical)",
+          c.metrics.envelope_relative_error.toFixed(4),
+        ],
+        [
+          "90% energy time · reference / candidate",
+          `${a.energy90_ms.toFixed(1)} / ${b.energy90_ms.toFixed(1)} ms`,
+        ],
+        [
+          "Early RMS peak · reference / candidate",
+          `${a.peak_ms.toFixed(1)} / ${b.peak_ms.toFixed(1)} ms`,
+        ],
+        [
+          "Source samples ≥ 0 dBFS · reference / candidate",
+          `${ref.source.clipped_samples} / ${c.source.clipped_samples}`,
+        ],
+      ];
+      for (const size of ["512", "2048"])
+        rows.push(
+          [
+            `Spectral convergence · ${size} (0 = identical)`,
+            c.metrics[size].spectral_convergence.toFixed(4),
+          ],
+          [
+            `Log-magnitude MAE · ${size}`,
+            `${c.metrics[size].log_magnitude_mae_db.toFixed(2)} dB`,
+          ],
+        );
+      for (const [name, value] of rows) {
+        const tr = document.createElement("tr");
+        for (const text of [name, value]) {
+          const td = document.createElement("td");
+          td.textContent = text;
+          tr.append(td);
+        }
+        $("metrics").append(tr);
+      }
+      $("method").textContent =
+        `${data.algorithm} · Analysis ${data.sample_rate} Hz mono, ${data.seconds} s. Onset: first 2%-of-peak crossing plus 2 ms preroll. Active RMS: 10 ms blocks above −30 dB power relative to the strongest block. Common playback headroom: peak ≤ 0.8. Full hashes, arrays, gains, configuration and dependency versions are in the companion JSON. Reference SHA-256: ${ref.source.sha256}. Candidate SHA-256: ${c.source.sha256}.`;
+    }
+    for (const id of ["candidate", "window", "range", "band"])
+      $(id).onchange = update;
+    window.addEventListener("resize", update);
+    update();
+  </script>
+</html>

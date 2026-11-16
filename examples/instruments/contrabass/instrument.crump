@@ -1,0 +1,114 @@
+crump-module 2
+instrument contrabass "Contrabass" graph {
+  polyphony 8
+  parameter attack "Attack" seconds 0.002s 2s 0.992727s 0.992727s modulatable
+  parameter release "Release" seconds 0.02s 4s 0.5s 0.5s
+  parameter vibrato-depth "Vibrato" ratio 0 2 0.00818182 0.00818182 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0 0 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control attack "Attack" "How quickly the note speaks" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+    control vibrato-depth "Vibrato" "Vibrato depth in semitones" maps vibrato-depth
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source key-gain-curve key_curve per_voice bipolar {
+      point c1 key C1 value -1
+      point c2 key C2 value 0
+      point c3 key C3 value 0.94563
+    }
+    route attack-velocity source velocity target attack depth -0.81818182s map unipolar curve linear order 0 bypass false
+    route vibrato-depth-velocity source velocity target vibrato-depth depth 0.045454545 map unipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 1 map unipolar curve power(0.8057) order 0 bypass false
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.18317 map bipolar curve linear order 0 bypass false
+  }
+  graph voice 31 {
+    # A bowed string: a Helmholtz saw through a jagged body and the instrument's body curve.
+    node amplitude envelope mode adsr attack $attack decay 0.01s sustain 1 release $release attack_curve 0.4
+    node vibrato lfo waveform sine rate 4.9hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node vibrato-audio to_audio
+    node vibrato-wait envelope mode ahdsr attack 0s hold 0.35s decay 0.5s sustain 0 release 0.5s
+    node vibrato-wait-audio to_audio
+    node vibrato-ramp math operation scale amount -1
+    node vibrato-in math operation offset amount 1
+    node times1 math operation multiply
+    node gain2 math operation scale amount $vibrato-depth
+    node drift lfo waveform triangle rate 0.37hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node drift-audio to_audio
+    node gain3 math operation scale amount 0.008
+    node plus4 math operation add
+    node bow analog_oscillator waveform saw coarse 0st level 1.41421 velocity_amount 0 fm_depth 1st
+    node bow-mono stereo_to_mono
+    node bow-hiss noise level 1
+    node hi-5 lowpass mode highpass cutoff 800hz resonance 0.308309
+    node bow-amp to_audio
+    node times6 math operation multiply
+    node gain7 math operation scale amount 4.37829
+    node plus8 math operation add
+    node hi-9 lowpass mode highpass cutoff 100hz resonance 0.308309
+    node lo-10 lowpass mode lowpass cutoff 5000hz resonance 0.308309
+    node body11 modal_bank profile contrabass-body-curve max_modes 10 key_track 0 decay_scale 1 brightness 0 level 1
+    node dynamics-gain math operation scale amount $dynamics
+    node hi-12 lowpass mode highpass cutoff 20hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.00782427
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-amplitude-gate note.gate -> amplitude.gate
+    bus vibrato-control-vibrato-audio-control vibrato.control -> vibrato-audio.control
+    bus note-gate-vibrato-wait-gate note.gate -> vibrato-wait.gate
+    bus vibrato-wait-control-vibrato-wait-audio-control vibrato-wait.control -> vibrato-wait-audio.control
+    bus vibrato-wait-audio-audio-vibrato-ramp-a vibrato-wait-audio.audio -> vibrato-ramp.a
+    bus vibrato-ramp-audio-vibrato-in-a vibrato-ramp.audio -> vibrato-in.a
+    bus vibrato-audio-audio-times1-a vibrato-audio.audio -> times1.a
+    bus vibrato-in-audio-times1-b vibrato-in.audio -> times1.b
+    bus times1-audio-gain2-a times1.audio -> gain2.a
+    bus drift-control-drift-audio-control drift.control -> drift-audio.control
+    bus drift-audio-audio-gain3-a drift-audio.audio -> gain3.a
+    bus gain2-audio-plus4-a gain2.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus note-pitch-bow-pitch note.pitch -> bow.pitch
+    bus note-velocity-bow-velocity note.velocity -> bow.velocity
+    bus plus4-audio-bow-fm plus4.audio -> bow.fm
+    bus amplitude-control-bow-gain amplitude.control -> bow.gain
+    bus bow-audio-bow-mono-audio bow.audio -> bow-mono.audio
+    bus bow-hiss-audio-hi-5-audio bow-hiss.audio -> hi-5.audio
+    bus amplitude-control-bow-amp-control amplitude.control -> bow-amp.control
+    bus hi-5-audio-times6-a hi-5.audio -> times6.a
+    bus bow-amp-audio-times6-b bow-amp.audio -> times6.b
+    bus times6-audio-gain7-a times6.audio -> gain7.a
+    bus bow-mono-audio-plus8-a bow-mono.audio -> plus8.a
+    bus gain7-audio-plus8-b gain7.audio -> plus8.b
+    bus plus8-audio-hi-9-audio plus8.audio -> hi-9.audio
+    bus hi-9-audio-lo-10-audio hi-9.audio -> lo-10.audio
+    bus lo-10-audio-body11-audio lo-10.audio -> body11.audio
+    bus note-pitch-body11-pitch note.pitch -> body11.pitch
+    bus note-gate-body11-gate note.gate -> body11.gate
+    bus body11-audio-dynamics-gain-a body11.audio -> dynamics-gain.a
+    bus dynamics-gain-audio-hi-12-audio dynamics-gain.audio -> hi-12.audio
+    bus hi-12-audio-register-a hi-12.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile contrabass-body-curve {
+  root 261.626hz
+  mode m0 frequency 77.1282hz decay 0.0103176s gain 0.18751 after_decay 0.0103176s after_gain 0
+  mode m1 frequency 118.975hz decay 0.00668859s gain 0.191882 after_decay 0.00668859s after_gain 0
+  mode m2 frequency 183.526hz decay 0.00433602s gain 0.0481529 after_decay 0.00433602s after_gain 0
+  mode m3 frequency 436.701hz decay 0.00182224s gain 0.0769826 after_decay 0.00182224s after_gain 0
+  mode m4 frequency 673.64hz decay 0.00118131s gain 0.0348614 after_decay 0.00118131s after_gain 0
+  mode m5 frequency 1039.13hz decay 0.000765808s gain 0.167486 after_decay 0.000765808s after_gain 0
+  mode m6 frequency 1602.93hz decay 0.000496451s gain 0.0797955 after_decay 0.000496451s after_gain 0
+  mode m7 frequency 2472.61hz decay 0.000321835s gain 0.0225114 after_decay 0.000321835s after_gain 0
+  mode m8 frequency 3814.16hz decay 0.000208637s gain 0.0388155 after_decay 0.000208637s after_gain 0
+  mode m9 frequency 14000hz decay 0.0001s gain 1 after_decay 0.0001s after_gain 0
+}

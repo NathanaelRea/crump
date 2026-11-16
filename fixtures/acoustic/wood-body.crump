@@ -1,0 +1,8 @@
+crump-profile 1
+# Illustrative body data. These are not measurements or a realism attestation.
+profile wood-body {
+  root 261.625565hz
+  mode body frequency 1329hz decay 0.018s gain 0.8 after_decay 0.04s after_gain 0.08
+  mode upper frequency 2870hz decay 0.009s gain 0.22 after_decay 0.018s after_gain 0.02
+  mode contact frequency 5340hz decay 0.003s gain 0.08 after_decay 0.006s after_gain 0.01
+}

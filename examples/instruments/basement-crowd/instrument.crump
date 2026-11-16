@@ -1,0 +1,84 @@
+crump-module 2
+instrument basement-crowd "Basement Crowd" graph {
+  polyphony 4
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  graph voice 26 {
+    # Hands clapping a few milliseconds apart: delayed noise bursts.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall1 onepole mode leak time 0.05147s
+    node fall2 onepole mode leak time 0.0003969s
+    node gain3 math operation scale amount -1
+    node plus4 math operation add
+    node gain5 math operation scale amount 1.0466
+    node hand6 delay_line mode time time 0.00401855s interpolation linear max_time 0.00602783s
+    node hand7 delay_line mode time time 0.00591526s interpolation linear max_time 0.00887288s
+    node hand8 delay_line mode time time 0.010177s interpolation linear max_time 0.0152656s
+    node hand9 delay_line mode time time 0.0130526s interpolation linear max_time 0.0195789s
+    node hand10 delay_line mode time time 0.0156237s interpolation linear max_time 0.0234356s
+    node hand11 delay_line mode time time 0.0183259s interpolation linear max_time 0.0274889s
+    node mix12 sum max_inputs 7
+    node hiss13 noise level 1
+    node times14 math operation multiply
+    node hi-15 lowpass mode highpass cutoff 236.191hz resonance 0.308309
+    node lo-16 lowpass mode lowpass cutoff 6883.55hz resonance 0.308309
+    node gain17 math operation scale amount 0.654654
+    node body18 modal_bank profile basement-crowd-box max_modes 3 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain19 math operation scale amount 0.3
+    node plus20 math operation add
+    node hi-21 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node trim math operation scale amount 0.0733543
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus onset-audio-fall1-audio onset.audio -> fall1.audio
+    bus onset-audio-fall2-audio onset.audio -> fall2.audio
+    bus fall2-audio-gain3-a fall2.audio -> gain3.a
+    bus fall1-audio-plus4-a fall1.audio -> plus4.a
+    bus gain3-audio-plus4-b gain3.audio -> plus4.b
+    bus plus4-audio-gain5-a plus4.audio -> gain5.a
+    bus gain5-audio-hand6-audio gain5.audio -> hand6.audio
+    bus gain5-audio-hand7-audio gain5.audio -> hand7.audio
+    bus gain5-audio-hand8-audio gain5.audio -> hand8.audio
+    bus gain5-audio-hand9-audio gain5.audio -> hand9.audio
+    bus gain5-audio-hand10-audio gain5.audio -> hand10.audio
+    bus gain5-audio-hand11-audio gain5.audio -> hand11.audio
+    bus gain5-audio-mix12-inputs gain5.audio -> mix12.inputs
+    bus hand6-audio-mix12-inputs hand6.audio -> mix12.inputs
+    bus hand7-audio-mix12-inputs hand7.audio -> mix12.inputs
+    bus hand8-audio-mix12-inputs hand8.audio -> mix12.inputs
+    bus hand9-audio-mix12-inputs hand9.audio -> mix12.inputs
+    bus hand10-audio-mix12-inputs hand10.audio -> mix12.inputs
+    bus hand11-audio-mix12-inputs hand11.audio -> mix12.inputs
+    bus hiss13-audio-times14-a hiss13.audio -> times14.a
+    bus mix12-audio-times14-b mix12.audio -> times14.b
+    bus times14-audio-hi-15-audio times14.audio -> hi-15.audio
+    bus hi-15-audio-lo-16-audio hi-15.audio -> lo-16.audio
+    bus lo-16-audio-gain17-a lo-16.audio -> gain17.a
+    bus gain17-audio-body18-audio gain17.audio -> body18.audio
+    bus note-pitch-body18-pitch note.pitch -> body18.pitch
+    bus note-gate-body18-gate note.gate -> body18.gate
+    bus body18-audio-gain19-a body18.audio -> gain19.a
+    bus gain17-audio-plus20-a gain17.audio -> plus20.a
+    bus gain19-audio-plus20-b gain19.audio -> plus20.b
+    bus plus20-audio-hi-21-audio plus20.audio -> hi-21.audio
+    bus hi-21-audio-trim-a hi-21.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile basement-crowd-box {
+  root 261.626hz
+  mode m0 frequency 950hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 1510hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 2320hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+}

@@ -1,0 +1,118 @@
+crump-module 2
+instrument taiko "Taiko" graph {
+  polyphony 4
+  parameter upper-stroke "Upper stroke" ratio 0 1 0 0 modulatable
+  parameter lower-stroke "Lower stroke" ratio 0 1 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.942 0.942
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-step note_key per_voice unipolar reference C4 range 1st
+    route key-upper source key-step target upper-stroke depth 1 map unipolar curve linear order 0 bypass false
+    route key-lower source key-step target lower-stroke depth -1 map unipolar curve linear order 0 bypass false
+  }
+  graph voice 29 {
+    # A strike on a drumhead's modes, with slap and wire noise bursts.
+    node strike1 exciter kind impact contact 0.00250345s hardness $hardness level 1
+    node body2 modal_bank profile taiko-don-head max_modes 10 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall4 onepole mode leak time 0.012s
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain8 math operation scale amount 1.73205
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node shape11 shaper curve tanh drive 0.977534 bias 0
+    node gain12 math operation scale amount $lower-stroke
+    node strike13 exciter kind impact contact 0.000250345s hardness 0.53 level 1
+    node body14 modal_bank profile taiko-ka-head max_modes 10 key_track 0 decay_scale 1 brightness 0 level 1
+    node hiss15 noise level 1
+    node fall16 onepole mode leak time 0.003s
+    node times17 math operation multiply
+    node hi-18 lowpass mode highpass cutoff 600hz resonance 0.308309
+    node lo-19 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node gain20 math operation scale amount 0.69282
+    node plus21 math operation add
+    node hi-22 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node gain23 math operation scale amount $upper-stroke
+    node plus24 math operation add
+    node trim math operation scale amount 0.159954
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus onset-audio-fall4-audio onset.audio -> fall4.audio
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-shape11-audio hi-10.audio -> shape11.audio
+    bus shape11-audio-gain12-a shape11.audio -> gain12.a
+    bus note-gate-strike13-gate note.gate -> strike13.gate
+    bus note-velocity-strike13-velocity note.velocity -> strike13.velocity
+    bus strike13-audio-body14-audio strike13.audio -> body14.audio
+    bus note-pitch-body14-pitch note.pitch -> body14.pitch
+    bus note-gate-body14-gate note.gate -> body14.gate
+    bus onset-audio-fall16-audio onset.audio -> fall16.audio
+    bus hiss15-audio-times17-a hiss15.audio -> times17.a
+    bus fall16-audio-times17-b fall16.audio -> times17.b
+    bus times17-audio-hi-18-audio times17.audio -> hi-18.audio
+    bus hi-18-audio-lo-19-audio hi-18.audio -> lo-19.audio
+    bus lo-19-audio-gain20-a lo-19.audio -> gain20.a
+    bus body14-audio-plus21-a body14.audio -> plus21.a
+    bus gain20-audio-plus21-b gain20.audio -> plus21.b
+    bus plus21-audio-hi-22-audio plus21.audio -> hi-22.audio
+    bus hi-22-audio-gain23-a hi-22.audio -> gain23.a
+    bus gain12-audio-plus24-a gain12.audio -> plus24.a
+    bus gain23-audio-plus24-b gain23.audio -> plus24.b
+    bus plus24-audio-trim-a plus24.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile taiko-don-head {
+  root 62hz
+  mode m0 frequency 62hz decay 0.35s gain 1 after_decay 0.35s after_gain 0
+  mode m1 frequency 98.766hz decay 0.246835s gain 0.671992 after_decay 0.246835s after_gain 0
+  mode m2 frequency 132.432hz decay 0.198092s gain 0.352424 after_decay 0.198092s after_gain 0
+  mode m3 frequency 142.352hz decay 0.187646s gain 0.241919 after_decay 0.187646s after_gain 0
+  mode m4 frequency 164.486hz decay 0.16837s gain 0.207005 after_decay 0.16837s after_gain 0
+  mode m5 frequency 180.916hz decay 0.156767s gain 0.194449 after_decay 0.156767s after_gain 0
+  mode m6 frequency 195.672hz decay 0.147814s gain 0.162119 after_decay 0.147814s after_gain 0
+  mode m7 frequency 217.062hz decay 0.136749s gain 0.105428 after_decay 0.136749s after_gain 0
+  mode m8 frequency 223.2hz decay 0.133919s gain 0.0952245 after_decay 0.133919s after_gain 0
+  mode m9 frequency 251.72hz decay 0.12237s gain 0.0516049 after_decay 0.12237s after_gain 0
+}
+profile taiko-ka-head {
+  root 1100hz
+  mode m0 frequency 1100hz decay 0.012s gain 1 after_decay 0.012s after_gain 0
+  mode m1 frequency 1752.3hz decay 0.0084629s gain 0.624045 after_decay 0.0084629s after_gain 0
+  mode m2 frequency 2349.6hz decay 0.00679173s gain 0.303927 after_decay 0.00679173s after_gain 0
+  mode m3 frequency 2525.6hz decay 0.00643357s gain 0.193743 after_decay 0.00643357s after_gain 0
+  mode m4 frequency 2918.3hz decay 0.00577269s gain 0.153953 after_decay 0.00577269s after_gain 0
+  mode m5 frequency 3209.8hz decay 0.00537486s gain 0.134296 after_decay 0.00537486s after_gain 0
+  mode m6 frequency 3471.6hz decay 0.00506791s gain 0.103979 after_decay 0.00506791s after_gain 0
+  mode m7 frequency 3851.1hz decay 0.00468854s gain 0.0627944 after_decay 0.00468854s after_gain 0
+  mode m8 frequency 3960hz decay 0.0045915s gain 0.05267 after_decay 0.0045915s after_gain 0
+  mode m9 frequency 4466hz decay 0.00419553s gain 0.0265068 after_decay 0.00419553s after_gain 0
+}

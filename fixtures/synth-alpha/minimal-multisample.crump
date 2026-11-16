@@ -1,0 +1,63 @@
+crump 2
+project "Minimal Multisample" {
+  id minimal-multisample
+  seed 59
+  sample_rate 48000
+  render_tail 120ms
+  asset zone-low "Low multisample zone" wav "media/multisample-low.wav" sha256 "5675332919d951ff59291a90b991e596a443e5b368b4360dfca3b157e161a0e0" {
+    usage multisample
+  }
+  asset zone-high "High multisample zone" wav "media/multisample-high.wav" sha256 "1e3309e6b805299f66308bd603d304387cba4e7affadf63f57d6835e82d5345d" {
+    usage multisample
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument alpha-minimal-multisample "Minimal Multisample" graph {
+      polyphony 4
+      parameter tone "Tone" ratio 0 1 0.5 0.5 macro modulatable
+      faceplate {
+        control tone "Tone" "Scales the mapped source layer" maps tone
+      }
+      presentation {
+        section source-panel sources "Multisample Map" {
+          node source
+          asset zone-low
+          asset zone-high
+        }
+      }
+      modulation {
+        source velocity note_velocity per_voice unipolar
+        route velocity-tone source velocity target tone depth 20% map unipolar curve linear order 0 bypass false
+      }
+      graph voice 8 {
+        node source multisample {
+          playback gated
+          tune 0st
+          rate 1
+          velocity_amount 0.2
+          level $tone
+          pan 0
+          zone low asset zone-low keys C1 B3 velocity 0 1 root C3 layer body articulation default round_robin low-rr 0 region 0 24000 gain -3db pan -0.2
+          zone high asset zone-high keys C4 C7 velocity 0 1 root C5 layer body articulation default round_robin high-rr 0 region 0 24000 gain -3db pan 0.2
+        }
+        node envelope envelope mode ahdsr attack 2ms hold 0ms decay 80ms sustain 0.8 release 100ms attack_curve 0 decay_curve 0 release_curve 0 retrigger always
+        node voice-out output
+        bus source-pitch note.pitch -> source.pitch
+        bus source-gate note.gate -> source.gate
+        bus source-velocity note.velocity -> source.velocity
+        bus envelope-gate note.gate -> envelope.gate
+        bus envelope-gain envelope.control -> source.gain
+        bus output-audio source.audio -> voice-out.audio
+      }
+    }
+    pattern phrase 1bar {
+      note 0beat C3 2beat 0.65
+      note 2beat C5 2beat 0.9
+    }
+    track multisample "Multisample" instrument alpha-minimal-multisample level -9db pan 0 {
+      clip phrase pattern phrase start 0bar duration 1bar mode once
+    }
+  }
+}

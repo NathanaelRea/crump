@@ -1,0 +1,233 @@
+crump 1
+import "instruments/pad.crump"
+import "instruments/bass.crump"
+import "instruments/lead.crump"
+import "instruments/drums.crump"
+import "instruments/textures.crump"
+project "Production Scale Contract" {
+  id production-scale-contract
+  seed 20260821
+  sample_rate 48000
+  render_tail 3s
+  asset texture "Deterministic texture one-shot" wav "media/texture.wav" sha256 "b6074285b764119ce6f019839c91b249eafd3ac9a7ac909df33f36ae47be36c3"
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 96bar
+
+    groove pocket grid 1/2beat swing 0.58 timing 1/64beat velocity 0.025 probability 1 seed 73
+
+    pattern pad_chords 4bar {
+      lock open at 0beat parameter width value 0.96
+      lock settle at 8beat parameter width value 0.68
+      note 0beat C4 4beat 0.72
+      note 0beat E4 4beat 0.64
+      note 0beat G4 4beat 0.68
+      note 4beat A3 4beat 0.7
+      note 4beat C4 4beat 0.64
+      note 4beat E4 4beat 0.66
+      note 8beat F3 4beat 0.7
+      note 8beat A3 4beat 0.65
+      note 8beat C4 4beat 0.68
+      note 12beat G3 4beat 0.72
+      note 12beat B3 4beat 0.64
+      note 12beat D4 4beat 0.66
+    }
+    pattern pad_answer 4bar from pad_chords {
+      rotate 4beat
+      transpose 7st
+      velocity 0.88
+      reverse false
+      probability 1
+      seed 211
+    }
+    pattern bass_line 1bar {
+      note 0beat C2 3/4beat 0.82
+      note 1beat C2 1/2beat 0.66
+      note 2beat G1 3/4beat 0.78
+      note 3beat Bb1 1/2beat 0.7
+    }
+    pattern lead_line 2bar {
+      note 0beat C5 2beat 0.74
+      note 1/2beat Eb5 2beat 0.62
+      note 1beat G5 2beat 0.78
+      note 3/2beat Bb5 2beat 0.66
+      note 2beat G5 2beat 0.72
+      note 5/2beat F5 2beat 0.64
+      note 3beat Eb5 2beat 0.7
+      note 7/2beat D5 2beat 0.6
+      note 4beat C5 2beat 0.76
+      note 9/2beat G5 2beat 0.68
+      note 5beat Bb5 2beat 0.8
+      note 11/2beat C6 2beat 0.64
+      note 6beat Bb5 2beat 0.72
+      note 13/2beat G5 2beat 0.66
+      note 7beat F5 1beat 0.7
+    }
+    pattern beat 1bar {
+      hit 0beat kick 0.94
+      hit 1beat snare 0.78
+      hit 2beat kick 0.88
+      hit 3beat clap 0.7
+      hit 1/2beat hat 0.48
+      hit 3/2beat hat 0.52
+      hit 5/2beat hat 0.48
+      hit 7/2beat hat 0.58
+    }
+    pattern beat_turn 1bar from beat {
+      rotate 1/2beat
+      transpose 0st
+      velocity 0.92
+      reverse true
+      probability 1
+      seed 307
+    }
+    pattern texture_hits 4bar {
+      sample texture_left 2beat mapping texture duration 1/2beat start 0 end 4800 gain -9db pan -0.45 fade 64 256 velocity 0.8
+      sample texture_right 10beat mapping texture duration 1/2beat start 0 end 4800 gain -10db pan 0.45 fade 64 256 velocity 0.74
+    }
+    pattern texture_rush 1bar {
+      sample rush_a 0beat mapping texture duration 1/2beat start 0 end 4800 gain -12db pan -0.7 fade 64 256 velocity 0.76
+      sample rush_b 1beat mapping texture duration 1/2beat start 0 end 4800 gain -12db pan 0.7 fade 64 256 velocity 0.72
+      sample rush_c 2beat mapping texture duration 1/2beat start 0 end 4800 gain -11db pan -0.3 fade 64 256 velocity 0.78
+      sample rush_d 3beat mapping texture duration 1/2beat start 0 end 4800 gain -11db pan 0.3 fade 64 256 velocity 0.74
+    }
+
+    automation pad_width target instrument/pad/width {
+      point intro 0bar 0.55 linear
+      point build 16bar 0.78 power(1.5)
+      point drop 32bar 0.95 linear
+      point break 48bar 0.48 power(2)
+      point return 64bar 0.9 linear
+      point outro 80bar 0.66 linear
+      point end 96bar 0.35 step
+    }
+    automation texture_gain target instrument/textures/gain {
+      point intro 0bar -18db linear
+      point build 16bar -10db linear
+      point drop 32bar -7db step
+      point break 48bar -16db linear
+      point return 64bar -8db linear
+      point outro 80bar -12db linear
+      point end 96bar -36db step
+    }
+
+    track pad "Evolving Pad" instrument pad level -13db pan 0 {
+      panner stereo_pan -0.85 0.85
+      send pad_room target return/room tap post level -15db
+      output group/music
+      clip pad_intro pattern pad_chords start 0bar duration 32bar mode loop {
+        fade 1bar 0bar
+      }
+      clip pad_drop pattern pad_answer start 32bar duration 32bar mode loop
+      clip pad_outro pattern pad_chords start 64bar duration 32bar mode loop {
+        transpose -5st
+        fade 0bar 2bar
+      }
+    }
+    track bass "Articulated Bass" instrument bass level -10db pan 0 {
+      processor bass_duck compressor {
+        setting detector peak
+        setting threshold -24db
+        setting ratio 4
+        setting attack 5ms
+        setting release 90ms
+        setting knee 3db
+        setting makeup 0db
+        setting mix 1
+        sidechain input detector
+      }
+      send bass_room target return/room tap post level -24db
+      output group/music
+      clip bass_song pattern bass_line start 0bar duration 96bar mode loop
+    }
+    track lead "Dense Pluck" instrument lead level -15db pan 0 {
+      panner stereo_pan -0.75 0.75
+      send lead_room target return/room tap post level -17db
+      output group/music
+      clip lead_peak pattern lead_line start 32bar duration 32bar mode loop {
+        groove pocket
+        fade 1bar 2bar
+      }
+    }
+    track drums "Native Drums" instrument drums level -8db pan 0 {
+      processor drum_eq eq {
+        setting high_pass 24hz
+        setting high_frequency 8khz
+        setting high_gain 1db
+      }
+      send drum_room target return/room tap pre level -18db
+      output group/percussion
+      clip drums_intro pattern beat start 0bar duration 32bar mode loop {
+        groove pocket
+      }
+      clip drums_turn pattern beat_turn start 32bar duration 32bar mode loop {
+        groove pocket
+      }
+      clip drums_outro pattern beat start 64bar duration 32bar mode loop {
+        groove pocket
+        fade 0bar 2bar
+      }
+    }
+    track textures "Portable Textures" instrument textures level -9db pan 0 {
+      panner stereo_pan -0.7 0.7
+      processor texture_delay delay {
+        setting tempo_sync true
+        setting division 1/4d
+        setting feedback 0.36
+        setting low_pass 6khz
+        setting high_pass 220hz
+        setting mode ping_pong
+        setting mix 0.28
+      }
+      send texture_room target return/room tap post level -12db
+      output group/music
+      clip texture_song pattern texture_hits start 0bar duration 96bar mode loop
+      clip texture_peak pattern texture_rush start 32bar duration 32bar mode loop {
+        groove pocket
+        fade 1bar 2bar
+      }
+    }
+
+    group music "Music" level -1db {
+      processor music_color saturation {
+        setting drive 1.1
+        setting mix 0.18
+        setting output 0db
+        setting mode soft_clip
+      }
+      output master
+    }
+    group percussion "Percussion" level -1db {
+      output master
+    }
+    return room "Shared Room" level -8db {
+      processor room_reverb reverb {
+        setting pre_delay 18ms
+        setting diffusion 0.74
+        setting decay 0.78
+        setting damping 0.5
+        setting modulation 0.12
+        setting width 0.92
+        setting mix 1
+      }
+      output master
+    }
+    sidechain kick_detector from track/drums tap post to processor/bass_duck/detector
+    master level -1db {
+      processor ceiling limiter {
+        setting ceiling -1db
+        setting release 80ms
+        setting lookahead 5ms
+      }
+    }
+
+    locator intro "Intro" at 0bar
+    locator build "Build" at 16bar
+    locator drop "Drop" at 32bar
+    locator break "Break" at 48bar
+    locator return "Return" at 64bar
+    locator outro "Outro" at 80bar
+    locator end "End" at 96bar
+  }
+}

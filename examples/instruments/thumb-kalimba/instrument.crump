@@ -1,0 +1,86 @@
+crump-module 2
+instrument thumb-kalimba "Thumb Kalimba" graph {
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-gain-curve key_curve per_voice bipolar {
+      point c3 key C3 value -0.967837
+      point c4 key C4 value 0
+      point c5 key C5 value 1
+    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.315179 map bipolar curve linear order 0 bypass false
+  }
+  graph voice 18 {
+    # A plucked tine in a box, with neighbouring tines and the nail.
+    node strike1 exciter kind impact contact 0.000130317s hardness $hardness level 1
+    node body2 modal_bank profile thumb-kalimba-tine max_modes 8 key_track 1 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node fall4 onepole mode leak time 0.03439s
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 1200hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 16000hz resonance 0.308309
+    node gain8 math operation scale amount 0.0112144
+    node plus9 math operation add
+    node body10 modal_bank profile thumb-kalimba-box max_modes 3 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain11 math operation scale amount 1.00352
+    node plus12 math operation add
+    node hi-13 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.102349
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus strike1-audio-fall4-audio strike1.audio -> fall4.audio
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-body10-audio plus9.audio -> body10.audio
+    bus note-pitch-body10-pitch note.pitch -> body10.pitch
+    bus note-gate-body10-gate note.gate -> body10.gate
+    bus body10-audio-gain11-a body10.audio -> gain11.a
+    bus plus9-audio-plus12-a plus9.audio -> plus12.a
+    bus gain11-audio-plus12-b gain11.audio -> plus12.b
+    bus plus12-audio-hi-13-audio plus12.audio -> hi-13.audio
+    bus hi-13-audio-register-a hi-13.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile thumb-kalimba-tine {
+  root 261.626hz
+  mode m0 frequency 259.335hz decay 0.145535s gain 1 after_decay 0.145535s after_gain 0
+  mode m1 frequency 1400.41hz decay 0.0234705s gain 0.25 after_decay 0.0234705s after_gain 0
+  mode m2 frequency 3449.16hz decay 0.00885053s gain 0.06 after_decay 0.00885053s after_gain 0
+  mode m3 frequency 6431.51hz decay 0.00451006s gain 0.025 after_decay 0.00451006s after_gain 0
+  mode m4 frequency 197.095hz decay 0.517093s gain 0.0237141 after_decay 0.517093s after_gain 0
+  mode m5 frequency 230.808hz decay 0.517093s gain 0.0632375 after_decay 0.517093s after_gain 0
+  mode m6 frequency 290.455hz decay 0.517093s gain 0.0790469 after_decay 0.517093s after_gain 0
+  mode m7 frequency 331.949hz decay 0.517093s gain 0.0197617 after_decay 0.517093s after_gain 0
+}
+profile thumb-kalimba-box {
+  root 261.626hz
+  mode m0 frequency 180hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 390hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 750hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+}

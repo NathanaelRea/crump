@@ -1,0 +1,58 @@
+crump 2
+import "instrument.crump"
+project "Udu" {
+  id example-udu
+  seed 989875
+  sample_rate 48000
+  render_tail 2s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C3 0.25beat 0.92
+      note 1beat C3 0.25beat 0.48
+      note 2beat C#5 0.25beat 0.92
+      note 3beat C#5 0.25beat 0.48
+      note 8beat C3 0.25beat 0.9
+      note 9beat C#5 0.25beat 0.6
+      note 9.5beat C#5 0.25beat 0.6
+      note 10beat C3 0.25beat 0.9
+      note 10.5beat C#5 0.25beat 0.6
+      note 11.5beat C#5 0.25beat 0.6
+      note 12beat C3 0.25beat 0.9
+      note 13beat C#5 0.25beat 0.6
+      note 13.5beat C#5 0.25beat 0.6
+      note 14beat C3 0.25beat 0.9
+      note 14.5beat C#5 0.25beat 0.6
+      note 15.5beat C#5 0.25beat 0.6
+      note 16beat C3 0.25beat 0.9
+      note 17beat C#5 0.25beat 0.6
+      note 17.5beat C#5 0.25beat 0.6
+      note 18beat C3 0.25beat 0.9
+      note 18.5beat C#5 0.25beat 0.6
+      note 19.5beat C#5 0.25beat 0.6
+      note 20beat C3 0.25beat 0.9
+      note 21beat C#5 0.25beat 0.6
+      note 21.5beat C#5 0.25beat 0.6
+      note 22beat C3 0.25beat 0.9
+      note 22.5beat C#5 0.25beat 0.6
+      note 23.5beat C#5 0.25beat 0.6
+      note 24beat C3 0.25beat 0.9
+      note 25beat C#5 0.25beat 0.6
+      note 25.5beat C#5 0.25beat 0.6
+      note 26beat C3 0.25beat 0.9
+      note 26.5beat C#5 0.25beat 0.6
+      note 27.5beat C#5 0.25beat 0.6
+      note 28beat C3 0.25beat 0.9
+      note 29beat C#5 0.25beat 0.6
+      note 29.5beat C#5 0.25beat 0.6
+      note 30beat C3 0.25beat 0.9
+      note 30.5beat C#5 0.25beat 0.6
+      note 31.5beat C#5 0.25beat 0.6
+    }
+    track instrument "Udu" instrument udu level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

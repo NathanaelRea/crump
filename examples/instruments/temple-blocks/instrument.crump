@@ -1,0 +1,66 @@
+crump-module 2
+instrument temple-blocks "Temple Blocks" graph {
+  polyphony 8
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter hardness "Hardness" ratio 0 1 0.3 0.3
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-gain-curve key_curve per_voice bipolar {
+      point c4 key C4 value -1
+      point c5 key C5 value 0
+      point c6 key C6 value -0.75495
+    }
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.036031 map bipolar curve linear order 0 bypass false
+  }
+  graph voice 15 {
+    # A strike on a tuned body with explicit mode ratios, plus a contact tick.
+    node strike1 exciter kind impact contact 0.000420139s hardness $hardness level 1
+    node body2 modal_bank profile temple-blocks-body max_modes 3 key_track 1 decay_scale $ring brightness 0 level 1
+    node hiss3 noise level 1
+    node fall4 onepole mode leak time 0.002s
+    node times5 math operation multiply
+    node hi-6 lowpass mode highpass cutoff 1500hz resonance 0.308309
+    node lo-7 lowpass mode lowpass cutoff 8000hz resonance 0.308309
+    node gain8 math operation scale amount 0.526443
+    node plus9 math operation add
+    node hi-10 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.186524
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus strike1-audio-fall4-audio strike1.audio -> fall4.audio
+    bus hiss3-audio-times5-a hiss3.audio -> times5.a
+    bus fall4-audio-times5-b fall4.audio -> times5.b
+    bus times5-audio-hi-6-audio times5.audio -> hi-6.audio
+    bus hi-6-audio-lo-7-audio hi-6.audio -> lo-7.audio
+    bus lo-7-audio-gain8-a lo-7.audio -> gain8.a
+    bus body2-audio-plus9-a body2.audio -> plus9.a
+    bus gain8-audio-plus9-b gain8.audio -> plus9.b
+    bus plus9-audio-hi-10-audio plus9.audio -> hi-10.audio
+    bus hi-10-audio-register-a hi-10.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile temple-blocks-body {
+  root 261.626hz
+  mode m0 frequency 261.626hz decay 0.09s gain 1 after_decay 0.09s after_gain 0
+  mode m1 frequency 640.983hz decay 0.04s gain 0.233812 after_decay 0.04s after_gain 0
+  mode m2 frequency 1072.66hz decay 0.02s gain 0.0699752 after_decay 0.02s after_gain 0
+}

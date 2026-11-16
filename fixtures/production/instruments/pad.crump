@@ -1,0 +1,35 @@
+crump-module 1
+instrument pad "Evolving Pad" graph {
+  polyphony 6
+  parameter attack "Attack" seconds 0s 2s 0.3s 0.3s automatable
+  parameter release "Release" seconds 0.05s 8s 2.5s 2.5s automatable
+  parameter width "Width" ratio 0 1 0.82 0.86 automatable modulatable
+  parameter motion "Motion" semitones -1st 1st 0.12st 0.12st modulatable
+  faceplate {
+    control attack "Attack" "Moves the pad onset from soft to present" maps attack
+    control release "Release" "Carries chords between sections" maps release
+    control width "Width" "Controls mono-compatible unison spread" maps width
+    control motion "Motion" "Adds bounded pitch drift" maps motion
+  }
+  graph 7 {
+    node amplitude envelope attack $attack decay 800ms sustain 0.78 release $release
+    node movement lfo waveform sine rate 0.13hz depth 1
+    node cloud unison waveform saw voices 6 detune 0.16st width $width drift 0.025st glide 80ms mod_depth $motion velocity_amount 0.3 level 0.22
+    node output output
+    connect note.gate -> amplitude.gate
+    connect note.pitch -> cloud.pitch
+    connect note.velocity -> cloud.velocity
+    connect movement.control -> cloud.mod
+    connect amplitude.control -> cloud.gain
+    connect cloud.audio -> output.audio
+  }
+  processor pad_echo delay {
+    setting tempo_sync true
+    setting division 1/8d
+    setting feedback 0.24
+    setting low_pass 7khz
+    setting high_pass 180hz
+    setting mode ping_pong
+    setting mix 0.14
+  }
+}

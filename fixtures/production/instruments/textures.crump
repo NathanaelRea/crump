@@ -1,0 +1,18 @@
+crump-module 1
+instrument textures "Portable Textures" sampler {
+  polyphony 4
+  parameter gain "Gain" db -96db 24db -6db -6db automatable
+  parameter tune "Tune" semitones -24st 24st 0st 0st automatable
+  faceplate {
+    control gain "Gain" "Texture output trim" maps gain
+    control tune "Tune" "Texture repitch" maps tune
+  }
+  mapping texture asset texture keys C3 C5 root C4 {
+    region 0 4800
+    playback one_shot
+    gain -3db
+    pan 0
+    envelope 2ms 40ms
+    fade 64 256
+  }
+}

@@ -1,0 +1,212 @@
+crump-module 2
+instrument guiro "Guiro" graph {
+  polyphony 4
+  parameter upper-stroke "Upper stroke" ratio 0 1 0 0 modulatable
+  parameter lower-stroke "Lower stroke" ratio 0 1 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-step note_key per_voice unipolar reference C4 range 1st
+    route key-upper source key-step target upper-stroke depth 1 map unipolar curve linear order 0 bypass false
+    route key-lower source key-step target lower-stroke depth -1 map unipolar curve linear order 0 bypass false
+  }
+  graph voice 51 {
+    # A stick scraped across ridges into a hollow body.
+    node tone1-pitch constant frequency 190hz
+    node tone1 analog_oscillator waveform saw level 1.41421 drift 0.5st
+    node tone1-mono stereo_to_mono
+    node previous2 delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node edge3 math operation subtract
+    node gain4 math operation scale amount 0.5
+    node shape5 shaper curve one_sided drive 1 bias 0
+    node long-stroke lfo {
+      waveform custom
+      rate 4.7619048hz
+      depth 1
+      phase 0
+      random_phase 0
+      mode one_shot
+      direction forward
+      polarity bipolar
+      retrigger note
+      point p0 phase 0 value 0
+      point p1 phase 0.038095238 value 0.39551797
+      point p2 phase 0.076190476 value 0.55589297
+      point p3 phase 0.11428571 value 0.67378817
+      point p4 phase 0.15238095 value 0.76667154
+      point p5 phase 0.19047619 value 0.84089642
+      point p6 phase 0.22857143 value 0.89945372
+      point p7 phase 0.26666667 value 0.94393142
+      point p8 phase 0.3047619 value 0.97522127
+      point p9 phase 0.34285714 value 0.99382511
+      point p10 phase 0.38095238 value 1
+      point p11 phase 0.41904762 value 0.99382511
+      point p12 phase 0.45714286 value 0.97522127
+      point p13 phase 0.4952381 value 0.94393142
+      point p14 phase 0.53333333 value 0.89945372
+      point p15 phase 0.57142857 value 0.84089642
+      point p16 phase 0.60952381 value 0.76667154
+      point p17 phase 0.64761905 value 0.67378817
+      point p18 phase 0.68571429 value 0.55589297
+      point p19 phase 0.72380952 value 0.39551797
+      point p20 phase 0.76190476 value 1.1066376e-08
+      point p21 phase 1 value 0
+    }
+    node long-stroke-audio to_audio
+    node times6 math operation multiply
+    node lo-7 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node body8 modal_bank profile guiro-long-gourd max_modes 4 key_track 0 decay_scale $ring brightness 0 level 1
+    node hiss9 noise level 1
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node fall10 onepole mode leak time 2s
+    node times11 math operation multiply
+    node hi-12 lowpass mode highpass cutoff 1500hz resonance 0.308309
+    node lo-13 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node times14 math operation multiply
+    node gain15 math operation scale amount 2.10387
+    node plus16 math operation add
+    node hi-17 lowpass mode highpass cutoff 300hz resonance 0.308309
+    node hi-18 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node gain19 math operation scale amount $lower-stroke
+    node tone20-pitch constant frequency 200hz
+    node tone20 analog_oscillator waveform saw level 1.41421 drift 0.5st
+    node tone20-mono stereo_to_mono
+    node previous21 delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node edge22 math operation subtract
+    node gain23 math operation scale amount 0.5
+    node shape24 shaper curve one_sided drive 1 bias 0
+    node short-stroke lfo {
+      waveform custom
+      rate 10hz
+      depth 1
+      phase 0
+      random_phase 0
+      mode one_shot
+      direction forward
+      polarity bipolar
+      retrigger note
+      point p0 phase 0 value 0
+      point p1 phase 0.025 value 0.39551797
+      point p2 phase 0.05 value 0.55589297
+      point p3 phase 0.075 value 0.67378817
+      point p4 phase 0.1 value 0.76667154
+      point p5 phase 0.125 value 0.84089642
+      point p6 phase 0.15 value 0.89945372
+      point p7 phase 0.175 value 0.94393142
+      point p8 phase 0.2 value 0.97522127
+      point p9 phase 0.225 value 0.99382511
+      point p10 phase 0.25 value 1
+      point p11 phase 0.275 value 0.99382511
+      point p12 phase 0.3 value 0.97522127
+      point p13 phase 0.325 value 0.94393142
+      point p14 phase 0.35 value 0.89945372
+      point p15 phase 0.375 value 0.84089642
+      point p16 phase 0.4 value 0.76667154
+      point p17 phase 0.425 value 0.67378817
+      point p18 phase 0.45 value 0.55589297
+      point p19 phase 0.475 value 0.39551797
+      point p20 phase 0.5 value 1.1066376e-08
+      point p21 phase 1 value 0
+    }
+    node short-stroke-audio to_audio
+    node times25 math operation multiply
+    node lo-26 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node body27 modal_bank profile guiro-short-gourd max_modes 4 key_track 0 decay_scale 1 brightness 0 level 1
+    node hiss28 noise level 1
+    node times29 math operation multiply
+    node hi-30 lowpass mode highpass cutoff 1500hz resonance 0.308309
+    node lo-31 lowpass mode lowpass cutoff 9000hz resonance 0.308309
+    node times32 math operation multiply
+    node gain33 math operation scale amount 1.95616
+    node plus34 math operation add
+    node hi-35 lowpass mode highpass cutoff 300hz resonance 0.308309
+    node hi-36 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node gain37 math operation scale amount $upper-stroke
+    node plus38 math operation add
+    node trim math operation scale amount 0.0682722
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus tone1-pitch-pitch-tone1-pitch tone1-pitch.pitch -> tone1.pitch
+    bus tone1-audio-tone1-mono-audio tone1.audio -> tone1-mono.audio
+    bus tone1-mono-audio-previous2-audio tone1-mono.audio -> previous2.audio
+    bus previous2-audio-edge3-a previous2.audio -> edge3.a
+    bus tone1-mono-audio-edge3-b tone1-mono.audio -> edge3.b
+    bus edge3-audio-gain4-a edge3.audio -> gain4.a
+    bus gain4-audio-shape5-audio gain4.audio -> shape5.audio
+    bus long-stroke-control-long-stroke-audio-control long-stroke.control -> long-stroke-audio.control
+    bus shape5-audio-times6-a shape5.audio -> times6.a
+    bus long-stroke-audio-audio-times6-b long-stroke-audio.audio -> times6.b
+    bus times6-audio-lo-7-audio times6.audio -> lo-7.audio
+    bus lo-7-audio-body8-audio lo-7.audio -> body8.audio
+    bus note-pitch-body8-pitch note.pitch -> body8.pitch
+    bus note-gate-body8-gate note.gate -> body8.gate
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus onset-audio-fall10-audio onset.audio -> fall10.audio
+    bus hiss9-audio-times11-a hiss9.audio -> times11.a
+    bus fall10-audio-times11-b fall10.audio -> times11.b
+    bus times11-audio-hi-12-audio times11.audio -> hi-12.audio
+    bus hi-12-audio-lo-13-audio hi-12.audio -> lo-13.audio
+    bus lo-13-audio-times14-a lo-13.audio -> times14.a
+    bus long-stroke-audio-audio-times14-b long-stroke-audio.audio -> times14.b
+    bus times14-audio-gain15-a times14.audio -> gain15.a
+    bus body8-audio-plus16-a body8.audio -> plus16.a
+    bus gain15-audio-plus16-b gain15.audio -> plus16.b
+    bus plus16-audio-hi-17-audio plus16.audio -> hi-17.audio
+    bus hi-17-audio-hi-18-audio hi-17.audio -> hi-18.audio
+    bus hi-18-audio-gain19-a hi-18.audio -> gain19.a
+    bus tone20-pitch-pitch-tone20-pitch tone20-pitch.pitch -> tone20.pitch
+    bus tone20-audio-tone20-mono-audio tone20.audio -> tone20-mono.audio
+    bus tone20-mono-audio-previous21-audio tone20-mono.audio -> previous21.audio
+    bus previous21-audio-edge22-a previous21.audio -> edge22.a
+    bus tone20-mono-audio-edge22-b tone20-mono.audio -> edge22.b
+    bus edge22-audio-gain23-a edge22.audio -> gain23.a
+    bus gain23-audio-shape24-audio gain23.audio -> shape24.audio
+    bus short-stroke-control-short-stroke-audio-control short-stroke.control -> short-stroke-audio.control
+    bus shape24-audio-times25-a shape24.audio -> times25.a
+    bus short-stroke-audio-audio-times25-b short-stroke-audio.audio -> times25.b
+    bus times25-audio-lo-26-audio times25.audio -> lo-26.audio
+    bus lo-26-audio-body27-audio lo-26.audio -> body27.audio
+    bus note-pitch-body27-pitch note.pitch -> body27.pitch
+    bus note-gate-body27-gate note.gate -> body27.gate
+    bus hiss28-audio-times29-a hiss28.audio -> times29.a
+    bus fall10-audio-times29-b fall10.audio -> times29.b
+    bus times29-audio-hi-30-audio times29.audio -> hi-30.audio
+    bus hi-30-audio-lo-31-audio hi-30.audio -> lo-31.audio
+    bus lo-31-audio-times32-a lo-31.audio -> times32.a
+    bus short-stroke-audio-audio-times32-b short-stroke-audio.audio -> times32.b
+    bus times32-audio-gain33-a times32.audio -> gain33.a
+    bus body27-audio-plus34-a body27.audio -> plus34.a
+    bus gain33-audio-plus34-b gain33.audio -> plus34.b
+    bus plus34-audio-hi-35-audio plus34.audio -> hi-35.audio
+    bus hi-35-audio-hi-36-audio hi-35.audio -> hi-36.audio
+    bus hi-36-audio-gain37-a hi-36.audio -> gain37.a
+    bus gain19-audio-plus38-a gain19.audio -> plus38.a
+    bus gain37-audio-plus38-b gain37.audio -> plus38.b
+    bus plus38-audio-trim-a plus38.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile guiro-long-gourd {
+  root 261.626hz
+  mode m0 frequency 1450hz decay 0.0025s gain 1 after_decay 0.0025s after_gain 0
+  mode m1 frequency 2000hz decay 0.0025s gain 1 after_decay 0.0025s after_gain 0
+  mode m2 frequency 2700hz decay 0.0025s gain 1 after_decay 0.0025s after_gain 0
+  mode m3 frequency 4400hz decay 0.0025s gain 1 after_decay 0.0025s after_gain 0
+}
+profile guiro-short-gourd {
+  root 261.626hz
+  mode m0 frequency 1450hz decay 0.0025s gain 1 after_decay 0.0025s after_gain 0
+  mode m1 frequency 2000hz decay 0.0025s gain 1 after_decay 0.0025s after_gain 0
+  mode m2 frequency 2700hz decay 0.0025s gain 1 after_decay 0.0025s after_gain 0
+  mode m3 frequency 4400hz decay 0.0025s gain 1 after_decay 0.0025s after_gain 0
+}

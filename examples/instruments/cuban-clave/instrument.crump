@@ -1,0 +1,197 @@
+crump-module 2
+instrument cuban-clave "Cuban Clave" graph {
+  polyphony 4
+  parameter level "Level" ratio 0 1.5 1 1
+  parameter hardness "Contact hardness" ratio 0 1 0.5 0.5
+  parameter ring "Damping" ratio 0.5 1.5 1 1
+  parameter development "Development" ratio 0 1 0.5 0.5 automatable modulatable macro
+  parameter grain "Body grain" ratio 0 1.5 1 1
+  parameter rise-12 "Resonance development" seconds 0.004s 0.012s 0.004s 0.004s modulatable
+  faceplate {
+    control level "Level" "Overall instrument level" maps level
+    control hardness "Contact hardness" "Shape of the contact force" maps hardness
+    control ring "Damping" "Decay scale of the coherently struck resonances" maps ring
+    control development "Development" "Buildup of the coherently struck resonances" maps development
+    control grain "Body grain" "Independent grain remaining around the lower body" maps grain
+  }
+  modulation {
+    source development-source parameter development instrument unipolar
+    route rise-12 source development-source target rise-12 depth 0.008s map unipolar curve linear order 0 bypass false
+  }
+  graph voice 64 {
+    node force-0 exciter kind texture contact 8e-05s hardness $hardness attack 0.004s duration 0.04s level 1
+    node band-0 modal_bank profile cuban-clave-band-0-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-1 exciter kind texture contact 8e-05s hardness $hardness attack 0.008s duration 0.075s level 1
+    node band-1 modal_bank profile cuban-clave-band-1-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-2 exciter kind texture contact 8e-05s hardness $hardness attack 0.02s duration 0.04s level 1
+    node band-2 modal_bank profile cuban-clave-band-2-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-3 exciter kind texture contact 8e-05s hardness $hardness attack 0.03s duration 0.08s level 1
+    node band-3 modal_bank profile cuban-clave-band-3-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-4 exciter kind texture contact 8e-05s hardness $hardness attack 0.004s duration 0.04s level 1
+    node band-4 modal_bank profile cuban-clave-band-4-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-5 exciter kind texture contact 8e-05s hardness $hardness attack 0.001s duration 0.007s level 1
+    node band-5 modal_bank profile cuban-clave-band-5-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-6 exciter kind texture contact 8e-05s hardness $hardness attack 0.02s duration 0.04s level 1
+    node band-6 modal_bank profile cuban-clave-band-6-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-7 exciter kind texture contact 8e-05s hardness $hardness attack 0.02s duration 0.04s level 1
+    node band-7 modal_bank profile cuban-clave-band-7-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-8 exciter kind texture contact 8e-05s hardness $hardness attack 0.001s duration 0.007s level 1
+    node band-8 modal_bank profile cuban-clave-band-8-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-9 exciter kind texture contact 8e-05s hardness $hardness attack 0.03s duration 0.08s level 1
+    node band-9 modal_bank profile cuban-clave-band-9-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-10 exciter kind texture contact 8e-05s hardness $hardness attack 0.004s duration 0.011s level 1
+    node band-10 modal_bank profile cuban-clave-band-10-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-13 exciter kind texture contact 8e-05s hardness $hardness attack 0.03s duration 0.08s level 1
+    node band-13 modal_bank profile cuban-clave-band-13-profile max_modes 1 key_track 0 rise 0.0s decay_scale 1 level $grain
+    node force-16 exciter kind impact contact 8e-05s hardness $hardness attack 0.0s duration 0.025s level 1
+    node band-16 modal_bank profile cuban-clave-band-16-profile max_modes 6 key_track 0 rise $rise-12 decay_scale $ring level 1
+    node bands sum max_inputs 13
+    node level mixer a_level $level b_level 0
+    node lowcut-0 filter mode highpass cutoff 1100hz resonance 0 key_track 0
+    node lowcut-1 filter mode highpass cutoff 1100hz resonance 0 key_track 0
+    node stereo mono_to_stereo
+    node out output
+    node output-gain mixer a_level 0.354813389234 b_level 0
+    bus gate-0 note.gate -> force-0.gate
+    bus velocity-0 note.velocity -> force-0.velocity
+    bus force-0 force-0.audio -> band-0.audio
+    bus trigger-0 note.gate -> band-0.gate
+    bus pitch-0 note.pitch -> band-0.pitch
+    bus gate-1 note.gate -> force-1.gate
+    bus velocity-1 note.velocity -> force-1.velocity
+    bus force-1 force-1.audio -> band-1.audio
+    bus trigger-1 note.gate -> band-1.gate
+    bus pitch-1 note.pitch -> band-1.pitch
+    bus gate-2 note.gate -> force-2.gate
+    bus velocity-2 note.velocity -> force-2.velocity
+    bus force-2 force-2.audio -> band-2.audio
+    bus trigger-2 note.gate -> band-2.gate
+    bus pitch-2 note.pitch -> band-2.pitch
+    bus gate-3 note.gate -> force-3.gate
+    bus velocity-3 note.velocity -> force-3.velocity
+    bus force-3 force-3.audio -> band-3.audio
+    bus trigger-3 note.gate -> band-3.gate
+    bus pitch-3 note.pitch -> band-3.pitch
+    bus gate-4 note.gate -> force-4.gate
+    bus velocity-4 note.velocity -> force-4.velocity
+    bus force-4 force-4.audio -> band-4.audio
+    bus trigger-4 note.gate -> band-4.gate
+    bus pitch-4 note.pitch -> band-4.pitch
+    bus gate-5 note.gate -> force-5.gate
+    bus velocity-5 note.velocity -> force-5.velocity
+    bus force-5 force-5.audio -> band-5.audio
+    bus trigger-5 note.gate -> band-5.gate
+    bus pitch-5 note.pitch -> band-5.pitch
+    bus gate-6 note.gate -> force-6.gate
+    bus velocity-6 note.velocity -> force-6.velocity
+    bus force-6 force-6.audio -> band-6.audio
+    bus trigger-6 note.gate -> band-6.gate
+    bus pitch-6 note.pitch -> band-6.pitch
+    bus gate-7 note.gate -> force-7.gate
+    bus velocity-7 note.velocity -> force-7.velocity
+    bus force-7 force-7.audio -> band-7.audio
+    bus trigger-7 note.gate -> band-7.gate
+    bus pitch-7 note.pitch -> band-7.pitch
+    bus gate-8 note.gate -> force-8.gate
+    bus velocity-8 note.velocity -> force-8.velocity
+    bus force-8 force-8.audio -> band-8.audio
+    bus trigger-8 note.gate -> band-8.gate
+    bus pitch-8 note.pitch -> band-8.pitch
+    bus gate-9 note.gate -> force-9.gate
+    bus velocity-9 note.velocity -> force-9.velocity
+    bus force-9 force-9.audio -> band-9.audio
+    bus trigger-9 note.gate -> band-9.gate
+    bus pitch-9 note.pitch -> band-9.pitch
+    bus gate-10 note.gate -> force-10.gate
+    bus velocity-10 note.velocity -> force-10.velocity
+    bus force-10 force-10.audio -> band-10.audio
+    bus trigger-10 note.gate -> band-10.gate
+    bus pitch-10 note.pitch -> band-10.pitch
+    bus gate-11 note.gate -> force-13.gate
+    bus velocity-11 note.velocity -> force-13.velocity
+    bus force-11 force-13.audio -> band-13.audio
+    bus trigger-11 note.gate -> band-13.gate
+    bus pitch-11 note.pitch -> band-13.pitch
+    bus gate-12 note.gate -> force-16.gate
+    bus velocity-12 note.velocity -> force-16.velocity
+    bus force-12 force-16.audio -> band-16.audio
+    bus trigger-12 note.gate -> band-16.gate
+    bus pitch-12 note.pitch -> band-16.pitch
+    bus band-8-sum band-8.audio -> bands.inputs
+    bus band-9-sum band-9.audio -> bands.inputs
+    bus band-10-sum band-10.audio -> bands.inputs
+    bus band-13-sum band-13.audio -> bands.inputs
+    bus band-0-sum band-0.audio -> bands.inputs
+    bus band-1-sum band-1.audio -> bands.inputs
+    bus band-2-sum band-2.audio -> bands.inputs
+    bus band-3-sum band-3.audio -> bands.inputs
+    bus band-4-sum band-4.audio -> bands.inputs
+    bus band-5-sum band-5.audio -> bands.inputs
+    bus band-6-sum band-6.audio -> bands.inputs
+    bus band-7-sum band-7.audio -> bands.inputs
+    bus band-16-sum band-16.audio -> bands.inputs
+    bus level bands.audio -> level.a
+    bus lowcut-0 level.audio -> lowcut-0.audio
+    bus lowcut-1 lowcut-0.audio -> lowcut-1.audio
+    bus stereo lowcut-1.audio -> output-gain.a
+    bus output-gain output-gain.audio -> stereo.audio
+    bus output stereo.audio -> out.audio
+  }
+}
+profile cuban-clave-band-1-profile {
+  root 261.625565hz
+  mode m0 frequency 1995.84960938hz decay 0.00489707517206s gain 1.91869785748e-18 after_decay 0.00489707517206s after_gain 0
+}
+profile cuban-clave-band-2-profile {
+  root 261.625565hz
+  mode m0 frequency 1995.84960938hz decay 0.00489707517206s gain 2.37196922108e-19 after_decay 0.00489707517206s after_gain 0
+}
+profile cuban-clave-band-3-profile {
+  root 261.625565hz
+  mode m0 frequency 1995.84960938hz decay 0.00489707517206s gain 0.00264892345053 after_decay 0.00489707517206s after_gain 0
+}
+profile cuban-clave-band-4-profile {
+  root 261.625565hz
+  mode m0 frequency 2175.84960938hz decay 0.00489707517206s gain 0.00341212403699 after_decay 0.00489707517206s after_gain 0
+}
+profile cuban-clave-band-5-profile {
+  root 261.625565hz
+  mode m0 frequency 2265.84960938hz decay 0.00489707517206s gain 0.00822236249315 after_decay 0.00489707517206s after_gain 0
+}
+profile cuban-clave-band-6-profile {
+  root 261.625565hz
+  mode m0 frequency 2265.84960938hz decay 0.00489707517206s gain 0.00162230593969 after_decay 0.00489707517206s after_gain 0
+}
+profile cuban-clave-band-7-profile {
+  root 261.625565hz
+  mode m0 frequency 2045.36840146hz decay 0.00489707517206s gain 0.00139943065631 after_decay 0.00489707517206s after_gain 0
+}
+profile cuban-clave-band-8-profile {
+  root 261.625565hz
+  mode m0 frequency 1815.84960938hz decay 0.00489707517206s gain 0.00576806227478 after_decay 0.00489707517206s after_gain 0
+}
+profile cuban-clave-band-9-profile {
+  root 261.625565hz
+  mode m0 frequency 2175.84960938hz decay 0.00489707517206s gain 0.00145724328003 after_decay 0.00489707517206s after_gain 0
+}
+profile cuban-clave-band-10-profile {
+  root 261.625565hz
+  mode m0 frequency 1815.84960938hz decay 0.00489707517206s gain 0.0139506451408 after_decay 0.00489707517206s after_gain 0
+}
+profile cuban-clave-band-13-profile {
+  root 261.625565hz
+  mode m0 frequency 1815.84960938hz decay 0.00489707517206s gain 0.00121684840828 after_decay 0.00489707517206s after_gain 0
+}
+profile cuban-clave-band-16-profile {
+  root 261.625565hz
+  mode m0 frequency 1920.84960938hz decay 0.003s gain 2.87570630186 after_decay 0.003s after_gain 0
+  mode m1 frequency 1920.84960938hz decay 0.01s gain 5.90961854978e-12 after_decay 0.01s after_gain 0
+  mode m2 frequency 1995.84960938hz decay 0.01s gain 0.455850477049 after_decay 0.01s after_gain 0
+  mode m3 frequency 2020.84960938hz decay 0.0028900323931s gain 3.08363492974 after_decay 0.0028900323931s after_gain 0
+  mode m4 frequency 2070.84960938hz decay 0.00268570936517s gain 7.35775491532e-13 after_decay 0.00268570936517s after_gain 0
+  mode m5 frequency 2070.84960938hz decay 0.00895236455057s gain 1.4811653801e-13 after_decay 0.00895236455057s after_gain 0
+}
+profile cuban-clave-band-0-profile {
+  root 261.625565hz
+  mode m0 frequency 1995.84960938hz decay 0.00489707517206s gain 0.00600281498375 after_decay 0.00489707517206s after_gain 0
+}

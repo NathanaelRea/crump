@@ -1,0 +1,158 @@
+crump-module 2
+instrument french-horn "French Horn" graph {
+  polyphony 6
+  parameter attack "Attack" seconds 0.002s 2s 0.0968563s 0.0968563s modulatable
+  parameter release "Release" seconds 0.01s 4s 0.12s 0.12s
+  parameter noise "Air" ratio 0 4 0.00834467 0.00834467 modulatable
+  parameter register "Register level" ratio 0.05 20 1.34896 1.34896 modulatable
+  parameter dynamics "Dynamics" ratio 0 1 0.357143 0.357143 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control attack "Attack" "How quickly the note speaks" maps attack
+    control release "Release" "Fade-out after Note Off" maps release
+    control noise "Air" "Breath noise level" maps noise
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source register-curve key_curve per_voice bipolar {
+      point d2 key D2 value 0
+      point f2 key F2 value -0.0610706
+      point gs2 key G#2 value -0.25397
+      point b2 key B2 value -0.385165
+      point d3 key D3 value -0.279076
+      point f3 key F3 value -0.428901
+      point gs3 key G#3 value -0.707448
+      point b3 key B3 value -0.291414
+      point d4 key D4 value -0.373914
+      point f4 key F4 value -0.81671
+      point gs4 key G#4 value -1
+      point b4 key B4 value -0.65294
+      point d5 key D5 value -0.351016
+      point f5 key F5 value -0.0905667
+      point g5 key G5 value 0.113882
+    }
+    route attack-velocity source velocity target attack depth -0.0561877s map unipolar curve linear order 0 bypass false
+    route noise-velocity source velocity target noise depth -0.00634467 map unipolar curve linear order 0 bypass false
+    route register-by-key source register-curve target register depth 0.994149 map bipolar curve linear order 0 bypass false
+    route dynamics-velocity source velocity target dynamics depth 0.642857 map unipolar curve linear order 0 bypass false
+  }
+  graph voice 37 {
+    # A breath-driven tone: an oscillator and breath noise through fixed formants.
+    node breath envelope mode adsr attack $attack decay 0.15s sustain 0.9 release $release attack_curve 0.3
+    node breath-audio to_audio
+    node air noise level 1
+    node wander lfo waveform sample_hold rate 2.7hz depth 1 phase 0 random_phase 1 polarity bipolar retrigger note
+    node wander-audio to_audio
+    node wander-smooth onepole mode lowpass cutoff 2.5hz
+    node wander-amount math operation scale amount 0.0727273
+    node flutter onepole mode lowpass cutoff 18hz
+    node flutter-amount math operation scale amount 1.5148
+    node scoop envelope mode adsr attack 0s decay 0.05s sustain 0 release 0.01s decay_curve -0.5
+    node scoop-audio to_audio
+    node scoop-amount math operation scale amount -0.2
+    node pitch-movement sum max_inputs 3
+    node reed analog_oscillator waveform saw level 1 velocity_amount 1 fm_depth 1st random_phase 1
+    node reed-mono stereo_to_mono
+    node brightness lowpass mode lowpass cutoff 486.836hz resonance 0.1 mod_depth 2954.83hz velocity_depth 1500hz key_track 0.492391 key_reference 261.626hz
+    node brightness2 lowpass mode lowpass cutoff 486.836hz resonance 0.1 mod_depth 2954.83hz velocity_depth 1500hz key_track 0.492391 key_reference 261.626hz
+    node brightness3 lowpass mode lowpass cutoff 486.836hz resonance 0.1 mod_depth 2954.83hz velocity_depth 1500hz key_track 0.492391 key_reference 261.626hz
+    node brightness4 lowpass mode lowpass cutoff 486.836hz resonance 0.1 mod_depth 2954.83hz velocity_depth 1500hz key_track 0.492391 key_reference 261.626hz
+    node smear biquad_chain {
+      band smear1 mode allpass frequency 767.717hz q 1.5
+      band smear2 mode allpass frequency 1727.36hz q 1.2
+      band smear3 mode allpass frequency 3454.73hz q 1
+      band smear4 mode allpass frequency 5757.88hz q 0.8
+    }
+    node air-filter biquad_chain {
+      band air-low mode highpass frequency 672.885hz q 0.7071
+      band air-band mode lowpass frequency 1736.26hz q 0.7071
+    }
+    node steady-air math operation scale amount 0.5
+    node pulsed-air math operation scale amount 0.557928
+    node air-drive sum max_inputs 2
+    node breath-noise math operation multiply
+    node breath-level math operation scale amount $noise
+    node voice sum max_inputs 2
+    node formants biquad_chain {
+      band formant1 mode peak frequency 104.954hz q 2.5 gain -14.9966db
+      band formant2 mode peak frequency 94.3224hz q 2.10753 gain -14.9735db
+      band formant3 mode peak frequency 393.776hz q 2.5 gain 13.4836db
+      band formant4 mode peak frequency 1349.13hz q 1.69182 gain -12.4747db
+      band formant5 mode peak frequency 2772.85hz q 2.02225 gain -6.91311db
+      band formant6 mode peak frequency 6408.12hz q 2.5 gain 14.8984db
+      band formant7 mode lowshelf frequency 206.448hz q 0.7071 gain -14.9962db
+      band formant8 mode highshelf frequency 7053.91hz q 0.7071 gain 9.91852db
+      band below-note mode highpass frequency 156.975hz q 0.7071 key_track 1 key_reference 261.626hz
+      band radiation mode highpass frequency 40hz q 0.7071
+    }
+    node shimmer-depth math operation scale amount 1.00987
+    node shimmer math operation offset amount 1
+    node alive math operation multiply
+    node register-level math operation scale amount $register
+    node dynamics-level math operation scale amount $dynamics
+    node trim math operation scale amount 0.362634
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-breath-gate note.gate -> breath.gate
+    bus breath-control-breath-audio-control breath.control -> breath-audio.control
+    bus wander-control-wander-audio-control wander.control -> wander-audio.control
+    bus wander-audio-audio-wander-smooth-audio wander-audio.audio -> wander-smooth.audio
+    bus wander-smooth-audio-wander-amount-a wander-smooth.audio -> wander-amount.a
+    bus air-audio-flutter-audio air.audio -> flutter.audio
+    bus flutter-audio-flutter-amount-a flutter.audio -> flutter-amount.a
+    bus note-gate-scoop-gate note.gate -> scoop.gate
+    bus scoop-control-scoop-audio-control scoop.control -> scoop-audio.control
+    bus scoop-audio-audio-scoop-amount-a scoop-audio.audio -> scoop-amount.a
+    bus wander-amount-audio-pitch-movement-inputs wander-amount.audio -> pitch-movement.inputs
+    bus flutter-amount-audio-pitch-movement-inputs flutter-amount.audio -> pitch-movement.inputs
+    bus scoop-amount-audio-pitch-movement-inputs scoop-amount.audio -> pitch-movement.inputs
+    bus note-pitch-reed-pitch note.pitch -> reed.pitch
+    bus note-velocity-reed-velocity note.velocity -> reed.velocity
+    bus breath-control-reed-gain breath.control -> reed.gain
+    bus pitch-movement-audio-reed-fm pitch-movement.audio -> reed.fm
+    bus reed-audio-reed-mono-audio reed.audio -> reed-mono.audio
+    bus reed-mono-audio-brightness-audio reed-mono.audio -> brightness.audio
+    bus breath-control-brightness-mod breath.control -> brightness.mod
+    bus note-velocity-brightness-velocity note.velocity -> brightness.velocity
+    bus note-pitch-brightness-key note.pitch -> brightness.key
+    bus brightness-audio-brightness2-audio brightness.audio -> brightness2.audio
+    bus breath-control-brightness2-mod breath.control -> brightness2.mod
+    bus note-velocity-brightness2-velocity note.velocity -> brightness2.velocity
+    bus note-pitch-brightness2-key note.pitch -> brightness2.key
+    bus brightness2-audio-brightness3-audio brightness2.audio -> brightness3.audio
+    bus breath-control-brightness3-mod breath.control -> brightness3.mod
+    bus note-velocity-brightness3-velocity note.velocity -> brightness3.velocity
+    bus note-pitch-brightness3-key note.pitch -> brightness3.key
+    bus brightness3-audio-brightness4-audio brightness3.audio -> brightness4.audio
+    bus breath-control-brightness4-mod breath.control -> brightness4.mod
+    bus note-velocity-brightness4-velocity note.velocity -> brightness4.velocity
+    bus note-pitch-brightness4-key note.pitch -> brightness4.key
+    bus brightness4-audio-smear-audio brightness4.audio -> smear.audio
+    bus air-audio-air-filter-audio air.audio -> air-filter.audio
+    bus breath-audio-audio-steady-air-a breath-audio.audio -> steady-air.a
+    bus reed-mono-audio-pulsed-air-a reed-mono.audio -> pulsed-air.a
+    bus steady-air-audio-air-drive-inputs steady-air.audio -> air-drive.inputs
+    bus pulsed-air-audio-air-drive-inputs pulsed-air.audio -> air-drive.inputs
+    bus air-filter-audio-breath-noise-a air-filter.audio -> breath-noise.a
+    bus air-drive-audio-breath-noise-b air-drive.audio -> breath-noise.b
+    bus breath-noise-audio-breath-level-a breath-noise.audio -> breath-level.a
+    bus smear-audio-voice-inputs smear.audio -> voice.inputs
+    bus breath-level-audio-voice-inputs breath-level.audio -> voice.inputs
+    bus voice-audio-formants-audio voice.audio -> formants.audio
+    bus note-pitch-formants-key note.pitch -> formants.key
+    bus flutter-audio-shimmer-depth-a flutter.audio -> shimmer-depth.a
+    bus shimmer-depth-audio-shimmer-a shimmer-depth.audio -> shimmer.a
+    bus formants-audio-alive-a formants.audio -> alive.a
+    bus shimmer-audio-alive-b shimmer.audio -> alive.b
+    bus alive-audio-register-level-a alive.audio -> register-level.a
+    bus register-level-audio-dynamics-level-a register-level.audio -> dynamics-level.a
+    bus dynamics-level-audio-trim-a dynamics-level.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}

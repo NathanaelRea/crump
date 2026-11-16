@@ -1,0 +1,71 @@
+crump-module 2
+instrument wobble-bass "Wobble Bass" graph {
+  polyphony 1
+  voicing mono retrigger legato glide 25ms glide_mode legato note_priority last steal_priority release_oldest seed 30304
+  parameter level "Level" ratio 0 1 0.55 0.55
+  parameter cutoff "Cutoff" hz 60hz 3khz 160hz 160hz automatable modulatable
+  parameter depth "Wobble" hz 0hz 6khz 2600hz 2600hz automatable modulatable
+  parameter resonance "Resonance" ratio 0 1 0.45 0.45 automatable modulatable
+  faceplate {
+    control depth "Wobble" "How far the tempo-synced LFO opens the filter" maps depth
+    control cutoff "Cutoff" "The closed end of each wobble" maps cutoff
+    control resonance "Resonance" "Vowel-like peak on the sweep" maps resonance
+    control level "Level" "Output level" maps level
+  }
+  graph voice 9 {
+    node saws analog_oscillator {
+      waveform saw
+      unison 3
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 1
+      detune 0.08st
+      blend 0.8
+      width 0.25
+      glide 25ms
+      level 0.5
+      pan 0
+    }
+    node sub analog_oscillator {
+      waveform square
+      unison 1
+      coarse -12st
+      fine 0st
+      phase 0
+      random_phase 0
+      glide 25ms
+      level 0.6
+      pan 0
+    }
+    node sources stereo_mixer a_level 1 b_level 0.6
+    node wobble lfo {
+      waveform sine
+      rate 1/2beat
+      depth 1
+      phase 0.75
+      random_phase 0
+      swing 0
+      mode loop
+      direction forward
+      polarity unipolar
+      retrigger note
+    }
+    node amplitude envelope mode ahdsr attack 4ms hold 0ms decay 100ms sustain 1 release 150ms attack_curve 0 decay_curve 0 release_curve 0 retrigger legato
+    node filter stereo_filter model ladder_drive mode lowpass cutoff $cutoff resonance $resonance drive 0 mix 1 pan 0 mod_depth $depth velocity_depth 0hz key_track 0.2 key_reference 65.406391hz
+    node trim stereo_mixer a_level $level b_level 0
+    node out output
+    bus saws-pitch note.pitch -> saws.pitch
+    bus saws-gain amplitude.control -> saws.gain
+    bus sub-pitch note.pitch -> sub.pitch
+    bus sub-gain amplitude.control -> sub.gain
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus mix-a saws.audio -> sources.a
+    bus mix-b sub.audio -> sources.b
+    bus filter-audio sources.audio -> filter.audio
+    bus filter-wobble wobble.control -> filter.mod
+    bus filter-key note.pitch -> filter.key
+    bus trim-audio filter.audio -> trim.a
+    bus output trim.audio -> out.audio
+  }
+}

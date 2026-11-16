@@ -1,0 +1,98 @@
+crump 2
+project "Wavetable Morph Demo" {
+  id wavetable-morph-demo
+  seed 73191
+  sample_rate 48000
+  render_tail 150ms
+  asset wt-basic "Basic four-frame table" wav "media/basic-table.wav" sha256 "2302bf70124b6017439eb385a62677b13284f112e968a2725d64e8f738bf3ca7" {
+    usage wavetable
+    frame_length 2048
+    frames 4
+    normalization global_peak
+    morph catmull_rom
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument wavetable-demo "Wavetable Morph" graph {
+      polyphony 4
+      voicing poly retrigger always glide 25ms glide_mode always note_priority last steal_priority release_oldest seed 73191
+      parameter table-position "Table Position" ratio 0 1 0 0.12 automatable modulatable
+      parameter warp-amount "Warp Amount" ratio -1 1 0 0.18 automatable modulatable
+      parameter source-level "Source Level" ratio 0 1 0.35 0.35 automatable modulatable
+      faceplate {
+        control table-position "Position" "Scans sine, saw, square, and triangle frames" maps table-position
+        control warp-amount "Warp" "Bends phase before the immutable table read" maps warp-amount
+        control source-level "Level" "Sets post-read wavetable amplitude" maps source-level
+      }
+      presentation {
+        section source-panel sources "Wavetable Source" {
+          node source
+          asset wt-basic
+          parameter table-position
+          parameter warp-amount
+          parameter source-level
+        }
+        section modulator-panel envelopes_lfos "Envelope and Motion" {
+          node amplitude
+          node scan
+          source scan-motion
+        }
+        section matrix-panel modulation "Modulation" {
+          route scan-position
+        }
+        section voice-panel voicing "Voicing" {
+          node source
+        }
+        section route-panel routing "Voice Routing" {
+          bus source-output
+        }
+      }
+      modulation {
+        source scan-motion port scan.control per_voice bipolar
+        route scan-position source scan-motion target table-position depth 0.42 map bipolar curve smoothstep order 0 bypass false
+      }
+      graph voice 8 {
+        node scan lfo waveform triangle rate 1/2beat depth 1 phase 0 random_phase 0 swing 0 mode loop direction forward polarity bipolar retrigger note
+        node source wavetable {
+          asset wt-basic
+          unison 3
+          coarse 0st
+          fine 0st
+          phase 0
+          random_phase 0.2
+          table_position $table-position
+          detune 0.08st
+          blend 0.9
+          width 0.8
+          drift 0.01st
+          glide 10ms
+          fm_depth 0st
+          pm_depth 0
+          velocity_amount 0.2
+          level $source-level
+          pan 0
+          warp bend-stage bend amount $warp-amount
+          warp remap-stage phase_remap amount 0.08
+        }
+        node amplitude envelope mode ahdsr attack 3ms hold 0ms decay 100ms sustain 0.72 release 180ms attack_curve 0.1 decay_curve -0.1 release_curve 0.1 retrigger always
+        node voice-out output
+        bus source-pitch note.pitch -> source.pitch
+        bus amplitude-gate note.gate -> amplitude.gate
+        bus source-gain amplitude.control -> source.gain
+        bus source-velocity note.velocity -> source.velocity
+        bus source-output source.audio -> voice-out.audio
+      }
+    }
+    pattern phrase 1bar {
+      note 0beat C3 1beat 0.8
+      note 1beat G3 1beat 0.7
+      note 2beat C4 1beat 0.9
+      note 3beat E4 1beat 0.75
+    }
+    track wavetable-track "Wavetable" instrument wavetable-demo level -12db pan 0 {
+      clip phrase pattern phrase start 0bar duration 1bar mode once
+    }
+  }
+}

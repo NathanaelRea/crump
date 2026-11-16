@@ -1,0 +1,240 @@
+crump-module 2
+instrument pizzicato-strings "Pizzicato Strings" graph {
+  polyphony 6
+  parameter leak "Leak" ratio 0.99 1 0.999810694 0.999810694 modulatable
+  parameter treble "Treble body" ratio 0 1 0 0 modulatable
+  parameter bass "Bass body" ratio 0 1 1 1 modulatable
+  parameter ring "Ring" ratio 0.1 4 1 1
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "How long the body rings" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-range note_key per_voice bipolar reference D#4 range 35st
+    source treble note_key per_voice unipolar reference C3 range 16st
+    route leak-key source key-range target leak depth -0.00019135835 map bipolar curve linear order 0 bypass false
+    route treble-key source treble target treble depth 1 map unipolar curve linear order 0 bypass false
+    route bass-key source treble target bass depth -1 map unipolar curve linear order 0 bypass false
+  }
+  graph voice 62 {
+    # Plucked section strings through a body that changes with register.
+    node onset exciter kind impact contact 2e-05s hardness 0 level 1
+    node held math operation add
+    node held-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node held-leak math operation scale amount 1
+    node period-later delay_line mode pitch ratio 1 interpolation linear max_time 0.1s
+    node period math operation subtract
+    node pluck-window shaper curve hard_clip drive 64 bias 0
+    node pluck-noise noise level 1
+    node pluck math operation multiply
+    node pluck-tone lowpass mode lowpass cutoff 1170hz resonance 0.308309 velocity_depth 1690hz
+    node course1-in math operation add
+    node course1 delay_line mode pitch ratio 1 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node course1-loss linear_phase_lowpass amount 1
+    node course1-keep math operation scale amount 0.99999
+    node course1-pickup delay_line mode pitch ratio 0.25 interpolation linear max_time 0.05s
+    node course1-out math operation subtract
+    node gain1 math operation scale amount 0.7
+    node gain2 math operation scale amount 1.19078
+    node course2-late delay_line mode time time 0.009s interpolation linear max_time 0.011s
+    node course2-in math operation add
+    node course2 delay_line mode pitch ratio 1.0034717 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node course2-loss linear_phase_lowpass amount 1
+    node course2-keep math operation scale amount 0.99999
+    node course2-pickup delay_line mode pitch ratio 0.250868 interpolation linear max_time 0.05s
+    node course2-out math operation subtract
+    node gain3 math operation scale amount 0.7
+    node gain4 math operation scale amount 0.974279
+    node course3-late delay_line mode time time 0.017s interpolation linear max_time 0.019s
+    node course3-in math operation add
+    node course3 delay_line mode pitch ratio 0.99711605 interpolation lagrange3 tune_compensation 1 max_time 0.1s
+    node course3-loss linear_phase_lowpass amount 1
+    node course3-keep math operation scale amount 0.99999
+    node course3-pickup delay_line mode pitch ratio 0.249279 interpolation linear max_time 0.05s
+    node course3-out math operation subtract
+    node gain5 math operation scale amount 0.7
+    node gain6 math operation scale amount 0.866025
+    node mix7 sum max_inputs 3
+    node string-tone lowpass mode lowpass cutoff 1170hz resonance 0.308309 velocity_depth 1690hz
+    node string-decay math operation add
+    node string-decay-previous delay_line mode time time 0.01ms interpolation linear max_time 1ms
+    node string-decay-leak math operation scale amount $leak
+    node times8 math operation multiply
+    node hiss9 noise level 1
+    node fall10 onepole mode leak time 0.012s
+    node times11 math operation multiply
+    node hi-12 lowpass mode highpass cutoff 80hz resonance 0.308309
+    node lo-13 lowpass mode lowpass cutoff 1500hz resonance 0.308309
+    node gain14 math operation scale amount 0.447048
+    node plus15 math operation add
+    node body16 modal_bank profile pizzicato-strings-low-body max_modes 28 key_track 0 decay_scale $ring brightness 0 level 1
+    node gain17 math operation scale amount 1.5758
+    node gain18 math operation scale amount $bass
+    node body19 modal_bank profile pizzicato-strings-high-body max_modes 28 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain20 math operation scale amount 1
+    node gain21 math operation scale amount $treble
+    node gain22 math operation scale amount 0.3
+    node mix23 sum max_inputs 3
+    node hi-24 lowpass mode highpass cutoff 22hz resonance 0.308309
+    node trim math operation scale amount 0.00138393
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-onset-gate note.gate -> onset.gate
+    bus note-velocity-onset-velocity note.velocity -> onset.velocity
+    bus held-audio-held-previous-audio held.audio -> held-previous.audio
+    bus onset-audio-held-a onset.audio -> held.a
+    bus held-previous-audio-held-leak-a held-previous.audio -> held-leak.a
+    bus held-leak-audio-held-b held-leak.audio -> held.b
+    bus note-pitch-period-later-pitch note.pitch -> period-later.pitch
+    bus held-audio-period-later-audio held.audio -> period-later.audio
+    bus held-audio-period-a held.audio -> period.a
+    bus period-later-audio-period-b period-later.audio -> period.b
+    bus period-audio-pluck-window-audio period.audio -> pluck-window.audio
+    bus pluck-noise-audio-pluck-a pluck-noise.audio -> pluck.a
+    bus pluck-window-audio-pluck-b pluck-window.audio -> pluck.b
+    bus pluck-audio-pluck-tone-audio pluck.audio -> pluck-tone.audio
+    bus note-velocity-pluck-tone-velocity note.velocity -> pluck-tone.velocity
+    bus pluck-tone-audio-course1-in-a pluck-tone.audio -> course1-in.a
+    bus note-pitch-course1-pitch note.pitch -> course1.pitch
+    bus course1-in-audio-course1-audio course1-in.audio -> course1.audio
+    bus course1-audio-course1-loss-audio course1.audio -> course1-loss.audio
+    bus course1-loss-audio-course1-keep-a course1-loss.audio -> course1-keep.a
+    bus course1-keep-audio-course1-in-b course1-keep.audio -> course1-in.b
+    bus note-pitch-course1-pickup-pitch note.pitch -> course1-pickup.pitch
+    bus course1-audio-course1-pickup-audio course1.audio -> course1-pickup.audio
+    bus course1-audio-course1-out-a course1.audio -> course1-out.a
+    bus course1-pickup-audio-gain1-a course1-pickup.audio -> gain1.a
+    bus gain1-audio-course1-out-b gain1.audio -> course1-out.b
+    bus course1-out-audio-gain2-a course1-out.audio -> gain2.a
+    bus pluck-tone-audio-course2-late-audio pluck-tone.audio -> course2-late.audio
+    bus course2-late-audio-course2-in-a course2-late.audio -> course2-in.a
+    bus note-pitch-course2-pitch note.pitch -> course2.pitch
+    bus course2-in-audio-course2-audio course2-in.audio -> course2.audio
+    bus course2-audio-course2-loss-audio course2.audio -> course2-loss.audio
+    bus course2-loss-audio-course2-keep-a course2-loss.audio -> course2-keep.a
+    bus course2-keep-audio-course2-in-b course2-keep.audio -> course2-in.b
+    bus note-pitch-course2-pickup-pitch note.pitch -> course2-pickup.pitch
+    bus course2-audio-course2-pickup-audio course2.audio -> course2-pickup.audio
+    bus course2-audio-course2-out-a course2.audio -> course2-out.a
+    bus course2-pickup-audio-gain3-a course2-pickup.audio -> gain3.a
+    bus gain3-audio-course2-out-b gain3.audio -> course2-out.b
+    bus course2-out-audio-gain4-a course2-out.audio -> gain4.a
+    bus pluck-tone-audio-course3-late-audio pluck-tone.audio -> course3-late.audio
+    bus course3-late-audio-course3-in-a course3-late.audio -> course3-in.a
+    bus note-pitch-course3-pitch note.pitch -> course3.pitch
+    bus course3-in-audio-course3-audio course3-in.audio -> course3.audio
+    bus course3-audio-course3-loss-audio course3.audio -> course3-loss.audio
+    bus course3-loss-audio-course3-keep-a course3-loss.audio -> course3-keep.a
+    bus course3-keep-audio-course3-in-b course3-keep.audio -> course3-in.b
+    bus note-pitch-course3-pickup-pitch note.pitch -> course3-pickup.pitch
+    bus course3-audio-course3-pickup-audio course3.audio -> course3-pickup.audio
+    bus course3-audio-course3-out-a course3.audio -> course3-out.a
+    bus course3-pickup-audio-gain5-a course3-pickup.audio -> gain5.a
+    bus gain5-audio-course3-out-b gain5.audio -> course3-out.b
+    bus course3-out-audio-gain6-a course3-out.audio -> gain6.a
+    bus gain2-audio-mix7-inputs gain2.audio -> mix7.inputs
+    bus gain4-audio-mix7-inputs gain4.audio -> mix7.inputs
+    bus gain6-audio-mix7-inputs gain6.audio -> mix7.inputs
+    bus mix7-audio-string-tone-audio mix7.audio -> string-tone.audio
+    bus note-velocity-string-tone-velocity note.velocity -> string-tone.velocity
+    bus string-decay-audio-string-decay-previous-audio string-decay.audio -> string-decay-previous.audio
+    bus onset-audio-string-decay-a onset.audio -> string-decay.a
+    bus string-decay-previous-audio-string-decay-leak-a string-decay-previous.audio -> string-decay-leak.a
+    bus string-decay-leak-audio-string-decay-b string-decay-leak.audio -> string-decay.b
+    bus string-tone-audio-times8-a string-tone.audio -> times8.a
+    bus string-decay-audio-times8-b string-decay.audio -> times8.b
+    bus onset-audio-fall10-audio onset.audio -> fall10.audio
+    bus hiss9-audio-times11-a hiss9.audio -> times11.a
+    bus fall10-audio-times11-b fall10.audio -> times11.b
+    bus times11-audio-hi-12-audio times11.audio -> hi-12.audio
+    bus hi-12-audio-lo-13-audio hi-12.audio -> lo-13.audio
+    bus lo-13-audio-gain14-a lo-13.audio -> gain14.a
+    bus times8-audio-plus15-a times8.audio -> plus15.a
+    bus gain14-audio-plus15-b gain14.audio -> plus15.b
+    bus plus15-audio-body16-audio plus15.audio -> body16.audio
+    bus note-pitch-body16-pitch note.pitch -> body16.pitch
+    bus note-gate-body16-gate note.gate -> body16.gate
+    bus body16-audio-gain17-a body16.audio -> gain17.a
+    bus gain17-audio-gain18-a gain17.audio -> gain18.a
+    bus plus15-audio-body19-audio plus15.audio -> body19.audio
+    bus note-pitch-body19-pitch note.pitch -> body19.pitch
+    bus note-gate-body19-gate note.gate -> body19.gate
+    bus body19-audio-gain20-a body19.audio -> gain20.a
+    bus gain20-audio-gain21-a gain20.audio -> gain21.a
+    bus plus15-audio-gain22-a plus15.audio -> gain22.a
+    bus gain22-audio-mix23-inputs gain22.audio -> mix23.inputs
+    bus gain18-audio-mix23-inputs gain18.audio -> mix23.inputs
+    bus gain21-audio-mix23-inputs gain21.audio -> mix23.inputs
+    bus mix23-audio-hi-24-audio mix23.audio -> hi-24.audio
+    bus hi-24-audio-trim-a hi-24.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile pizzicato-strings-low-body {
+  root 261.626hz
+  mode m0 frequency 105hz decay 0.0151576s gain 0.761519 after_decay 0.0151576s after_gain 0
+  mode m1 frequency 200hz decay 0.0127324s gain 0.951898 after_decay 0.0127324s after_gain 0
+  mode m2 frequency 300hz decay 0.00848826s gain 0.634599 after_decay 0.00848826s after_gain 0
+  mode m3 frequency 1276.35hz decay 0.00969444s gain 0.668713 after_decay 0.00969444s after_gain 0
+  mode m4 frequency 1411.32hz decay 0.00942364s gain 0.666913 after_decay 0.00942364s after_gain 0
+  mode m5 frequency 1439.1hz decay 0.00900243s gain 0.629019 after_decay 0.00900243s after_gain 0
+  mode m6 frequency 1500hz decay 0.000297089s gain 0.507679 after_decay 0.000297089s after_gain 0
+  mode m7 frequency 1641.27hz decay 0.00347504s gain 0.762352 after_decay 0.00347504s after_gain 0
+  mode m8 frequency 1880.93hz decay 0.00362167s gain 0.513427 after_decay 0.00362167s after_gain 0
+  mode m9 frequency 2055.41hz decay 0.00396944s gain 0.907677 after_decay 0.00396944s after_gain 0
+  mode m10 frequency 2295.81hz decay 0.00278832s gain 0.855434 after_decay 0.00278832s after_gain 0
+  mode m11 frequency 2544.77hz decay 0.00246379s gain 0.514004 after_decay 0.00246379s after_gain 0
+  mode m12 frequency 2654.06hz decay 0.00402488s gain 1.28934 after_decay 0.00402488s after_gain 0
+  mode m13 frequency 3018.55hz decay 0.00403422s gain 0.824182 after_decay 0.00403422s after_gain 0
+  mode m14 frequency 3120.39hz decay 0.00421303s gain 1.34135 after_decay 0.00421303s after_gain 0
+  mode m15 frequency 3359.46hz decay 0.00166469s gain 0.784821 after_decay 0.00166469s after_gain 0
+  mode m16 frequency 3494.26hz decay 0.00170954s gain 1.00371 after_decay 0.00170954s after_gain 0
+  mode m17 frequency 4157.71hz decay 0.00221823s gain 2.09147 after_decay 0.00221823s after_gain 0
+  mode m18 frequency 4374.81hz decay 0.00145005s gain 1.12634 after_decay 0.00145005s after_gain 0
+  mode m19 frequency 4530.09hz decay 0.00176266s gain 1.30488 after_decay 0.00176266s after_gain 0
+  mode m20 frequency 5183.27hz decay 0.00172954s gain 1.8302 after_decay 0.00172954s after_gain 0
+  mode m21 frequency 5406.61hz decay 0.00166977s gain 3.37037 after_decay 0.00166977s after_gain 0
+  mode m22 frequency 5818.59hz decay 0.00199202s gain 1.84172 after_decay 0.00199202s after_gain 0
+  mode m23 frequency 6536.49hz decay 0.00186994s gain 3.5 after_decay 0.00186994s after_gain 0
+  mode m24 frequency 6699.98hz decay 0.000960224s gain 1.91692 after_decay 0.000960224s after_gain 0
+  mode m25 frequency 6780.12hz decay 0.00197833s gain 2.98046 after_decay 0.00197833s after_gain 0
+  mode m26 frequency 6956.13hz decay 0.00102485s gain 0.741424 after_decay 0.00102485s after_gain 0
+  mode m27 frequency 7786.81hz decay 0.00183319s gain 1.90751 after_decay 0.00183319s after_gain 0
+}
+profile pizzicato-strings-high-body {
+  root 261.626hz
+  mode m0 frequency 280hz decay 0.00909457s gain 1.5 after_decay 0.00909457s after_gain 0
+  mode m1 frequency 470hz decay 0.00677255s gain 1 after_decay 0.00677255s after_gain 0
+  mode m2 frequency 550hz decay 0.00578745s gain 1.2 after_decay 0.00578745s after_gain 0
+  mode m3 frequency 1152.23hz decay 0.0118307s gain 1.16761 after_decay 0.0118307s after_gain 0
+  mode m4 frequency 1850.44hz decay 0.00443503s gain 1.37441 after_decay 0.00443503s after_gain 0
+  mode m5 frequency 2255.16hz decay 0.00362983s gain 1.28967 after_decay 0.00362983s after_gain 0
+  mode m6 frequency 2500hz decay 0.000190986s gain 1.5 after_decay 0.000190986s after_gain 0
+  mode m7 frequency 2973.59hz decay 0.00364928s gain 1.69869 after_decay 0.00364928s after_gain 0
+  mode m8 frequency 3035.74hz decay 0.00314018s gain 1.48733 after_decay 0.00314018s after_gain 0
+  mode m9 frequency 3037.06hz decay 0.00181948s gain 1.16592 after_decay 0.00181948s after_gain 0
+  mode m10 frequency 3042.7hz decay 0.00207057s gain 1.3946 after_decay 0.00207057s after_gain 0
+  mode m11 frequency 3287.8hz decay 0.0032268s gain 1.61705 after_decay 0.0032268s after_gain 0
+  mode m12 frequency 3855.13hz decay 0.00133423s gain 1.32573 after_decay 0.00133423s after_gain 0
+  mode m13 frequency 4021.44hz decay 0.00250582s gain 1.33257 after_decay 0.00250582s after_gain 0
+  mode m14 frequency 4233.06hz decay 0.0025649s gain 1.89982 after_decay 0.0025649s after_gain 0
+  mode m15 frequency 5099.34hz decay 0.00154457s gain 1.83952 after_decay 0.00154457s after_gain 0
+  mode m16 frequency 5176.1hz decay 0.00210954s gain 2.07482 after_decay 0.00210954s after_gain 0
+  mode m17 frequency 5227.05hz decay 0.00155664s gain 1.38476 after_decay 0.00155664s after_gain 0
+  mode m18 frequency 5529.63hz decay 0.00108911s gain 2.32789 after_decay 0.00108911s after_gain 0
+  mode m19 frequency 6023.5hz decay 0.00141931s gain 2.41583 after_decay 0.00141931s after_gain 0
+  mode m20 frequency 6203.98hz decay 0.00217436s gain 1.19849 after_decay 0.00217436s after_gain 0
+  mode m21 frequency 7443.45hz decay 0.00136181s gain 1.54033 after_decay 0.00136181s after_gain 0
+  mode m22 frequency 7452.77hz decay 0.000751057s gain 1.98909 after_decay 0.000751057s after_gain 0
+  mode m23 frequency 8403.1hz decay 0.00159921s gain 2.78495 after_decay 0.00159921s after_gain 0
+  mode m24 frequency 8681.93hz decay 0.00160959s gain 1.5856 after_decay 0.00160959s after_gain 0
+  mode m25 frequency 10012.4hz decay 0.000540534s gain 2.29793 after_decay 0.000540534s after_gain 0
+  mode m26 frequency 10167.4hz decay 0.00111143s gain 2.0336 after_decay 0.00111143s after_gain 0
+  mode m27 frequency 11072.3hz decay 0.0011267s gain 1.7421 after_decay 0.0011267s after_gain 0
+}

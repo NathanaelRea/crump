@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "native-synthesis-m8-automated",
+  "recorded_at_utc": null,
+  "source_revision": null,
+  "crump_version": null,
+  "executable_sha256": null,
+  "rustc_version": null,
+  "target": null,
+  "host": {
+    "os_release": null,
+    "kernel": null,
+    "architecture": null,
+    "cpu_model": null
+  },
+  "maximum_fixture_revision": null,
+  "commands": [],
+  "artifacts": [],
+  "qualification_reports": [],
+  "result": "not_run",
+  "limitations": [
+    "No independent producer judgment",
+    "No PipeWire xrun or named-device endurance evidence",
+    "Offline timing is host-specific"
+  ]
+}

@@ -1,0 +1,54 @@
+crump-module 2
+instrument handpan "Handpan" graph {
+  polyphony 8
+  parameter ring "Ring" ratio 0.1 4 0.933 0.933 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control ring "Ring" "Decay time of the body" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-range note_key per_voice bipolar reference E4 range 14st
+    source key-gain-curve key_curve per_voice bipolar {
+      point d3 key D3 value -0.357278
+      point d4 key D4 value 0
+      point d5 key D5 value 1
+    }
+    route ring-key source key-range target ring depth -0.226355 map bipolar curve linear order 0 bypass false
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.387958 map bipolar curve linear order 0 bypass false
+  }
+  graph voice 8 {
+    # A strike on a tuned body with explicit mode ratios, plus a contact tick.
+    node strike1 exciter kind impact contact 0.00100833s hardness 0 level 1
+    node body2 modal_bank profile handpan-body max_modes 6 key_track 1 decay_scale $ring brightness 0 level 1
+    node hi-3 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.167745
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-hi-3-audio body2.audio -> hi-3.audio
+    bus hi-3-audio-register-a hi-3.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile handpan-body {
+  root 261.626hz
+  mode m0 frequency 261.495hz decay 0.5s gain 0.65 after_decay 0.5s after_gain 0
+  mode m1 frequency 522.99hz decay 0.45s gain 0.395142 after_decay 0.45s after_gain 0
+  mode m2 frequency 784.484hz decay 0.3s gain 0.227419 after_decay 0.3s after_gain 0
+  mode m3 frequency 261.756hz decay 0.5s gain 0.35 after_decay 0.5s after_gain 0
+  mode m4 frequency 523.513hz decay 0.45s gain 0.212769 after_decay 0.45s after_gain 0
+  mode m5 frequency 785.269hz decay 0.3s gain 0.122457 after_decay 0.3s after_gain 0
+}

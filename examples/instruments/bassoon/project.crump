@@ -1,0 +1,36 @@
+crump 2
+import "instrument.crump"
+project "Bassoon" {
+  id example-bassoon
+  seed 570168
+  sample_rate 48000
+  render_tail 2s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 8bar
+    pattern phrase 8bar {
+      note 0beat C3 2beat 0.48
+      note 2beat D3 1beat 0.7
+      note 3beat E3 1beat 0.7
+      note 4beat G3 3beat 0.92
+      note 8beat C3 0.35beat 0.85
+      note 8.5beat E3 0.35beat 0.85
+      note 9beat G3 0.35beat 0.85
+      note 9.5beat C4 0.35beat 0.85
+      note 10beat C4 2beat 0.6
+      note 12beat G2 3.5beat 0.75
+      note 16beat C3 1beat 0.55
+      note 17beat D3 1beat 0.6
+      note 18beat E3 1beat 0.65
+      note 19beat F3 1beat 0.7
+      note 20beat G3 1beat 0.75
+      note 21beat A3 1beat 0.8
+      note 22beat B3 1beat 0.85
+      note 24beat C4 6beat 0.8
+    }
+    track instrument "Bassoon" instrument bassoon level 0db pan 0 {
+      clip phrase pattern phrase start 0bar duration 8bar mode once
+    }
+  }
+}

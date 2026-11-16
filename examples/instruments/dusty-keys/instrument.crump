@@ -1,0 +1,124 @@
+crump-module 2
+instrument dusty-keys "Dusty Keys" graph {
+  polyphony 8
+  parameter ring "Ring" ratio 0.1 4 1.1688 1.1688 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter hardness "Hardness" ratio 0 1 0.8 0.8
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control ring "Ring" "Decay time of the body" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-range note_key per_voice bipolar reference A3 range 33st
+    source key-gain-curve key_curve per_voice bipolar {
+      point c3 key C3 value -0.420056
+      point c4 key C4 value 0
+      point c5 key C5 value 1
+    }
+    route ring-key source key-range target ring depth -2.00508 map bipolar curve linear order 0 bypass false
+    route key-gain-by-key source key-gain-curve target key-gain depth 1.15483 map bipolar curve linear order 0 bypass false
+  }
+  graph voice 21 {
+    # Hammered strings: stiff partials on two unequal courses with an aftersound.
+    node strike1 exciter kind impact contact 0.000166035s hardness $hardness level 1
+    node body2 modal_bank profile dusty-keys-strings max_modes 36 key_track 1 decay_scale $ring brightness 0 level 1
+    node gain3 math operation scale amount 0.103708
+    node hiss4 noise level 1
+    node fall5 onepole mode leak time 0.033173s
+    node times6 math operation multiply
+    node hi-7 lowpass mode highpass cutoff 90hz resonance 0.308309
+    node lo-8 lowpass mode lowpass cutoff 12000hz resonance 0.308309
+    node lo-9 lowpass mode lowpass cutoff 2946.03hz resonance 0.308309
+    node gain10 math operation scale amount 0.467058
+    node plus11 math operation add
+    node body12 modal_bank profile dusty-keys-box max_modes 5 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain13 math operation scale amount 1.17165
+    node plus14 math operation add
+    node hi-15 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node lo-16 lowpass mode lowpass cutoff 3800hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.194317
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-gain3-a body2.audio -> gain3.a
+    bus strike1-audio-fall5-audio strike1.audio -> fall5.audio
+    bus hiss4-audio-times6-a hiss4.audio -> times6.a
+    bus fall5-audio-times6-b fall5.audio -> times6.b
+    bus times6-audio-hi-7-audio times6.audio -> hi-7.audio
+    bus hi-7-audio-lo-8-audio hi-7.audio -> lo-8.audio
+    bus lo-8-audio-lo-9-audio lo-8.audio -> lo-9.audio
+    bus lo-9-audio-gain10-a lo-9.audio -> gain10.a
+    bus gain3-audio-plus11-a gain3.audio -> plus11.a
+    bus gain10-audio-plus11-b gain10.audio -> plus11.b
+    bus plus11-audio-body12-audio plus11.audio -> body12.audio
+    bus note-pitch-body12-pitch note.pitch -> body12.pitch
+    bus note-gate-body12-gate note.gate -> body12.gate
+    bus body12-audio-gain13-a body12.audio -> gain13.a
+    bus plus11-audio-plus14-a plus11.audio -> plus14.a
+    bus gain13-audio-plus14-b gain13.audio -> plus14.b
+    bus plus14-audio-hi-15-audio plus14.audio -> hi-15.audio
+    bus hi-15-audio-lo-16-audio hi-15.audio -> lo-16.audio
+    bus lo-16-audio-register-a lo-16.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile dusty-keys-strings {
+  root 261.626hz
+  mode m0 frequency 261.92hz decay 1.13235s gain 1.63636 after_decay 3.22844s after_gain 0.08909
+  mode m1 frequency 524.063hz decay 1.11083s gain 1.21825 after_decay 3.16708s after_gain 0.0663264
+  mode m2 frequency 786.699hz decay 1.09306s gain 0.677436 after_decay 3.11642s after_gain 0.0368823
+  mode m3 frequency 1050.05hz decay 1.07749s gain 0.349655 after_decay 3.07202s after_gain 0.0190366
+  mode m4 frequency 1314.27hz decay 1.06343s gain 0.179419 after_decay 3.03194s after_gain 0.0097683
+  mode m5 frequency 1579.52hz decay 1.05052s gain 0.0855624 after_decay 2.99513s after_gain 0.00465835
+  mode m6 frequency 1846.06hz decay 1.03853s gain 0.0453773 after_decay 2.96094s after_gain 0.00247052
+  mode m7 frequency 2114.22hz decay 1.02729s gain 0.0555869 after_decay 2.92889s after_gain 0.00302637
+  mode m8 frequency 2384.29hz decay 1.01668s gain 0.0489425 after_decay 2.89866s after_gain 0.00266462
+  mode m9 frequency 2656.44hz decay 1.00663s gain 0.0334487 after_decay 2.87s after_gain 0.00182108
+  mode m10 frequency 2930.74hz decay 0.997065s gain 0.0143049 after_decay 2.84272s after_gain 0.000778813
+  mode m11 frequency 3207.27hz decay 0.987924s gain 0.00503874 after_decay 2.81666s after_gain 0.000274329
+  mode m12 frequency 3486.29hz decay 0.979167s gain 0.0223216 after_decay 2.79169s after_gain 0.00121527
+  mode m13 frequency 3768.2hz decay 0.970757s gain 0.0361492 after_decay 2.76772s after_gain 0.0019681
+  mode m14 frequency 4053.34hz decay 0.962663s gain 0.0457855 after_decay 2.74464s after_gain 0.00249274
+  mode m15 frequency 4341.9hz decay 0.954857s gain 0.0510047 after_decay 2.72238s after_gain 0.00277689
+  mode m16 frequency 4633.81hz decay 0.947316s gain 0.051974 after_decay 2.70088s after_gain 0.00282966
+  mode m17 frequency 4929.06hz decay 0.940022s gain 0.0491543 after_decay 2.68009s after_gain 0.00267615
+  mode m18 frequency 262.446hz decay 1.13235s gain 2 after_decay 3.22844s after_gain 0.108888
+  mode m19 frequency 525.121hz decay 1.11083s gain 1.48898 after_decay 3.16708s after_gain 0.0810656
+  mode m20 frequency 788.206hz decay 1.09306s gain 0.827978 after_decay 3.11642s after_gain 0.0450783
+  mode m21 frequency 1051.93hz decay 1.07749s gain 0.427356 after_decay 3.07202s after_gain 0.0232669
+  mode m22 frequency 1316.59hz decay 1.06343s gain 0.21929 after_decay 3.03194s after_gain 0.011939
+  mode m23 frequency 1582.46hz decay 1.05052s gain 0.104576 after_decay 2.99513s after_gain 0.00569354
+  mode m24 frequency 1849.73hz decay 1.03853s gain 0.0554611 after_decay 2.96094s after_gain 0.00301952
+  mode m25 frequency 2118.51hz decay 1.02729s gain 0.0679396 after_decay 2.92889s after_gain 0.0036989
+  mode m26 frequency 2388.95hz decay 1.01668s gain 0.0598186 after_decay 2.89866s after_gain 0.00325676
+  mode m27 frequency 2661.29hz decay 1.00663s gain 0.0408818 after_decay 2.87s after_gain 0.00222576
+  mode m28 frequency 2935.91hz decay 0.997065s gain 0.0174837 after_decay 2.84272s after_gain 0.000951882
+  mode m29 frequency 3213.13hz decay 0.987924s gain 0.00615847 after_decay 2.81666s after_gain 0.000335291
+  mode m30 frequency 3493.1hz decay 0.979167s gain 0.0272819 after_decay 2.79169s after_gain 0.00148534
+  mode m31 frequency 3775.84hz decay 0.970757s gain 0.0441823 after_decay 2.76772s after_gain 0.00240546
+  mode m32 frequency 4061.39hz decay 0.962663s gain 0.0559601 after_decay 2.74464s after_gain 0.00304668
+  mode m33 frequency 4349.97hz decay 0.954857s gain 0.0623391 after_decay 2.72238s after_gain 0.00339398
+  mode m34 frequency 4642.01hz decay 0.947316s gain 0.0635237 after_decay 2.70088s after_gain 0.00345848
+  mode m35 frequency 4937.92hz decay 0.940022s gain 0.0600775 after_decay 2.68009s after_gain 0.00327085
+}
+profile dusty-keys-box {
+  root 261.626hz
+  mode m0 frequency 95hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 190hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 380hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m3 frequency 740hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m4 frequency 1400hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+}

@@ -1,0 +1,52 @@
+crump 2
+project "Stereo Foundation" {
+  id stereo-foundation
+  seed 9
+  sample_rate 48000
+  render_tail 200ms
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument lead "Lead" graph {
+      polyphony 2
+      parameter gain "Gain" ratio 0 1 0.25 0.25
+      faceplate {
+        control gain "Gain" "Source level" maps gain
+      }
+      graph voice 14 {
+        node osc-a oscillator waveform saw level $gain
+        node osc-b oscillator waveform square level $gain detune 12st
+        node osc-c oscillator waveform triangle level $gain detune -12st
+        node widen-a mono_to_stereo
+        node widen-b mono_to_stereo
+        node widen-c mono_to_stereo
+        node mix stereo_mixer a_level 0.5 b_level 0.5
+        node fold stereo_to_mono
+        node rewide mono_to_stereo
+        node sum stereo_sum max_inputs 3
+        node out output
+        bus pitch-a note.pitch -> osc-a.pitch
+        bus pitch-b note.pitch -> osc-b.pitch
+        bus pitch-c note.pitch -> osc-c.pitch
+        bus widen-a osc-a.audio -> widen-a.audio
+        bus widen-b osc-b.audio -> widen-b.audio
+        bus widen-c osc-c.audio -> widen-c.audio
+        bus mix-a widen-a.audio -> mix.a
+        bus mix-b widen-b.audio -> mix.b
+        bus fold widen-b.audio -> fold.audio
+        bus rewide fold.audio -> rewide.audio
+        bus z-cancel widen-c.audio -> sum.inputs
+        bus a-large mix.audio -> sum.inputs
+        bus m-small rewide.audio -> sum.inputs
+        bus output sum.audio -> out.audio
+      }
+    }
+    pattern notes 1bar {
+      note 0beat C4 1beat 0.8
+    }
+    track lead-track "Lead" instrument lead level -12db pan 0 {
+      clip lead-clip pattern notes start 0bar duration 1bar mode once
+    }
+  }
+}

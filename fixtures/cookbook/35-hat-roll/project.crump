@@ -1,0 +1,63 @@
+crump 1
+project "Cookbook 35 Hat Roll" {
+  id cookbook-35-hat-roll
+  seed 4035
+  sample_rate 48000
+  render_tail 500ms
+  asset texture "Portable hat-like texture" wav "media/texture.wav" sha256 "b6074285b764119ce6f019839c91b249eafd3ac9a7ac909df33f36ae47be36c3"
+  song {
+    tempo 240bpm
+    meter 4/4
+    end 1bar
+    instrument sample-hat "Sample Hat" sampler {
+      polyphony 8
+      parameter gain "Gain" db -96db 24db -9db -9db automatable
+      parameter tune "Tune" semitones -24st 24st 12st 12st automatable
+      faceplate {
+        control gain "Gain" "Trims the portable sample roll" maps gain
+        control tune "Tune" "Repitches the portable sample roll" maps tune
+      }
+      mapping hat asset texture keys C4 C4 root C4 {
+        region 0 2400
+        playback one_shot
+        gain -6db
+        pan 0
+        envelope 1ms 20ms
+        fade 32 128
+      }
+    }
+    pattern roll 1bar {
+      sample hat-1 0beat mapping hat duration 1/8beat start 0 end 2400 gain -9db pan -0.4 fade 32 128 velocity 0.75
+      sample hat-2 1/4beat mapping hat duration 1/8beat start 0 end 2400 gain -8db pan 0.4 fade 32 128 velocity 0.8
+      sample hat-3 1/2beat mapping hat duration 1/8beat start 0 end 2400 gain -7db pan -0.2 fade 32 128 velocity 0.85
+      sample hat-4 3/4beat mapping hat duration 1/8beat start 0 end 2400 gain -6db pan 0.2 fade 32 128 velocity 0.9
+      sample hat-5 1beat mapping hat duration 1/8beat start 0 end 2400 gain -5db pan -0.1 fade 32 128 velocity 0.95
+    }
+    track roll "Portable Hat Roll" instrument sample-hat level -8db pan 0 {
+      processor roll-filter eq {
+        setting low_pass 8khz
+      }
+      processor roll-room reverb {
+        setting decay 0.55
+        setting mix 0.25
+      }
+      processor roll-echo delay {
+        setting tempo_sync true
+        setting division 1/16
+        setting feedback 0.2
+        setting mix 0.2
+      }
+      output master
+      clip roll-loop pattern roll start 0bar duration 1bar mode loop {
+        fade 1/2bar 0bar
+      }
+    }
+    master level -1db {
+      processor ceiling limiter {
+        setting ceiling -1db
+        setting release 80ms
+        setting lookahead 5ms
+      }
+    }
+  }
+}

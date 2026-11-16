@@ -1,0 +1,68 @@
+crump-module 2
+instrument fm-tines "FM Tines" graph {
+  polyphony 12
+  voicing poly retrigger always glide 0ms glide_mode always note_priority last steal_priority release_oldest seed 30314
+  parameter level "Level" ratio 0 1 0.12 0.12
+  parameter index "Bark" ratio 0 1 0.12 0.12 automatable modulatable
+  parameter release "Release" seconds 50ms 3s 400ms 400ms automatable
+  parameter space "Space" ratio 0 1 0.15 0.15 automatable
+  faceplate {
+    control index "Bark" "How hard the modulators drive the tone; velocity adds more" maps index
+    control release "Release" "Tail after Note Off" maps release
+    control space "Space" "Echo and hall" maps space
+    control level "Level" "Output level" maps level
+  }
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    route velocity-bark source velocity target index depth 0.25 map unipolar curve linear order 0 bypass false
+  }
+  graph voice 13 {
+    node body-modulator oscillator waveform sine detune 0st glide 0s level 1
+    node tine-modulator oscillator waveform sine detune 45.6874st glide 0s level 0.35
+    node body-depth amplifier level 1
+    node tine-depth amplifier level 1
+    node modulators mixer a_level 1 b_level 1
+    node carrier analog_oscillator {
+      waveform sine
+      unison 1
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 0
+      pm_depth $index
+      velocity_amount 0.6
+      level $level
+      pan 0
+    }
+    node amplitude envelope mode ahdsr attack 1ms hold 0ms decay 2.5s sustain 0.12 release $release attack_curve 0 decay_curve -0.5 release_curve -0.2 retrigger always
+    node body-envelope envelope mode ahdsr attack 0ms hold 0ms decay 1.4s sustain 0.2 release 400ms attack_curve 0 decay_curve -0.4 release_curve 0 retrigger always
+    node tine-envelope envelope mode ahdsr attack 0ms hold 0ms decay 70ms sustain 0 release 50ms attack_curve 0 decay_curve -0.5 release_curve 0 retrigger always
+    node dc-block stereo_filter model svf_clean mode highpass cutoff 30hz resonance 0 drive 0 mix 1 pan 0 mod_depth 0hz velocity_depth 0hz key_track 0 key_reference 261.625565hz
+    node out output
+    bus body-pitch note.pitch -> body-modulator.pitch
+    bus tine-pitch note.pitch -> tine-modulator.pitch
+    bus body-audio body-modulator.audio -> body-depth.audio
+    bus body-gain body-envelope.control -> body-depth.gain
+    bus tine-audio tine-modulator.audio -> tine-depth.audio
+    bus tine-gain tine-envelope.control -> tine-depth.gain
+    bus mix-a body-depth.audio -> modulators.a
+    bus mix-b tine-depth.audio -> modulators.b
+    bus carrier-pitch note.pitch -> carrier.pitch
+    bus carrier-pm modulators.audio -> carrier.pm
+    bus carrier-gain amplitude.control -> carrier.gain
+    bus carrier-velocity note.velocity -> carrier.velocity
+    bus amplitude-gate note.gate -> amplitude.gate
+    bus body-gate note.gate -> body-envelope.gate
+    bus tine-gate note.gate -> tine-envelope.gate
+    bus dc-block-audio carrier.audio -> dc-block.audio
+    bus output dc-block.audio -> out.audio
+  }
+  graph shared 8 {
+    node echo delay time 187.5ms feedback 0.3 mix $space
+    node hall reverb room 0.7 damping 0.5 mix $space
+    node shared-out output
+    bus voice-sum voice_sum.audio -> echo.audio
+    bus echo-hall echo.audio -> hall.audio
+    bus shared-output hall.audio -> shared-out.audio
+  }
+}

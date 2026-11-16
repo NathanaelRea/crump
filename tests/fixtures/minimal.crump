@@ -1,0 +1,65 @@
+crump 1
+project "Minimal" {
+  id minimal
+  seed 42
+  sample_rate 48000
+  render_tail 250ms
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument lead "Lead" graph {
+      polyphony 4
+      parameter tone "Tone" hz 100hz 10000hz 3000hz 3200hz
+      faceplate {
+        control tone "Tone" "Low-pass cutoff" maps tone
+      }
+      graph 8 {
+        node oscillator oscillator waveform saw level 0.5
+        node envelope envelope attack 5ms decay 80ms sustain 0.6 release 150ms
+        node filter lowpass cutoff $tone resonance 0.15
+        node amplifier amplifier level 0.8
+        node position pan position 0
+        node output output
+        connect note.pitch -> oscillator.pitch
+        connect note.gate -> envelope.gate
+        connect oscillator.audio -> filter.audio
+        connect filter.audio -> amplifier.audio
+        connect envelope.control -> amplifier.gain
+        connect amplifier.audio -> position.audio
+        connect position.audio -> output.audio
+      }
+    }
+    instrument drums "Drums" stock_drums {
+      polyphony 8
+      parameter tone "Tone" ratio 0 1 0.5 0.55
+      parameter punch "Punch" ratio 0 1 0.5 0.7
+      faceplate {
+        control tone "Tone" "Percussion brightness" maps tone
+        control punch "Punch" "Kick transient" maps punch
+      }
+    }
+    pattern melody 1bar {
+      note 0beat C4 1beat 0.8
+      note 1beat E4 1beat 0.75
+      note 2beat G4 1beat 0.8
+      note 3beat E4 1beat 0.75
+    }
+    pattern beat 1bar {
+      hit 0beat kick 0.9
+      hit 1beat snare 0.75
+      hit 2beat kick 0.85
+      hit 3beat snare 0.75
+      hit 1/2beat hat 0.5
+      hit 3/2beat hat 0.5
+      hit 5/2beat hat 0.5
+      hit 7/2beat hat 0.5
+    }
+    track lead "Lead" instrument lead level -9db pan -0.1 {
+      clip melody pattern melody start 0bar duration 1bar mode once
+    }
+    track drums "Drums" instrument drums level -7db pan 0.1 {
+      clip beat pattern beat start 0bar duration 1bar mode once
+    }
+  }
+}

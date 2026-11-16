@@ -1,0 +1,149 @@
+crump-module 2
+instrument prepared-piano "Prepared Piano" graph {
+  polyphony 8
+  parameter ring "Ring" ratio 0.1 4 1.1688 1.1688 modulatable
+  parameter key-gain "Register level" ratio 0.05 20 1 1 modulatable
+  parameter hardness "Hardness" ratio 0 1 0.8 0.8
+  parameter level "Level" ratio 0 2 1 1
+  parameter pan "Pan" pan -1 1 0 0
+  faceplate {
+    control hardness "Hardness" "How hard the strike is: brighter when harder" maps hardness
+    control ring "Ring" "Decay time of the body" maps ring
+    control level "Level" "Output level" maps level
+    control pan "Pan" "Stereo position" maps pan
+  }
+  modulation {
+    source key-range note_key per_voice bipolar reference A3 range 33st
+    source key-gain-curve key_curve per_voice bipolar {
+      point c3 key C3 value -0.515978
+      point c4 key C4 value 0
+      point c5 key C5 value 1
+    }
+    route ring-key source key-range target ring depth -2.00508 map bipolar curve linear order 0 bypass false
+    route key-gain-by-key source key-gain-curve target key-gain depth 0.829685 map bipolar curve linear order 0 bypass false
+  }
+  graph voice 31 {
+    # A prepared piano string, a bolt's modes and a rattle.
+    node strike1 exciter kind impact contact 0.000166035s hardness $hardness level 1
+    node body2 modal_bank profile prepared-piano-strings max_modes 28 key_track 1 decay_scale $ring brightness 0 level 1
+    node gain3 math operation scale amount 0.103594
+    node hiss4 noise level 1
+    node fall5 onepole mode leak time 0.033173s
+    node times6 math operation multiply
+    node hi-7 lowpass mode highpass cutoff 90hz resonance 0.308309
+    node lo-8 lowpass mode lowpass cutoff 12000hz resonance 0.308309
+    node lo-9 lowpass mode lowpass cutoff 2946.03hz resonance 0.308309
+    node gain10 math operation scale amount 0.383016
+    node plus11 math operation add
+    node body12 modal_bank profile prepared-piano-box max_modes 5 key_track 0 decay_scale 1 brightness 0 level 1
+    node gain13 math operation scale amount 1.17165
+    node plus14 math operation add
+    node strike15 exciter kind impact contact 0.0005s hardness 0.9 level 1
+    node body16 modal_bank profile prepared-piano-bolt max_modes 5 key_track 1 decay_scale 1 brightness 0 level 1
+    node gain17 math operation scale amount 0.152731
+    node plus18 math operation add
+    node rattle noise level 1
+    node hi-19 lowpass mode highpass cutoff 1500hz resonance 0.308309
+    node lo-20 lowpass mode lowpass cutoff 7000hz resonance 0.308309
+    node fall21 onepole mode leak time 0.5s
+    node times22 math operation multiply
+    node gain23 math operation scale amount 0.105434
+    node plus24 math operation add
+    node hi-25 lowpass mode highpass cutoff 32hz resonance 0.308309
+    node register math operation scale amount $key-gain
+    node trim math operation scale amount 0.194786
+    node level math operation scale amount $level
+    node place pan position $pan
+    node out output
+    bus note-gate-strike1-gate note.gate -> strike1.gate
+    bus note-velocity-strike1-velocity note.velocity -> strike1.velocity
+    bus strike1-audio-body2-audio strike1.audio -> body2.audio
+    bus note-pitch-body2-pitch note.pitch -> body2.pitch
+    bus note-gate-body2-gate note.gate -> body2.gate
+    bus body2-audio-gain3-a body2.audio -> gain3.a
+    bus strike1-audio-fall5-audio strike1.audio -> fall5.audio
+    bus hiss4-audio-times6-a hiss4.audio -> times6.a
+    bus fall5-audio-times6-b fall5.audio -> times6.b
+    bus times6-audio-hi-7-audio times6.audio -> hi-7.audio
+    bus hi-7-audio-lo-8-audio hi-7.audio -> lo-8.audio
+    bus lo-8-audio-lo-9-audio lo-8.audio -> lo-9.audio
+    bus lo-9-audio-gain10-a lo-9.audio -> gain10.a
+    bus gain3-audio-plus11-a gain3.audio -> plus11.a
+    bus gain10-audio-plus11-b gain10.audio -> plus11.b
+    bus plus11-audio-body12-audio plus11.audio -> body12.audio
+    bus note-pitch-body12-pitch note.pitch -> body12.pitch
+    bus note-gate-body12-gate note.gate -> body12.gate
+    bus body12-audio-gain13-a body12.audio -> gain13.a
+    bus plus11-audio-plus14-a plus11.audio -> plus14.a
+    bus gain13-audio-plus14-b gain13.audio -> plus14.b
+    bus note-gate-strike15-gate note.gate -> strike15.gate
+    bus note-velocity-strike15-velocity note.velocity -> strike15.velocity
+    bus strike15-audio-body16-audio strike15.audio -> body16.audio
+    bus note-pitch-body16-pitch note.pitch -> body16.pitch
+    bus note-gate-body16-gate note.gate -> body16.gate
+    bus body16-audio-gain17-a body16.audio -> gain17.a
+    bus plus14-audio-plus18-a plus14.audio -> plus18.a
+    bus gain17-audio-plus18-b gain17.audio -> plus18.b
+    bus rattle-audio-hi-19-audio rattle.audio -> hi-19.audio
+    bus hi-19-audio-lo-20-audio hi-19.audio -> lo-20.audio
+    bus strike1-audio-fall21-audio strike1.audio -> fall21.audio
+    bus lo-20-audio-times22-a lo-20.audio -> times22.a
+    bus fall21-audio-times22-b fall21.audio -> times22.b
+    bus times22-audio-gain23-a times22.audio -> gain23.a
+    bus plus18-audio-plus24-a plus18.audio -> plus24.a
+    bus gain23-audio-plus24-b gain23.audio -> plus24.b
+    bus plus24-audio-hi-25-audio plus24.audio -> hi-25.audio
+    bus hi-25-audio-register-a hi-25.audio -> register.a
+    bus register-audio-trim-a register.audio -> trim.a
+    bus trim-audio-level-a trim.audio -> level.a
+    bus level-audio-place-audio level.audio -> place.audio
+    bus place-audio-out-audio place.audio -> out.audio
+  }
+}
+profile prepared-piano-strings {
+  root 261.626hz
+  mode m0 frequency 261.401hz decay 0.484577s gain 1.63636 after_decay 1.38157s after_gain 0.08909
+  mode m1 frequency 523.024hz decay 0.475367s gain 1.21862 after_decay 1.35531s after_gain 0.0663466
+  mode m2 frequency 785.139hz decay 0.467764s gain 0.679463 after_decay 1.33364s after_gain 0.0369926
+  mode m3 frequency 1047.96hz decay 0.461099s gain 0.350953 after_decay 1.31463s after_gain 0.0191072
+  mode m4 frequency 1311.66hz decay 0.455084s gain 0.180282 after_decay 1.29748s after_gain 0.00981527
+  mode m5 frequency 1576.39hz decay 0.449559s gain 0.0861402 after_decay 1.28173s after_gain 0.00468981
+  mode m6 frequency 1842.4hz decay 0.444426s gain 0.0448973 after_decay 1.2671s after_gain 0.00244438
+  mode m7 frequency 2110.03hz decay 0.439616s gain 0.0552868 after_decay 1.25338s after_gain 0.00301003
+  mode m8 frequency 2379.57hz decay 0.435079s gain 0.0487679 after_decay 1.24045s after_gain 0.00265511
+  mode m9 frequency 2651.18hz decay 0.430777s gain 0.033361 after_decay 1.22818s after_gain 0.0018163
+  mode m10 frequency 2924.93hz decay 0.426683s gain 0.0142756 after_decay 1.21651s after_gain 0.00077722
+  mode m11 frequency 3200.91hz decay 0.422771s gain 0.00503041 after_decay 1.20536s after_gain 0.000273875
+  mode m12 frequency 3479.38hz decay 0.419024s gain 0.022291 after_decay 1.19467s after_gain 0.00121361
+  mode m13 frequency 3760.72hz decay 0.415425s gain 0.0361076 after_decay 1.18441s after_gain 0.00196584
+  mode m14 frequency 261.926hz decay 0.484577s gain 2 after_decay 1.38157s after_gain 0.108888
+  mode m15 frequency 524.08hz decay 0.475367s gain 1.48943 after_decay 1.35531s after_gain 0.0810902
+  mode m16 frequency 786.644hz decay 0.467764s gain 0.830455 after_decay 1.33364s after_gain 0.0452132
+  mode m17 frequency 1049.85hz decay 0.461099s gain 0.428942 after_decay 1.31463s after_gain 0.0233533
+  mode m18 frequency 1313.98hz decay 0.455084s gain 0.220345 after_decay 1.29748s after_gain 0.0119964
+  mode m19 frequency 1579.32hz decay 0.449559s gain 0.105282 after_decay 1.28173s after_gain 0.00573199
+  mode m20 frequency 1846.06hz decay 0.444426s gain 0.0548744 after_decay 1.2671s after_gain 0.00298758
+  mode m21 frequency 2114.31hz decay 0.439616s gain 0.0675727 after_decay 1.25338s after_gain 0.00367892
+  mode m22 frequency 2384.21hz decay 0.435079s gain 0.0596052 after_decay 1.24045s after_gain 0.00324514
+  mode m23 frequency 2656.02hz decay 0.430777s gain 0.0407745 after_decay 1.22818s after_gain 0.00221992
+  mode m24 frequency 2930.09hz decay 0.426683s gain 0.017448 after_decay 1.21651s after_gain 0.000949935
+  mode m25 frequency 3206.76hz decay 0.422771s gain 0.00614828 after_decay 1.20536s after_gain 0.000334737
+  mode m26 frequency 3486.18hz decay 0.419024s gain 0.0272446 after_decay 1.19467s after_gain 0.0014833
+  mode m27 frequency 3768.36hz decay 0.415425s gain 0.0441315 after_decay 1.18441s after_gain 0.00240269
+}
+profile prepared-piano-box {
+  root 261.626hz
+  mode m0 frequency 95hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m1 frequency 190hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m2 frequency 380hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m3 frequency 740hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+  mode m4 frequency 1400hz decay 0.006s gain 0.012 after_decay 0.006s after_gain 0
+}
+profile prepared-piano-bolt {
+  root 261.626hz
+  mode m0 frequency 620.053hz decay 0.35s gain 1 after_decay 0.35s after_gain 0
+  mode m1 frequency 996.793hz decay 0.35s gain 1 after_decay 0.35s after_gain 0
+  mode m2 frequency 1342.14hz decay 0.35s gain 1 after_decay 0.35s after_gain 0
+  mode m3 frequency 1941.26hz decay 0.35s gain 1 after_decay 0.35s after_gain 0
+  mode m4 frequency 2590.09hz decay 0.35s gain 1 after_decay 0.35s after_gain 0
+}

@@ -1,0 +1,296 @@
+crump-module 2-alpha
+asset wt-basic "Basic four-frame table" wav "media/basic-table.wav" sha256 "2302bf70124b6017439eb385a62677b13284f112e968a2725d64e8f738bf3ca7" {
+  usage wavetable
+  frame_length 2048
+  frames 4
+  normalization preserve
+  morph linear
+}
+asset source-texture "Deterministic source texture" wav "media/sample-source.wav" sha256 "ae8757e2a42ad7602b7bd6825ab0987444677a8e7f8515d0447e86aa01907de9" {
+  usage sample granular spectral
+}
+asset zone-low "Low multisample zone" wav "media/multisample-low.wav" sha256 "5675332919d951ff59291a90b991e596a443e5b368b4360dfca3b157e161a0e0" {
+  usage multisample
+}
+asset zone-high "High multisample zone" wav "media/multisample-high.wav" sha256 "1e3309e6b805299f66308bd603d304387cba4e7affadf63f57d6835e82d5345d" {
+  usage multisample
+}
+instrument alpha-hybrid "Native Synthesis Alpha Hybrid" graph {
+  polyphony 16
+  voicing poly retrigger always glide 40ms priority oldest seed 41041
+
+  parameter macro-one "Macro 1" ratio 0 1 0.5 0.5 automatable modulatable macro
+  parameter macro-two "Macro 2" ratio 0 1 0.35 0.35 automatable modulatable macro
+  parameter macro-three "Macro 3" ratio 0 1 0 0 modulatable macro
+  parameter macro-four "Macro 4" ratio 0 1 0.7 0.7 modulatable macro
+  parameter table-position "Table Position" ratio 0 1 0 0.2 automatable modulatable
+  parameter warp-amount "Warp" ratio 0 1 0 0.18 automatable modulatable
+  parameter sample-position "Sample Position" ratio 0 1 0 0.1 modulatable
+  parameter grain-density "Grain Density" hz 1hz 100hz 18hz 18hz automatable modulatable
+  parameter spectral-scan "Spectral Scan" ratio 0 1 0 0.25 automatable modulatable
+  parameter filter-cutoff "Filter Cutoff" hz 20hz 20khz 1200hz 2400hz automatable modulatable
+  parameter filter-resonance "Filter Resonance" ratio 0 0.95 0.2 0.28 automatable modulatable
+  parameter amp-release "Release" seconds 5ms 8s 400ms 650ms automatable modulatable
+  parameter fx-mix "Effects" ratio 0 1 0.2 0.28 automatable modulatable
+
+  faceplate {
+    control macro-one "Motion" "Scales timbre and table movement" maps macro-one
+    control macro-two "Texture" "Blends sample-derived source motion" maps macro-two
+    control filter-cutoff "Cutoff" "Sets the shared voice-filter brightness" maps filter-cutoff
+    control amp-release "Release" "Sets note release length" maps amp-release
+    control fx-mix "Space" "Blends the shared delay and reverb path" maps fx-mix
+  }
+
+  presentation {
+    section source-panel sources "Sources" {
+      node analog-a
+      node wavetable-b
+      node sample-c
+      node multisample-d
+      node granular-e
+      node spectral-f
+      node sub-g
+      node noise-h
+      asset wt-basic
+      asset source-texture
+    }
+    section mixer-panel source_mixer "Source Mixer and Routing" {
+      node source-sum
+      bus wavetable-to-sum
+      bus granular-to-sum
+      bus spectral-to-sum
+    }
+    section filter-panel filters "Filters" {
+      node filter-one
+      node filter-two
+      parameter filter-cutoff
+      parameter filter-resonance
+    }
+    section modulator-panel envelopes_lfos "Envelopes and LFOs" {
+      node amp-env
+      node timbre-env
+      source lfo-one
+      source random-one
+    }
+    section matrix-panel modulation "Modulation" {
+      route lfo-to-table
+      route envelope-to-cutoff
+      route velocity-to-cutoff
+      route macro-chain
+    }
+    section voice-panel voicing "Voicing" {
+      node analog-a
+      node wavetable-b
+      parameter amp-release
+    }
+    section route-panel routing "Voice and Shared Routing" {
+      bus voice-out
+      bus voice-sum-in
+      node shared-sum
+    }
+    section effect-panel effects "Shared Effects" {
+      node shared-delay
+      node shared-reverb
+      parameter fx-mix
+    }
+  }
+
+  modulation {
+    source amp-envelope port amp-env.control per_voice unipolar
+    source timbre-envelope port timbre-env.control per_voice unipolar
+    source lfo-one lfo per_voice bipolar triangle sync 1bar phase 0 retrigger note loop forward
+    source lfo-two lfo instrument unipolar sine free 0.17hz phase 0.25 retrigger transport loop forward
+    source velocity note_velocity per_voice unipolar
+    source key-position note_key per_voice bipolar reference C4 range 48st
+    source note-gate note_gate per_voice unipolar
+    source note-age note_age per_voice unipolar duration 8s
+    source random-one random_hold per_voice bipolar rate sync 1/4beat seed 81
+    source macro-one parameter macro-one instrument unipolar
+    source macro-two parameter macro-two instrument unipolar
+    source macro-three parameter macro-three instrument unipolar
+    source macro-four parameter macro-four instrument unipolar
+
+    route macro-chain source macro-one target macro-three depth 100% map unipolar curve linear order -100 bypass false {
+      auxiliary macro-two multiply
+    }
+    route lfo-to-table source lfo-one target table-position depth 45% map bipolar curve smoothstep order 10 bypass false {
+      auxiliary macro-one multiply
+      clamp -1 1
+    }
+    route envelope-to-cutoff source timbre-envelope target filter-cutoff depth 6khz map unipolar curve power(0.7) order 20 bypass false
+    route velocity-to-cutoff source velocity target filter-cutoff depth 2.5khz map unipolar curve linear order 30 bypass false
+    route key-to-cutoff source key-position target filter-cutoff depth 1.2khz map bipolar curve linear order 40 bypass false
+    route random-to-warp source random-one target warp-amount depth 22% map bipolar curve smoothstep order 50 bypass false {
+      auxiliary macro-four multiply
+    }
+    route age-to-scan source note-age target spectral-scan depth 55% map unipolar curve power(1.5) order 60 bypass false
+    route lfo-to-grains source lfo-two target grain-density depth 12hz map unipolar curve linear order 70 bypass false {
+      scale 0.8
+    }
+    route release-motion source macro-three target amp-release depth 1.2s map unipolar curve smoothstep order 80 bypass false
+  }
+
+  graph voice 64 {
+    node analog-a analog_oscillator {
+      waveform saw
+      unison 4
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 0.2
+      detune 0.12st
+      width 0.7
+      level 0.22
+      warp analog-pulse pulse_width amount $warp-amount
+    }
+    node wavetable-b wavetable {
+      asset wt-basic
+      unison 8
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 0.35
+      table_position $table-position
+      detune 0.08st
+      width 0.9
+      level 0.25
+      warp table-bend bend amount $warp-amount
+      warp table-remap phase_remap amount 0.1
+    }
+    node sample-c sample_source {
+      asset source-texture
+      start $sample-position
+      end 1
+      loop_mode forward
+      loop_start 0.12
+      loop_end 0.82
+      loop_crossfade 256
+      direction forward
+      tune 0st
+      level 0.12
+      pan -0.2
+      slice source-slice-a 0 12000
+      slice source-slice-b 12000 48000
+    }
+    node multisample-d multisample {
+      zone low-layer asset zone-low keys C1 B3 velocity 0 1 root C3 layer body articulation default round_robin low-rr 0 region 0 24000 gain -4db pan -0.1
+      zone high-layer asset zone-high keys C4 C7 velocity 0 1 root C5 layer body articulation default round_robin high-rr 0 region 0 24000 gain -5db pan 0.1
+      tune 0st
+      level 0.1
+    }
+    node granular-e granular {
+      asset source-texture
+      max_grains 32
+      position $sample-position
+      scan 0.12
+      size 80ms
+      density $grain-density
+      tune 0st
+      spray 0.08
+      window hann
+      edge reflect
+      direction_probability 0.15
+      stereo_spread 0.8
+      freeze false
+      level 0.14
+    }
+    node spectral-f spectral {
+      asset source-texture
+      algorithm crump-spectral-peaks-v1
+      max_peaks 128
+      scan $spectral-scan
+      rate 0.45
+      tune 12st
+      low 80hz
+      high 18khz
+      transients reset
+      phase_randomization 0.08
+      freeze false
+      level 0.1
+    }
+    node sub-g analog_oscillator {
+      waveform sine
+      unison 1
+      coarse -12st
+      phase 0
+      random_phase 0
+      level 0.18
+    }
+    node noise-h noise {
+      color pink
+      seed 92
+      level 0.03
+      pan 0
+    }
+    node amp-env envelope {
+      mode ahdsr
+      attack 8ms
+      hold 0ms
+      decay 280ms
+      sustain 0.62
+      release $amp-release
+      attack_curve 0.2
+      decay_curve -0.15
+      release_curve -0.1
+      retrigger always
+    }
+    node timbre-env envelope {
+      mode ahdsr
+      attack 2ms
+      hold 30ms
+      decay 650ms
+      sustain 0.12
+      release 500ms
+      attack_curve 0
+      decay_curve 0.35
+      release_curve -0.2
+      retrigger legato
+    }
+    node source-sum stereo_sum
+    node filter-one stereo_filter model svf_clean mode lowpass cutoff $filter-cutoff resonance $filter-resonance drive 0 mix 1 pan 0 key_track 0.5 velocity_depth 0hz
+    node filter-two stereo_filter model svf_clean mode highpass cutoff 45hz resonance 0.05 drive 0 mix 1 pan 0 key_track 0 velocity_depth 0hz
+    node voice-amp amplifier level 0.75
+    node voice-pan stereo_pan position 0 width 1
+    node voice-output voice_output
+
+    bus note-pitch-a note.pitch -> analog-a.pitch
+    bus note-pitch-b note.pitch -> wavetable-b.pitch
+    bus note-pitch-c note.pitch -> sample-c.pitch
+    bus note-pitch-d note.pitch -> multisample-d.pitch
+    bus note-pitch-e note.pitch -> granular-e.pitch
+    bus note-pitch-f note.pitch -> spectral-f.pitch
+    bus note-pitch-g note.pitch -> sub-g.pitch
+    bus note-gate-amp note.gate -> amp-env.gate
+    bus note-gate-timbre note.gate -> timbre-env.gate
+    bus analog-phase-mod analog-a.phase -> wavetable-b.pm
+    bus analog-to-sum analog-a.audio -> source-sum.inputs
+    bus wavetable-to-sum wavetable-b.audio -> source-sum.inputs
+    bus sample-to-sum sample-c.audio -> source-sum.inputs
+    bus multisample-to-sum multisample-d.audio -> source-sum.inputs
+    bus granular-to-sum granular-e.audio -> source-sum.inputs
+    bus spectral-to-sum spectral-f.audio -> source-sum.inputs
+    bus sub-to-sum sub-g.audio -> source-sum.inputs
+    bus noise-to-sum noise-h.audio -> source-sum.inputs
+    bus sum-to-filter source-sum.audio -> filter-one.audio
+    bus filter-series filter-one.audio -> filter-two.audio
+    bus filter-to-amp filter-two.audio -> voice-amp.audio
+    bus envelope-to-amp amp-env.control -> voice-amp.gain
+    bus amp-to-pan voice-amp.audio -> voice-pan.audio
+    bus voice-out voice-pan.audio -> voice-output.audio
+  }
+
+  graph shared 32 {
+    node shared-delay delay time 3/16beat feedback 0.28 low_pass 8khz high_pass 120hz mode ping_pong mix $fx-mix
+    node shared-reverb reverb pre_delay 12ms diffusion 0.7 decay 0.55 damping 0.52 modulation 0.08 width 0.9 mix $fx-mix
+    node shared-dry utility gain 0db width 1
+    node shared-sum stereo_sum
+    node shared-output output
+
+    bus voice-sum-in voice_sum.audio -> shared-dry.audio
+    bus voice-sum-delay shared-dry.audio -> shared-delay.audio
+    bus delay-to-reverb shared-delay.audio -> shared-reverb.audio
+    bus dry-to-shared-sum shared-dry.audio -> shared-sum.inputs
+    bus wet-to-shared-sum shared-reverb.audio -> shared-sum.inputs
+    bus shared-out shared-sum.audio -> shared-output.audio
+  }
+}

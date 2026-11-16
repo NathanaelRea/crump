@@ -1,0 +1,62 @@
+crump 2
+project "Minimal Spectral" {
+  id minimal-spectral
+  seed 79
+  sample_rate 48000
+  render_tail 250ms
+  asset source-texture "Deterministic source texture" wav "media/sample-source.wav" sha256 "ae8757e2a42ad7602b7bd6825ab0987444677a8e7f8515d0447e86aa01907de9" {
+    usage spectral
+  }
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    instrument alpha-minimal-spectral "Minimal Spectral" graph {
+      polyphony 4
+      parameter scan "Scan" ratio 0 1 0 0 modulatable
+      faceplate {
+        control scan "Scan" "Scans bounded sinusoidal-peak analysis frames" maps scan
+      }
+      presentation {
+        tags spectral texture evolving
+        preview C3 C5 velocity 40% 90% duration 1beat
+        section source-panel sources "Spectral Source" {
+          node source
+          asset source-texture
+        }
+      }
+      modulation {
+        source motion lfo per_voice unipolar sine sync 2bar phase 0 retrigger note one_shot forward
+        route scan-motion source motion target scan depth 100% map unipolar curve linear order 0 bypass false
+      }
+      graph voice 8 {
+        node source spectral {
+          asset source-texture
+          algorithm crump-spectral-peaks-v1
+          max_peaks 128
+          scan $scan
+          rate 0.35
+          root C4
+          tune 0st
+          low 80hz
+          high 18khz
+          transients reset
+          phase_randomization 0.08
+          freeze false
+          seed 79
+          level 0.4
+        }
+        node voice-out output
+        bus source-pitch note.pitch -> source.pitch
+        bus output-audio source.audio -> voice-out.audio
+      }
+    }
+    pattern phrase 1bar {
+      note 0beat C4 2beat 0.8
+      note 2beat G4 2beat 0.7
+    }
+    track spectral "Spectral" instrument alpha-minimal-spectral level -9db pan 0 {
+      clip phrase pattern phrase start 0bar duration 1bar mode once
+    }
+  }
+}
