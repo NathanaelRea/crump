@@ -2,55 +2,61 @@
 
 # Crump
 
-Crump is a Linux-first, terminal Guided Production Instrument for electronic and synthesized music. Familiar production views lead human work, a small declarative language remains the durable Project source, and external Authoring Agents use the same readable files and versioned `crump --json` command surface.
+Crump is a music production tool that runs in your terminal. You make electronic music with keyboard-driven DAW views. The song itself is stored as plain text files you can read, diff and commit.
 
-## Capabilities
+![Timeline view of the deep-house reference Project](assets/screenshots/timeline.png)
 
-- Human-readable, lossless `.crump` Project and Instrument Module source
-- Source-located parse, semantic, graph, route, media, and resource diagnostics
-- DAW-style fit/zoom Timeline Tracks with Clip ranges, canonical Event activity, Locator/playhead overlays, and verified sample-occurrence source waveforms
-- Reusable Patterns, Pattern Variations, Clips, Locators, and Groove Templates
-- Polyphonic Composable DSP Graphs, stock drums, expressive virtual-analog, wavetable, sample, multisample, granular, and deterministic spectral devices, and portable WAV-backed sampler Instruments
-- Source-backed point Automation, Pattern Parameter Locks, routed LFO Modulation, and an Envelope Follower
-- Sample-accurate control evaluation shared by playback and rendering, with value provenance
-- Track, Group, Return, Send, sidechain, and Master routing with latency compensation
-- Native EQ, dynamics, Delay, Reverb, Saturation, Chorus/Flanger, Crusher, Stutter, and Limiter processing
-- Keyboard operation across Timeline, Event Grid, Faceplate, Parameters, Automation, Processing, Graph, Source, Diagnostics, and History views
-- Native stereo 48 kHz PipeWire playback and transient MIDI Note Audition
-- Checked source-preserving edits with stale-revision protection
-- Explicit Candidate → Active publication and append-only exact Project History
-- Portable WAV and exact mono wavetable import/collection, off-callback sample decode/resampling, deterministic mip and spectral-peak compilation, graph sample/multisample/granular/spectral and sampler playback, bounce, and exact-frame sample preparation
-- Safe runtime publication through compatible state handoff or an aligned topology fade
-- Deterministic stereo float Master/Stem bundles with hashes and finalized-file audio analysis
-- Versioned exact-range offline workload reports
-- Stable one-response JSON commands for external Authoring Agents
+Every sound is built from Crump's own synths, samplers and effects. There are no plug-ins. A project is a folder of `.crump` files plus any WAV samples it uses. You can edit it in the workspace, in your text editor, or through the `crump` CLI, and all three see the same files. That last part makes Crump work well with coding agents. Every command has a `--json` mode that returns one structured response.
 
-Crump does not support recording, Media Tracks, third-party plug-ins, arbitrary native extensions, formant preservation, realtime routed pitch, MPE, or non-Linux playback. See [Supported Environment](docs/support.md) for the complete platform and capability limits.
+Crump runs on Linux and plays audio through PipeWire.
 
-## Install from source
+## What's in it
 
-Playback documentation targets Ubuntu Desktop 26.04 LTS `amd64` with PipeWire 1.6, WirePlumber, and Rust 1.88 or newer. On Ubuntu/Debian, install the native build dependencies:
+- **Arrangement:** tracks, clips, reusable patterns and pattern variations, locators, and groove templates.
+- **Sound:** virtual-analog, wavetable, sample, multisample, granular and spectral sources, all wired together as graphs you write yourself. There are also stock drums and a WAV-based sampler.
+- **Movement:** automation, per-step parameter locks, LFOs, and an envelope follower. Playback and offline rendering share the same sample-accurate evaluation, so they sound identical.
+- **Mixing:** groups, returns, sends and sidechains, with latency compensation. Built-in effects are EQ, compressor, delay, reverb, saturation, chorus/flanger, bitcrusher, stutter and limiter.
+- **Rendering:** deterministic 48 kHz stereo masters and stems, each with a manifest, a hash and audio analysis.
+- **History:** every edit and publish is recorded and can be diffed or restored.
+
+Crump does not do audio recording, third-party plug-ins, MPE, or playback on anything other than Linux. [docs/support.md](docs/support.md) lists the full set of limits.
+
+## How a project works
+
+You edit the files on disk, and Crump only plays a version once you've published it.
+
+```text
+edit files ──▶ validate ──▶ publish ──▶ play / render
+  (candidate)                 (active)
+```
+
+If you save a broken edit, playback keeps using the last good version. The error points to the file, line and column:
+
+```console
+$ crump validate
+crump: validation_failed: Candidate Revision is invalid
+instruments/dh-bass.crump:5:3: error[CRV024]: authored Parameter value is outside its legal domain
+```
+
+This is what makes it safe to have an editor, an agent and the workspace all open on the same project.
+
+![Source view of an instrument module](assets/screenshots/source.png)
+
+## Install
+
+Crump targets Ubuntu 26.04 (amd64) with PipeWire 1.6 and Rust 1.88 or newer.
 
 ```bash
 sudo apt install build-essential dpkg-dev pkg-config libpipewire-0.3-dev libclang-dev
-```
-
-Install Rust with [rustup](https://rustup.rs/), then build or install Crump:
-
-```bash
 git clone https://github.com/NathanaelRea/crump.git
 cd crump
 cargo install --path . --locked
 crump doctor
 ```
 
-To build the unconfined Ubuntu `amd64` package, run `packaging/build-deb.sh dist`. It includes the user guides, Reference Project, starter Instrument library, deep-house integration Project, and native-synthesis qualification fixtures as well as the binary. A build without native PipeWire is available for parser, history, workspace inspection, and render tooling only:
+To build without PipeWire, run `cargo build --release --no-default-features`. That build has no playback, but validation, history, rendering and the workspace still work. To build a `.deb` package, run `packaging/build-deb.sh dist`.
 
-```bash
-cargo build --release --no-default-features
-```
-
-## Start a Project
+## Quick start
 
 ```bash
 crump new my-sketch --name "My Sketch"
@@ -58,88 +64,74 @@ cd my-sketch
 crump
 ```
 
-Inside the workspace:
-
-- `Space` starts, pauses, or resumes the exact Active Revision; `S` stops.
-- `1`–`9` and `0` select Timeline through Source; Tab reaches Diagnostics, History, and Help.
-- `Tab` / `Shift-Tab` or `gt` / `gT` move between views.
-- `j` / `k` or arrow keys navigate; Timeline `h` / `l` seeks on an exact musical grid.
-- Timeline `V` selects a half-open range, `L` loops it, `/` searches, and `:` jumps to bars, beats, Locators, or relative musical durations.
-- Press `i` in an Instrument-related view for explicit Note Audition mode; `Esc` returns to Normal mode.
-- `Enter` accepts an exact value; `P` publishes a valid Candidate.
-- `?` shows keyboard help. `Ctrl-C` is the only workspace and interactive-playback exit shortcut; `q` and `Esc` never exit.
-
-The starter Project is silent. From the repository root, copy [`fixtures/reference/`](fixtures/reference/) to exercise a complete synthesized arrangement:
+A new project starts out silent. For something to listen to, copy the reference project:
 
 ```bash
 cp -R fixtures/reference neon-steps
-crump --project neon-steps publish \
-  --origin human --actor "$USER" \
-  --summary "Adopt reference sketch" \
-  --explanation "Initial inspected publication"
-crump --project neon-steps check
+crump --project neon-steps publish --origin human --actor "$USER" \
+  --summary "Adopt reference sketch" --explanation "First publish"
 crump --project neon-steps play
-crump --project neon-steps render --output render/master --plan
 crump --project neon-steps render --output render/master
-crump --project neon-steps qualify --quantum 128 --plan
-crump --project neon-steps qualify --quantum 128 \
-  --output evidence/qualification.json
-crump --project neon-steps render --output render/stems \
-  --stem track/lead:post_fader
+crump --project neon-steps render --output render/stems --stem track/lead:post_fader
 ```
 
-The render bundle contains analyzed `master.wav` and `manifest.json`; each requested Track or Group tap adds an aligned, independently analyzed and hashed Stem WAV. The complete artifact set is published atomically.
+### Workspace keys
 
-[`fixtures/production/`](fixtures/production/) is a self-contained 96-bar Project used by resource, routing, sampler, and deterministic grouping tests.
+| Key | |
+| --- | --- |
+| `1`–`9`, `0` | Timeline, Mixer, Processing, Event Grid, Faceplate, Instrument, Parameters, Automation, Graph, Source |
+| `Tab` / `Shift-Tab` | Next / previous view, including Diagnostics, History and Help |
+| `Space` / `S` | Play or pause / stop |
+| `j` `k` `h` `l` | Move around. In Timeline, `h`/`l` move by the current grid |
+| `V`, then `L` | Select a range in Timeline and loop it |
+| `:` | Jump to a bar, beat or locator |
+| `i` | Play the current instrument from the computer keyboard (`Esc` to leave) |
+| `P` | Publish the current edits |
+| `?` | Help |
+| `Ctrl-C` | Quit (`q` and `Esc` never quit) |
 
-Both Projects keep each Instrument in `instruments/<id>.crump`, imported by `project.crump`. Tweak its sound, Parameters, and Faceplate in that file; the main Project assigns it to Tracks and owns Patterns, Clip placement, Automation, and mixing. Copy the whole Project directory so the imports travel with it.
+The full keymap is in [docs/workspace.md](docs/workspace.md).
 
-[`fixtures/starter/`](fixtures/starter/) contains nine source-readable native-synthesis Instrument Modules, exact lawful assets, and authored Audition Phrases. [`fixtures/deep-house-reference/`](fixtures/deep-house-reference/) is an original portable 112-bar (3:40) integration fixture using every runnable source family with Patterns, Automation, Modulation, routing, effects, stems, and deterministic delivery evidence. These fixtures are engineering/content preparation; independent listening and named-hardware acceptance remain pending under the [native-synthesis qualification runbook](docs/qualification/native-synthesis.md).
+## Examples
 
-[`examples/instruments/`](examples/instruments/README.md) contains 184 copyable instruments with audition Projects: 60 house instruments, a 32-piece orchestra and 92 synths, drum machines and world and band instruments, all native graphs with no media. The [instrument player](tools/instrument_player/README.md) plays all of them in a browser. The [acoustic model reference](docs/native-acoustics.md) explains excitation and resonant-body profiles. [`examples/waveguides/`](examples/waveguides/README.md) builds a plucked string, a sitar and a clarinet from feedback loops written in plain `.crump`. The [audio comparison tool](tools/audio_compare/README.md) builds standalone listening and time/frequency reports from WAV files.
+- [`fixtures/reference/`](fixtures/reference/): a short three-track synth sketch.
+- [`fixtures/deep-house-reference/`](fixtures/deep-house-reference/): a 112-bar deep-house track that uses every kind of sound source. It's the project in the screenshots above.
+- [`fixtures/starter/`](fixtures/starter/): nine starter instruments with audition phrases.
+- [`examples/instruments/`](examples/instruments/README.md): 184 instruments you can copy, including house sounds, a 32-piece orchestra, drum machines and world instruments. The [instrument player](tools/instrument_player/README.md) lets you play all of them in a browser.
+- [`examples/waveguides/`](examples/waveguides/README.md): a plucked string, a sitar and a clarinet, each built from feedback loops in plain `.crump`.
 
-## Safe source workflow
+In each project, every instrument lives in its own `instruments/<id>.crump` file, and `project.crump` imports them. Copy the whole directory to keep the imports working.
 
-`project.crump`, imported `.crump` modules, and declared Project-owned media are authoritative. Crump never makes an invalid Candidate audible:
-
-1. Source and declared media files on disk form the **Candidate Revision**.
-2. `validate` checks the complete Candidate and emits source locations.
-3. `publish` atomically records a valid Candidate as the **Active Revision**.
-4. Playback and rendering consume exact Active snapshots, not unchecked disk state.
-5. Every structured edit and restore creates an append-only **History Entry**.
-
-This lets playback continue from the last valid state while a person, editor, or Agent repairs invalid source.
-
-## Commands
+## CLI
 
 ```text
-new  validate  inspect  status  publish  check
-workspace  play  render  qualify  doctor
-history list|show|diff|restore
-edit parameter|track-level|track-pan|note-pitch|event-time|note-duration|event-velocity|hit-voice
-edit automation-*|clip-*|locator-*|time-*|groove-*|pattern-variation-*|parameter-lock-*
-edit sample-place|sample-move|sample-duplicate|sample-split|sample-trim|sample-slip|sample-fade|sample-gain|sample-pan
-asset import|import-wavetable|collect|bounce|prepare|list
-module export|install|list|inspect|preview|copy|collect
+new  validate  inspect  status  publish  check  workspace  play  render  qualify  doctor
+history  list | show | diff | restore
+edit     parameters, notes, clips, automation, locators, grooves, samples, ...
+asset    import | import-wavetable | collect | bounce | prepare | list
+module   export | install | list | inspect | preview | copy | collect
 ```
 
-Every non-interactive command supports `--json` and emits exactly one response with `schema_version`, `ok`, `command`, and either `data` or `error`. The interactive workspace intentionally rejects `--json`.
+Add `--json` to any non-interactive command to get a single JSON response:
 
-## Documentation
+```console
+$ crump --json status
+{"command":"status","data":{"active_entry":"000000000001","candidate_valid":true,"state":"active",...},"ok":true,"schema_version":1}
+```
 
-- [Documentation index](docs/README.md)
-- [Production Workspace](docs/workspace.md)
-- [Project Language](docs/language.md)
-- [CLI and Authoring Agents](docs/cli-and-agents.md)
-- [Production Cookbook](docs/cookbook/README.md)
-- [Project Agent Skills](.agents/skills/README.md)
-- [Audio, revision transitions, and MIDI](docs/audio-and-midi.md)
-- [History and deterministic rendering](docs/history-and-rendering.md)
-- [Supported environment and troubleshooting](docs/support.md)
-- [Verification](docs/verification.md)
-- [Product contract](requirements/product-contract.md)
-- [Domain glossary](CONTEXT.md)
-- [Architecture overview](docs/architecture/overview.md)
+Edits made through `edit` keep your formatting and comments. They also refuse to apply if the file has changed since you last read it.
+
+## Docs
+
+- [Workspace](docs/workspace.md)
+- [Project language](docs/language.md)
+- [CLI and agents](docs/cli-and-agents.md)
+- [Cookbook](docs/cookbook/README.md)
+- [Audio and MIDI](docs/audio-and-midi.md)
+- [History and rendering](docs/history-and-rendering.md)
+- [Supported environment](docs/support.md)
+- [Architecture](docs/architecture/overview.md) and [glossary](CONTEXT.md)
+- [Everything else](docs/README.md)
 
 ## License
 
