@@ -383,39 +383,6 @@ const fn node_kind_is_v1(kind: NodeKind) -> bool {
     )
 }
 
-const fn node_kind_has_runtime(kind: NodeKind) -> bool {
-    node_kind_is_v1(kind)
-        || matches!(
-            kind,
-            NodeKind::Exciter
-                | NodeKind::ModalBank
-                | NodeKind::MonoToStereo
-                | NodeKind::StereoToMono
-                | NodeKind::StereoMixer
-                | NodeKind::StereoSum
-                | NodeKind::Sum
-                | NodeKind::AnalogOscillator
-                | NodeKind::Wavetable
-                | NodeKind::SampleSource
-                | NodeKind::Multisample
-                | NodeKind::Granular
-                | NodeKind::Spectral
-                | NodeKind::StereoFilter
-                | NodeKind::DelayLine
-                | NodeKind::Math
-                | NodeKind::StereoMath
-                | NodeKind::Shaper
-                | NodeKind::ToAudio
-                | NodeKind::ToControl
-                | NodeKind::DcBlock
-                | NodeKind::LinearPhaseLowpass
-                | NodeKind::Biquad
-                | NodeKind::OnePole
-                | NodeKind::BiquadChain
-                | NodeKind::Constant
-        )
-}
-
 struct Parser<'a> {
     file: &'a Path,
     source: &'a str,
@@ -2597,7 +2564,7 @@ impl Parser<'_> {
             );
             return None;
         }
-        let supported = node_kind_has_runtime(kind);
+        let definition = kind.definition();
         let mut settings = Vec::new();
         let mut directives = Vec::new();
         for pair in statement.tokens[3..].as_chunks::<2>().0 {
@@ -2609,41 +2576,16 @@ impl Parser<'_> {
                 "source version 1 Node settings must be authored on the `node` declaration line",
                 statement,
             );
-        } else if supported {
+        } else {
             for child in &statement.children {
-                let structured_directive =
-                    (matches!(kind, NodeKind::AnalogOscillator | NodeKind::Wavetable)
-                        && child.tokens.first().is_some_and(|token| {
-                            token.value == "warp"
-                                || (kind == NodeKind::AnalogOscillator
-                                    && token.value == "distortion")
-                        })
-                        && (child.tokens.len() != 2 || !child.children.is_empty()))
-                        || (kind == NodeKind::Lfo
-                            && child
-                                .tokens
-                                .first()
-                                .is_some_and(|token| token.value == "point"))
-                        || (kind == NodeKind::SampleSource
-                            && child
-                                .tokens
-                                .first()
-                                .is_some_and(|token| token.value == "slice"))
-                        || (kind == NodeKind::Multisample
-                            && child
-                                .tokens
-                                .first()
-                                .is_some_and(|token| token.value == "zone"))
-                        || (kind == NodeKind::Shaper
-                            && child
-                                .tokens
-                                .first()
-                                .is_some_and(|token| token.value == "point"))
-                        || (kind == NodeKind::BiquadChain
-                            && child
-                                .tokens
-                                .first()
-                                .is_some_and(|token| token.value == "band"));
+                // A directive keyword that is also a setting key is a setting when it is
+                // written as `key value`.
+                let structured_directive = child.tokens.first().is_some_and(|token| {
+                    definition.directives.contains(&token.value.as_str())
+                        && (definition.setting(&token.value).is_none()
+                            || child.tokens.len() != 2
+                            || !child.children.is_empty())
+                });
                 if structured_directive {
                     directives.push(self.parse_node_directive(child));
                 } else if child.tokens.len() == 2 && child.children.is_empty() {
@@ -2656,29 +2598,20 @@ impl Parser<'_> {
                     );
                 }
             }
-        } else {
-            directives.extend(
-                statement
-                    .children
-                    .iter()
-                    .map(|child| self.parse_node_directive(child)),
-            );
         }
-        if supported {
-            let mut keys = BTreeSet::new();
-            for setting in &settings {
-                if !keys.insert(setting.key.as_str()) {
-                    self.token_error(
-                        "CRP172",
-                        format!("duplicate node setting `{}`", setting.key),
-                        &Token {
-                            kind: TokenKind::Word,
-                            value: setting.key.clone(),
-                            start: setting.key_site.start,
-                            end: setting.key_site.end,
-                        },
-                    );
-                }
+        let mut keys = BTreeSet::new();
+        for setting in &settings {
+            if !keys.insert(setting.key.as_str()) {
+                self.token_error(
+                    "CRP172",
+                    format!("duplicate node setting `{}`", setting.key),
+                    &Token {
+                        kind: TokenKind::Word,
+                        value: setting.key.clone(),
+                        start: setting.key_site.start,
+                        end: setting.key_site.end,
+                    },
+                );
             }
         }
         Some(GraphNode {

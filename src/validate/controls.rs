@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     diagnostic::{Diagnostic, Diagnostics},
+    graph_schedule::SameFrameDependencies,
     model::{
         AutomationInterpolation, ChannelRef, ControlPolarity, InstrumentKind,
         InstrumentModulationScope, InstrumentModulationSourceKind, LfoRetrigger, ModulationCurve,
@@ -784,26 +785,7 @@ fn validate_instrument_modulation(
     let mut macro_edges = BTreeMap::<String, Vec<String>>::new();
     let mut parameter_producer_scopes =
         BTreeMap::<String, Vec<(InstrumentModulationScope, String)>>::new();
-    let graph_adjacency = instrument.graph.as_ref().map(|graph| {
-        let mut adjacency = BTreeMap::<String, Vec<String>>::new();
-        let latency_nodes = graph
-            .nodes
-            .iter()
-            .filter(|node| node.kind.breaks_feedback())
-            .map(|node| node.id.as_str())
-            .collect::<BTreeSet<_>>();
-        for connection in &graph.connections {
-            if connection.from.node != "note"
-                && !latency_nodes.contains(connection.to.node.as_str())
-            {
-                adjacency
-                    .entry(connection.from.node.clone())
-                    .or_default()
-                    .push(connection.to.node.clone());
-            }
-        }
-        adjacency
-    });
+    let graph_dependencies = instrument.graph.as_ref().map(SameFrameDependencies::buses);
     for route in &instrument.modulation_routes {
         if !valid_id(&route.id) || !route_ids.insert(route.id.as_str()) {
             located_error(
@@ -972,13 +954,13 @@ fn validate_instrument_modulation(
                 InstrumentModulationSourceKind::GraphPort { node, .. } => Some(node),
                 _ => None,
             });
-        if let (Some(graph), Some(adjacency)) = (&instrument.graph, &graph_adjacency) {
+        if let (Some(graph), Some(dependencies)) = (&instrument.graph, &graph_dependencies) {
             for node in graph_source_nodes {
                 for consumer in graph.nodes.iter().filter(|candidate| {
                     !candidate.kind.breaks_feedback()
                         && candidate.references_parameter(&route.target)
                 }) {
-                    if reaches(adjacency, &consumer.id, node) || consumer.id == *node {
+                    if dependencies.reaches(&consumer.id, node) || consumer.id == *node {
                         located_error(
                             diagnostics,
                             "CRV186",

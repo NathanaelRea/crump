@@ -9,8 +9,6 @@ use std::f64::consts::PI;
 use super::Scalar;
 pub(super) use crate::model::MAX_BIQUAD_CHAIN_BANDS;
 
-/// Largest authored `delay_line` buffer.
-pub(super) const MAX_DELAY_LINE_SECONDS: f64 = 2.0;
 /// Default buffer: one period of 10 Hz, enough for every pitch-mode note at ratio 1.
 pub(super) const DEFAULT_DELAY_LINE_MAX_SECONDS: f64 = 0.1;
 /// Most points in one authored `shaper` table.

@@ -283,10 +283,8 @@ fn instrument_section_views_impl(
         .chain(instrument.shared_graph.iter())
         .flat_map(|graph| &graph.nodes)
     {
-        if matches!(
-            node.kind,
-            NodeKind::Wavetable | NodeKind::SampleSource | NodeKind::Granular | NodeKind::Spectral
-        ) && let Some(SettingValue::Text(asset_id)) = node.setting("asset")
+        if node.kind.definition().asset.is_some()
+            && let Some(SettingValue::Text(asset_id)) = node.setting("asset")
         {
             referenced_assets.insert(asset_id.as_str());
         }

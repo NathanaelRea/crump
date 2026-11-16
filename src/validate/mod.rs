@@ -671,134 +671,93 @@ fn validate_graph_assets(project: &Project, diagnostics: &mut Diagnostics) {
             .chain(instrument.shared_graph.iter())
             .flat_map(|graph| &graph.nodes)
         {
-            match node.kind {
-                NodeKind::Wavetable
-                | NodeKind::SampleSource
-                | NodeKind::Granular
-                | NodeKind::Spectral => {
-                    let Some(setting) = node.settings.iter().find(|setting| setting.key == "asset")
-                    else {
-                        located_error(
+            let definition = node.kind.definition();
+            if let Some(usage) = definition.asset {
+                let Some(setting) = node.settings.iter().find(|setting| setting.key == "asset")
+                else {
+                    located_error(
+                        diagnostics,
+                        "CRV196",
+                        format!(
+                            "{} node `{}` requires one Project-owned asset setting",
+                            definition.name, node.id
+                        ),
+                        &node.location,
+                    );
+                    continue;
+                };
+                let crate::model::SettingValue::Text(asset_id) = &setting.value else {
+                    continue;
+                };
+                match assets.get(asset_id.as_str()) {
+                    None => source_site_error(
+                        diagnostics,
+                        "CRV196",
+                        format!(
+                            "{} node `{}` references missing Project asset `{asset_id}`",
+                            definition.name, node.id
+                        ),
+                        &setting.value_site,
+                    ),
+                    Some(asset)
+                        if usage == MediaAssetUsage::Wavetable
+                            && (!asset.usages.contains(&usage) || asset.wavetable.is_none()) =>
+                    {
+                        source_site_error(
                             diagnostics,
                             "CRV196",
                             format!(
-                                "{} node `{}` requires one Project-owned asset setting",
-                                match node.kind {
-                                    NodeKind::Wavetable => "wavetable",
-                                    NodeKind::Granular => "granular",
-                                    NodeKind::Spectral => "spectral",
-                                    _ => "sample_source",
-                                },
-                                node.id
+                                "asset `{asset_id}` is not declared with complete wavetable metadata"
                             ),
-                            &node.location,
+                            &setting.value_site,
                         );
-                        continue;
-                    };
-                    let crate::model::SettingValue::Text(asset_id) = &setting.value else {
-                        continue;
-                    };
-                    match assets.get(asset_id.as_str()) {
+                    }
+                    Some(asset) if !asset.usages.contains(&usage) => {
+                        let role = match usage {
+                            MediaAssetUsage::Granular => "granular",
+                            MediaAssetUsage::Spectral => "spectral",
+                            _ => "sample",
+                        };
+                        source_site_error(
+                            diagnostics,
+                            "CRV196",
+                            format!("asset `{asset_id}` is not declared for {role} usage"),
+                            &setting.value_site,
+                        );
+                    }
+                    Some(_) => {}
+                }
+            } else if node.kind == NodeKind::Multisample {
+                for zone in node
+                    .directives
+                    .iter()
+                    .filter_map(NodeDirective::zone_clauses)
+                {
+                    let asset_id = zone.asset;
+                    match assets.get(asset_id.value.as_str()) {
                         None => source_site_error(
                             diagnostics,
                             "CRV196",
                             format!(
-                                "{} node `{}` references missing Project asset `{asset_id}`",
-                                match node.kind {
-                                    NodeKind::Wavetable => "wavetable",
-                                    NodeKind::Granular => "granular",
-                                    NodeKind::Spectral => "spectral",
-                                    _ => "sample_source",
-                                },
-                                node.id
+                                "multisample zone references missing Project asset `{}`",
+                                asset_id.value
                             ),
-                            &setting.value_site,
+                            &asset_id.site,
                         ),
-                        Some(asset)
-                            if node.kind == NodeKind::Wavetable
-                                && (!asset.usages.contains(&MediaAssetUsage::Wavetable)
-                                    || asset.wavetable.is_none()) =>
-                        {
+                        Some(asset) if !asset.usages.contains(&MediaAssetUsage::Multisample) => {
                             source_site_error(
                                 diagnostics,
                                 "CRV196",
                                 format!(
-                                    "asset `{asset_id}` is not declared with complete wavetable metadata"
+                                    "asset `{}` is not declared for multisample usage",
+                                    asset_id.value
                                 ),
-                                &setting.value_site,
-                            );
-                        }
-                        Some(asset)
-                            if node.kind == NodeKind::SampleSource
-                                && !asset.usages.contains(&MediaAssetUsage::Sample) =>
-                        {
-                            source_site_error(
-                                diagnostics,
-                                "CRV196",
-                                format!("asset `{asset_id}` is not declared for sample usage"),
-                                &setting.value_site,
-                            );
-                        }
-                        Some(asset)
-                            if node.kind == NodeKind::Granular
-                                && !asset.usages.contains(&MediaAssetUsage::Granular) =>
-                        {
-                            source_site_error(
-                                diagnostics,
-                                "CRV196",
-                                format!("asset `{asset_id}` is not declared for granular usage"),
-                                &setting.value_site,
-                            );
-                        }
-                        Some(asset)
-                            if node.kind == NodeKind::Spectral
-                                && !asset.usages.contains(&MediaAssetUsage::Spectral) =>
-                        {
-                            source_site_error(
-                                diagnostics,
-                                "CRV196",
-                                format!("asset `{asset_id}` is not declared for spectral usage"),
-                                &setting.value_site,
+                                &asset_id.site,
                             );
                         }
                         Some(_) => {}
                     }
                 }
-                NodeKind::Multisample => {
-                    for zone in node
-                        .directives
-                        .iter()
-                        .filter_map(NodeDirective::zone_clauses)
-                    {
-                        let asset_id = zone.asset;
-                        match assets.get(asset_id.value.as_str()) {
-                            None => source_site_error(
-                                diagnostics,
-                                "CRV196",
-                                format!(
-                                    "multisample zone references missing Project asset `{}`",
-                                    asset_id.value
-                                ),
-                                &asset_id.site,
-                            ),
-                            Some(asset)
-                                if !asset.usages.contains(&MediaAssetUsage::Multisample) =>
-                            {
-                                source_site_error(
-                                    diagnostics,
-                                    "CRV196",
-                                    format!(
-                                        "asset `{}` is not declared for multisample usage",
-                                        asset_id.value
-                                    ),
-                                    &asset_id.site,
-                                );
-                            }
-                            Some(_) => {}
-                        }
-                    }
-                }
-                _ => {}
             }
         }
     }

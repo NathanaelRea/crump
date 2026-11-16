@@ -55,6 +55,8 @@ The Candidate is current source bytes. The Active Revision is an exact committed
 | `diagnostic` | serializable stable codes and exact source locations |
 | `model` | terminal-independent Project/Song/Instrument/presentation/voicing/Pattern/Variation/lock/Groove/Clip/Locator/Automation/channel-route/processor domain and authoritative Parameter inventory |
 | `processor_semantics` | canonical native processor setting keys, contracts, defaults, relationships, and effective resolution |
+| `node_definition` | one definition per Processing Node kind: source name, typed Ports and cardinality, setting keys and physical domains, feedback-breaking, asset role, and structured-directive keywords, read by parsing, validation, the graph runtime, admission, and inspection |
+| `graph_schedule` | same-frame Bus and graph-port route dependencies of a Composable DSP Graph, with `delay_line` inputs excluded; the one processing order and named-cycle check shared by validation, the graph runtime, and Graph View |
 | `dsl` | full-fidelity ranges, block grouping, recoverable Project/Module parsing |
 | `validate` | whole-Project orchestration plus domain checks split across `controls`, `instruments`, `patterns`, `routing`, and `tracks`; IDs/references, physical domains, typed DAGs, bounds, and Musical Sketch checks |
 | `routing` | canonical authored channel/processor identity, Main/Send/sidechain topology, route findings, cycle analysis, and stable processing order shared by validation and engine lowering |

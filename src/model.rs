@@ -2682,8 +2682,10 @@ pub enum NodeKind {
 impl NodeKind {
     /// Reports whether the Node's `inputs` port accepts many Buses and sums them.
     #[must_use]
-    pub const fn is_summing(self) -> bool {
-        matches!(self, Self::Sum | Self::StereoSum)
+    pub fn is_summing(self) -> bool {
+        self.definition()
+            .input("inputs")
+            .is_some_and(|spec| spec.cardinality == crate::node_definition::Cardinality::Summing)
     }
 
     /// Reports whether the Node's output depends only on inputs from earlier frames.
@@ -2691,7 +2693,7 @@ impl NodeKind {
     /// Buses into such a Node may close a feedback loop; every other cycle is invalid.
     #[must_use]
     pub const fn breaks_feedback(self) -> bool {
-        matches!(self, Self::DelayLine)
+        self.definition().breaks_feedback
     }
 }
 

@@ -187,14 +187,7 @@ pub(crate) fn module_asset_dependencies(instrument: &Instrument) -> Vec<ModuleAs
         .chain(instrument.shared_graph.iter())
     {
         for node in &graph.nodes {
-            let usage = match node.kind {
-                NodeKind::Wavetable => Some(MediaAssetUsage::Wavetable),
-                NodeKind::SampleSource => Some(MediaAssetUsage::Sample),
-                NodeKind::Granular => Some(MediaAssetUsage::Granular),
-                NodeKind::Spectral => Some(MediaAssetUsage::Spectral),
-                _ => None,
-            };
-            if let Some(usage) = usage
+            if let Some(usage) = node.kind.definition().asset
                 && let Some(SettingValue::Text(asset_id)) = node.setting("asset")
             {
                 include(asset_id, Some(usage), format!("node {}", node.id));
