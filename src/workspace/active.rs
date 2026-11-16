@@ -5,12 +5,12 @@ use std::{collections::BTreeMap, sync::Arc};
 use crate::{
     engine::{
         RuntimeTelemetry, SongRuntime,
-        audition::{AuditionPlan, AuditionPrepareOptions, AuditionStatus},
+        audition::{AuditionPlan, AuditionPrepareOptions, AuditionStatus, range_offset},
         control::ControlInspector,
         mix_graph::MixGraphInspection,
     },
     project::{ProjectBundle, RevisionId},
-    realtime::{PipeWirePlayer, PublicationReservation},
+    realtime::{PlaybackBackend, Player, PublicationReservation},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +36,7 @@ pub(super) struct ActiveRequest {
     pub(super) initial_frame: Option<u64>,
     pub(super) explicit_seek: bool,
     pub(super) mode: ActiveMode,
+    pub(super) backend: PlaybackBackend,
 }
 
 pub(super) struct PreparedActiveInspection {
@@ -51,7 +52,7 @@ pub(super) struct PreparedActiveInspection {
 
 pub(super) enum PreparedActiveMode {
     Armed,
-    Started(Box<PipeWirePlayer>),
+    Started(Box<Player>),
     Replacement {
         runtime: Box<SongRuntime>,
         reservation: PublicationReservation,
@@ -80,6 +81,7 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
         initial_frame,
         explicit_seek,
         mode,
+        backend,
     } = request;
     if active.revision != key.active_revision {
         return ActiveResult::Failed {
@@ -101,15 +103,12 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
         None
     } else {
         previous_status.as_ref().map(|status| {
-            let next_frame = telemetry.frame.saturating_add(1);
-            if status.looping {
-                let length = status.end_frame.saturating_sub(status.start_frame).max(1);
-                next_frame.saturating_sub(status.start_frame) % length
-            } else {
-                next_frame
-                    .clamp(status.start_frame, status.end_frame.saturating_sub(1))
-                    .saturating_sub(status.start_frame)
-            }
+            range_offset(
+                telemetry.frame.saturating_add(1),
+                status.start_frame,
+                status.end_frame,
+                status.looping,
+            )
         })
     };
     let prepared = match plan.prepare_with_options(
@@ -155,7 +154,7 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
             drop(runtime);
             PreparedActiveMode::Armed
         }
-        ActiveMode::Start => match PipeWirePlayer::start_with_generation(runtime, key.generation) {
+        ActiveMode::Start => match backend.start(runtime, key.generation) {
             Ok(player) => PreparedActiveMode::Started(Box::new(player)),
             Err(error) => {
                 return ActiveResult::Failed {
@@ -165,12 +164,8 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
             }
         },
         ActiveMode::Replace { reservation } => {
-            #[cfg(feature = "pipewire")]
-            let runtime = {
-                let mut runtime = runtime;
-                runtime.prime_for_publication();
-                runtime
-            };
+            let mut runtime = runtime;
+            runtime.prime_for_publication();
             PreparedActiveMode::Replacement {
                 runtime: Box::new(runtime),
                 reservation,

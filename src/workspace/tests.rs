@@ -1402,3 +1402,78 @@ fn profile_workspace_hot_paths() {
         );
     }
 }
+
+#[test]
+fn in_memory_playback_publishes_edits_through_the_callback_and_promotes_inspection() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    let original = include_str!("../../tests/fixtures/minimal.crump");
+    let project_path = root.path().join("project.crump");
+    fs::write(&project_path, original).expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    workspace.playback_backend = PlaybackBackend::InMemory;
+    workspace.commit_input("Initial".to_owned(), InputAction::Publish);
+    settle_background(&mut workspace);
+    assert!(workspace.candidate_is_active(), "{}", workspace.status);
+
+    workspace.toggle_playback();
+    settle_background(&mut workspace);
+    let first = workspace
+        .pending_active_inspection
+        .as_ref()
+        .expect("started audition awaits callback confirmation")
+        .key
+        .generation;
+    let player = workspace.player.as_mut().expect("in-memory player started");
+    let audio = player.render(512).expect("render the in-memory callback");
+    assert!(audio.iter().flatten().all(|sample| sample.is_finite()));
+    workspace.poll_audio();
+    assert!(workspace.pending_active_inspection.is_none());
+    assert_eq!(workspace.telemetry.publication_generation, first);
+    assert_eq!(workspace.status, "Active audition is now audible");
+    let before = workspace.telemetry.engine.frame;
+    assert!(before >= 511, "transport advanced to {before}");
+
+    // A published edit replaces the audible runtime through the same callback.
+    let changed = original.replace(
+        "track lead \"Lead\" instrument lead level -9db",
+        "track lead \"Lead\" instrument lead level -12db",
+    );
+    assert_ne!(changed, original);
+    fs::write(&project_path, &changed).expect("write level edit");
+    workspace.refresh();
+    settle_background(&mut workspace);
+    workspace.commit_input("Quieter lead".to_owned(), InputAction::Publish);
+    settle_background(&mut workspace);
+    let second = workspace
+        .pending_active_inspection
+        .as_ref()
+        .expect("replacement awaits callback confirmation")
+        .key
+        .generation;
+    assert!(second > first);
+    assert!(
+        workspace.status.starts_with("Active audition queued"),
+        "{}",
+        workspace.status
+    );
+
+    // The callback crossfades, retires the old runtime, and reports the new generation.
+    let player = workspace
+        .player
+        .as_mut()
+        .expect("player survives publication");
+    player.render(2_048).expect("render through the crossfade");
+    workspace.poll_audio();
+    assert_eq!(workspace.telemetry.publication_generation, second);
+    assert!(!workspace.telemetry.transition_active);
+    assert!(workspace.pending_active_inspection.is_none());
+    assert_eq!(workspace.status, "Active audition is now audible");
+    assert!(
+        workspace.telemetry.engine.frame > before,
+        "callback-relative transport is retained across publication"
+    );
+
+    workspace.stop_playback();
+    settle_background(&mut workspace);
+    assert!(workspace.player.is_none());
+}

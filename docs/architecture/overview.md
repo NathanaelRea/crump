@@ -64,7 +64,7 @@ The Candidate is current source bytes. The Active Revision is an exact committed
 | `media` | bounded portable WAV identity, exact-byte hashing, container metadata, and diagnostics |
 | `engine::sample` | immutable WAV decode and deterministic offline Project-rate conversion |
 | `engine::spectral` | referenced-only deterministic sinusoidal-peak analysis, cache identity, inspection, and preflight accounting |
-| `engine::audition` | durable-ID target/path/range resolution, deterministic seek preparation, transient bypass/Solo/cue, and unified inspection; `publication` owns Active refresh and the bounded runtime-publication port |
+| `engine::audition` | durable-ID target/path/range resolution, deterministic seek preparation, the shared publication range-offset rule, transient bypass/Solo/cue, and unified inspection |
 | `edit` | checked literal/binary replacements, stale detection, and staged atomic publication, with Automation, media, and Timeline authoring split into domain modules |
 | `production_view` | terminal-independent durable operation execution, shared physical-value parsing, checked edit planning, publication, and History provenance for CLI and workspace adapters |
 | `history` | exclusive lock, complete durable source transactions, append-only provenance, snapshots, diff, restore, and recovery |
@@ -77,7 +77,7 @@ The Candidate is current source bytes. The Active Revision is an exact committed
 | `engine` | shared SongRuntime, Track-source production, compiled mix execution, voice stealing, telemetry, monitor safety |
 | `engine::analysis` | streaming finalized-WAV peak, K-weighted loudness, DC, clipping, and non-finite analysis |
 | `engine::render` | exact Active offline processing, aligned Track/Group stem capture, finalized-file verification, and atomic multi-WAV/manifest publication |
-| `realtime` | native PipeWire audio/MIDI streams, fixed queues, transitions, recovery telemetry |
+| `realtime` | one `Player` controller and callback (fixed queues, transitions, reclamation, recovery telemetry) behind two drivers: native PipeWire audio/MIDI streams, and an in-memory driver whose owner steps the callback explicitly |
 | `project_picker` | interactive nested-Project discovery with `fzf` and numbered terminal selection |
 | `workspace` | Ratatui Production Views and external-change observation, with terminal lifecycle, rendering, input parsing, and a Ratatui-independent cached Timeline arrangement/waveform projection separated from workspace state/actions |
 | `cli` | human and schema-versioned external-Agent boundary, with argument schema and command execution separated from adapter entry/response types |

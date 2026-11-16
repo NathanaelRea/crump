@@ -28,10 +28,8 @@ pub use wavetable::WavetableInspection;
 use std::{collections::BTreeMap, sync::Arc};
 
 use serde::{Deserialize, Serialize};
-#[cfg(any(feature = "pipewire", test))]
 use sha2::{Digest, Sha256};
 
-#[cfg(any(feature = "pipewire", test))]
 use crate::model::Instrument;
 use crate::{
     diagnostic::Diagnostic,
@@ -221,12 +219,10 @@ impl CompiledProject {
                     )?))
                 }
             };
-            #[cfg(any(feature = "pipewire", test))]
             let semantic_hash = track_semantic_hash(&schedule, instrument, project)?;
             tracks.push(CompiledTrack {
                 schedule: Arc::new(schedule),
                 program,
-                #[cfg(any(feature = "pipewire", test))]
                 semantic_hash,
             });
         }
@@ -338,13 +334,10 @@ impl CompiledProject {
             audition_output: AuditionMonitorOutput::Master,
             raw_audition: None,
             mapping_audition: None,
-            #[cfg(any(feature = "pipewire", test))]
             audition_seek_requested: false,
             controls: self.controls.runtime(),
             envelope_followers: self.envelope_followers.runtime(),
-            #[cfg(any(feature = "pipewire", test))]
             scalar_control_handoff: false,
-            #[cfg(any(feature = "pipewire", test))]
             publication_pristine: true,
             tracks: self
                 .tracks
@@ -431,7 +424,6 @@ impl CompiledProject {
 struct CompiledTrack {
     schedule: Arc<TrackSchedule>,
     program: InstrumentProgram,
-    #[cfg(any(feature = "pipewire", test))]
     semantic_hash: [u8; 32],
 }
 
@@ -485,7 +477,6 @@ enum InstrumentProgram {
     Sampler(Arc<CompiledSamplerProgram>),
 }
 
-#[cfg(any(feature = "pipewire", test))]
 fn track_semantic_hash(
     schedule: &TrackSchedule,
     instrument: &Instrument,
@@ -754,7 +745,6 @@ fn track_semantic_hash(
     Ok(hasher.finalize().into())
 }
 
-#[cfg(any(feature = "pipewire", test))]
 fn canonical_graph_for_semantic_hash(graph: &crate::model::Graph) -> crate::model::Graph {
     let mut graph = graph.clone();
     let summing_nodes = graph
@@ -785,13 +775,11 @@ fn canonical_graph_for_semantic_hash(graph: &crate::model::Graph) -> crate::mode
     graph
 }
 
-#[cfg(any(feature = "pipewire", test))]
 fn hash_bytes(hasher: &mut Sha256, bytes: &[u8]) {
     hasher.update((bytes.len() as u64).to_le_bytes());
     hasher.update(bytes);
 }
 
-#[cfg(any(feature = "pipewire", test))]
 fn hash_clip_envelope(hasher: &mut Sha256, envelope: ClipEnvelope) {
     hasher.update(envelope.gain.to_bits().to_le_bytes());
     hasher.update(envelope.position_frames.to_le_bytes());
@@ -800,7 +788,6 @@ fn hash_clip_envelope(hasher: &mut Sha256, envelope: ClipEnvelope) {
     hasher.update(envelope.fade_out_frames.to_le_bytes());
 }
 
-#[cfg(any(feature = "pipewire", test))]
 fn strip_source_metadata(value: &mut serde_json::Value) {
     match value {
         serde_json::Value::Object(object) => {
@@ -818,7 +805,19 @@ fn strip_source_metadata(value: &mut serde_json::Value) {
     }
 }
 
-#[cfg(any(feature = "pipewire", test))]
+/// Voices sounding after one source step, split by publication compatibility.
+#[derive(Debug, Default, Clone, Copy)]
+struct TrackVoices {
+    unchanged: usize,
+    affected: usize,
+}
+
+impl TrackVoices {
+    fn total(self) -> usize {
+        self.unchanged.saturating_add(self.affected)
+    }
+}
+
 #[derive(Default)]
 struct TransitionFrame {
     common_sources: [[f32; 2]; MAX_RUNTIME_TRACKS],
@@ -881,13 +880,10 @@ pub struct SongRuntime {
     audition_output: AuditionMonitorOutput,
     raw_audition: Option<RawAuditionRuntime>,
     mapping_audition: Option<MappingAuditionTrigger>,
-    #[cfg(any(feature = "pipewire", test))]
     audition_seek_requested: bool,
     controls: ControlRuntime,
     envelope_followers: EnvelopeFollowerRuntime,
-    #[cfg(any(feature = "pipewire", test))]
     scalar_control_handoff: bool,
-    #[cfg(any(feature = "pipewire", test))]
     publication_pristine: bool,
     tracks: Vec<TrackRuntime>,
     mix: MixGraphRuntime,
@@ -898,16 +894,7 @@ pub struct SongRuntime {
 impl SongRuntime {
     /// Processes one stereo frame.
     pub fn process_frame(&mut self, mode: ProcessingMode) -> Result<[f32; 2], EngineError> {
-        #[cfg(any(feature = "pipewire", test))]
-        {
-            self.publication_pristine = false;
-        }
-        if let Some((start, end)) = self.audition_loop
-            && self.frame >= end
-        {
-            self.rewind_audition(start);
-        }
-        if self.frame >= self.playback_end() {
+        if !self.begin_frame() {
             self.telemetry.current_peak = 0.0;
             self.telemetry.follower_count = self.envelope_followers.route_count();
             self.telemetry
@@ -924,32 +911,10 @@ impl SongRuntime {
             self.telemetry.frame = self.frame;
             return Ok([0.0, 0.0]);
         }
-        self.controls.evaluate_frame(self.frame);
-        let control_values = self.controls.values();
-        let pre_instrument_unconstrained_values =
-            self.controls.pre_instrument_unconstrained_values();
-        let song_modulation_values = self.controls.song_modulation_values();
-        let instrument_route_values = self.controls.instrument_route_values();
-        let mut active_voices = 0;
-        for (index, track) in self.tracks.iter_mut().enumerate() {
-            track.dispatch(self.frame);
-            let (sample, voices) = track.process(
-                control_values,
-                pre_instrument_unconstrained_values,
-                song_modulation_values,
-                instrument_route_values,
-                self.frame,
-            );
-            self.track_sources[index] = sample;
-            active_voices += voices;
-            self.telemetry.feedback_mutes = self
-                .telemetry
-                .feedback_mutes
-                .saturating_add(track.take_feedback_mutes());
-        }
+        let voices = self.process_track_sources(false);
         let routed = self.mix.process(
             &self.track_sources[..self.tracks.len()],
-            control_values,
+            self.controls.values(),
             mode == ProcessingMode::Monitoring,
         );
         let mut master = if mode == ProcessingMode::Monitoring {
@@ -979,7 +944,61 @@ impl SongRuntime {
                 *channel = monitor_sample(*channel);
             }
         }
-        let peak = master[0].abs().max(master[1].abs());
+        self.record_output(self.frame, master, voices.total());
+        self.frame += 1;
+        Ok(master)
+    }
+
+    /// Starts one transport frame for playback and publication alike.
+    ///
+    /// Wraps an expired audition loop and reports whether authored playback is
+    /// still running at the resulting frame.
+    fn begin_frame(&mut self) -> bool {
+        {
+            self.publication_pristine = false;
+        }
+        if let Some((start, end)) = self.audition_loop
+            && self.frame >= end
+        {
+            self.rewind_audition(start);
+        }
+        self.frame < self.playback_end()
+    }
+
+    /// Evaluates controls and runs Track sources for the current frame.
+    ///
+    /// This is the one per-frame source step shared by playback and publication.
+    /// Every processed Track writes its `track_sources` entry and drains its
+    /// feedback-guard mutes into telemetry; a skipped Track contributes silence.
+    /// `skip_unchanged` omits publication-unchanged Tracks whose voices the
+    /// outgoing runtime already runs.
+    fn process_track_sources(&mut self, skip_unchanged: bool) -> TrackVoices {
+        self.controls.evaluate_frame(self.frame);
+        let mut voices = TrackVoices::default();
+        for (index, track) in self.tracks.iter_mut().enumerate() {
+            if skip_unchanged && track.transition_unchanged {
+                self.track_sources[index] = [0.0, 0.0];
+                continue;
+            }
+            track.dispatch(self.frame);
+            let (sample, count) = track.process(&self.controls, self.frame);
+            self.track_sources[index] = sample;
+            if track.transition_unchanged {
+                voices.unchanged = voices.unchanged.saturating_add(count);
+            } else {
+                voices.affected = voices.affected.saturating_add(count);
+            }
+            self.telemetry.feedback_mutes = self
+                .telemetry
+                .feedback_mutes
+                .saturating_add(track.take_feedback_mutes());
+        }
+        voices
+    }
+
+    /// Records one emitted frame's output, voices, and mix meters.
+    fn record_output(&mut self, frame: u64, output: [f32; 2], active_voices: usize) {
+        let peak = output[0].abs().max(output[1].abs());
         self.telemetry.peak = self.telemetry.peak.max(peak);
         self.telemetry.current_peak = peak;
         self.telemetry.active_voices = active_voices;
@@ -989,9 +1008,7 @@ impl SongRuntime {
         self.telemetry.processor_count = self
             .mix
             .copy_processor_activity(&mut self.telemetry.processor_activity);
-        self.telemetry.frame = self.frame;
-        self.frame += 1;
-        Ok(master)
+        self.telemetry.frame = frame;
     }
 
     pub(crate) fn channel_tap_sample(&self, index: usize, tap: TapPoint) -> Option<[f32; 2]> {
@@ -1087,14 +1104,12 @@ impl SongRuntime {
         self.mix.set_transport_frame(self.frame);
         self.envelope_followers.reset();
         self.controls.clear_future_modulation();
-        #[cfg(any(feature = "pipewire", test))]
         {
             self.publication_pristine = true;
         }
     }
 
     /// Clears a replacement on the controller thread before queue ownership moves.
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn prime_for_publication(&mut self) {
         if !self.audition_seek_requested {
             self.seek_transport(self.frame);
@@ -1102,7 +1117,6 @@ impl SongRuntime {
     }
 
     /// Realigns an already-cleared replacement with bounded cursor-only callback work.
-    #[cfg(any(feature = "pipewire", test))]
     fn realign_pristine_publication(&mut self, target_frame: u64) {
         debug_assert!(self.publication_pristine);
         self.frame = target_frame.min(self.total_frames);
@@ -1122,7 +1136,6 @@ impl SongRuntime {
     /// program and begins a bounded monitoring-only scalar ramp. Called on the PipeWire
     /// thread at a block boundary; it performs only bounded comparisons and copies over
     /// preallocated arrays and does not allocate.
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn prepare_transition(&mut self, next: &mut Self) {
         self.scalar_control_handoff = false;
         self.controls.reset_transition_changes();
@@ -1144,15 +1157,13 @@ impl SongRuntime {
         } else if self.audition_range != next.audition_range {
             match (self.audition_range, next.audition_range) {
                 (Some((old_start, old_end)), Some((new_start, new_end))) => {
-                    let old_length = old_end.saturating_sub(old_start).max(1);
                     let new_length = new_end.saturating_sub(new_start).max(1);
-                    let old_offset = if self.audition_loop.is_some() {
-                        self.frame.saturating_sub(old_start) % old_length
-                    } else {
-                        self.frame
-                            .clamp(old_start, old_end.saturating_sub(1))
-                            .saturating_sub(old_start)
-                    };
+                    let old_offset = audition::range_offset(
+                        self.frame,
+                        old_start,
+                        old_end,
+                        self.audition_loop.is_some(),
+                    );
                     new_start.saturating_add(old_offset.min(new_length.saturating_sub(1)))
                 }
                 _ => self.frame,
@@ -1247,7 +1258,6 @@ impl SongRuntime {
     }
 
     /// Processes one publication frame without running shared Track voices twice.
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn process_transition_frame(
         &mut self,
         next: &mut Self,
@@ -1274,16 +1284,6 @@ impl SongRuntime {
                 self.controls.values(),
                 true,
             );
-            self.telemetry.follower_count = self.envelope_followers.process(
-                &self.mix,
-                &mut self.controls,
-                &mut self.telemetry.follower_activity,
-            );
-            next.telemetry.follower_count = next.envelope_followers.process(
-                &self.mix,
-                &mut next.controls,
-                &mut next.telemetry.follower_activity,
-            );
             self.monitor_output(routed)
         } else {
             let mut next_sources = new.affected_sources;
@@ -1309,16 +1309,6 @@ impl SongRuntime {
                 next.controls.values(),
                 true,
             );
-            self.telemetry.follower_count = self.envelope_followers.process(
-                &self.mix,
-                &mut self.controls,
-                &mut self.telemetry.follower_activity,
-            );
-            next.telemetry.follower_count = next.envelope_followers.process(
-                &next.mix,
-                &mut next.controls,
-                &mut next.telemetry.follower_activity,
-            );
             let old_output = self.monitor_output(old_routed);
             let new_output = next.monitor_output(new_routed);
             [
@@ -1328,10 +1318,23 @@ impl SongRuntime {
         };
         let frame = old.frame;
         if !master.into_iter().all(f32::is_finite) {
-            self.record_transition_output(frame, [0.0, 0.0], 0);
-            next.record_transition_output(new.frame, [0.0, 0.0], 0);
+            self.record_output(frame, [0.0, 0.0], 0);
+            next.record_output(new.frame, [0.0, 0.0], 0);
             return Err(EngineError::NonFinite { frame });
         }
+        // As in `process_frame`, followers observe only a finite mix. A shared mix
+        // feeds both runtimes' followers because only the outgoing mix ran.
+        self.telemetry.follower_count = self.envelope_followers.process(
+            &self.mix,
+            &mut self.controls,
+            &mut self.telemetry.follower_activity,
+        );
+        let next_mix = if shared_mix { &self.mix } else { &next.mix };
+        next.telemetry.follower_count = next.envelope_followers.process(
+            next_mix,
+            &mut next.controls,
+            &mut next.telemetry.follower_activity,
+        );
         for channel in &mut master {
             *channel = monitor_sample(*channel);
         }
@@ -1339,8 +1342,8 @@ impl SongRuntime {
             .common_voices
             .saturating_add(old.affected_voices)
             .saturating_add(new.affected_voices);
-        self.record_transition_output(frame, master, active_voices);
-        next.record_transition_output(new.frame, master, active_voices);
+        self.record_output(frame, master, active_voices);
+        next.record_output(new.frame, master, active_voices);
         if shared_mix {
             next.telemetry.channel_activity = self.telemetry.channel_activity;
             next.telemetry.channel_count = self.telemetry.channel_count;
@@ -1351,7 +1354,6 @@ impl SongRuntime {
     }
 
     /// Moves live state for unchanged Tracks into the accepted replacement runtime.
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn complete_transition(&mut self, next: &mut Self) {
         for current in &mut self.tracks {
             if !current.transition_unchanged {
@@ -1391,68 +1393,27 @@ impl SongRuntime {
             .fold(0_usize, usize::saturating_add);
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     fn process_transition_sources(&mut self, process_unchanged: bool) -> TransitionFrame {
-        self.publication_pristine = false;
-        if let Some((start, end)) = self.audition_loop
-            && self.frame >= end
-        {
-            self.rewind_audition(start);
-        }
-        let frame = self.frame;
-        if frame >= self.playback_end() {
-            return TransitionFrame {
-                frame,
-                ..TransitionFrame::default()
-            };
-        }
-        self.controls.evaluate_frame(frame);
-        let control_values = self.controls.values();
-        let pre_instrument_unconstrained_values =
-            self.controls.pre_instrument_unconstrained_values();
-        let song_modulation_values = self.controls.song_modulation_values();
-        let instrument_route_values = self.controls.instrument_route_values();
+        let running = self.begin_frame();
         let mut output = TransitionFrame {
-            frame,
+            frame: self.frame,
             ..TransitionFrame::default()
         };
-        for (index, track) in self.tracks.iter_mut().enumerate() {
-            if track.transition_unchanged && !process_unchanged {
-                continue;
-            }
-            track.dispatch(frame);
-            let (sample, voices) = track.process(
-                control_values,
-                pre_instrument_unconstrained_values,
-                song_modulation_values,
-                instrument_route_values,
-                frame,
-            );
+        if !running {
+            return output;
+        }
+        let voices = self.process_track_sources(!process_unchanged);
+        for (index, track) in self.tracks.iter().enumerate() {
             if track.transition_unchanged {
-                output.common_sources[index] = sample;
-                output.common_voices = output.common_voices.saturating_add(voices);
+                output.common_sources[index] = self.track_sources[index];
             } else {
-                output.affected_sources[index] = sample;
-                output.affected_voices = output.affected_voices.saturating_add(voices);
+                output.affected_sources[index] = self.track_sources[index];
             }
         }
+        output.common_voices = voices.unchanged;
+        output.affected_voices = voices.affected;
         self.frame = self.frame.saturating_add(1);
         output
-    }
-
-    #[cfg(any(feature = "pipewire", test))]
-    fn record_transition_output(&mut self, frame: u64, output: [f32; 2], active_voices: usize) {
-        let peak = output[0].abs().max(output[1].abs());
-        self.telemetry.peak = self.telemetry.peak.max(peak);
-        self.telemetry.current_peak = peak;
-        self.telemetry.active_voices = active_voices;
-        let (channel_activity, channel_count) = self.mix.channel_activity();
-        self.telemetry.channel_activity = channel_activity;
-        self.telemetry.channel_count = channel_count;
-        self.telemetry.processor_count = self
-            .mix
-            .copy_processor_activity(&mut self.telemetry.processor_activity);
-        self.telemetry.frame = frame;
     }
 
     pub(crate) fn set_audition_range(&mut self, start: u64, end: u64) -> Result<(), EngineError> {
@@ -1546,7 +1507,6 @@ impl SongRuntime {
         Ok(())
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn request_audition_seek(&mut self) {
         self.audition_seek_requested = true;
     }
@@ -1738,15 +1698,12 @@ impl SongRuntime {
 
 struct TrackRuntime {
     schedule: Arc<TrackSchedule>,
-    #[cfg(any(feature = "pipewire", test))]
     semantic_hash: [u8; 32],
     cursor: usize,
     loop_cursor: usize,
-    #[cfg(any(feature = "pipewire", test))]
     transition_unchanged: bool,
     modulation_identity: u64,
     parameter_locks: Option<TrackParameterLockRuntime>,
-    #[cfg(any(feature = "pipewire", test))]
     parameter_locks_handoff: bool,
     instrument: InstrumentRuntime,
     /// Feedback-guard mutes not yet folded into Song telemetry.
@@ -1792,15 +1749,12 @@ impl TrackRuntime {
         };
         Self {
             schedule: track.schedule.clone(),
-            #[cfg(any(feature = "pipewire", test))]
             semantic_hash: track.semantic_hash,
             cursor: 0,
             loop_cursor: 0,
-            #[cfg(any(feature = "pipewire", test))]
             transition_unchanged: false,
             modulation_identity,
             parameter_locks,
-            #[cfg(any(feature = "pipewire", test))]
             parameter_locks_handoff: false,
             instrument,
             feedback_mutes: 0,
@@ -1812,14 +1766,12 @@ impl TrackRuntime {
         std::mem::take(&mut self.feedback_mutes)
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     fn same_semantics(&self, other: &Self) -> bool {
         self.schedule.track_id == other.schedule.track_id
             && self.semantic_hash == other.semantic_hash
             && self.instrument.transition_compatible(&other.instrument)
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     fn begin_parameter_lock_handoff(
         &mut self,
         replacement: &mut Self,
@@ -1861,7 +1813,6 @@ impl TrackRuntime {
         self.parameter_locks_handoff = began;
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     fn adopt_state_from(&mut self, current: &mut Self) {
         self.cursor = current.cursor;
         self.loop_cursor = current.loop_cursor;
@@ -1925,30 +1876,25 @@ impl TrackRuntime {
         }
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     fn active_voice_count(&self) -> usize {
         self.instrument.active_voice_count()
     }
 
-    fn process(
-        &mut self,
-        controls: &[f64],
-        pre_instrument_unconstrained_controls: &[f64],
-        song_modulation: &[f64],
-        instrument_route_values: &[control::RuntimeInstrumentRouteValue],
-        song_frame: u64,
-    ) -> ([f32; 2], usize) {
+    fn process(&mut self, control_runtime: &ControlRuntime, song_frame: u64) -> ([f32; 2], usize) {
         let (controls, pre_instrument_unconstrained_controls) =
             if let Some(parameter_locks) = &mut self.parameter_locks {
-                parameter_locks.project(song_frame, controls, pre_instrument_unconstrained_controls)
+                parameter_locks.project(song_frame, control_runtime)
             } else {
-                (controls, pre_instrument_unconstrained_controls)
+                (
+                    control_runtime.values(),
+                    control_runtime.pre_instrument_unconstrained_values(),
+                )
             };
         self.instrument.process(
             controls,
             pre_instrument_unconstrained_controls,
-            song_modulation,
-            instrument_route_values,
+            control_runtime.song_modulation_values(),
+            control_runtime.instrument_route_values(),
             song_frame,
             self.modulation_identity,
             &mut self.feedback_mutes,
@@ -2074,7 +2020,6 @@ impl GraphVoiceSlot {
         self.replacement_tail.release_all();
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     fn begin_route_transition(&mut self, changed: &[bool], frames: u64) {
         self.voice.begin_route_transition(changed, frames);
         self.replacement_tail
@@ -2209,7 +2154,6 @@ impl GraphVoicingRuntime {
         self.last_pitch_hz = None;
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     fn adopt_state_from(&mut self, current: &mut Self) {
         std::mem::swap(&mut self.held, &mut current.held);
         std::mem::swap(&mut self.sequence, &mut current.sequence);
@@ -2405,7 +2349,6 @@ enum InstrumentRuntime {
 }
 
 impl InstrumentRuntime {
-    #[cfg(any(feature = "pipewire", test))]
     fn transition_compatible(&self, replacement: &Self) -> bool {
         match (self, replacement) {
             (
@@ -2439,7 +2382,6 @@ impl InstrumentRuntime {
         }
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     fn begin_compatible_handoff(
         &mut self,
         replacement: &Self,
@@ -2489,7 +2431,6 @@ impl InstrumentRuntime {
         current_voicing.config = replacement_voicing.config;
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     fn adopt_state_from(&mut self, current: &mut Self) {
         match (self, current) {
             (
@@ -2672,7 +2613,6 @@ impl InstrumentRuntime {
         }
     }
 
-    #[cfg(any(feature = "pipewire", test))]
     fn active_voice_count(&self) -> usize {
         match self {
             Self::Graph { voices, .. } => voices.iter().filter(|voice| voice.active()).count(),
@@ -3588,6 +3528,144 @@ mod tests {
         assert_eq!(runtime.telemetry().current_peak, 0.0);
         assert_eq!(runtime.telemetry().active_voices, 0);
         assert_eq!(runtime.telemetry().frame, compiled.total_frames());
+    }
+
+    /// Builds a Project with a runaway feedback Instrument and a plain tone.
+    fn runaway_project(gain: &str) -> CompiledProject {
+        let runaway = format!(
+            r#"crump-module 2
+instrument runaway "Runaway" graph {{
+  polyphony 2
+  parameter level "Level" ratio 0 1 0.5 0.5
+  faceplate {{
+    control level "Level" "Output level" maps level
+  }}
+  graph voice 40 {{
+    node pluck exciter kind impact contact 0.02ms hardness 1 level $level
+    node mix math operation add
+    node previous delay_line mode time time 1ms interpolation linear max_time 2ms
+    node grow math operation scale amount {gain}
+    node stereo mono_to_stereo
+    node out output
+    bus gate note.gate -> pluck.gate
+    bus velocity note.velocity -> pluck.velocity
+    bus excite pluck.audio -> mix.a
+    bus into mix.audio -> previous.audio
+    bus held previous.audio -> grow.a
+    bus back grow.audio -> mix.b
+    bus tap mix.audio -> stereo.audio
+    bus output stereo.audio -> out.audio
+  }}
+}}
+"#
+        );
+        let tone = r#"crump-module 2
+instrument tone "Tone" graph {
+  polyphony 2
+  parameter level "Level" ratio 0 1 0.5 0.5
+  faceplate {
+    control level "Level" "Output level" maps level
+  }
+  graph voice 4 {
+    node osc oscillator waveform sine level $level
+    node stereo mono_to_stereo
+    node out output
+    bus pitch note.pitch -> osc.pitch
+    bus tap osc.audio -> stereo.audio
+    bus output stereo.audio -> out.audio
+  }
+}
+"#;
+        let project = r#"crump 2
+import "runaway.crump"
+import "tone.crump"
+project "Feedback" {
+  id feedback
+  seed 7
+  sample_rate 48000
+  render_tail 1s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 2bar
+    pattern notes 2bar {
+      note 0beat C4 1beat 0.8
+    }
+    track runaway "runaway" instrument runaway level 0db pan 0 {
+      clip runaway-clip pattern notes start 0bar duration 2bar mode once
+    }
+    track tone "tone" instrument tone level 0db pan 0 {
+      clip tone-clip pattern notes start 0bar duration 2bar mode once
+    }
+  }
+}
+"#;
+        let bundle = crate::project::load_project_sources(
+            std::path::PathBuf::from("/feedback-transition-test"),
+            std::collections::BTreeMap::from([
+                (
+                    std::path::PathBuf::from("project.crump"),
+                    project.to_owned(),
+                ),
+                (std::path::PathBuf::from("runaway.crump"), runaway),
+                (std::path::PathBuf::from("tone.crump"), tone.to_owned()),
+            ]),
+        );
+        assert!(
+            !bundle.diagnostics.has_errors(),
+            "{:?}",
+            bundle.diagnostics.as_slice()
+        );
+        CompiledProject::compile(bundle.project.as_ref().expect("parsed Project")).expect("compile")
+    }
+
+    #[test]
+    fn publication_crossfade_counts_feedback_mutes_like_playback() {
+        const FRAMES: u64 = 4_800;
+        let compiled = runaway_project("64");
+        let mut baseline = compiled.runtime();
+        for _ in 0..FRAMES {
+            baseline
+                .process_frame(ProcessingMode::Monitoring)
+                .expect("baseline frame");
+        }
+        let expected_mutes = baseline.telemetry().feedback_mutes;
+        assert!(expected_mutes > 0, "the runaway voice must trip the guard");
+
+        // Unchanged Tracks run in the outgoing runtime and match plain playback.
+        let mut reference = compiled.runtime();
+        let mut current = compiled.runtime();
+        let mut next = compiled.runtime();
+        current.prepare_transition(&mut next);
+        assert!(
+            current
+                .tracks
+                .iter()
+                .all(|track| track.transition_unchanged)
+        );
+        for _ in 0..FRAMES {
+            let expected = reference
+                .process_frame(ProcessingMode::Monitoring)
+                .expect("reference frame");
+            let actual = current
+                .process_transition_frame(&mut next, 0.0, 1.0)
+                .expect("transition frame");
+            assert_eq!(actual, expected);
+        }
+        assert_eq!(current.telemetry().feedback_mutes, expected_mutes);
+
+        // An affected runaway Track runs in the replacement, which reports its mutes.
+        let replacement = runaway_project("63");
+        let mut current = compiled.runtime();
+        let mut next = replacement.runtime();
+        current.prepare_transition(&mut next);
+        assert!(next.tracks.iter().any(|track| !track.transition_unchanged));
+        for _ in 0..FRAMES {
+            current
+                .process_transition_frame(&mut next, 0.0, 1.0)
+                .expect("transition frame");
+        }
+        assert!(next.telemetry().feedback_mutes > 0);
     }
 
     #[test]

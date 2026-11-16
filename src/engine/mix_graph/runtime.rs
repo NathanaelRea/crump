@@ -533,7 +533,6 @@ pub(super) struct ChannelRuntime {
 
 impl MixGraphRuntime {
     /// Reports whether mutable processing state can transfer without changing semantics.
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn topology_compatible(&self, other: &Self) -> bool {
         self.program.topology_compatible(&other.program)
     }
@@ -755,7 +754,6 @@ impl MixGraphRuntime {
     }
 
     /// Moves compatible shared DSP, compensation, meter, and audition state.
-    #[cfg(any(feature = "pipewire", test))]
     pub(crate) fn adopt_state_from(&mut self, current: &mut Self) {
         if !self.program.topology_compatible(&current.program) {
             return;

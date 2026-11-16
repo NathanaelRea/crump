@@ -61,7 +61,7 @@ use crate::{
     },
     project::{MAX_SOURCE_BYTES, ProjectBundle, instrument_library_dir, load_project},
     project_picker::{ProjectSelection, select_project},
-    realtime::{PipeWirePlayer, StreamStatus},
+    realtime::{Player, StreamStatus},
     time::parse_musical_time,
     validate::check_musical_sketch,
 };
