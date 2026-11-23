@@ -70,6 +70,8 @@ pub enum Action {
     /// Audition a History version (by entry ID) in place of the Active Revision, or return to
     /// the Active Revision with `None`. While playing, the transport position is kept.
     PreviewHistoryVersion(Option<String>),
+    /// Play a History version (by entry ID) from the cursor; nothing starts if it cannot be read.
+    PlayHistoryVersion(String),
     /// Show or hide workspace performance diagnostics.
     TogglePerformanceDiagnostics,
 
@@ -689,6 +691,7 @@ impl Workspace {
             Action::OpenHistoryDiff => self.open_history_diff(),
             Action::CompareHistoryWithActive => self.compare_history_with_active(),
             Action::PreviewHistoryVersion(entry) => self.preview_history_version(entry),
+            Action::PlayHistoryVersion(entry) => self.play_history_version(entry),
             Action::TogglePerformanceDiagnostics => {
                 let visible = self.performance.toggle();
                 self.status = format!(

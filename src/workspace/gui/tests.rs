@@ -974,3 +974,17 @@ fn a_history_version_can_be_previewed_and_dropped() {
     );
     app.shutdown();
 }
+
+#[test]
+fn playing_an_unreadable_version_starts_nothing() {
+    let root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/deep-house-reference");
+    let (_dir, mut app) = seed_real_history(&root);
+    app.dispatch(Action::PlayHistoryVersion("999999999999".to_owned()));
+    assert!(app.history_preview.is_none());
+    assert!(
+        !app.playback_requested && app.player.is_none(),
+        "nothing plays"
+    );
+    app.shutdown();
+}

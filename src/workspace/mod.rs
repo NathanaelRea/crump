@@ -850,7 +850,19 @@ impl Workspace {
         let request = ActiveRequest {
             key: key.clone(),
             active,
-            plan: self.audition_plan.clone(),
+            // A past version plays the whole Song with none of today's monitoring overrides
+            // (target, Solo, cue, bypass), which may name things that version does not have.
+            plan: if self.history_preview.is_some() {
+                AuditionPlan {
+                    range: AuditionRange {
+                        looping: self.audition_plan.range.looping,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }
+            } else {
+                self.audition_plan.clone()
+            },
             telemetry: self.telemetry.engine,
             previous_status: self.audition_status.clone(),
             initial_frame,
@@ -1236,6 +1248,19 @@ impl Workspace {
                     }
                 }
             }
+        }
+    }
+
+    /// Plays a History version from the cursor: starts playback only once that version is ready
+    /// to be heard, and otherwise reports why it cannot play.
+    fn play_history_version(&mut self, entry: String) {
+        self.preview_history_version(Some(entry.clone()));
+        let ready = self
+            .history_preview
+            .as_ref()
+            .is_some_and(|(previewed, _)| *previewed == entry);
+        if ready && self.player.is_none() && !self.playback_requested {
+            self.toggle_playback();
         }
     }
 

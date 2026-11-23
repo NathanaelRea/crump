@@ -537,27 +537,36 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
             ui.add_space(10.0);
             transport(ui, cx, &items, item);
             ui.add_space(14.0);
-            header(ui, &items, item, items.len() - selected, items.len());
-            ui.add_space(14.0);
+            // The rail and transport stay put; the version below scrolls.
+            egui::ScrollArea::vertical()
+                .id_salt("history-version")
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    header(ui, &items, item, items.len() - selected, items.len());
+                    ui.add_space(14.0);
 
-            let Some(this) = this.as_ref().and_then(|bundle| bundle.project.as_ref()) else {
-                ui.label(
-                    RichText::new("This version's snapshot could not be read.")
-                        .color(theme::TEXT_MUTED),
-                );
-                return;
-            };
-            let previous = previous.as_ref().and_then(|bundle| bundle.project.as_ref());
-            let now = now.as_ref().and_then(|bundle| bundle.project.as_ref());
-            let this_edit = value_changes(previous, this);
-            let since = now
-                .map(|now| value_changes(Some(this), now))
-                .unwrap_or_default();
-            let focus = focus_of(this, &this_edit).or_else(|| focus_of(this, &since));
+                    let Some(this) = this.as_ref().and_then(|bundle| bundle.project.as_ref())
+                    else {
+                        ui.label(
+                            RichText::new("This version's snapshot could not be read.")
+                                .color(theme::TEXT_MUTED),
+                        );
+                        return;
+                    };
+                    let previous = previous.as_ref().and_then(|bundle| bundle.project.as_ref());
+                    let now = now.as_ref().and_then(|bundle| bundle.project.as_ref());
+                    let this_edit = value_changes(previous, this);
+                    let since = now
+                        .map(|now| value_changes(Some(this), now))
+                        .unwrap_or_default();
+                    // The sound this change belongs to: from what it moved, else from what it names,
+                    // and only then from what differs from now.
+                    let focus = focus_of(this, &this_edit)
+                        .or_else(|| focus_named(this, item))
+                        .or_else(|| focus_of(this, &since));
 
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width((ui.available_width() - SIDE_WIDTH - 16.0).max(320.0));
+                    // Narrow windows stack the lists under the sound panel instead of squeezing it.
+                    let stacked = ui.available_width() < 980.0;
                     let showing_now = cx.state.history_show_now;
                     let view = SoundView {
                         shown: if showing_now {
@@ -569,7 +578,7 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
                         other: if showing_now { Some(this) } else { now },
                         other_word: if showing_now { "then" } else { "now" },
                     };
-                    match &focus {
+                    let panel = |ui: &mut Ui| match &focus {
                         Some(focus) => sound_panel(ui, &view, focus),
                         None => {
                             ui.label(
@@ -577,20 +586,34 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
                                     .color(theme::TEXT_MUTED),
                             );
                         }
+                    };
+                    let lists = |ui: &mut Ui| {
+                        change_list(ui, "THIS EDIT", &this_edit, "No values moved.");
+                        ui.add_space(14.0);
+                        let title = if since.is_empty() {
+                            "SINCE THIS VERSION".to_owned()
+                        } else {
+                            format!("SINCE THIS VERSION · {}", plural(since.len(), "difference"))
+                        };
+                        change_list(ui, &title, &since, "This is the version you hear now.");
+                    };
+                    if stacked {
+                        panel(ui);
+                        ui.add_space(14.0);
+                        lists(ui);
+                    } else {
+                        ui.horizontal_top(|ui| {
+                            ui.vertical(|ui| {
+                                ui.set_width(ui.available_width() - SIDE_WIDTH - 16.0);
+                                panel(ui);
+                            });
+                            ui.vertical(|ui| {
+                                ui.set_width(SIDE_WIDTH);
+                                lists(ui);
+                            });
+                        });
                     }
                 });
-                ui.vertical(|ui| {
-                    ui.set_width(SIDE_WIDTH);
-                    change_list(ui, "THIS EDIT", &this_edit, "No values moved.");
-                    ui.add_space(14.0);
-                    let title = if since.is_empty() {
-                        "SINCE THIS VERSION".to_owned()
-                    } else {
-                        format!("SINCE THIS VERSION · {}", plural(since.len(), "difference"))
-                    };
-                    change_list(ui, &title, &since, "This is the version you hear now.");
-                });
-            });
         });
 
     if let Some(index) = pick {
@@ -850,6 +873,36 @@ fn focus_of(project: &Project, changes: &[ValueChange]) -> Option<Focus> {
                 focus.track = None;
             }
         }
+    }
+    Some(focus)
+}
+
+/// The sound a change names, found in its own version: for edits whose values did not move
+/// (structure, arrangement) or that the value comparison does not cover.
+fn focus_named(project: &Project, item: &Item<'_>) -> Option<Focus> {
+    let song = &project.song;
+    let mut focus = Focus::default();
+    match item.kind {
+        Kind::Instrument => {
+            let instrument = song.instruments.iter().find(|i| i.name == item.subject)?;
+            focus.instrument = Some(instrument.id.clone());
+            focus.track = song
+                .tracks
+                .iter()
+                .find(|t| t.instrument == instrument.id)
+                .map(|t| t.id.clone());
+        }
+        Kind::Mix | Kind::Arrangement => {
+            let track = song.tracks.iter().find(|t| t.name == item.subject)?;
+            focus.track = Some(track.id.clone());
+            focus.instrument = Some(track.instrument.clone());
+        }
+        Kind::Pattern => {
+            let pattern = song.patterns.iter().find(|p| p.id == item.subject)?;
+            focus.pattern = Some(pattern.id.clone());
+        }
+        Kind::Song => focus.tempo = true,
+        _ => return None,
     }
     Some(focus)
 }
@@ -1602,10 +1655,11 @@ fn transport(ui: &mut Ui, cx: &mut Cx<'_>, items: &[Item<'_>], item: &Item<'_>) 
             if playing {
                 cx.send(Action::StopPlayback);
             } else {
-                if !show_now {
-                    cx.send(Action::PreviewHistoryVersion(Some(item.entry.id.clone())));
+                if show_now {
+                    cx.send(Action::TogglePlayback);
+                } else {
+                    cx.send(Action::PlayHistoryVersion(item.entry.id.clone()));
                 }
-                cx.send(Action::TogglePlayback);
             }
         }
         // Then / Now swaps what the panel shows and, while playing, what you hear.
