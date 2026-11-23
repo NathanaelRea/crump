@@ -1066,7 +1066,7 @@ fn mixer_table(ui: &mut Ui, cx: &mut Cx<'_>) {
                     theme::ACCENT_AMBER,
                 ),
                 format!(
-                    "{} .. {}",
+                    "{} – {}",
                     theme::format_compact_value(spec.minimum, spec.unit),
                     theme::format_compact_value(spec.maximum, spec.unit)
                 )

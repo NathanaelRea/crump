@@ -8,7 +8,7 @@ use std::f32::consts::PI;
 use super::theme::{self, with_alpha};
 use super::widgets::{
     context_combo, horizontal_mini_slider, led_button, pill_toggle, rotary_knob_modulated,
-    unavailable,
+    section_header, unavailable,
 };
 use super::*;
 use crate::model::{
@@ -502,12 +502,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                             .show(&mut cols[0], |ui| {
                                 ui.set_min_height(152.0);
                                 ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new("TONE & ENVELOPE RESPONSE")
-                                            .strong()
-                                            .size(10.5)
-                                            .color(theme::TEXT_SECONDARY),
-                                    );
+                                    section_header(ui, "TONE & ENVELOPE RESPONSE", theme::BORDER_STRONG);
                                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                         if ui
                                             .add(
@@ -574,12 +569,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                             .show(&mut cols[1], |ui| {
                                 ui.set_min_height(152.0);
                                 ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new("QUICK PARAMETERS")
-                                            .strong()
-                                            .size(10.5)
-                                            .color(theme::TEXT_SECONDARY),
-                                    );
+                                    section_header(ui, "QUICK PARAMETERS", theme::BORDER_STRONG);
                                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                         if ui
                                             .add(
@@ -642,12 +632,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                         .inner_margin(egui::Margin::same(12))
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("ACTIVE MODULATION & ROUTING")
-                                        .strong()
-                                        .size(10.5)
-                                        .color(theme::ACCENT_VIOLET),
-                                );
+                                section_header(ui, "ACTIVE MODULATION & ROUTING", theme::ACCENT_VIOLET);
                                 ui.label(
                                     RichText::new(format!(
                                         "{} sources · {} routes",
@@ -1218,12 +1203,7 @@ fn draw_modulation_matrix(
         .show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("MODULATION MATRIX")
-                        .strong()
-                        .size(11.0)
-                        .color(theme::ACCENT_VIOLET),
-                );
+                section_header(ui, "MODULATION MATRIX", theme::ACCENT_VIOLET);
                 ui.label(
                     RichText::new("Drag depth bar · Double-click zero · Click power to bypass")
                         .size(10.0)
@@ -1507,16 +1487,7 @@ fn synth_module_card(ui: &mut Ui, title: &str, accent: Color32, body: impl FnOnc
         .show(ui, |ui| {
             ui.set_min_height(198.0);
             ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    let (bar, _) = ui.allocate_exact_size(Vec2::new(3.0, 12.0), Sense::hover());
-                    ui.painter().rect_filled(bar, 1.0, accent);
-                    ui.label(
-                        RichText::new(title)
-                            .strong()
-                            .size(10.5)
-                            .color(theme::TEXT_SECONDARY),
-                    );
-                });
+                section_header(ui, title, accent);
                 ui.add_space(6.0);
                 body(ui);
             });
@@ -2917,12 +2888,7 @@ fn draw_graph_inspector(
     selected: usize,
     pending_actions: &mut Vec<Action>,
 ) {
-    ui.label(
-        RichText::new("NODE INSPECTOR")
-            .strong()
-            .size(11.0)
-            .color(theme::ACCENT_AMBER),
-    );
+    section_header(ui, "NODE INSPECTOR", theme::ACCENT_AMBER);
     ui.add_space(6.0);
 
     let resolved: Option<(&Graph, &GraphNode, &str)> = if selected < voice_order.len() {
@@ -2973,12 +2939,7 @@ fn draw_graph_inspector(
     );
     ui.add_space(8.0);
 
-    ui.label(
-        RichText::new("SETTINGS & PARAMETERS")
-            .strong()
-            .size(10.0)
-            .color(theme::TEXT_SECONDARY),
-    );
+    section_header(ui, "SETTINGS & PARAMETERS", theme::BORDER_STRONG);
     ui.add_space(4.0);
     let slider_w = (ui.available_width() - 4.0).max(160.0);
 
@@ -3040,12 +3001,7 @@ fn draw_graph_inspector(
             }
 
             ui.add_space(10.0);
-            ui.label(
-                RichText::new("SIGNAL CONNECTIONS")
-                    .strong()
-                    .size(10.0)
-                    .color(theme::TEXT_SECONDARY),
-            );
+            section_header(ui, "SIGNAL CONNECTIONS", theme::BORDER_STRONG);
             ui.add_space(4.0);
             let mut any_conn = false;
             for conn in &domain_graph.connections {
@@ -3122,7 +3078,8 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
                 );
                 ui.add(
                     egui::TextEdit::singleline(&mut cx.state.param_search)
-                        .hint_text("Filter by parameter name or key…")
+                        .hint_text("Filter by name or key…")
+                        .font(FontId::proportional(12.0))
                         .desired_width(220.0),
                 );
                 if !cx.state.param_search.is_empty() && ui.small_button("×").clicked() {
@@ -3256,12 +3213,7 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
                             ui.columns(2, |cols| {
                                 // Left: Automation Coverage
                                 cols[0].vertical(|ui| {
-                                    ui.label(
-                                        RichText::new("SONG AUTOMATION COVERAGE")
-                                            .strong()
-                                            .size(10.5)
-                                            .color(theme::SIG_NOMINAL),
-                                    );
+                                    section_header(ui, "SONG AUTOMATION COVERAGE", theme::SIG_NOMINAL);
                                     ui.add_space(5.0);
                                     let inst_lanes: Vec<_> = project
                                         .song
@@ -3323,12 +3275,7 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
 
                                 // Right: Internal Modulation Coverage
                                 cols[1].vertical(|ui| {
-                                    ui.label(
-                                        RichText::new("INTERNAL MODULATION ROUTES")
-                                            .strong()
-                                            .size(10.5)
-                                            .color(theme::ACCENT_VIOLET),
-                                    );
+                                    section_header(ui, "INTERNAL MODULATION ROUTES", theme::ACCENT_VIOLET);
                                     ui.add_space(5.0);
                                     if instrument.modulation_routes.is_empty() {
                                         ui.label(
@@ -3350,12 +3297,25 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
                                                         theme::ACCENT_VIOLET
                                                     },
                                                 );
-                                                ui.label(
-                                                    RichText::new("->").color(theme::TEXT_MUTED),
+                                                route_arrow(ui);
+                                                let target = instrument
+                                                    .parameters
+                                                    .iter()
+                                                    .find(|p| p.key == route.target);
+                                                badge_chip(
+                                                    ui,
+                                                    target.map_or(&route.target, |p| &p.name),
+                                                    theme::ACCENT_CYAN,
                                                 );
-                                                badge_chip(ui, &route.target, theme::ACCENT_CYAN);
+                                                let depth = target
+                                                    .and_then(|p| {
+                                                        p.unit.parse_value(&route.depth).ok().map(|v| {
+                                                            theme::format_compact_value(v, p.unit)
+                                                        })
+                                                    })
+                                                    .unwrap_or_else(|| route.depth.clone());
                                                 ui.label(
-                                                    RichText::new(&route.depth)
+                                                    RichText::new(depth)
                                                         .monospace()
                                                         .size(10.5)
                                                         .color(theme::TEXT_SECONDARY),
@@ -3534,7 +3494,7 @@ fn draw_parameter_matrix_card(
                     ui.add_space(4.0);
                     ui.label(
                         RichText::new(format!(
-                            "Range {} .. {}",
+                            "Range {} – {}",
                             theme::format_compact_value(param.minimum, param.unit),
                             theme::format_compact_value(param.maximum, param.unit),
                         ))

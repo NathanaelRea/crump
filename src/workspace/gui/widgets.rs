@@ -694,23 +694,14 @@ pub(super) fn vertical_fader(
         } else {
             theme::BORDER_STRONG
         };
-        let tick_len = if is_unity { 4.5 } else { 3.0 };
+        let tick_len = 4.0;
         painter.hline(
             (tick_right - tick_len)..=tick_right,
             y,
             Stroke::new(if is_unity { 1.4_f32 } else { 1.0_f32 }, tick_color),
         );
-        // Subtle unity line across right side of fader slot too
-        if is_unity {
-            painter.hline(
-                (cx + cap_w * 0.5 + 1.5)..=(rect.right() - 1.0),
-                y,
-                Stroke::new(1.2_f32, with_alpha(theme::ACCENT_AMBER, 0.7)),
-            );
-        }
-        if label_gutter > 0.0
-            && (is_unity || tick_db == 6.0 || tick_db == -12.0 || tick_db == -24.0)
-        {
+        // Every tick carries its value, so the scale never shows unexplained dashes.
+        if label_gutter > 0.0 {
             painter.text(
                 Pos2::new(tick_right - tick_len - 2.0, y),
                 Align2::RIGHT_CENTER,
@@ -1007,6 +998,22 @@ pub(super) fn led_button(
     } else {
         response.on_hover_text(legible(tooltip))
     }
+}
+
+/// The one section-header style: a short accent bar and a muted uppercase title. Color lives
+/// only in the bar, so headers read as one family across every view.
+pub(super) fn section_header(ui: &mut Ui, title: &str, accent: Color32) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 7.0;
+        let (bar, _) = ui.allocate_exact_size(Vec2::new(3.0, 12.0), Sense::hover());
+        ui.painter().rect_filled(bar, 1.0, accent);
+        ui.label(
+            RichText::new(title)
+                .strong()
+                .size(10.5)
+                .color(theme::TEXT_SECONDARY),
+        );
+    });
 }
 
 /// Sleek studio pill toggle for primary workspace modes and sub-view selectors.

@@ -4,7 +4,7 @@
 use egui::text::{LayoutJob, TextFormat};
 
 use super::theme::{self, with_alpha};
-use super::widgets::{legible, pill_toggle, unavailable};
+use super::widgets::{legible, pill_toggle, section_header, unavailable};
 use super::*;
 use crate::diagnostic::Severity;
 use crate::history::SourceChangeKind;
@@ -89,12 +89,7 @@ pub(super) fn source(ui: &mut Ui, cx: &mut Cx<'_>) {
         )
         .show_inside(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("PROJECT FILES")
-                        .strong()
-                        .size(10.5)
-                        .color(theme::TEXT_SECONDARY),
-                );
+                section_header(ui, "PROJECT FILES", theme::BORDER_STRONG);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(
                         RichText::new(format!("{}", files.len()))
@@ -521,12 +516,7 @@ pub(super) fn diagnostics(ui: &mut Ui, cx: &mut Cx<'_>) {
                             .corner_radius(8.0)
                             .inner_margin(egui::Margin::same(16))
                             .show(ui, |ui| {
-                                ui.label(
-                                    RichText::new("STUDIO PREFLIGHT HEALTH CHECKLIST")
-                                        .strong()
-                                        .size(10.5)
-                                        .color(theme::TEXT_SECONDARY),
-                                );
+                                section_header(ui, "STUDIO PREFLIGHT HEALTH CHECKLIST", theme::BORDER_STRONG);
                                 ui.add_space(10.0);
 
                                 let proc_count = app.bundle.project.as_ref().map_or(0, |p| {
@@ -1269,8 +1259,9 @@ pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
                 );
                 ui.add(
                     egui::TextEdit::singleline(&mut cx.state.help_search)
-                        .hint_text("Filter shortcuts or actions (e.g. loop, split, piano, solo)…")
-                        .desired_width(310.0),
+                        .hint_text("Filter shortcuts — loop, split, solo…")
+                        .font(FontId::proportional(12.0))
+                        .desired_width(320.0),
                 );
                 if !cx.state.help_search.is_empty() && ui.small_button("×").clicked() {
                     cx.state.help_search.clear();
@@ -1342,7 +1333,7 @@ fn help_card_pairs(ui: &mut Ui, title: &str, accent: Color32, rows: &[(&str, &st
         .corner_radius(6.0)
         .inner_margin(egui::Margin::same(12))
         .show(ui, |ui| {
-            ui.label(RichText::new(title).strong().size(11.0).color(accent));
+            section_header(ui, &title.to_uppercase(), accent);
             ui.add_space(7.0);
             for (key, desc) in rows {
                 help_aligned_row(ui, key, desc);
@@ -1371,7 +1362,7 @@ fn help_card_lines(ui: &mut Ui, title: &str, accent: Color32, lines: &[&str], qu
         .corner_radius(6.0)
         .inner_margin(egui::Margin::same(12))
         .show(ui, |ui| {
-            ui.label(RichText::new(title).strong().size(11.0).color(accent));
+            section_header(ui, &title.to_uppercase(), accent);
             ui.add_space(7.0);
             for text in &matched {
                 if let Some((keys, desc)) = text.split_once("  ") {

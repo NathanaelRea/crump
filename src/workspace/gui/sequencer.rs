@@ -479,7 +479,7 @@ fn piano_roll_canvas(
 
     // Crisp clamped row heights: drum lanes are compact 44px step rows (never 90px pillars!)
     let row_h = if is_drum_grid {
-        (grid_rect.height() / rows.len().max(4) as f32).clamp(36.0, 52.0)
+        (grid_rect.height() / rows.len().max(4) as f32).clamp(36.0, 76.0)
     } else {
         (grid_rect.height() / rows.len().max(1) as f32).clamp(15.0, 34.0)
     };
@@ -643,13 +643,17 @@ fn piano_roll_canvas(
         );
         painter.rect_filled(lower_grid, 0.0, with_alpha(theme::BG_WELL, 0.75));
         // Subtle step-matrix legend / author hint
-        painter.text(
-            Pos2::new(lower_grid.left() + 12.0, lower_grid.top() + 14.0),
-            Align2::LEFT_TOP,
-            "Double-click any step cell to add a Hit or Note · Drag to move · Right-click for options",
-            FontId::proportional(10.5),
-            with_alpha(theme::TEXT_MUTED, 0.72),
-        );
+        if lower_grid.height() > 40.0 {
+            let hint = painter.layout_no_wrap(
+                "Double-click any step cell to add a Hit or Note · Drag to move · Right-click for options"
+                    .to_owned(),
+                FontId::proportional(10.5),
+                theme::TEXT_MUTED,
+            );
+            let hint_rect = Align2::CENTER_CENTER.anchor_size(lower_grid.center(), hint.size());
+            painter.rect_filled(hint_rect.expand2(Vec2::new(12.0, 6.0)), 4.0, theme::BG_WELL);
+            painter.galley(hint_rect.min, hint, theme::TEXT_MUTED);
+        }
     }
 
     painter.vline(
