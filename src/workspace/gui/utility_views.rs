@@ -569,7 +569,7 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
             );
             ui.add_space(12.0);
             ui.label(
-                RichText::new("No revisions yet")
+                RichText::new("No History entries yet")
                     .size(16.0)
                     .color(theme::TEXT_PRIMARY),
             );
@@ -984,13 +984,42 @@ pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
                         .font(FontId::proportional(12.0))
                         .desired_width(320.0),
                 );
-                if !cx.state.help_search.is_empty() && ui.small_button("×").clicked() {
+                // Always in place, so the field holds still as typing starts and stops.
+                let has_query = !cx.state.help_search.is_empty();
+                if ui
+                    .add_enabled(has_query, egui::Button::new("×").small())
+                    .on_hover_text("Clear the filter")
+                    .clicked()
+                {
                     cx.state.help_search.clear();
                 }
             });
         });
 
     let query = cx.state.help_search.trim().to_lowercase();
+    let any_match = query.is_empty()
+        || DIRECT_MANIPULATION_HELP
+            .iter()
+            .any(|(k, d)| k.to_lowercase().contains(&query) || d.to_lowercase().contains(&query))
+        || keymap::HELP.iter().any(|(heading, lines)| {
+            heading.to_lowercase().contains(&query)
+                || lines.iter().any(|line| {
+                    desktop_help_text(&legible(line))
+                        .to_lowercase()
+                        .contains(&query)
+                })
+        });
+    if !any_match {
+        ui.add_space(40.0);
+        ui.vertical_centered(|ui| {
+            ui.label(
+                RichText::new("No shortcuts match")
+                    .size(14.0)
+                    .color(theme::TEXT_SECONDARY),
+            );
+        });
+        return;
+    }
 
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])

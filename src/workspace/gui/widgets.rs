@@ -899,7 +899,8 @@ pub(super) fn horizontal_mini_slider(
         })
         .fold(0.0_f32, f32::max)
         + 10.0;
-    let gutter_w = gutter_w.min(rect.width() * 0.6);
+    // One minimum value box for every mini slider, so neighbouring rows line up.
+    let gutter_w = gutter_w.max(64.0).min(rect.width() * 0.6);
     let rail = Rect::from_min_max(rect.min, Pos2::new(rect.right() - gutter_w, rect.bottom()));
     let gutter = Rect::from_min_max(Pos2::new(rail.right(), rect.top()), rect.max);
 
@@ -1163,8 +1164,10 @@ pub(super) fn pill_toggle(
     let size = Vec2::new((galley.size().x + 18.0).max(46.0), 24.0);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     let painter = ui.painter();
+    // Active reads as a raised neutral tab with a slim accent underline, not a coloured box,
+    // so the accent stays a small cue instead of competing with real attention states.
     let (bg, border, fg) = if active {
-        (with_alpha(accent, 0.22), accent, theme::TEXT_PRIMARY)
+        (theme::BG_ACTIVE, theme::BORDER_STRONG, theme::TEXT_PRIMARY)
     } else if response.hovered() {
         (theme::BG_HOVER, theme::BORDER_STRONG, theme::TEXT_PRIMARY)
     } else {
@@ -1177,6 +1180,13 @@ pub(super) fn pill_toggle(
     painter.rect_filled(rect, 4.0, bg);
     if border != Color32::TRANSPARENT {
         painter.rect_stroke(rect, 4.0, Stroke::new(1.0_f32, border), StrokeKind::Inside);
+    }
+    if active {
+        let underline = Rect::from_min_max(
+            Pos2::new(rect.left() + 6.0, rect.bottom() - 3.0),
+            Pos2::new(rect.right() - 6.0, rect.bottom() - 1.0),
+        );
+        painter.rect_filled(underline, 1.0, accent);
     }
     painter.text(rect.center(), Align2::CENTER_CENTER, label, font, fg);
     if tooltip.is_empty() {

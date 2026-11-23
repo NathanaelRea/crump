@@ -691,6 +691,8 @@ fn the_footer_names_only_problems() {
         "Published revision loaded",
         "Edit queued · 2 pending",
         "Valid external Candidate loaded · press P to publish",
+        "Opened Instrument `error-bass`",
+        "Restored 000000000003 as new entry",
     ] {
         assert_eq!(status_tone(quiet), StatusTone::Quiet, "{quiet}");
     }
@@ -699,6 +701,7 @@ fn the_footer_names_only_problems() {
         "Selected Instrument is unavailable",
         "No further Locator",
         "Candidate is already the Active Revision",
+        "Create a Locator as `ID NAME`",
     ] {
         assert_eq!(status_tone(guidance), StatusTone::Guidance, "{guidance}");
     }

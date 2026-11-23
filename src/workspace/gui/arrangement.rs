@@ -172,87 +172,112 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
 
                 ui.separator();
 
-                // Range / Loop tools (contextual when RANGE mode active)
-                if app.timeline_state.visual() {
-                    if pill_toggle(
-                        ui,
-                        "Loop Range",
-                        true,
-                        theme::ACCENT_AMBER,
-                        "Loop selected range · L",
-                    )
-                    .clicked()
-                    {
-                        cx.send(TimelineAction::ApplyRange { looping: true });
-                    }
-                    if pill_toggle(
-                        ui,
-                        "Play Range",
-                        false,
-                        theme::SIG_NOMINAL,
-                        "Play selected range once · Enter",
-                    )
-                    .clicked()
-                    {
-                        cx.send(TimelineAction::ApplyRange { looping: false });
-                    }
-                    if pill_toggle(
-                        ui,
-                        "Fit Range",
-                        false,
-                        theme::ACCENT_CYAN,
-                        "Zoom to range · zf",
-                    )
-                    .clicked()
-                    {
-                        cx.send(TimelineAction::FitRange);
-                    }
-                    if pill_toggle(
-                        ui,
-                        "Cancel",
-                        false,
-                        theme::SIG_CLIP,
-                        "Exit RANGE mode · Esc",
-                    )
-                    .clicked()
-                    {
-                        cx.send(Action::CancelMode);
-                    }
-                } else {
-                    if pill_toggle(
-                        ui,
-                        "Range",
-                        false,
-                        theme::SIG_NOMINAL,
-                        "Select a range on the Timeline · V",
-                    )
-                    .clicked()
-                    {
-                        cx.send(TimelineAction::BeginRange);
-                    }
-                    if pill_toggle(
-                        ui,
-                        "+ Locator",
-                        false,
-                        theme::SIG_HOT,
-                        "Create a Locator at cursor · M",
-                    )
-                    .clicked()
-                    {
-                        cx.send(TimelineAction::OpenLocator);
-                    }
-                    if pill_toggle(
-                        ui,
-                        "Search",
-                        false,
-                        theme::ACCENT_CYAN,
-                        "Search Tracks, Clips, Patterns, Locators · /",
-                    )
-                    .clicked()
-                    {
-                        cx.send(TimelineAction::OpenSearch);
-                    }
-                }
+                // Range / Loop tools (contextual when RANGE mode active). Both sets share one
+                // slot sized for the wider Range-mode set, so entering Range mode never moves the
+                // locator pills or drops some of them.
+                let pill_w = |ui: &Ui, label: &str| {
+                    (ui.painter()
+                        .layout_no_wrap(
+                            label.to_owned(),
+                            FontId::proportional(12.0),
+                            theme::TEXT_PRIMARY,
+                        )
+                        .size()
+                        .x
+                        + 18.0)
+                        .max(46.0)
+                };
+                let slot_w = ["Loop Range", "Play Range", "Fit Range", "Cancel"]
+                    .iter()
+                    .map(|label| pill_w(ui, label) + ui.spacing().item_spacing.x)
+                    .sum::<f32>();
+                ui.allocate_ui_with_layout(
+                    Vec2::new(slot_w, 24.0),
+                    Layout::left_to_right(Align::Center),
+                    |ui| {
+                        ui.set_min_width(slot_w);
+                        if app.timeline_state.visual() {
+                            if pill_toggle(
+                                ui,
+                                "Loop Range",
+                                true,
+                                theme::ACCENT_AMBER,
+                                "Loop selected range · L",
+                            )
+                            .clicked()
+                            {
+                                cx.send(TimelineAction::ApplyRange { looping: true });
+                            }
+                            if pill_toggle(
+                                ui,
+                                "Play Range",
+                                false,
+                                theme::SIG_NOMINAL,
+                                "Play selected range once · Enter",
+                            )
+                            .clicked()
+                            {
+                                cx.send(TimelineAction::ApplyRange { looping: false });
+                            }
+                            if pill_toggle(
+                                ui,
+                                "Fit Range",
+                                false,
+                                theme::ACCENT_CYAN,
+                                "Zoom to range · zf",
+                            )
+                            .clicked()
+                            {
+                                cx.send(TimelineAction::FitRange);
+                            }
+                            if pill_toggle(
+                                ui,
+                                "Cancel",
+                                false,
+                                theme::SIG_CLIP,
+                                "Exit RANGE mode · Esc",
+                            )
+                            .clicked()
+                            {
+                                cx.send(Action::CancelMode);
+                            }
+                        } else {
+                            if pill_toggle(
+                                ui,
+                                "Range",
+                                false,
+                                theme::SIG_NOMINAL,
+                                "Select a range on the Timeline · V",
+                            )
+                            .clicked()
+                            {
+                                cx.send(TimelineAction::BeginRange);
+                            }
+                            if pill_toggle(
+                                ui,
+                                "+ Locator",
+                                false,
+                                theme::SIG_HOT,
+                                "Create a Locator at cursor · M",
+                            )
+                            .clicked()
+                            {
+                                cx.send(TimelineAction::OpenLocator);
+                            }
+                            if pill_toggle(
+                                ui,
+                                "Search",
+                                false,
+                                theme::ACCENT_CYAN,
+                                "Search Tracks, Clips, Patterns, Locators · /",
+                            )
+                            .clicked()
+                            {
+                                cx.send(TimelineAction::OpenSearch);
+                            }
+                        }
+                    },
+                );
 
                 // Right-aligned cursor readout & working locator jump pills
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -1396,18 +1421,39 @@ fn markers(
     }
 
     // Colored locator flag tags cleanly inside the dedicated top locator band (zero overlap with bar numbers!)
+    // Each flag ends before the next locator's line, so close locators never paint over
+    // one another; names that do not fit are ellipsized.
+    let mut locator_xs = project
+        .song
+        .locators
+        .iter()
+        .map(|locator| geometry.x_of(locator.at.as_f64()))
+        .collect::<Vec<_>>();
+    locator_xs.sort_by(f32::total_cmp);
     for locator in &project.song.locators {
         let at = locator.at.as_f64();
         if !geometry.visible(at) {
             continue;
         }
         let x = geometry.x_of(at);
+        let room = locator_xs
+            .iter()
+            .find(|next| **next > x + 0.5)
+            .map_or(f32::INFINITY, |next| next - x - 3.0);
         painter.vline(
             x,
             geometry.full_canvas.y_range(),
             Stroke::new(1.0_f32, with_alpha(theme::SIG_HOT, 0.16)),
         );
-        let flag_w = (locator.name.len() as f32 * 5.8 + 10.0).clamp(32.0, 88.0);
+        let font = FontId::proportional(9.5);
+        let flag_w = (painter
+            .layout_no_wrap(locator.name.clone(), font.clone(), theme::TEXT_SECONDARY)
+            .size()
+            .x
+            + 12.0)
+            .clamp(32.0, 120.0)
+            .min(room.max(14.0));
+        let name = widgets::ellipsize(painter, &locator.name, &font, flag_w - 9.0);
         // A flag that would run off the right edge hangs left of its line instead.
         let flag_x = if x + flag_w > rect.right() - 2.0 {
             x - flag_w
@@ -1428,8 +1474,8 @@ fn markers(
         painter.text(
             Pos2::new(flag.left() + 6.0, flag.center().y),
             Align2::LEFT_CENTER,
-            &locator.name,
-            FontId::proportional(9.5),
+            name,
+            font,
             theme::TEXT_SECONDARY,
         );
     }

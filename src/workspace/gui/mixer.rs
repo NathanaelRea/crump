@@ -98,8 +98,8 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                 if solo_count > 0
                     && led_button(
                         ui,
-                        &format!("CLEAR SOLO ({solo_count})"),
-                        true,
+                        &format!("Clear Solo ({solo_count})"),
+                        false,
                         theme::SIG_HOT,
                         Vec2::new(112.0, 20.0),
                         "Clear all transient channel solos",
@@ -939,7 +939,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                         master_level_db,
                         -60.0,
                         12.0,
-                        theme::ACCENT_AMBER,
+                        theme::TEXT_SECONDARY,
                         fader_w,
                         fader_h,
                     );

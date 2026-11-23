@@ -267,8 +267,12 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
             let (roll_h, vel_h) = if drum_only {
                 let lanes = row_count.max(4);
                 let lane_h = if lanes <= 4 { 64.0 } else { 44.0 };
-                let roll_h = 24.0 + lanes as f32 * lane_h + 40.0;
-                (roll_h, (total_h - roll_h - 8.0).clamp(90.0, 180.0))
+                let min_roll = 24.0 + lanes as f32 * lane_h + 40.0;
+                // The velocity lane takes a fixed share; the grid's lanes grow into the rest
+                // rather than leaving an empty band between them.
+                let roll_h = (total_h - (total_h * 0.27).clamp(90.0, 240.0) - 8.0)
+                    .clamp(min_roll, 24.0 + lanes as f32 * 72.0 + 40.0);
+                (roll_h, (total_h - roll_h - 8.0).max(90.0))
             } else {
                 let vel_h = (total_h * 0.27).clamp(90.0, 148.0);
                 let min_roll = 24.0 + row_count as f32 * 15.0 + 40.0;
@@ -383,13 +387,17 @@ fn build_roll_rows(pattern: &Pattern) -> (Vec<RollRow>, bool) {
                 max_p = max_p.max(*pitch);
             }
         }
-        let mut lo = min_p.saturating_sub(3).max(24);
-        let mut hi = max_p.saturating_add(4).min(96);
-        while hi.saturating_sub(lo) < 17 {
-            if lo > 24 {
+        // Padding stays within C1..C7, but every authored pitch is always shown, however
+        // low or high (MIDI 0..127).
+        let floor = min_p.min(24);
+        let ceiling = max_p.clamp(96, 127);
+        let mut lo = min_p.saturating_sub(3).max(floor);
+        let mut hi = max_p.saturating_add(4).min(ceiling);
+        while hi.saturating_sub(lo) < 17 && (lo > floor || hi < ceiling) {
+            if lo > floor {
                 lo -= 1;
             }
-            if hi < 96 {
+            if hi < ceiling {
                 hi += 1;
             }
         }
@@ -499,9 +507,9 @@ fn piano_roll_canvas(
         theme::TEXT_MUTED,
     );
 
-    // Crisp clamped row heights: drum lanes are compact 44px step rows (never 90px pillars!)
+    // Clamped row heights: drum lanes grow with the pane but never into tall pillars.
     let row_h = if is_drum_grid {
-        (grid_rect.height() / rows.len().max(4) as f32).clamp(36.0, 64.0)
+        (grid_rect.height() / rows.len().max(4) as f32).clamp(36.0, 72.0)
     } else {
         (grid_rect.height() / rows.len().max(1) as f32).clamp(15.0, 34.0)
     };

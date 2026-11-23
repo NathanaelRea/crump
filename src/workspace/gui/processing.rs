@@ -146,10 +146,27 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
         return;
     }
 
-    let visible: Vec<(usize, &CompiledProcessorInspection)> = graph
-        .processors
+    // Signal order: each channel's chain in its authored order (the telemetry index order can
+    // differ), then any processor no channel lists, in index order.
+    let mut ordered: Vec<(usize, &CompiledProcessorInspection)> = graph
+        .channels
         .iter()
-        .enumerate()
+        .flat_map(|channel| &channel.processors)
+        .filter_map(|id| {
+            graph
+                .processors
+                .iter()
+                .enumerate()
+                .find(|(_, proc)| proc.id == *id)
+        })
+        .collect();
+    for (index, proc) in graph.processors.iter().enumerate() {
+        if !ordered.iter().any(|(listed, _)| *listed == index) {
+            ordered.push((index, proc));
+        }
+    }
+    let visible: Vec<(usize, &CompiledProcessorInspection)> = ordered
+        .into_iter()
         .filter(|(_, p)| {
             cx.state
                 .processing_owner_filter
@@ -158,7 +175,15 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
         })
         .collect();
 
-    let selected = clamp_index(app.selected_processor, graph.processors.len());
+    // The inspector follows the visible chain: a selection outside the filtered chain moves to
+    // that chain's first device, so the rack and inspector always agree.
+    let mut selected = clamp_index(app.selected_processor, graph.processors.len());
+    if !visible.iter().any(|(index, _)| *index == selected)
+        && let Some((first, _)) = visible.first()
+    {
+        selected = *first;
+        cx.send(Action::SelectProcessor(selected));
+    }
     let focused_proc = graph.processors.get(selected);
 
     // ── Lower Split: Focused Device Deep Inspector (FabFilter-style Analyzer + Primary Controls) ──
@@ -789,7 +814,7 @@ fn device_card(
                                 let bypassed = cx.state.flag(&bypass_key, proc.authored_bypass);
                                 if led_button(
                                     ui,
-                                    if bypassed { "BYPASSED" } else { "Bypass" },
+                                    if bypassed { "Bypassed" } else { "Bypass" },
                                     bypassed,
                                     theme::SIG_HOT,
                                     Vec2::new(66.0, 18.0),
@@ -879,7 +904,7 @@ fn focused_device_inspector(
             let bypassed = cx.state.flag(&bypass_key, proc.authored_bypass);
             if led_button(
                 ui,
-                if bypassed { "BYPASSED" } else { "Bypass" },
+                if bypassed { "Bypassed" } else { "Bypass" },
                 bypassed,
                 theme::SIG_HOT,
                 Vec2::new(76.0, 20.0),
@@ -895,13 +920,13 @@ fn focused_device_inspector(
             if led_button(
                 ui,
                 if transient.is_some() {
-                    "A/B ACTIVE"
+                    "A/B Bypassed"
                 } else {
-                    "A/B BYPASS"
+                    "A/B Bypass"
                 },
                 transient.is_some(),
                 theme::SIG_HOT,
-                Vec2::new(78.0, 20.0),
+                Vec2::new(90.0, 20.0),
                 "Toggle transient A/B comparison bypass · b",
             )
             .clicked()

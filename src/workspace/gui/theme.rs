@@ -72,7 +72,7 @@ pub(super) const MUTE_LIT: Color32 = Color32::from_rgb(170, 180, 198);
 
 const TRACK_PALETTE: [Color32; 8] = [
     Color32::from_rgb(236, 122, 160), // Rose (Drums); kept clear of the error red
-    Color32::from_rgb(255, 158, 68),  // Amber (Bass)
+    Color32::from_rgb(164, 204, 96),  // Lime (Bass); kept clear of the amber selection
     Color32::from_rgb(229, 192, 123), // Gold (Keys)
     Color32::from_rgb(86, 182, 139),  // Emerald (Lead)
     Color32::from_rgb(56, 198, 217),  // Cyan (Pad)

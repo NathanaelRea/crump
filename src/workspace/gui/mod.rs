@@ -699,7 +699,7 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                             Align2::CENTER_CENTER,
                             format!("{live_bpm:.0} BPM"),
                             FontId::monospace(11.0),
-                            theme::ACCENT_AMBER,
+                            theme::TEXT_PRIMARY,
                         );
                         bpm_resp.on_hover_text(
                             "Song Tempo · Drag vertically to adjust · Shift+drag fine",
@@ -875,6 +875,13 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                 )
             };
             // The name takes whatever the transport cluster leaves free, within reason.
+            // The issue chip and the dot sit left of the name: take their room first, so the
+            // chip never draws over the transport deck when problems appear.
+            let chip = issue_chip(app);
+            let chip_w = chip.as_ref().map_or(0.0, |(label, _)| {
+                14.0 + label.chars().count() as f32 * 6.4 + 5.0
+            });
+            let reserved = chip_w + 8.0 + 2.0 * ui.spacing().item_spacing.x + 12.0;
             let name_w = ui
                 .painter()
                 .layout_no_wrap(
@@ -885,7 +892,7 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                 .size()
                 .x
                 .clamp(112.0, 280.0)
-                .min((ui.available_width() - 12.0).max(80.0))
+                .min((ui.available_width() - reserved).max(60.0))
                 + 4.0;
             ui.add_sized(
                 Vec2::new(name_w, 20.0),
@@ -897,14 +904,14 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                 )
                 .truncate(),
             )
-            .on_hover_text(rev_tip.clone());
+            .on_hover_text(format!("{project_name}\n{rev_tip}"));
 
             let (dot, dot_resp) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
             ui.painter().circle_filled(dot.center(), 3.8, dot_color);
             dot_resp.on_hover_text(rev_tip);
 
             // Problems sit beside the project they belong to, left of everything that stays put.
-            if let Some((label, color)) = issue_chip(app) {
+            if let Some((label, color)) = chip {
                 let width = 14.0 + label.chars().count() as f32 * 6.4;
                 if widgets::led_button(
                     ui,
@@ -997,7 +1004,7 @@ enum StatusTone {
 }
 
 fn status_tone(status: &str) -> StatusTone {
-    const FAILURE: [&str; 8] = [
+    const FAILURE: [&str; 7] = [
         "failed",
         "could not",
         "cannot",
@@ -1005,7 +1012,6 @@ fn status_tone(status: &str) -> StatusTone {
         "rejected",
         "delayed",
         "is stale",
-        "error",
     ];
     const GUIDANCE: [&str; 17] = [
         "unavailable",
@@ -1026,11 +1032,18 @@ fn status_tone(status: &str) -> StatusTone {
         "nothing earlier",
         "already",
     ];
-    let status = status.to_lowercase();
+    // Names quoted in backticks (an Instrument called `error-bass`) never set the tone.
+    let status = status
+        .split('`')
+        .step_by(2)
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
     if FAILURE.iter().any(|word| status.contains(word)) {
         StatusTone::Failure
     } else if GUIDANCE.iter().any(|word| status.contains(word))
-        || status.contains(" as `")
+        || status.starts_with("enter ")
+        || status.starts_with("create ")
         || status.contains("is the only")
     {
         StatusTone::Guidance
@@ -1090,7 +1103,7 @@ fn footer(ui: &mut Ui, cx: &mut Cx<'_>) {
             } else {
                 ui.label(
                     RichText::new(format!(
-                        "Rev {} · MIDI {}",
+                        "Candidate {} · MIDI {}",
                         short_revision(&app.bundle.revision),
                         if app.telemetry.midi_connected {
                             "ON"

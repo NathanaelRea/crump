@@ -411,7 +411,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                                                     badge_chip(
                                                                         ui,
                                                                         &format!("MOD×{mod_count}"),
-                                                                        theme::ACCENT_CYAN,
+                                                                        theme::ACCENT_VIOLET,
                                                                     );
                                                                 }
                                                                 if is_auto {
@@ -584,7 +584,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                                         instrument.parameters.len()
                                                     ))
                                                     .size(10.0)
-                                                    .color(theme::ACCENT_AMBER),
+                                                    .color(theme::ACCENT_CYAN),
                                                 )
                                                 .frame(false),
                                             )
@@ -3022,17 +3022,18 @@ fn draw_graph_inspector(
                 if conn.from.node == node.id || conn.to.node == node.id {
                     any_conn = true;
                     ui.label(
-                        RichText::new(format!(
-                            "{}.{} -> {}.{}",
-                            conn.from.node, conn.from.port, conn.to.node, conn.to.port
-                        ))
+                        RichText::new(
+                            widgets::legible(&format!(
+                                "{}.{} → {}.{}",
+                                conn.from.node, conn.from.port, conn.to.node, conn.to.port
+                            ))
+                            .into_owned(),
+                        )
                         .monospace()
                         .size(10.0)
-                        .color(if conn.from.node == node.id {
-                            theme::ACCENT_AMBER
-                        } else {
-                            theme::ACCENT_CYAN
-                        }),
+                        // Direction is in the arrow; colour stays neutral rather than inventing
+                        // a second cable palette beside the canvas.
+                        .color(theme::TEXT_SECONDARY),
                     );
                 }
             }
@@ -3407,7 +3408,7 @@ fn draw_parameter_matrix_card(
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     // M modulation indicator
                     if mod_count > 0 {
-                        badge_chip(ui, &format!("M×{mod_count}"), theme::ACCENT_VIOLET);
+                        badge_chip(ui, &format!("MOD×{mod_count}"), theme::ACCENT_VIOLET);
                     } else if param.modulatable {
                         badge_chip(ui, "M", theme::TEXT_MUTED);
                     }
