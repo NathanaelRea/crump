@@ -702,16 +702,20 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
             let diag_count = app.bundle.diagnostics.as_slice().len();
             for (v, label, tip, alert) in [
                 (View::Help, "?", "Shortcuts & Help · ?", false),
-                (View::History, "Hist", "Revision History · H", false),
+                (View::History, "History", "Revision History · H", false),
                 (
                     View::Diagnostics,
-                    if diag_count > 0 { "Diag!" } else { "Diag" },
+                    if diag_count > 0 {
+                        "Diagnostics!"
+                    } else {
+                        "Diagnostics"
+                    },
                     "Project Diagnostics",
                     has_errors,
                 ),
                 (
                     View::Source,
-                    "Src",
+                    "Source",
                     "Authoritative .crump Source · 0",
                     false,
                 ),
@@ -727,7 +731,14 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                     label,
                     active || alert,
                     color,
-                    Vec2::new(if label == "?" { 22.0 } else { 34.0 }, 22.0),
+                    Vec2::new(
+                        if label == "?" {
+                            22.0
+                        } else {
+                            14.0 + label.chars().count() as f32 * 6.4
+                        },
+                        22.0,
+                    ),
                     tip,
                 )
                 .clicked()
@@ -838,8 +849,21 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ),
                 )
             };
+            // The name takes whatever the transport cluster leaves free, within reason.
+            let name_w = ui
+                .painter()
+                .layout_no_wrap(
+                    project_name.to_owned(),
+                    FontId::proportional(11.0),
+                    theme::TEXT_PRIMARY,
+                )
+                .size()
+                .x
+                .clamp(112.0, 240.0)
+                .min((ui.available_width() - 16.0).max(80.0))
+                + 4.0;
             ui.add_sized(
-                Vec2::new(112.0, 20.0),
+                Vec2::new(name_w, 20.0),
                 egui::Label::new(
                     RichText::new(project_name)
                         .strong()

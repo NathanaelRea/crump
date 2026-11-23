@@ -180,7 +180,12 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                 .inner_margin(egui::Margin::same(10)),
         )
         .show_inside(ui, |ui| {
-            let rack_h = (ui.available_height() - 14.0).clamp(300.0, 410.0);
+            let rack_cap = (ui.available_height() - 14.0).max(250.0);
+            let tallest = visible
+                .iter()
+                .map(|(_, proc)| device_content_height(proc))
+                .fold(250.0_f32, f32::max)
+                .min(rack_cap);
             egui::ScrollArea::horizontal()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
@@ -198,15 +203,29 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                                     } else {
                                         None
                                     },
-                                    rack_h,
+                                    tallest,
                                 );
                             }
                             prev_owner = Some(proc.owner.as_str());
-                            device_card(ui, cx, global_idx, proc, global_idx == selected, rack_h);
+                            let card_h = device_content_height(proc).clamp(250.0, rack_cap);
+                            device_card(ui, cx, global_idx, proc, global_idx == selected, card_h);
                         }
                     });
                 });
         });
+}
+
+/// The height a device card needs for its header, scope, choice pills, knob rows and footer, so
+/// cards hug their controls instead of stretching to fill the rack.
+fn device_content_height(proc: &CompiledProcessorInspection) -> f32 {
+    let knobs = proc
+        .settings
+        .iter()
+        .filter(|s| s.unit.is_some() && s.value.is_some())
+        .count();
+    let has_choices = proc.settings.iter().any(|s| s.choice.is_some());
+    let rows = knobs.div_ceil(3).max(1) as f32;
+    126.0 + if has_choices { 34.0 } else { 0.0 } + rows * 92.0 + 40.0
 }
 
 fn short_owner_label(owner: &str) -> &str {

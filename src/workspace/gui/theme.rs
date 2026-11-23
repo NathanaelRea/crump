@@ -83,6 +83,18 @@ pub(super) const fn track_color(index: usize) -> Color32 {
 }
 
 /// Semantic accent color for a processor family.
+/// One fixed color per drum voice, matching the drum pad bank order (Kick, Snare, Hat, Clap) so a
+/// voice keeps its color in the grid, velocity lane and pads regardless of row order.
+pub(super) const fn drum_voice_color(voice: crate::model::DrumVoice) -> Color32 {
+    use crate::model::DrumVoice;
+    track_color(match voice {
+        DrumVoice::Kick => 0,
+        DrumVoice::Snare => 1,
+        DrumVoice::Hat => 2,
+        DrumVoice::Clap => 3,
+    })
+}
+
 pub(super) const fn processor_color(kind: ProcessorKind) -> Color32 {
     match kind {
         ProcessorKind::Eq => ACCENT_CYAN,
@@ -221,6 +233,9 @@ pub(super) fn apply_theme(ctx: &egui::Context) {
         style.spacing.scroll = ScrollStyle {
             bar_width: 8.0,
             floating: false,
+            // Slate handle from the widget fill (brightening on hover/drag) instead of the
+            // near-white text color, so scrollbars never outshine the content they scroll.
+            foreground_color: false,
             ..ScrollStyle::default()
         };
 

@@ -564,7 +564,7 @@ fn piano_roll_canvas(
                 }
             }
             RollRow::Drum(voice, _) => {
-                let accent = theme::track_color(i);
+                let accent = theme::drum_voice_color(*voice);
                 let hit_count = pattern
                     .events
                     .iter()
@@ -723,7 +723,7 @@ fn piano_roll_canvas(
                 voice, velocity, ..
             } => {
                 let vel = *velocity as f32;
-                let base_color = theme::track_color(row_idx);
+                let base_color = theme::drum_voice_color(*voice);
                 let cx_hit = x_of(at_q);
                 let step_w = (x_of(at_q + 0.25) - cx_hit).clamp(14.0, 28.0);
                 let pad_h = (row_h - 10.0).clamp(18.0, 28.0);
@@ -1394,15 +1394,7 @@ fn velocity_and_locks_lane(
             theme::TEXT_PRIMARY
         } else {
             match ev {
-                PatternEvent::Hit { voice, .. } => {
-                    let lane_i = match voice {
-                        DrumVoice::Clap => 0,
-                        DrumVoice::Hat => 1,
-                        DrumVoice::Snare => 2,
-                        DrumVoice::Kick => 3,
-                    };
-                    theme::track_color(lane_i)
-                }
+                PatternEvent::Hit { voice, .. } => theme::drum_voice_color(*voice),
                 PatternEvent::Sample { .. } => theme::ACCENT_CYAN,
                 PatternEvent::Note { .. } => theme::ACCENT_AMBER,
             }
@@ -2045,7 +2037,19 @@ fn automation_curve_canvas(
             break;
         }
         let x = x_of(q);
-        painter.vline(x, plot.y_range(), Stroke::new(1.0_f32, theme::GRID_BAR));
+        let major = bar.is_multiple_of(label_every) || bar_px >= 24.0;
+        painter.vline(
+            x,
+            plot.y_range(),
+            Stroke::new(
+                1.0_f32,
+                if major {
+                    theme::GRID_BAR
+                } else {
+                    theme::GRID_SUB
+                },
+            ),
+        );
         if bar.is_multiple_of(label_every) {
             painter.vline(
                 x,
@@ -2069,8 +2073,14 @@ fn automation_curve_canvas(
             Stroke::new(1.0_f32, with_alpha(theme::SIG_HOT, 0.30)),
         );
         let fw = (loc.name.len() as f32 * 5.6 + 10.0).clamp(28.0, 82.0);
+        // A flag that would run off the right edge hangs left of its line instead.
+        let flag_x = if x + fw > locator_band.right() - 2.0 {
+            x - fw
+        } else {
+            x
+        };
         let flag = Rect::from_min_size(
-            Pos2::new(x, locator_band.top() + 1.5),
+            Pos2::new(flag_x, locator_band.top() + 1.5),
             Vec2::new(fw, LOC_BAND_H - 3.0),
         );
         painter.rect_filled(flag, 2.0, with_alpha(theme::SIG_HOT, 0.90));

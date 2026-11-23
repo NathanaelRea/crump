@@ -315,8 +315,14 @@ pub(super) fn rotary_knob_modulated(
 ) -> ControlOutcome {
     let label_h = if label.is_empty() { 0.0 } else { 13.0 };
     let val_h = 13.0;
-    let total_w = (diameter + 24.0).max(58.0);
-    let total_h = label_h + diameter + 6.0 + val_h;
+    // Reserve the full painted extent (scale ticks and modulation halo) so nothing the dial
+    // draws can reach into the label above or the value readout below.
+    let radius = diameter * 0.42;
+    let arc_radius = radius + 4.2;
+    let outer = arc_radius + if diameter >= 36.0 { 6.5 } else { 4.4 };
+    let below = radius.max(outer * 0.71) + 2.0;
+    let total_w = (diameter + 24.0).max(58.0).max(outer * 2.0 + 4.0);
+    let total_h = label_h + 3.0 + outer + below + 3.0 + val_h;
     let (rect, response) =
         ui.allocate_exact_size(Vec2::new(total_w, total_h), Sense::click_and_drag());
 
@@ -353,9 +359,7 @@ pub(super) fn rotary_knob_modulated(
     }
 
     let painter = ui.painter();
-    let center = Pos2::new(rect.center().x, rect.top() + label_h + diameter * 0.5 + 2.0);
-    let radius = diameter * 0.42;
-    let arc_radius = radius + 4.2;
+    let center = Pos2::new(rect.center().x, rect.top() + label_h + 3.0 + outer);
 
     // 270° arc: start at 135° (bottom-left), sweep clockwise to 405° (bottom-right)
     let start_angle = 0.75 * PI;
@@ -904,9 +908,24 @@ pub(super) fn horizontal_mini_slider(
         Pos2::new(rect.right() - 4.0, rect.center().y),
         value_galley.size(),
     );
-    // The fill edge is drawn only where it cannot cut through the value readout.
+    // The fill edge is drawn only where it cannot cut through the value readout or the label.
     let edge_x = rect.left() + fill_w - 1.0;
-    if fill_w > 1.0 && !(value_rect.left() - 3.0..=value_rect.right() + 3.0).contains(&edge_x) {
+    let label_right = if label.is_empty() {
+        rect.left()
+    } else {
+        let label_w = painter
+            .layout_no_wrap(
+                label.to_owned(),
+                FontId::proportional(10.0),
+                theme::TEXT_SECONDARY,
+            )
+            .size()
+            .x;
+        (rect.left() + 5.0 + label_w).min(value_rect.left() - 5.0)
+    };
+    let over_text = (rect.left()..=label_right + 3.0).contains(&edge_x)
+        || (value_rect.left() - 3.0..=value_rect.right() + 3.0).contains(&edge_x);
+    if fill_w > 1.0 && !over_text {
         painter.vline(
             edge_x,
             (rect.top() + 2.0)..=(rect.bottom() - 2.0),
@@ -971,7 +990,8 @@ pub(super) fn led_button(
     } else if response.hovered() {
         (theme::BG_HOVER, theme::BORDER_STRONG, theme::TEXT_PRIMARY)
     } else {
-        (theme::BG_CARD, theme::BORDER_SUBTLE, theme::TEXT_MUTED)
+        // Unlit but available: secondary text, so it never reads as a disabled control.
+        (theme::BG_CARD, theme::BORDER_SUBTLE, theme::TEXT_SECONDARY)
     };
     painter.rect_filled(rect, 3.0, bg);
     painter.rect_stroke(rect, 3.0, Stroke::new(1.0_f32, border), StrokeKind::Inside);
@@ -1570,7 +1590,7 @@ fn staggered_piano(ui: &mut Ui, cx: &mut Cx<'_>) {
         let fill = if is_held {
             theme::ACCENT_AMBER
         } else {
-            Color32::from_rgb(184, 192, 204)
+            Color32::from_rgb(150, 158, 172)
         };
         painter.rect_filled(
             krect,
@@ -1610,7 +1630,7 @@ fn staggered_piano(ui: &mut Ui, cx: &mut Cx<'_>) {
                 if is_held {
                     theme::BG_WELL
                 } else {
-                    Color32::from_rgb(92, 100, 114)
+                    Color32::from_rgb(78, 86, 100)
                 },
             );
         }

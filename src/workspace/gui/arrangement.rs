@@ -880,10 +880,20 @@ fn grid(
     while (index as f64) * bar < end {
         let x = geometry.x_of(index as f64 * bar);
         if index.is_multiple_of(line_every) {
+            // At overview zoom only the labelled bars keep full weight; the rest recede so the
+            // grid reads as structure behind the clips rather than competing with them.
+            let major = index.is_multiple_of(label_every) || bar_pixels >= 24.0;
             painter.vline(
                 x,
                 geometry.full_canvas.y_range(),
-                Stroke::new(1.0_f32, theme::GRID_BAR),
+                Stroke::new(
+                    1.0_f32,
+                    if major {
+                        theme::GRID_BAR
+                    } else {
+                        theme::GRID_BEAT
+                    },
+                ),
             );
         }
         if index.is_multiple_of(label_every) {
@@ -1058,16 +1068,29 @@ fn paint_clip_midi_preview(
         color.b().saturating_add(55),
     );
 
-    // Loop repeat seam dividers inside long looped clips
-    for rep in 1..repeats.min(32) {
-        let seam_q = clip_start + rep as f64 * pat_len;
-        if seam_q < clip_start + clip_dur - 0.01 {
-            let sx = geometry.x_of(seam_q);
-            p.vline(
-                sx,
-                content_rect.y_range(),
-                Stroke::new(1.0_f32, with_alpha(theme::TEXT_PRIMARY, 0.22)),
-            );
+    // Only repeats that intersect the visible window are painted, so long clips preview to their
+    // end at any zoom without unbounded work.
+    let first_rep = ((geometry.start - clip_start) / pat_len).floor().max(0.0) as usize;
+    let last_rep = (((geometry.start + geometry.span - clip_start) / pat_len)
+        .ceil()
+        .max(0.0) as usize)
+        .min(repeats)
+        .min(first_rep + 512);
+
+    // Loop repeat seam dividers, quieter when repeats are packed tightly at overview zoom
+    let seam_px = geometry.x_of(clip_start + pat_len) - geometry.x_of(clip_start);
+    if seam_px >= 6.0 {
+        let seam_alpha = if seam_px < 28.0 { 0.10 } else { 0.20 };
+        for rep in first_rep.max(1)..last_rep {
+            let seam_q = clip_start + rep as f64 * pat_len;
+            if seam_q < clip_start + clip_dur - 0.01 {
+                let sx = geometry.x_of(seam_q);
+                p.vline(
+                    sx,
+                    content_rect.y_range(),
+                    Stroke::new(1.0_f32, with_alpha(theme::TEXT_PRIMARY, seam_alpha)),
+                );
+            }
         }
     }
 
@@ -1082,7 +1105,7 @@ fn paint_clip_midi_preview(
     }
     let pitch_span = (max_pitch.saturating_sub(min_pitch)).max(6) as f32;
 
-    for rep in 0..repeats.min(32) {
+    for rep in first_rep..last_rep {
         let offset = clip_start + rep as f64 * pat_len;
         if offset >= clip_start + clip_dur {
             break;
@@ -1328,8 +1351,14 @@ fn markers(
             Stroke::new(1.0_f32, with_alpha(theme::SIG_HOT, 0.28)),
         );
         let flag_w = (locator.name.len() as f32 * 5.8 + 10.0).clamp(32.0, 88.0);
+        // A flag that would run off the right edge hangs left of its line instead.
+        let flag_x = if x + flag_w > rect.right() - 2.0 {
+            x - flag_w
+        } else {
+            x
+        };
         let flag = Rect::from_min_size(
-            Pos2::new(x, rect.top() + 2.0),
+            Pos2::new(flag_x, rect.top() + 2.0),
             Vec2::new(flag_w, LOCATOR_BAND_H - 4.0),
         );
         painter.rect_filled(flag, 2.5, with_alpha(theme::SIG_HOT, 0.92));

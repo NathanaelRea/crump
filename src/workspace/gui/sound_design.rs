@@ -114,6 +114,48 @@ fn badge_chip(ui: &mut Ui, text: &str, color: Color32) {
     painter.text(rect.center(), Align2::CENTER_CENTER, text, font, color);
 }
 
+/// A small painted right-pointing arrow (the bundled fonts lack a "→" glyph).
+fn route_arrow(ui: &mut Ui) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(16.0, 19.0), Sense::hover());
+    let painter = ui.painter();
+    let y = rect.center().y;
+    let stroke = Stroke::new(1.2_f32, theme::TEXT_MUTED);
+    painter.line_segment(
+        [
+            Pos2::new(rect.left() + 2.0, y),
+            Pos2::new(rect.right() - 3.0, y),
+        ],
+        stroke,
+    );
+    painter.line_segment(
+        [
+            Pos2::new(rect.right() - 7.0, y - 3.5),
+            Pos2::new(rect.right() - 3.0, y),
+        ],
+        stroke,
+    );
+    painter.line_segment(
+        [
+            Pos2::new(rect.right() - 7.0, y + 3.5),
+            Pos2::new(rect.right() - 3.0, y),
+        ],
+        stroke,
+    );
+}
+
+/// A chip in a fixed-width column so successive rows line up; long text is truncated.
+fn badge_chip_cell(ui: &mut Ui, text: &str, color: Color32, width: f32) {
+    let max_chars = ((width - 12.0) / 6.2).max(3.0) as usize;
+    ui.allocate_ui_with_layout(
+        Vec2::new(width, 19.0),
+        Layout::left_to_right(Align::Center),
+        |ui| {
+            ui.set_min_width(width);
+            badge_chip(ui, &truncate_text(text, max_chars), color);
+        },
+    );
+}
+
 fn truncate_text(text: &str, max_chars: usize) -> String {
     let count = text.chars().count();
     if count <= max_chars {
@@ -1174,6 +1216,7 @@ fn draw_modulation_matrix(
         .corner_radius(6.0)
         .inner_margin(egui::Margin::same(10))
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new("MODULATION MATRIX")
@@ -1228,6 +1271,7 @@ fn draw_mod_route_row(
         .corner_radius(4.0)
         .inner_margin(egui::Margin::symmetric(8, 5))
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
                 if led_button(
                     ui,
@@ -1245,13 +1289,17 @@ fn draw_mod_route_row(
                     });
                 }
 
-                badge_chip(ui, &route.source, theme::ACCENT_VIOLET);
-                ui.label(RichText::new("->").color(theme::TEXT_MUTED));
-                badge_chip(
+                badge_chip_cell(ui, &route.source, theme::ACCENT_VIOLET, 96.0);
+                route_arrow(ui);
+                badge_chip_cell(
                     ui,
                     target_param.map_or(&route.target, |p| &p.name),
                     theme::ACCENT_CYAN,
+                    96.0,
                 );
+                // The depth bar takes the row's remaining width, leaving room for polarity and
+                // the live readout, so bars in successive rows share both edges.
+                let depth_w = (ui.available_width() - 96.0).clamp(140.0, 520.0);
 
                 // Bipolar draggable depth bar with logarithmic perceptual fill for Unit::Hertz!
                 let drag_key = format!("moddepth:{}:{}", instrument.id, route.id);
@@ -1269,7 +1317,7 @@ fn draw_mod_route_row(
                     } else {
                         theme::ACCENT_VIOLET
                     },
-                    220.0,
+                    depth_w,
                     20.0,
                 );
                 if let Some(new_depth) = out.committed {
@@ -1284,11 +1332,18 @@ fn draw_mod_route_row(
                     ControlPolarity::Unipolar => "UNI",
                     ControlPolarity::Bipolar => "BI",
                 };
-                ui.label(
-                    RichText::new(pol)
-                        .monospace()
-                        .size(9.5)
-                        .color(theme::TEXT_MUTED),
+                ui.allocate_ui_with_layout(
+                    Vec2::new(26.0, 19.0),
+                    Layout::left_to_right(Align::Center),
+                    |ui| {
+                        ui.set_min_width(26.0);
+                        ui.label(
+                            RichText::new(pol)
+                                .monospace()
+                                .size(9.5)
+                                .color(theme::TEXT_MUTED),
+                        );
+                    },
                 );
 
                 if let Some((Some(contrib), u)) = live {
