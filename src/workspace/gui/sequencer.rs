@@ -374,19 +374,20 @@ fn build_roll_rows(pattern: &Pattern) -> (Vec<RollRow>, bool) {
         }
         ((lo..=hi).rev().map(RollRow::Pitch).collect(), false)
     } else if has_hits {
+        // Kit order, matching the drum pad bank: Kick, Snare, Hat, Clap.
         let mut rows = vec![
             RollRow::Drum(
-                DrumVoice::Clap,
-                drum_voice_label(DrumVoice::Clap).to_owned(),
+                DrumVoice::Kick,
+                drum_voice_label(DrumVoice::Kick).to_owned(),
             ),
-            RollRow::Drum(DrumVoice::Hat, drum_voice_label(DrumVoice::Hat).to_owned()),
             RollRow::Drum(
                 DrumVoice::Snare,
                 drum_voice_label(DrumVoice::Snare).to_owned(),
             ),
+            RollRow::Drum(DrumVoice::Hat, drum_voice_label(DrumVoice::Hat).to_owned()),
             RollRow::Drum(
-                DrumVoice::Kick,
-                drum_voice_label(DrumVoice::Kick).to_owned(),
+                DrumVoice::Clap,
+                drum_voice_label(DrumVoice::Clap).to_owned(),
             ),
         ];
         for ev in &pattern.events {
@@ -685,7 +686,17 @@ fn piano_roll_canvas(
         } else {
             theme::GRID_SUB
         };
-        painter.vline(x, grid_rect.y_range(), Stroke::new(1.0_f32, color));
+        // Drum grids end their lines at the last lane; below it is plain canvas.
+        let line_bottom = if is_drum_grid {
+            active_rows_bottom.max(grid_rect.top())
+        } else {
+            grid_rect.bottom()
+        };
+        painter.vline(
+            x,
+            grid_rect.top()..=line_bottom,
+            Stroke::new(1.0_f32, color),
+        );
         if is_bar {
             let bar_num = (q / bar_len).round() as u32 + 1;
             painter.vline(
@@ -702,10 +713,11 @@ fn piano_roll_canvas(
             );
         } else if is_beat && grid_rect.width() / span as f32 >= 28.0 {
             let beat_in_bar = ((q % bar_len).round() as u32) + 1;
+            let bar_num = (q / bar_len).floor() as u32 + 1;
             painter.text(
                 Pos2::new(x + 3.0, ruler_rect.center().y),
                 Align2::LEFT_CENTER,
-                format!(".{beat_in_bar}"),
+                format!("{bar_num}.{beat_in_bar}"),
                 FontId::monospace(9.0),
                 theme::TEXT_MUTED,
             );
@@ -2011,11 +2023,13 @@ fn automation_curve_canvas(
                 Pos2::new(x0, plot.top() + 2.0),
                 Pos2::new(x1, plot.bottom() - 2.0),
             );
-            painter.rect_filled(ghost, 2.0, with_alpha(tr_col, 0.06));
+            // A neutral lift marks where the owning track plays; the track hue would tint the
+            // whole lane.
+            painter.rect_filled(ghost, 2.0, with_alpha(theme::TEXT_PRIMARY, 0.025));
             painter.rect_stroke(
                 ghost,
                 2.0,
-                Stroke::new(1.0_f32, with_alpha(tr_col, 0.14)),
+                Stroke::new(1.0_f32, with_alpha(tr_col, 0.10)),
                 StrokeKind::Inside,
             );
         }
@@ -2069,7 +2083,7 @@ fn automation_curve_canvas(
 
     // Vertical bar gridlines + bar numerals (bottom band) + Locator pills (top band, ZERO collision!)
     let bar_px = (bar_len / song_end) as f32 * plot.width();
-    let label_every = (52.0 / bar_px.max(1.0)).ceil().max(1.0) as u32;
+    let label_every = theme::bar_label_interval(52.0 / bar_px.max(1.0));
     let total_bars = (song_end / bar_len).ceil() as u32;
     for bar in 0..=total_bars {
         let q = f64::from(bar) * bar_len;
@@ -2169,8 +2183,16 @@ fn automation_curve_canvas(
                 curve_pts.push(Pos2::new(x_of(q1), y_of(v1)));
             }
             AutomationInterpolation::Linear => {
-                curve_pts.push(Pos2::new(x_of(q0), y_of(v0)));
-                curve_pts.push(Pos2::new(x_of(q1), y_of(v1)));
+                // Playback interpolates linearly in value; on a log axis that is a curve, so
+                // sample it rather than drawing a screen-space chord.
+                let steps = 28;
+                for s in 0..=steps {
+                    let t = f64::from(s) / f64::from(steps);
+                    curve_pts.push(Pos2::new(
+                        x_of(q0 + t * (q1 - q0)),
+                        y_of(v0 + t * (v1 - v0)),
+                    ));
+                }
                 let mid_q = (q0 + q1) * 0.5;
                 let mid_v = (v0 + v1) * 0.5;
                 if (x_of(q1) - x_of(q0)) >= 28.0 {

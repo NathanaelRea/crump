@@ -339,7 +339,7 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
         .stroke(Stroke::new(
             if is_selected { 1.4_f32 } else { 1.0_f32 },
             if is_selected {
-                desc.accent
+                theme::SELECTION
             } else {
                 theme::BORDER_SUBTLE
             },

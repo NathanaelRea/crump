@@ -135,14 +135,14 @@ pub(super) fn source(ui: &mut Ui, cx: &mut Cx<'_>) {
                             .map_or_else(|| full.clone(), |n| n.to_string_lossy().into_owned());
                         let frame = egui::Frame::new()
                             .fill(if is_sel {
-                                with_alpha(theme::ACCENT_CYAN, 0.16)
+                                with_alpha(theme::SELECTION, 0.12)
                             } else {
                                 Color32::TRANSPARENT
                             })
                             .stroke(Stroke::new(
                                 1.0_f32,
                                 if is_sel {
-                                    with_alpha(theme::ACCENT_CYAN, 0.55)
+                                    with_alpha(theme::SELECTION, 0.55)
                                 } else {
                                     Color32::TRANSPARENT
                                 },
@@ -545,53 +545,20 @@ pub(super) fn diagnostics(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 section_header(ui, "STUDIO PREFLIGHT HEALTH CHECKLIST", theme::BORDER_STRONG);
                                 ui.add_space(10.0);
 
-                                let proc_count = app.bundle.project.as_ref().map_or(0, |p| {
-                                    p.song
-                                        .tracks
-                                        .iter()
-                                        .map(|t| t.channel.inserts.len())
-                                        .sum::<usize>()
-                                        + p.song
-                                            .groups
-                                            .iter()
-                                            .map(|g| g.channel.inserts.len())
-                                            .sum::<usize>()
-                                        + p.song
-                                            .returns
-                                            .iter()
-                                            .map(|r| r.channel.inserts.len())
-                                            .sum::<usize>()
-                                        + p.song
-                                            .master
-                                            .as_ref()
-                                            .map_or(0, |m| m.inserts.len())
-                                });
-                                let pdc_total: u32 = app.bundle.project.as_ref().map_or(0, |p| {
-                                    p.song
-                                        .tracks
-                                        .iter()
-                                        .flat_map(|t| t.channel.inserts.iter())
-                                        .chain(
-                                            p.song
-                                                .groups
+                                // Same compiled processor graph the FX rack reads, so counts and
+                                // reported latency agree across views.
+                                let (proc_count, pdc_total) =
+                                    app.processing_graph().map_or((0, 0), |graph| {
+                                        (
+                                            graph.processors.len(),
+                                            graph
+                                                .processors
                                                 .iter()
-                                                .flat_map(|g| g.channel.inserts.iter()),
+                                                .map(|p| u64::from(p.output_latency_frames))
+                                                .max()
+                                                .unwrap_or(0),
                                         )
-                                        .chain(
-                                            p.song
-                                                .returns
-                                                .iter()
-                                                .flat_map(|r| r.channel.inserts.iter()),
-                                        )
-                                        .chain(
-                                            p.song
-                                                .master
-                                                .iter()
-                                                .flat_map(|m| m.inserts.iter()),
-                                        )
-                                        .map(|pr| pr.latency_frames)
-                                        .sum()
-                                });
+                                    });
                                 let active_sync = if app.candidate_is_active() {
                                     "Candidate matches Active Revision"
                                 } else {
@@ -621,7 +588,7 @@ pub(super) fn diagnostics(ui: &mut Ui, cx: &mut Cx<'_>) {
                                         true,
                                         "PDC Latency Budget",
                                         &format!(
-                                            "{proc_count} processors · {pdc_total} smp compensated"
+                                            "{proc_count} processors · up to {pdc_total} smp compensated"
                                         ),
                                     );
 
@@ -1276,6 +1243,7 @@ pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
         .inner_margin(egui::Margin::symmetric(12, 6))
         .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new("SEARCH SHORTCUTS")
@@ -1362,6 +1330,7 @@ fn help_card_pairs(ui: &mut Ui, title: &str, accent: Color32, rows: &[(&str, &st
         .corner_radius(6.0)
         .inner_margin(egui::Margin::same(12))
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             section_header(ui, &title.to_uppercase(), accent);
             ui.add_space(7.0);
             for (key, desc) in rows {
@@ -1391,6 +1360,7 @@ fn help_card_lines(ui: &mut Ui, title: &str, accent: Color32, lines: &[&str], qu
         .corner_radius(6.0)
         .inner_margin(egui::Margin::same(12))
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             section_header(ui, &title.to_uppercase(), accent);
             ui.add_space(7.0);
             for text in &matched {
@@ -1416,9 +1386,11 @@ fn help_aligned_row(ui: &mut Ui, key: &str, desc: &str) {
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = 10.0;
         ui.allocate_ui_with_layout(
-            Vec2::new(146.0, 20.0),
+            Vec2::new(176.0, 20.0),
             Layout::left_to_right(Align::Center),
             |ui| {
+                // Fixed keycap column so every description starts on the same x.
+                ui.set_min_width(176.0);
                 keycap_pill(ui, key);
             },
         );

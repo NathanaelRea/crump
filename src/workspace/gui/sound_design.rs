@@ -983,7 +983,7 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 .stroke(Stroke::new(
                                     1.0_f32,
                                     if is_sel {
-                                        theme::ACCENT_CYAN
+                                        theme::SELECTION
                                     } else {
                                         theme::BORDER_SUBTLE
                                     },

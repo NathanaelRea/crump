@@ -720,7 +720,8 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                     false,
                 ),
             ] {
-                let active = app.view == v;
+                // The utility sub-tab bar already marks the open view, so these shortcuts
+                // only light up to raise an alert.
                 let color = if alert {
                     theme::SIG_CLIP
                 } else {
@@ -729,7 +730,7 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                 if widgets::led_button(
                     ui,
                     label,
-                    active || alert,
+                    alert,
                     color,
                     Vec2::new(
                         if label == "?" {
@@ -754,7 +755,7 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                 ui,
                 app.telemetry.engine.current_peak,
                 app.telemetry.engine.current_peak * 0.72,
-                114.0,
+                78.0,
                 true,
             )
             .on_hover_text("Master Output Peak & RMS (dBFS)");
@@ -859,8 +860,8 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                 )
                 .size()
                 .x
-                .clamp(112.0, 240.0)
-                .min((ui.available_width() - 16.0).max(80.0))
+                .clamp(112.0, 280.0)
+                .min((ui.available_width() - 12.0).max(80.0))
                 + 4.0;
             ui.add_sized(
                 Vec2::new(name_w, 20.0),

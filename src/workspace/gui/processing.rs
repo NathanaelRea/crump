@@ -207,12 +207,19 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 );
                             }
                             prev_owner = Some(proc.owner.as_str());
-                            let card_h = device_content_height(proc).clamp(250.0, rack_cap);
+                            // Every card shares the tallest card's height so footers align.
+                            let card_h = tallest;
                             device_card(ui, cx, global_idx, proc, global_idx == selected, card_h);
                         }
                     });
                 });
         });
+}
+
+/// Four knobs share one row (an EQ band set) rather than orphaning the fourth, and dense devices
+/// use rows of four so no card needs a third row; otherwise three.
+fn knobs_per_row(knobs: usize) -> usize {
+    if knobs == 4 || knobs >= 7 { 4 } else { 3 }
 }
 
 /// The height a device card needs for its header, scope, choice pills, knob rows and footer, so
@@ -224,7 +231,7 @@ fn device_content_height(proc: &CompiledProcessorInspection) -> f32 {
         .filter(|s| s.unit.is_some() && s.value.is_some())
         .count();
     let has_choices = proc.settings.iter().any(|s| s.choice.is_some());
-    let rows = knobs.div_ceil(3).max(1) as f32;
+    let rows = knobs.div_ceil(knobs_per_row(knobs)).max(1) as f32;
     126.0 + if has_choices { 34.0 } else { 0.0 } + rows * 92.0 + 40.0
 }
 
@@ -353,7 +360,7 @@ fn device_card(
         .stroke(Stroke::new(
             if is_selected { 1.6_f32 } else { 1.0_f32 },
             if is_selected {
-                accent
+                theme::SELECTION
             } else {
                 theme::BORDER_SUBTLE
             },
@@ -596,8 +603,9 @@ fn device_card(
                             .id_salt(("proc-knobs", &proc.id))
                             .max_height(scroll_h)
                             .show(ui, |ui| {
-                                let col_w = ((CARD_WIDTH - 24.0) / 3.0).floor();
-                                for chunk in continuous.chunks(3) {
+                                let per_row = knobs_per_row(continuous.len());
+                                let col_w = ((CARD_WIDTH - 24.0) / per_row as f32).floor();
+                                for chunk in continuous.chunks(per_row) {
                                     ui.horizontal_top(|ui| {
                                         ui.spacing_mut().item_spacing.x = 0.0;
                                         for (setting, unit, value, min, max) in chunk {
@@ -904,10 +912,10 @@ fn focused_device_inspector(
                             if let Some(m) = meter {
                                 ui.label(
                                     RichText::new(format!(
-                                        "IN {} · OUT {} · GR {:.1}dB",
+                                        "IN {} · OUT {} · GR {}",
                                         theme::format_dbfs(m.input_peak),
                                         theme::format_dbfs(m.output_peak),
-                                        m.gain_reduction_db
+                                        theme::format_db(f64::from(m.gain_reduction_db))
                                     ))
                                     .monospace()
                                     .size(9.5)
@@ -1362,7 +1370,7 @@ fn paint_eq_curve_detailed(
                 painter.text(
                     Pos2::new(px, py - 9.0),
                     Align2::CENTER_BOTTOM,
-                    format!("{tag} {:+.1}dB", gain),
+                    format!("{tag} {:+.1} dB", gain),
                     FontId::monospace(8.5),
                     theme::TEXT_PRIMARY,
                 );
@@ -1475,7 +1483,7 @@ fn paint_dynamics_preview(
     painter.text(
         Pos2::new(rect.left() + 4.0, rect.top() + 3.0),
         Align2::LEFT_TOP,
-        format!("GR {gr_db:.1} dB"),
+        format!("GR {}", theme::format_db(f64::from(gr_db))),
         FontId::monospace(9.5),
         if gr_db.abs() > 0.3 {
             theme::ACCENT_AMBER

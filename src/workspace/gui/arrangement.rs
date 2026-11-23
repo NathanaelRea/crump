@@ -874,7 +874,7 @@ fn grid(
 
     // Bar lines & clean unobstructed ruler numerals inside bottom band
     let bar_pixels = (bar * pixels_per_quarter).max(f64::EPSILON);
-    let label_every = (48.0 / bar_pixels).ceil().max(1.0) as u64;
+    let label_every = u64::from(theme::bar_label_interval(48.0 / bar_pixels as f32));
     let line_every = (5.0 / bar_pixels).ceil().max(1.0) as u64;
     let mut index = (geometry.start / bar).ceil() as u64;
     while (index as f64) * bar < end {
@@ -1056,7 +1056,12 @@ fn clips(
                 .text(
                     Pos2::new(header_rect.left() + 5.0, header_rect.center().y),
                     Align2::LEFT_CENTER,
-                    &clip.pattern,
+                    super::widgets::ellipsize(
+                        painter,
+                        &clip.pattern,
+                        &FontId::proportional(10.0),
+                        header_rect.width() - 10.0,
+                    ),
                     FontId::proportional(10.0),
                     theme::BG_WELL,
                 );

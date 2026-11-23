@@ -57,6 +57,8 @@ pub(super) const ACCENT_AMBER: Color32 = Color32::from_rgb(255, 142, 48);
 pub(super) const ACCENT_CYAN: Color32 = Color32::from_rgb(56, 198, 217);
 /// Modulation / envelope / LFO violet.
 pub(super) const ACCENT_VIOLET: Color32 = Color32::from_rgb(169, 124, 248);
+/// The one selection outline used by every selectable card, strip, row and list item.
+pub(super) const SELECTION: Color32 = ACCENT_AMBER;
 /// Nominal signal / playing LED / Active Revision badge.
 pub(super) const SIG_NOMINAL: Color32 = Color32::from_rgb(52, 199, 123);
 /// Hot signal (-12..-3 dBFS) / Solo LED / GR / Candidate modified.
@@ -213,6 +215,22 @@ pub(super) const fn node_kind_label(kind: NodeKind) -> &'static str {
         NodeKind::BiquadChain => "Biquad Chain",
         NodeKind::Constant => "Constant",
     }
+}
+
+/// A gain in decibels with one decimal, a space before the unit, and no negative zero.
+pub(super) fn format_db(db: f64) -> String {
+    let rounded = (db * 10.0).round() / 10.0;
+    format!("{:.1} dB", if rounded == 0.0 { 0.0 } else { rounded })
+}
+
+/// The bar-label stride for rulers: the smallest musical power of two (1, 2, 4, 8, 16, …) that is
+/// at least `min_bars`, so labels land on phrase boundaries (1, 5, 9, 17 …) in every view.
+pub(super) fn bar_label_interval(min_bars: f32) -> u32 {
+    let mut stride = 1_u32;
+    while (stride as f32) < min_bars && stride < 1024 {
+        stride *= 2;
+    }
+    stride
 }
 
 /// Converts a quarter-note float position into an exact 1/32nd-snapped `MusicalTime`.
