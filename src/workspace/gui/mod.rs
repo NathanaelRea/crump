@@ -730,7 +730,7 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                                     .color(theme::ACCENT_CYAN),
                             )
                             .fill(theme::BG_SURFACE)
-                            .min_size(Vec2::new(124.0, 20.0)),
+                            .min_size(Vec2::new(96.0, 20.0)),
                         )
                         .on_hover_text("Click to choose Audition target · A")
                         .clicked()
