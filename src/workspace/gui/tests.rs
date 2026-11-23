@@ -1009,7 +1009,7 @@ fn history_groups_sessions_and_folds_back_to_back_edits() {
             "Deep House Bass ×1",
             "Sub and Analog Bass ×1",
             "Restore ×1",
-            "music-color ×3",
+            "Saturator on Music ×3",
             "kick-four ×3",
             "Deep House Bass ×4",
         ]

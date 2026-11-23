@@ -507,7 +507,7 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new(format!(
-                        "HISTORY · {} VERSION{}",
+                        "HISTORY · {} CHANGE{}",
                         app.history.len(),
                         if app.history.len() == 1 { "" } else { "S" }
                     ))
@@ -517,14 +517,6 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
                 );
                 // Compare and Restore live in the inspector, next to the version they act on.
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if app.history.len() >= 2
-                        && ui
-                            .add(egui::Button::new("Undo Last").fill(theme::BG_CARD))
-                            .on_hover_text("Restore the previous History entry")
-                            .clicked()
-                    {
-                        cx.send(Action::UndoHistory);
-                    }
                     // The empty state carries its own Publish action; don't repeat it here.
                     if !app.history.is_empty()
                         && widgets::publish_button(ui, "Publish Revision", needs_publish(app))

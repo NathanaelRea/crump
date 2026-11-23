@@ -218,16 +218,18 @@ pub(super) fn describe(app: &Workspace, summary: &str) -> (Kind, String, String)
             } else {
                 rest(3)
             };
-            return (Kind::Fx, (*processor).to_owned(), detail);
+            let name = processor_name(app, processor).unwrap_or_else(|| (*processor).to_owned());
+            return (Kind::Fx, name, detail);
         }
         ["Create", "Automation", "lane", lane] => {
-            return (Kind::Automation, (*lane).to_owned(), "Created lane".into());
+            let name = lane_name(app, lane).unwrap_or_else(|| (*lane).to_owned());
+            return (Kind::Automation, name, "Created lane".into());
         }
         [verb @ ("Add" | "Delete"), "point", point, "in", lane] => {
             let verb = if *verb == "Add" { "Added" } else { "Deleted" };
             return (
                 Kind::Automation,
-                (*lane).to_owned(),
+                lane_name(app, lane).unwrap_or_else(|| (*lane).to_owned()),
                 format!("{verb} point {point}"),
             );
         }
@@ -275,7 +277,7 @@ pub(super) fn describe(app: &Workspace, summary: &str) -> (Kind, String, String)
             if is_lane(owner) {
                 return (
                     Kind::Automation,
-                    owner.to_owned(),
+                    lane_name(app, owner).unwrap_or_else(|| owner.to_owned()),
                     format!("Point {}", rest(1).split_once('.').map_or("", |(_, r)| r))
                         .replace(" = ", " to "),
                 );
@@ -284,10 +286,85 @@ pub(super) fn describe(app: &Workspace, summary: &str) -> (Kind, String, String)
                 .split_once(" = ")
                 .map(|(_, v)| format!(" to {v}"))
                 .unwrap_or_default();
-            return (Kind::Fx, owner.to_owned(), format!("{}{value}", title(key)));
+            let name = processor_name(app, owner).unwrap_or_else(|| owner.to_owned());
+            return (Kind::Fx, name, format!("{}{value}", title(key)));
         }
     }
     (Kind::Other, "Project".into(), summary.to_owned())
+}
+
+/// An Automation lane named by what it moves: "Deep House Bass Cutoff", "Granular Cloud Level".
+fn lane_name(app: &Workspace, lane: &str) -> Option<String> {
+    use crate::model::ParameterTarget;
+    let song = &app.bundle.project.as_ref()?.song;
+    let target = &song.automations.iter().find(|l| l.id == lane)?.target;
+    let channel = |name: Option<&String>, parameter: &crate::model::TrackParameter| {
+        name.map(|name| format!("{name} {}", title(&format!("{parameter:?}"))))
+    };
+    match target {
+        ParameterTarget::Instrument {
+            instrument,
+            parameter,
+        } => {
+            let instrument = song.instruments.iter().find(|i| i.id == *instrument)?;
+            let parameter = instrument.parameters.iter().find(|p| p.key == *parameter)?;
+            Some(format!("{} {}", instrument.name, parameter.name))
+        }
+        ParameterTarget::Track { track, parameter } => channel(
+            song.tracks.iter().find(|t| t.id == *track).map(|t| &t.name),
+            parameter,
+        ),
+        ParameterTarget::Group { group, parameter } => channel(
+            song.groups.iter().find(|g| g.id == *group).map(|g| &g.name),
+            parameter,
+        ),
+        ParameterTarget::Return {
+            r#return,
+            parameter,
+        } => channel(
+            song.returns
+                .iter()
+                .find(|r| r.id == *r#return)
+                .map(|r| &r.name),
+            parameter,
+        ),
+        ParameterTarget::Master => Some("Master Level".to_owned()),
+        _ => None,
+    }
+}
+
+/// A processor named by kind and where it sits: "Saturator on Music".
+fn processor_name(app: &Workspace, id: &str) -> Option<String> {
+    let song = &app.bundle.project.as_ref()?.song;
+    let hosts = song
+        .tracks
+        .iter()
+        .map(|t| (t.name.as_str(), &t.channel.inserts))
+        .chain(
+            song.groups
+                .iter()
+                .map(|g| (g.name.as_str(), &g.channel.inserts)),
+        )
+        .chain(
+            song.returns
+                .iter()
+                .map(|r| (r.name.as_str(), &r.channel.inserts)),
+        )
+        .chain(song.master.iter().map(|m| ("Master", &m.inserts)))
+        .chain(
+            song.instruments
+                .iter()
+                .map(|i| (i.name.as_str(), &i.post_processors)),
+        );
+    for (host, chain) in hosts {
+        if let Some(processor) = chain.iter().find(|p| p.id == id) {
+            return Some(format!(
+                "{} on {host}",
+                theme::processor_title(processor.kind)
+            ));
+        }
+    }
+    None
 }
 
 fn title(text: &str) -> String {
@@ -394,6 +471,22 @@ fn who(entry: &HistoryEntry) -> String {
         OriginKind::Agent => format!("{} (agent)", entry.origin.name),
         OriginKind::System => "Crump".to_owned(),
     }
+}
+
+/// Everyone who made changes in a session, oldest first: "You, Claude (agent)".
+fn authors(session: &[Item<'_>]) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for item in session.iter().rev() {
+        let name = who(item.entry);
+        if !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    names
+}
+
+fn plural(count: usize, noun: &str) -> String {
+    format!("{count} {noun}{}", if count == 1 { "" } else { "s" })
 }
 
 fn is_current(app: &Workspace, entry: &HistoryEntry) -> bool {
@@ -540,10 +633,10 @@ fn session_block(
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.label(
                 RichText::new(format!(
-                    "{} change{} · {}",
-                    session.len(),
-                    if session.len() == 1 { "" } else { "s" },
-                    who(last.entry)
+                    "{} · {} min · {}",
+                    plural(session.len(), "change"),
+                    ((last.at - first.at) / 60).max(1),
+                    authors(session).join(", ")
                 ))
                 .size(10.5)
                 .color(theme::TEXT_MUTED),
@@ -577,9 +670,10 @@ fn session_block(
     ui.painter().rect_filled(rule, 0.0, theme::SEAM_DARK);
     ui.add_space(6.0);
     if open {
-        let session_who = who(last.entry);
+        // Name who made a run only when the session had more than one author.
+        let mixed = authors(session).len() > 1;
         for run in runs(session) {
-            run_rows(ui, cx, items, run, selected, &session_who, pick);
+            run_rows(ui, cx, items, run, selected, mixed, pick);
         }
     }
     ui.add_space(18.0);
@@ -591,7 +685,7 @@ fn run_rows(
     items: &[Item<'_>],
     run: &[Item<'_>],
     selected: usize,
-    session_who: &str,
+    mixed_authors: bool,
     pick: &mut Option<usize>,
 ) {
     let app = cx.app;
@@ -602,6 +696,22 @@ fn run_rows(
     let holds_selection = run.iter().any(|item| item.index == selected);
     let highlight = holds_selection && !expanded;
     let current = run.iter().any(|item| is_current(app, item.entry));
+    // A restore reads as where it went back to.
+    let target = (head.kind == Kind::Restore)
+        .then(|| restore_target(items, head))
+        .flatten();
+    let subject = target.map_or_else(
+        || head.subject.clone(),
+        |target| format!("Back to {} — {}", target.subject, target.action),
+    );
+    let detail = if let Some(target) = target {
+        format!("version from {}", clock(target.at))
+    } else if folds {
+        format!("{} · {}", plural(run.len(), "change"), run_actions(run))
+    } else {
+        head.action.clone()
+    };
+    let mut triangle = Rect::NOTHING;
     let row = egui::Frame::new()
         .fill(if highlight {
             theme::BG_CARD
@@ -622,33 +732,17 @@ fn run_rows(
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
                 let (tri, _) = ui.allocate_exact_size(Vec2::splat(14.0), Sense::hover());
+                triangle = tri.expand(6.0);
                 if folds {
                     disclosure(ui.painter(), tri.center(), expanded, theme::TEXT_SECONDARY);
                 }
                 kind_chip(ui, head.kind);
                 ui.label(
-                    RichText::new(&head.subject)
+                    RichText::new(subject)
                         .strong()
                         .size(12.5)
                         .color(theme::TEXT_PRIMARY),
                 );
-                let detail = if head.kind == Kind::Restore {
-                    restore_target(items, head).map_or_else(
-                        || head.action.clone(),
-                        |target| {
-                            format!(
-                                "Back to {} — {} ({})",
-                                target.subject,
-                                target.action,
-                                clock(target.at)
-                            )
-                        },
-                    )
-                } else if folds {
-                    format!("{} edits · {}", run.len(), run_actions(run))
-                } else {
-                    head.action.clone()
-                };
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(
                         RichText::new(if folds {
@@ -663,9 +757,12 @@ fn run_rows(
                     if current {
                         current_marker(ui);
                     }
-                    let run_who = who(head.entry);
-                    if run_who != session_who {
-                        ui.label(RichText::new(run_who).size(10.5).color(theme::TEXT_MUTED));
+                    if mixed_authors {
+                        ui.label(
+                            RichText::new(who(head.entry))
+                                .size(10.5)
+                                .color(theme::TEXT_MUTED),
+                        );
                     }
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                         ui.add(
@@ -680,22 +777,26 @@ fn run_rows(
                 });
             });
         });
-    // The whole row selects the run's latest edit and, for a run, opens or folds it.
-    if row
-        .response
-        .interact(Sense::click())
-        .on_hover_text(if folds {
-            "Show each edit in this run"
-        } else {
-            ""
-        })
-        .clicked()
-    {
-        *pick = Some(head.index);
-        if folds {
+    // The row selects the run's latest change and opens a run; only the triangle folds it.
+    let response = row.response.interact(Sense::click());
+    let response = if folds {
+        response.on_hover_text("Click to open · the triangle folds it again")
+    } else {
+        response
+    };
+    if response.clicked() {
+        let on_triangle = response
+            .interact_pointer_pos()
+            .is_some_and(|pos| triangle.contains(pos));
+        if folds && on_triangle {
             if expanded {
                 cx.state.history_runs.remove(&oldest.entry.id);
             } else {
+                cx.state.history_runs.insert(oldest.entry.id.clone());
+            }
+        } else {
+            *pick = Some(head.index);
+            if folds {
                 cx.state.history_runs.insert(oldest.entry.id.clone());
             }
         }
@@ -839,8 +940,43 @@ fn inspector(
             *pick = Some(target.index);
         }
     }
+    // The other direction: this version was brought back later.
+    for later in items
+        .iter()
+        .filter(|other| other.entry.restored_from.as_ref() == Some(&item.entry.id))
+    {
+        ui.add_space(6.0);
+        if ui
+            .add(egui::Button::new(format!("Restored at {}", clock(later.at))).fill(theme::BG_CARD))
+            .on_hover_text("Show the restore")
+            .clicked()
+        {
+            *pick = Some(later.index);
+        }
+    }
 
+    // What a restore would undo: every later change (History is newest first).
     ui.add_space(16.0);
+    let later = &items[..item.index];
+    let impact = if later.is_empty() {
+        "This is the latest change.".to_owned()
+    } else {
+        format!(
+            "Restoring undoes the {} made after it ({}). They stay in History, and the restore \
+             is added as a new change.",
+            plural(later.len(), "change"),
+            session_subjects(later)
+        )
+    };
+    ui.add(
+        egui::Label::new(
+            RichText::new(impact)
+                .size(10.5)
+                .color(theme::TEXT_SECONDARY),
+        )
+        .wrap(),
+    );
+    ui.add_space(8.0);
     ui.horizontal(|ui| {
         if ui
             .add(egui::Button::new("Compare with now").fill(theme::BG_CARD))
@@ -855,34 +991,22 @@ fn inspector(
                 can_restore,
                 egui::Button::new("Restore this version").fill(theme::BG_CARD),
             )
-            .on_hover_text("Bring back the whole project as it was after this edit · R")
+            .on_hover_text("Bring back the whole project as it was after this change · R")
             .clicked()
         {
             *restore = true;
         }
     });
-    ui.add_space(6.0);
-    ui.add(
-        egui::Label::new(
-            RichText::new(
-                "Restoring brings back the whole project as it was after this edit. It is added \
-                 as a new entry, so nothing in History is lost.",
-            )
-            .size(10.5)
-            .color(theme::TEXT_MUTED),
-        )
-        .wrap(),
-    );
 
-    // Every edit to the same thing, newest first, to jump between versions of it.
+    // Every change to the same thing, newest first, to jump between versions of it.
     let others = items
         .iter()
-        .filter(|other| other.same_subject(item) && item.kind != Kind::Restore)
+        .filter(|other| other.same_subject(item) && other.kind != Kind::Restore)
         .collect::<Vec<_>>();
     if others.len() > 1 {
         ui.add_space(18.0);
         ui.label(
-            RichText::new(format!("ALL EDITS TO {}", item.subject.to_uppercase()))
+            RichText::new(format!("ALL CHANGES TO {}", item.subject.to_uppercase()))
                 .strong()
                 .size(9.5)
                 .color(theme::TEXT_MUTED),
@@ -918,30 +1042,34 @@ fn inspector(
         });
     }
 
+    // File-level detail stays available, folded away.
     ui.add_space(18.0);
-    ui.label(
-        RichText::new(format!(
-            "{} FILE{} CHANGED",
-            item.entry.changes.len(),
-            if item.entry.changes.len() == 1 {
-                ""
-            } else {
-                "S"
-            }
-        ))
-        .strong()
-        .size(9.5)
-        .color(theme::TEXT_MUTED),
-    );
-    ui.add_space(4.0);
-    for change in &item.entry.changes {
+    egui::CollapsingHeader::new(
+        RichText::new("Technical details")
+            .size(10.5)
+            .color(theme::TEXT_MUTED),
+    )
+    .id_salt("history-technical")
+    .show(ui, |ui| {
         ui.label(
-            RichText::new(widgets::legible(&change.path.display().to_string()))
-                .monospace()
-                .size(10.5)
-                .color(theme::TEXT_SECONDARY),
+            RichText::new(format!(
+                "Change {} · {}",
+                item.entry.id,
+                plural(item.entry.changes.len(), "file")
+            ))
+            .monospace()
+            .size(10.0)
+            .color(theme::TEXT_MUTED),
         );
-    }
+        for change in &item.entry.changes {
+            ui.label(
+                RichText::new(widgets::legible(&change.path.display().to_string()))
+                    .monospace()
+                    .size(10.5)
+                    .color(theme::TEXT_SECONDARY),
+            );
+        }
+    });
 }
 
 #[cfg(test)]
