@@ -374,16 +374,35 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                             }
 
                             // 2. Channel name & output routing pill
-                            let name_resp = ui.add(
-                                egui::Label::new(
-                                    RichText::new(desc.name)
-                                        .strong()
-                                        .size(12.0)
-                                        .color(theme::TEXT_PRIMARY),
-                                )
-                                .truncate()
-                                .sense(Sense::click()),
+                            // Names get two centred lines before ellipsizing, inside a fixed
+                            // band so every strip keeps the same vertical datum.
+                            let mut job = egui::text::LayoutJob::single_section(
+                                desc.name.to_owned(),
+                                egui::TextFormat {
+                                    font_id: FontId::proportional(11.5),
+                                    color: theme::TEXT_PRIMARY,
+                                    ..Default::default()
+                                },
                             );
+                            job.wrap = egui::text::TextWrapping {
+                                max_width: inner_w - 4.0,
+                                max_rows: 2,
+                                break_anywhere: false,
+                                overflow_character: Some('…'),
+                            };
+                            job.halign = Align::Center;
+                            let galley = ui.fonts_mut(|fonts| fonts.layout_job(job));
+                            let (name_rect, name_resp) =
+                                ui.allocate_exact_size(Vec2::new(inner_w, 30.0), Sense::click());
+                            ui.painter().galley(
+                                Pos2::new(
+                                    name_rect.center().x,
+                                    name_rect.center().y - galley.size().y * 0.5,
+                                ),
+                                galley,
+                                theme::TEXT_PRIMARY,
+                            );
+                            let name_resp = name_resp.on_hover_text(desc.name);
                             if name_resp.clicked()
                                 && let Some(idx) = level_idx
                             {

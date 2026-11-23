@@ -104,10 +104,35 @@ pub(super) fn source(ui: &mut Ui, cx: &mut Cx<'_>) {
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
+                    // Files are grouped under their directory, shown once, so rows show
+                    // filenames instead of repeating a long common prefix.
+                    let mut last_dir: Option<String> = None;
                     for (idx, (path, contents)) in files.iter().enumerate() {
                         let is_sel = idx == selected;
                         let line_count = contents.lines().count();
-                        let display = path.display().to_string();
+                        let full = path.display().to_string();
+                        let dir = path
+                            .parent()
+                            .map(|d| d.display().to_string())
+                            .filter(|d| !d.is_empty());
+                        if idx == 0 || last_dir != dir {
+                            if idx > 0 {
+                                ui.add_space(6.0);
+                            }
+                            ui.label(
+                                RichText::new(dir.as_deref().map_or_else(
+                                    || "project root".to_owned(),
+                                    |d| format!("{d}/"),
+                                ))
+                                .size(9.5)
+                                .color(theme::TEXT_MUTED),
+                            );
+                            ui.add_space(2.0);
+                            last_dir = dir;
+                        }
+                        let display = path
+                            .file_name()
+                            .map_or_else(|| full.clone(), |n| n.to_string_lossy().into_owned());
                         let frame = egui::Frame::new()
                             .fill(if is_sel {
                                 with_alpha(theme::ACCENT_CYAN, 0.16)
@@ -147,7 +172,7 @@ pub(super) fn source(ui: &mut Ui, cx: &mut Cx<'_>) {
                                             )
                                             .truncate(),
                                         )
-                                        .on_hover_text(&display);
+                                        .on_hover_text(&full);
                                     });
                                 });
                             });
