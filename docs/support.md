@@ -33,7 +33,7 @@ Install Rust 1.88 or newer with rustup, then build:
 cargo build --release --locked
 ```
 
-The default `pipewire` Cargo feature enables playback and MIDI. `--no-default-features` retains Project loading, validation, History, workspace inspection, and offline rendering with playback stubs.
+The default `pipewire` Cargo feature enables playback and MIDI. `--no-default-features --features tui` retains Project loading, validation, History, workspace inspection, and offline rendering with playback stubs. The default `tui` feature is the terminal client; without it the interactive workspace command reports `terminal_client_unavailable` and everything else is unchanged.
 
 To construct and install the Ubuntu `amd64` package:
 

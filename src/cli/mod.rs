@@ -74,8 +74,10 @@ mod commands;
 
 pub use arguments::Cli;
 use arguments::*;
+#[cfg(all(test, feature = "tui"))]
+use commands::play_stop_key;
 #[cfg(test)]
-use commands::{blank_project_source, play_stop_key, slug_id, workspace_needs_project_picker};
+use commands::{blank_project_source, slug_id, workspace_needs_project_picker};
 use commands::{emit_failure, emit_success, execute, serialize_response};
 
 /// Parses process arguments, executes one command, and returns a stable exit status.

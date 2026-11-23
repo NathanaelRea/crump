@@ -471,20 +471,6 @@ fn timeline_playhead_column(
     timeline::frame_column(app.telemetry.engine.frame, start, end, columns)
 }
 
-pub(super) fn timeline_time_label(
-    time: crate::time::MusicalTime,
-    meter: crate::time::Meter,
-) -> String {
-    let bar_length = meter
-        .bar_length()
-        .map_or(4.0, crate::time::MusicalTime::as_f64);
-    let beat_length = 4.0 / f64::from(meter.denominator.max(1));
-    let quarter_notes = time.as_f64();
-    let bar = (quarter_notes / bar_length).floor() as u64 + 1;
-    let beat = quarter_notes.rem_euclid(bar_length) / beat_length + 1.0;
-    format!("{bar}:{beat:.1}")
-}
-
 fn render_timeline_details(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     let Some(project) = app.bundle.project.as_ref() else {
         return;

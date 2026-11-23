@@ -1,5 +1,6 @@
 use super::*;
 
+#[cfg(feature = "tui")]
 #[test]
 fn ctrl_c_is_the_only_interactive_playback_stop_key() {
     let ctrl_c = crossterm::event::KeyEvent::new(

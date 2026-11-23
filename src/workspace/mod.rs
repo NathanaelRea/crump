@@ -1,42 +1,32 @@
-//! Terminal production workspace over the terminal-independent Project model.
+//! Production workspace over the terminal-independent Project model.
+//!
+//! [`Workspace`] is the client-independent session: it owns Candidate and Active Revision
+//! tracking, background reload, playback, audition, selection, and modal state, and it changes
+//! only through [`Workspace::dispatch`] and [`Workspace::tick`]. A client adapter translates its
+//! own input into [`Action`] values and draws the resulting state. The first-party adapter is the
+//! Ratatui terminal client in the `tui` submodule, compiled with the `tui` feature; nothing
+//! outside that submodule depends on a terminal library.
+
+// The read side of the session (projections, labels, timing statistics) is consumed only by a
+// client adapter, so a build without one would otherwise report it as dead.
+#![cfg_attr(not(feature = "tui"), allow(dead_code))]
 
 use std::{
     cell::RefCell,
     collections::BTreeMap,
-    io::{self, Stdout},
+    io,
     path::{Path, PathBuf},
-    process::Command,
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use crossterm::{
-    event::{
-        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
-        KeyModifiers, MouseEventKind,
-    },
-    execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
-use ratatui::{
-    Frame, Terminal,
-    backend::CrosstermBackend,
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
-    style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
-    widgets::{
-        Block, Borders, Cell, Clear, Gauge, List, ListItem, Paragraph, Row, Scrollbar,
-        ScrollbarOrientation, ScrollbarState, Table, TableState, Tabs, Wrap,
-    },
-};
-
 use crate::{
-    diagnostic::{Severity, SourceLocation},
+    diagnostic::SourceLocation,
     engine::audition::{
         AuditionCue, AuditionPath, AuditionPlan, AuditionRange, AuditionStatus, AuditionTarget,
     },
     engine::{CompiledProject, control::ControlInspector, mix_graph::MixGraphInspection},
-    history::{HistoryEntry, HistoryStore, write_atomic},
+    history::{HistoryEntry, HistoryStore},
     model::{
         AutomationLane, AutomationPoint, DrumVoice, Graph, InstrumentKind, ParameterSpec,
         ParameterTarget, PatternEvent, PresentationItemKind, Project, TapPoint, Unit,
@@ -50,9 +40,6 @@ use crate::{
     realtime::{PlaybackBackend, Player, PlayerTelemetry, RealtimeError, StreamStatus},
 };
 
-const TICK_RATE: Duration = Duration::from_millis(40);
-const BACKGROUND_POLL_RATE: Duration = Duration::from_millis(5);
-const REFRESH_RATE: Duration = Duration::from_millis(400);
 const AUDITION_TIMEOUT: Duration = Duration::from_millis(700);
 const VIEWS: [View; 13] = [
     View::Timeline,
@@ -70,20 +57,22 @@ const VIEWS: [View; 13] = [
     View::Help,
 ];
 
+mod action;
 mod active;
 mod background;
 mod input;
 mod instrument;
 mod performance;
 mod reload;
-mod rendering;
-mod terminal;
 mod timeline;
+#[cfg(feature = "tui")]
+mod tui;
 mod watch;
 
 #[cfg(test)]
 use crate::project::load_project;
 
+pub use action::{Action, TimelineAction};
 use active::{
     ActiveMode, ActiveRequest, ActiveRequestKey, ActiveResult, PreparedActiveInspection,
     PreparedActiveMode,
@@ -95,9 +84,9 @@ use instrument::instrument_section_views;
 use instrument::{InstrumentSectionRow, instrument_section_views_with_assets};
 use performance::WorkspacePerformance;
 use reload::{CandidateReload, CandidateUpdate, HistoryReload, HistoryUpdate, ReloadBatch};
-use rendering::render;
-pub use terminal::run;
 use timeline::{TimelineCache, TimelinePosition, TimelineRange, TimelineState, TimelineViewport};
+#[cfg(feature = "tui")]
+pub use tui::run;
 use watch::WorkspaceWatch;
 
 fn timeline_ascii_fallback() -> bool {
@@ -161,20 +150,34 @@ fn graph_processing_bus_indexes(graph: &Graph, node_order: &[usize]) -> Vec<usiz
     order
 }
 
+/// One Production View or inspection surface a client can show.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum View {
+pub enum View {
+    /// Arrangement of Tracks and Clips along the Song.
     Timeline,
+    /// Level, pan, mute, Solo, and cue for every routing scope.
     Mixer,
+    /// Processor chains and audition paths of the mix graph.
     Processing,
+    /// Events of the selected Pattern.
     EventGrid,
+    /// Authored Faceplate controls of the selected Instrument.
     Faceplate,
+    /// Generated sections of the selected Instrument.
     Instrument,
+    /// Every Parameter of the selected Instrument.
     Parameters,
+    /// Automation lanes and their points.
     Automation,
+    /// Nodes and buses of the selected Instrument graph.
     Graph,
+    /// Authoritative Source text.
     Source,
+    /// Diagnostics of the Candidate Revision.
     Diagnostics,
+    /// Project History entries.
     History,
+    /// Client help.
     Help,
 }
 
@@ -253,7 +256,12 @@ struct PendingActiveInspection {
     inspection: PreparedActiveInspection,
 }
 
-struct Workspace {
+/// Client-independent workspace session for one Project.
+///
+/// Create it with [`Workspace::open`], feed it [`Action`] values through
+/// [`Workspace::dispatch`], and call [`Workspace::tick`] regularly so audio telemetry and
+/// background work are observed.
+pub struct Workspace {
     root: PathBuf,
     bundle: ProjectBundle,
     watch: WorkspaceWatch,
@@ -288,7 +296,6 @@ struct Workspace {
     timeline_viewport: TimelineViewport,
     timeline_cache: TimelineCache,
     timeline_ascii: bool,
-    pending_key: Option<PendingKey>,
     mixer_parameters: Vec<MixerParameterView>,
     selected_mixer_parameter: usize,
     selected_processor: usize,
@@ -304,6 +311,7 @@ struct Workspace {
     selected_history: usize,
     selected_diagnostic: usize,
     help_scroll: u16,
+    help_line_count: usize,
     selected_source: usize,
     source_scroll: usize,
     modal: Option<Modal>,
@@ -326,14 +334,6 @@ struct Workspace {
     note_mode: bool,
     audition_loop: Option<String>,
     editor_requested: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PendingKey {
-    G,
-    Z,
-    SetMark,
-    JumpMark,
 }
 
 struct HeldNote {
@@ -542,7 +542,6 @@ impl Workspace {
             timeline_viewport: TimelineViewport::default(),
             timeline_cache,
             timeline_ascii: timeline_ascii_fallback(),
-            pending_key: None,
             mixer_parameters,
             selected_mixer_parameter: 0,
             selected_processor: 0,
@@ -558,6 +557,7 @@ impl Workspace {
             selected_history: 0,
             selected_diagnostic: 0,
             help_scroll: 0,
+            help_line_count: 0,
             selected_source: 0,
             source_scroll: 0,
             modal: None,
@@ -1824,261 +1824,6 @@ impl Workspace {
         };
     }
 
-    fn handle_key(&mut self, key: KeyEvent) {
-        if key.kind == KeyEventKind::Release {
-            if self.note_mode {
-                let _ = self.handle_audition_key(key);
-            }
-            return;
-        }
-        if matches!(key.code, KeyCode::Char('c')) && key.modifiers.contains(KeyModifiers::CONTROL) {
-            self.request_quit();
-            return;
-        }
-        if matches!(key.code, KeyCode::Char('[')) && key.modifiers.contains(KeyModifiers::CONTROL) {
-            if self.modal.take().is_some() {
-                self.status = "Input cancelled".to_owned();
-            } else {
-                self.cancel_workspace_mode();
-            }
-            return;
-        }
-        if self.modal.is_some() {
-            self.handle_modal_key(key);
-            return;
-        }
-        if key.code == KeyCode::Esc {
-            self.cancel_workspace_mode();
-            return;
-        }
-        if self.note_mode {
-            if self.handle_audition_key(key) {
-                return;
-            }
-            self.status = "NOTE mode · use piano keys or Esc to return to Normal mode".to_owned();
-            return;
-        }
-        if self.pending_key.is_some() && self.handle_pending_key(key) {
-            return;
-        }
-        if matches!(
-            self.view,
-            View::Faceplate | View::Instrument | View::Parameters | View::Graph
-        ) && matches!(key.code, KeyCode::Char('i'))
-        {
-            self.note_mode = true;
-            self.status =
-                "NOTE mode · A W S E D F T G Y H U J K · Esc returns to Normal".to_owned();
-            return;
-        }
-        if key.modifiers.contains(KeyModifiers::CONTROL) {
-            match key.code {
-                KeyCode::Char('o') => {
-                    self.jump_timeline_history(-1);
-                    return;
-                }
-                KeyCode::Char('i') => {
-                    self.jump_timeline_history(1);
-                    return;
-                }
-                KeyCode::Char('d') => {
-                    self.move_selection(4);
-                    return;
-                }
-                KeyCode::Char('u') => {
-                    self.move_selection(-4);
-                    return;
-                }
-                KeyCode::Char('b') if self.view == View::Timeline => {
-                    self.pan_timeline_window(-1);
-                    return;
-                }
-                KeyCode::Char('f') if self.view == View::Timeline => {
-                    self.pan_timeline_window(1);
-                    return;
-                }
-                _ => {}
-            }
-        }
-        match (key.code, key.modifiers) {
-            (KeyCode::Char('q'), _) => {
-                self.status = "Ctrl-C is the only workspace exit shortcut".to_owned()
-            }
-            (KeyCode::Char('?'), _) => self.view = View::Help,
-            (KeyCode::Char('H'), _) => self.view = View::History,
-            (KeyCode::F(12), _) => {
-                let visible = self.performance.toggle();
-                self.status = format!(
-                    "Workspace diagnostics {} · summary prints after exit",
-                    if visible { "enabled" } else { "hidden" }
-                );
-            }
-            (KeyCode::Tab, KeyModifiers::SHIFT) | (KeyCode::BackTab, _) => self.change_view(-1),
-            (KeyCode::Tab, _) => self.change_view(1),
-            (KeyCode::Char(character @ '1'..='9'), _) => {
-                self.view = VIEWS[usize::from(character as u8 - b'1')];
-                self.pending_key = None;
-            }
-            (KeyCode::Char('0'), _) => {
-                self.view = VIEWS[9];
-                self.pending_key = None;
-            }
-            (KeyCode::Char('j'), _) | (KeyCode::Down, _) => self.move_selection(1),
-            (KeyCode::Char('k'), _) | (KeyCode::Up, _) => self.move_selection(-1),
-            (KeyCode::Char('G'), _) => self.move_selection_extreme(false),
-            (KeyCode::PageUp, _) => self.move_selection(-8),
-            (KeyCode::PageDown, _) => self.move_selection(8),
-            (KeyCode::Char('g'), KeyModifiers::NONE) => self.pending_key = Some(PendingKey::G),
-            (KeyCode::Char('z'), _) if self.view == View::Timeline => {
-                self.pending_key = Some(PendingKey::Z)
-            }
-            (KeyCode::Char('m'), _) if self.view == View::Timeline => {
-                self.pending_key = Some(PendingKey::SetMark)
-            }
-            (KeyCode::Char('\''), _) if self.view == View::Timeline => {
-                self.pending_key = Some(PendingKey::JumpMark)
-            }
-            (KeyCode::Char(':'), _) if self.view == View::Timeline => self.open_timeline_goto(),
-            (KeyCode::Char('/'), _) if self.view == View::Timeline => self.open_timeline_search(),
-            (KeyCode::Char('n'), _) if self.view == View::Timeline => {
-                self.repeat_timeline_search(1)
-            }
-            (KeyCode::Char('N'), _) if self.view == View::Timeline => {
-                self.repeat_timeline_search(-1)
-            }
-            (KeyCode::Char('h') | KeyCode::Char('<'), _) if self.view == View::Timeline => {
-                self.move_timeline_grid(-1)
-            }
-            (KeyCode::Char('l') | KeyCode::Char('>'), _) if self.view == View::Timeline => {
-                self.move_timeline_grid(1)
-            }
-            (KeyCode::Char('w'), _) if self.view == View::Timeline => {
-                self.move_timeline_boundary(1)
-            }
-            (KeyCode::Char('b'), _) if self.view == View::Timeline => {
-                self.move_timeline_boundary(-1)
-            }
-            (KeyCode::Char('e'), _) if self.view == View::Timeline => self.move_timeline_clip_end(),
-            (KeyCode::Char('%'), _) if self.view == View::Timeline => {
-                self.toggle_timeline_clip_edge()
-            }
-            (KeyCode::Char('^'), _) if self.view == View::Timeline => {
-                self.move_timeline_track_edge(false)
-            }
-            (KeyCode::Char('$'), _) if self.view == View::Timeline => {
-                self.move_timeline_track_edge(true)
-            }
-            (KeyCode::Char('*'), _) if self.view == View::Timeline => {
-                self.move_timeline_matching_pattern(1)
-            }
-            (KeyCode::Char('#'), _) if self.view == View::Timeline => {
-                self.move_timeline_matching_pattern(-1)
-            }
-            (KeyCode::Char('{'), _) if self.view == View::Timeline => {
-                self.move_timeline_locator(-1)
-            }
-            (KeyCode::Char('}'), _) if self.view == View::Timeline => self.move_timeline_locator(1),
-            (KeyCode::Char('['), _) if self.view == View::Timeline => self.change_timeline_grid(-1),
-            (KeyCode::Char(']'), _) if self.view == View::Timeline => self.change_timeline_grid(1),
-            (KeyCode::Char('V'), _) if self.view == View::Timeline => self.begin_timeline_visual(),
-            (KeyCode::Char('o'), _)
-                if self.view == View::Timeline && self.timeline_state.visual() =>
-            {
-                if self.timeline_state.swap_visual_edge() {
-                    if let Some(song_end) =
-                        self.bundle.project.as_ref().map(|project| project.song.end)
-                    {
-                        self.timeline_viewport
-                            .reveal(self.timeline_position().at, song_end);
-                    }
-                    self.status = "Timeline RANGE active edge swapped".to_owned();
-                }
-            }
-            (KeyCode::Char('L'), _) if self.view == View::Timeline => {
-                if self.timeline_state.visual() {
-                    self.apply_timeline_visual(true);
-                } else {
-                    self.toggle_current_audition_loop();
-                }
-            }
-            (KeyCode::Enter, _) if self.view == View::Timeline && self.timeline_state.visual() => {
-                self.apply_timeline_visual(false)
-            }
-            (KeyCode::Char('f'), _) if self.view == View::Timeline => self.toggle_timeline_follow(),
-            (KeyCode::Char('M'), _) if self.view == View::Timeline => self.open_timeline_locator(),
-            (KeyCode::Char('+') | KeyCode::Char('='), _) if self.view == View::Timeline => {
-                self.zoom_timeline(1)
-            }
-            (KeyCode::Char('-'), _) if self.view == View::Timeline => self.zoom_timeline(-1),
-            (KeyCode::Char(','), _) if self.view == View::Timeline => self.pan_timeline(-1),
-            (KeyCode::Char('.'), _) if self.view == View::Timeline => self.pan_timeline(1),
-            (KeyCode::Home, _) if self.view == View::Timeline => self.fit_timeline(),
-            (KeyCode::Char('r'), _) => {
-                self.refresh();
-            }
-            (KeyCode::Char('P'), _) => self.open_publish(),
-            (KeyCode::Char(' '), _) => self.toggle_playback(),
-            (KeyCode::Char('S'), _) => self.stop_playback(),
-            (KeyCode::Char('L'), _) if self.view == View::EventGrid => self.toggle_audition_loop(),
-            (KeyCode::Char('A'), _) if matches!(self.view, View::Timeline | View::EventGrid) => {
-                self.arm_selected_audition()
-            }
-            (KeyCode::Char('a'), _) if self.view == View::Processing => self.cycle_audition_path(),
-            (KeyCode::Char('A'), _) if self.view == View::Processing => self.open_audition_target(),
-            (KeyCode::Char('F'), _) if self.view == View::Processing => self.open_audition_range(),
-            (KeyCode::Char('L'), _) if self.view == View::Processing => {
-                self.toggle_current_audition_loop()
-            }
-            (KeyCode::Char('b'), _) if self.view == View::Processing => {
-                self.toggle_transient_processor_bypass()
-            }
-            (KeyCode::Char('b'), _) if self.view == View::Instrument => {
-                self.toggle_instrument_route_bypass()
-            }
-            (KeyCode::Char('B'), _) if self.view == View::Processing => {
-                self.toggle_durable_processor_bypass()
-            }
-            (KeyCode::Char('K'), _) if self.view == View::Processing => {
-                self.move_selected_processor(MoveDirection::Earlier)
-            }
-            (KeyCode::Char('J'), _) if self.view == View::Processing => {
-                self.move_selected_processor(MoveDirection::Later)
-            }
-            (KeyCode::Char('m'), _) if self.view == View::Mixer => self.toggle_mixer_mute(),
-            (KeyCode::Char('s'), _) if self.view == View::Mixer => self.toggle_mixer_solo(),
-            (KeyCode::Char('c'), _) if self.view == View::Mixer => {
-                self.toggle_mixer_cue(TapPoint::PostFader)
-            }
-            (KeyCode::Char('C'), _) if self.view == View::Mixer => {
-                self.toggle_mixer_cue(TapPoint::PreFader)
-            }
-            (KeyCode::Char('t'), _) if self.view == View::EventGrid => self.open_event_time(),
-            (KeyCode::Char('v'), _) if self.view == View::EventGrid => self.open_event_velocity(),
-            (KeyCode::Char('u'), _) if self.view == View::EventGrid => self.open_note_duration(),
-            (KeyCode::Char('x'), _) if self.view == View::EventGrid => self.open_sample_region(),
-            (KeyCode::Char('f'), _) if self.view == View::EventGrid => self.open_sample_fade(),
-            (KeyCode::Char('g'), KeyModifiers::ALT) if self.view == View::EventGrid => {
-                self.open_sample_gain()
-            }
-            (KeyCode::Char('p'), _) if self.view == View::EventGrid => self.open_sample_pan(),
-            (KeyCode::Char('t'), _) if self.view == View::Automation => self.open_automation_time(),
-            (KeyCode::Char('c'), _) if self.view == View::Automation => {
-                self.open_automation_curve()
-            }
-            (KeyCode::Char('['), _) => self.change_context(-1),
-            (KeyCode::Char(']'), _) => self.change_context(1),
-            (KeyCode::Left, _) => self.adjust_selected(-1),
-            (KeyCode::Right, _) => self.adjust_selected(1),
-            (KeyCode::Enter, _) => self.open_exact_edit(),
-            (KeyCode::Char('p'), _) if self.view == View::Timeline => self.open_track_pan(),
-            (KeyCode::Char('R'), _) if self.view == View::History => self.open_restore(),
-            (KeyCode::Char('d'), _) if self.view == View::History => self.open_history_diff(),
-            (KeyCode::Char('e'), _) if self.view == View::Source => self.editor_requested = true,
-            (KeyCode::Home, _) if self.view == View::Source => self.source_scroll = 0,
-            _ => {}
-        }
-    }
-
     fn request_quit(&mut self) {
         if self.pending_mutation.is_some() || self.mutation_in_flight {
             self.status = "Finishing the durable Project mutation before shutdown".to_owned();
@@ -2087,7 +1832,6 @@ impl Workspace {
     }
 
     fn cancel_workspace_mode(&mut self) {
-        self.pending_key = None;
         if self.note_mode {
             if let Some(player) = self.player.as_mut() {
                 let _ = player.all_notes_off();
@@ -2100,65 +1844,6 @@ impl Workspace {
         } else {
             self.status = "NORMAL mode · Ctrl-C exits".to_owned();
         }
-    }
-
-    fn handle_pending_key(&mut self, key: KeyEvent) -> bool {
-        let Some(prefix) = self.pending_key.take() else {
-            return false;
-        };
-        match prefix {
-            PendingKey::G => match key.code {
-                KeyCode::Char('g') => self.move_selection_extreme(true),
-                KeyCode::Char('t') => self.change_view(1),
-                KeyCode::Char('T') => self.change_view(-1),
-                KeyCode::Char('0') if self.view == View::Timeline => {
-                    self.move_timeline_song_edge(false)
-                }
-                KeyCode::Char('$') if self.view == View::Timeline => {
-                    self.move_timeline_song_edge(true)
-                }
-                KeyCode::Char('d') if self.view == View::Timeline => self.timeline_go_definition(),
-                KeyCode::Char('f') if self.view == View::Timeline => self.timeline_go_source(),
-                KeyCode::Char('i') if self.view == View::Timeline => self.timeline_go_instrument(),
-                KeyCode::Char('m') if self.view == View::Timeline => self.timeline_go_mixer(),
-                KeyCode::Char('p') if self.view == View::Timeline => self.timeline_go_processing(),
-                KeyCode::Char('v') if self.view == View::Timeline => {
-                    if self.timeline_state.restore_visual() {
-                        if let Some(song_end) =
-                            self.bundle.project.as_ref().map(|project| project.song.end)
-                        {
-                            self.timeline_viewport
-                                .reveal(self.timeline_position().at, song_end);
-                        }
-                        self.status = "Restored the last Timeline range selection".to_owned();
-                    } else {
-                        self.status = "No prior Timeline range selection".to_owned();
-                    }
-                }
-                _ => self.status = "Unknown g command".to_owned(),
-            },
-            PendingKey::Z if self.view == View::Timeline => match key.code {
-                KeyCode::Char('z') => self.center_timeline_cursor(),
-                KeyCode::Char('s') => self.align_timeline_cursor(false),
-                KeyCode::Char('e') => self.align_timeline_cursor(true),
-                KeyCode::Char('h') => self.pan_timeline(-1),
-                KeyCode::Char('l') => self.pan_timeline(1),
-                KeyCode::Char('f') => self.fit_timeline_range(),
-                _ => self.status = "Unknown z command".to_owned(),
-            },
-            PendingKey::SetMark if self.view == View::Timeline => match key.code {
-                KeyCode::Char(mark) if mark.is_ascii_alphabetic() => self.set_timeline_mark(mark),
-                _ => self.status = "Timeline marks use letters a–z".to_owned(),
-            },
-            PendingKey::JumpMark if self.view == View::Timeline => match key.code {
-                KeyCode::Char(mark) if mark.is_ascii_alphabetic() || mark == '\'' => {
-                    self.jump_timeline_mark(mark)
-                }
-                _ => self.status = "Jump to a Timeline mark with 'a or return with ''".to_owned(),
-            },
-            _ => self.status = "Key prefix is unavailable in this view".to_owned(),
-        }
-        true
     }
 
     fn move_selection_extreme(&mut self, first: bool) {
@@ -2190,8 +1875,7 @@ impl Workspace {
             }
             View::History => self.selected_history = edge(self.history.len()),
             View::Help => {
-                self.help_scroll =
-                    u16::try_from(edge(rendering::help_line_count())).unwrap_or(u16::MAX)
+                self.help_scroll = u16::try_from(edge(self.help_line_count)).unwrap_or(u16::MAX)
             }
         }
         self.status = if first {
@@ -2208,79 +1892,6 @@ impl Workspace {
         } else {
             "Timeline viewport reached the Song boundary".to_owned()
         };
-    }
-
-    fn handle_modal_key(&mut self, key: KeyEvent) {
-        if key.kind == KeyEventKind::Release {
-            return;
-        }
-        let Some(mut modal) = self.modal.take() else {
-            return;
-        };
-        match &mut modal {
-            Modal::Input {
-                value,
-                replace_on_type,
-                ..
-            } => match key.code {
-                KeyCode::Esc => {}
-                KeyCode::Enter => {
-                    if let Modal::Input { value, action, .. } = modal {
-                        self.commit_input(value, action);
-                    }
-                }
-                KeyCode::Backspace => {
-                    if *replace_on_type {
-                        value.clear();
-                        *replace_on_type = false;
-                    } else {
-                        value.pop();
-                    }
-                    self.modal = Some(modal);
-                }
-                KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    *replace_on_type = true;
-                    self.modal = Some(modal);
-                }
-                KeyCode::Char(character) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    if *replace_on_type {
-                        value.clear();
-                        *replace_on_type = false;
-                    }
-                    value.push(character);
-                    self.modal = Some(modal);
-                }
-                _ => self.modal = Some(modal),
-            },
-            Modal::ConfirmRestore { entry_id } => match key.code {
-                KeyCode::Char('y') | KeyCode::Enter => {
-                    let entry_id = entry_id.clone();
-                    self.restore_history(&entry_id);
-                }
-                KeyCode::Esc | KeyCode::Char('n') => {}
-                _ => self.modal = Some(modal),
-            },
-            Modal::Text { scroll, .. } => match key.code {
-                KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {}
-                KeyCode::Up => {
-                    *scroll = scroll.saturating_sub(1);
-                    self.modal = Some(modal);
-                }
-                KeyCode::Down => {
-                    *scroll = scroll.saturating_add(1);
-                    self.modal = Some(modal);
-                }
-                KeyCode::PageUp => {
-                    *scroll = scroll.saturating_sub(10);
-                    self.modal = Some(modal);
-                }
-                KeyCode::PageDown => {
-                    *scroll = scroll.saturating_add(10);
-                    self.modal = Some(modal);
-                }
-                _ => self.modal = Some(modal),
-            },
-        }
     }
 
     fn zoom_timeline(&mut self, direction: isize) {
@@ -2358,7 +1969,7 @@ impl Workspace {
         }
         self.status = format!(
             "{description} · cursor {}",
-            rendering::timeline_time_label(position.at, meter)
+            timeline_time_label(position.at, meter)
         );
     }
 
@@ -3049,10 +2660,7 @@ impl Workspace {
                     } else {
                         i16::MAX
                     }))
-                    .min(
-                        u16::try_from(rendering::help_line_count().saturating_sub(1))
-                            .unwrap_or(u16::MAX),
-                    )
+                    .min(u16::try_from(self.help_line_count.saturating_sub(1)).unwrap_or(u16::MAX))
             }
         }
     }
@@ -4283,47 +3891,6 @@ impl Workspace {
         );
     }
 
-    fn handle_audition_key(&mut self, key: KeyEvent) -> bool {
-        if !self.note_mode
-            || !matches!(
-                self.view,
-                View::Faceplate | View::Instrument | View::Parameters | View::Graph
-            )
-        {
-            return false;
-        }
-        let KeyCode::Char(character) = key.code else {
-            return false;
-        };
-        let Some(pitch) = self.keyboard_audition_pitch(character) else {
-            return false;
-        };
-        let track_index = self.audition_track();
-        match key.kind {
-            KeyEventKind::Press if !self.held_notes.contains_key(&character) => {
-                let note_id = self.next_note_id;
-                self.next_note_id = self.next_note_id.saturating_add(1);
-                if let Some(player) = self.player.as_mut() {
-                    if player.note_on(track_index, note_id, pitch, 0.8).is_ok() {
-                        self.held_notes.insert(
-                            character,
-                            HeldNote {
-                                track_index,
-                                note_id,
-                                pressed_at: Instant::now(),
-                            },
-                        );
-                    }
-                } else {
-                    self.status = "Start playback with Space before Note Audition".to_owned();
-                }
-            }
-            KeyEventKind::Release => self.release_audition(character),
-            _ => {}
-        }
-        true
-    }
-
     fn release_audition(&mut self, character: char) {
         let Some(note) = self.held_notes.remove(&character) else {
             return;
@@ -4346,24 +3913,12 @@ impl Workspace {
         released
     }
 
-    fn keyboard_audition_pitch(&self, character: char) -> Option<u8> {
-        let is_drums = self
-            .bundle
+    fn selected_instrument_is_drums(&self) -> bool {
+        self.bundle
             .project
             .as_ref()
             .and_then(|project| project.song.instruments.get(self.selected_instrument))
-            .is_some_and(|instrument| instrument.kind == InstrumentKind::StockDrums);
-        if is_drums {
-            match character.to_ascii_lowercase() {
-                'a' | 'z' => Some(36),
-                's' | 'x' => Some(38),
-                'd' | 'c' => Some(42),
-                'f' | 'v' => Some(39),
-                _ => None,
-            }
-        } else {
-            keyboard_pitch(character)
-        }
+            .is_some_and(|instrument| instrument.kind == InstrumentKind::StockDrums)
     }
 
     fn audition_track(&self) -> usize {
@@ -5184,23 +4739,15 @@ fn event_is_active(app: &Workspace, pattern_id: &str, event: &PatternEvent) -> b
     })
 }
 
-fn keyboard_pitch(character: char) -> Option<u8> {
-    match character.to_ascii_lowercase() {
-        'a' => Some(60),
-        'w' => Some(61),
-        's' => Some(62),
-        'e' => Some(63),
-        'd' => Some(64),
-        'f' => Some(65),
-        't' => Some(66),
-        'g' => Some(67),
-        'y' => Some(68),
-        'h' => Some(69),
-        'u' => Some(70),
-        'j' => Some(71),
-        'k' => Some(72),
-        _ => None,
-    }
+fn timeline_time_label(time: crate::time::MusicalTime, meter: crate::time::Meter) -> String {
+    let bar_length = meter
+        .bar_length()
+        .map_or(4.0, crate::time::MusicalTime::as_f64);
+    let beat_length = 4.0 / f64::from(meter.denominator.max(1));
+    let quarter_notes = time.as_f64();
+    let bar = (quarter_notes / bar_length).floor() as u64 + 1;
+    let beat = quarter_notes.rem_euclid(bar_length) / beat_length + 1.0;
+    format!("{bar}:{beat:.1}")
 }
 
 fn wrap_index(current: usize, count: usize, delta: isize) -> usize {

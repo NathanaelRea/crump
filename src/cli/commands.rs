@@ -367,11 +367,25 @@ fn command_check(cli: &Cli) -> Result<Success, Failure> {
     })
 }
 
+#[cfg(feature = "tui")]
 pub(super) fn play_stop_key(key: crossterm::event::KeyEvent) -> bool {
     matches!(key.code, crossterm::event::KeyCode::Char('c'))
         && key
             .modifiers
             .contains(crossterm::event::KeyModifiers::CONTROL)
+}
+
+/// Whether the user pressed the interactive playback stop key since the last check.
+#[cfg(feature = "tui")]
+fn play_stop_requested() -> bool {
+    crossterm::event::poll(std::time::Duration::ZERO).unwrap_or(false)
+        && matches!(crossterm::event::read(), Ok(crossterm::event::Event::Key(key)) if play_stop_key(key))
+}
+
+/// Without terminal support the terminal stays in cooked mode, so Ctrl-C interrupts the process.
+#[cfg(not(feature = "tui"))]
+fn play_stop_requested() -> bool {
+    false
 }
 
 fn audition_plan(args: &PlayArgs) -> Result<AuditionPlan, Failure> {
@@ -617,11 +631,7 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
         {
             break;
         }
-        if interactive
-            && crossterm::event::poll(std::time::Duration::ZERO).unwrap_or(false)
-            && let Ok(crossterm::event::Event::Key(key)) = crossterm::event::read()
-            && play_stop_key(key)
-        {
+        if interactive && play_stop_requested() {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(20));
@@ -694,8 +704,19 @@ fn command_workspace(cli: &Cli) -> Result<Success, Failure> {
         cli.project.clone()
     };
 
+    #[cfg(feature = "tui")]
     crate::workspace::run(&project)
         .map_err(|error| Failure::operational("workspace", "workspace_error", error))?;
+    #[cfg(not(feature = "tui"))]
+    return Err(Failure::operational(
+        "workspace",
+        "terminal_client_unavailable",
+        format!(
+            "this build has no terminal client and cannot open {}; rebuild with the `tui` feature",
+            project.display()
+        ),
+    ));
+    #[cfg(feature = "tui")]
     Ok(Success {
         command: "workspace",
         human: "Production Workspace closed".to_owned(),
@@ -3691,17 +3712,25 @@ fn valid_id(id: &str) -> bool {
             .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
 }
 
+#[cfg_attr(not(feature = "tui"), allow(dead_code))]
 struct RawModeGuard(bool);
 
 impl RawModeGuard {
+    #[cfg(feature = "tui")]
     fn new(enable: bool) -> Self {
         let enabled = enable && crossterm::terminal::enable_raw_mode().is_ok();
         Self(enabled)
+    }
+
+    #[cfg(not(feature = "tui"))]
+    fn new(_enable: bool) -> Self {
+        Self(false)
     }
 }
 
 impl Drop for RawModeGuard {
     fn drop(&mut self) {
+        #[cfg(feature = "tui")]
         if self.0 {
             let _ = crossterm::terminal::disable_raw_mode();
         }

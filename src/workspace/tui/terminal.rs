@@ -5,13 +5,11 @@ use crossterm::event::{
 
 /// Runs the first-party terminal workspace for one Project.
 pub fn run(path: impl AsRef<Path>) -> Result<(), WorkspaceError> {
-    let mut app = Workspace::begin_load(path.as_ref())?;
+    let mut app = Workspace::open(path)?;
+    app.set_help_line_count(rendering::help_line_count());
     let mut terminal = TerminalSession::enter()?;
     let result = run_loop(&mut terminal.terminal, &mut app);
-    app.finish_durable_mutation_before_shutdown();
-    if let Some(player) = app.player.take() {
-        app.retire_queue.retire(player);
-    }
+    app.shutdown();
     let performance_report = app.performance.report();
     drop(terminal);
     if let Some(report) = performance_report {
@@ -27,13 +25,12 @@ fn run_loop(
     let mut dirty = true;
     let mut next_refresh = Instant::now() + REFRESH_RATE;
     let mut pending_event: Option<Instant> = None;
-    while !app.quit {
+    let mut keymap = Keymap::default();
+    while !app.quit_requested() {
         app.performance.loop_iterations = app.performance.loop_iterations.saturating_add(1);
-        app.poll_audio();
-        dirty |= app.poll_background_work();
-        dirty |= app.release_stale_auditions();
+        dirty |= app.tick();
         if Instant::now() >= next_refresh {
-            dirty |= app.refresh_if_changed();
+            dirty |= app.poll_project_files();
             next_refresh = Instant::now() + REFRESH_RATE;
         }
         if app.player.is_some() || app.performance.visible() {
@@ -51,9 +48,8 @@ fn run_loop(
         }
 
         let until_refresh = next_refresh.saturating_duration_since(Instant::now());
-        let animated =
-            app.player.is_some() || app.performance.visible() || !app.held_notes.is_empty();
-        let timeout = if app.background_work_pending() {
+        let animated = app.is_animating();
+        let timeout = if app.has_pending_work() {
             BACKGROUND_POLL_RATE.min(until_refresh)
         } else if animated {
             TICK_RATE.min(until_refresh)
@@ -65,20 +61,20 @@ fn run_loop(
             match event::read()? {
                 Event::Key(key) => {
                     app.performance.events = app.performance.events.saturating_add(1);
-                    app.handle_key(key);
+                    keymap.handle(app, key);
                     pending_event.get_or_insert(event_read_started);
                     dirty = true;
                 }
                 Event::Mouse(mouse) => match mouse.kind {
                     MouseEventKind::ScrollDown => {
                         app.performance.events = app.performance.events.saturating_add(1);
-                        app.move_selection(1);
+                        app.dispatch(Action::MoveSelection(1));
                         pending_event.get_or_insert(event_read_started);
                         dirty = true;
                     }
                     MouseEventKind::ScrollUp => {
                         app.performance.events = app.performance.events.saturating_add(1);
-                        app.move_selection(-1);
+                        app.dispatch(Action::MoveSelection(-1));
                         pending_event.get_or_insert(event_read_started);
                         dirty = true;
                     }
@@ -88,9 +84,8 @@ fn run_loop(
                 Event::FocusLost | Event::Paste(_) => {}
             }
         }
-        if app.editor_requested {
+        if app.take_editor_request() {
             pending_event = None;
-            app.editor_requested = false;
             launch_source_editor(terminal, app)?;
             next_refresh = Instant::now() + REFRESH_RATE;
             dirty = true;
@@ -158,9 +153,9 @@ struct TerminalSession {
 }
 
 impl TerminalSession {
-    fn enter() -> Result<Self, io::Error> {
+    fn enter() -> Result<Self, std::io::Error> {
         enable_raw_mode()?;
-        let mut stdout = io::stdout();
+        let mut stdout = std::io::stdout();
         if let Err(error) = execute!(
             stdout,
             EnterAlternateScreen,
@@ -179,7 +174,7 @@ impl TerminalSession {
         match Terminal::new(CrosstermBackend::new(stdout)) {
             Ok(terminal) => Ok(Self { terminal }),
             Err(error) => {
-                let mut stdout = io::stdout();
+                let mut stdout = std::io::stdout();
                 let _ = execute!(
                     stdout,
                     PopKeyboardEnhancementFlags,
