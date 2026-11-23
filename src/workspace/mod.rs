@@ -1080,6 +1080,8 @@ impl Workspace {
                 if self.active_request_is_current(&key) {
                     if self.player.is_none() && self.playback_requested {
                         self.playback_requested = false;
+                        // A History version that failed to start is not being heard.
+                        self.history_preview = None;
                     }
                     self.status = format!(
                         "Active audition preparation failed; prior audible state retained: {error}"
@@ -1527,6 +1529,7 @@ impl Workspace {
         self.active_prepare_explicit_seek = false;
         self.active_prepare_initial_frame = None;
         self.held_notes.clear();
+        self.history_preview = None;
         let retired = (
             self.player.take(),
             self.pending_active_inspection.take(),
@@ -1927,6 +1930,7 @@ impl Workspace {
             self.playback_epoch = self.playback_epoch.saturating_add(1);
             self.active_prepare_requested = false;
             self.active_prepare_initial_frame = None;
+            self.history_preview = None;
             self.status = "Pending playback start cancelled".to_owned();
             return;
         }

@@ -775,6 +775,7 @@ fn transport_deck(ui: &mut Ui, cx: &mut Cx<'_>) {
                 // A past version playing from History is named, so it is never mistaken for the
                 // current project.
                 if let Some((entry, _)) = &app.history_preview
+                    && (app.player.is_some() || app.playback_requested)
                     && let Some(index) = app.history.iter().position(|c| c.id == *entry)
                 {
                     let number = app.history.len() - index;

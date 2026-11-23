@@ -525,8 +525,15 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
             if heard.is_some() {
                 cx.send(Action::PreviewHistoryVersion(None));
             }
-        } else if heard != Some(&item.entry.id) {
-            cx.send(Action::PreviewHistoryVersion(Some(item.entry.id.clone())));
+        } else if heard != Some(&item.entry.id) && this.is_some() {
+            // The current version plays as itself; an unreadable one is not retried.
+            if is_current(app, item.entry) {
+                if heard.is_some() {
+                    cx.send(Action::PreviewHistoryVersion(None));
+                }
+            } else {
+                cx.send(Action::PreviewHistoryVersion(Some(item.entry.id.clone())));
+            }
         }
     }
 
@@ -797,23 +804,64 @@ fn musical_events(pattern: &crate::model::Pattern) -> Vec<String> {
         .collect()
 }
 
-/// Every track, group, return and Master insert with the name of the channel it sits on.
-fn processors(project: &Project) -> Vec<(String, &crate::model::Processor)> {
+/// Every effect chain with the name of what it sits on: tracks, groups, returns, the Master and
+/// instruments' own effects.
+fn chains(project: &Project) -> Vec<(String, &[crate::model::Processor])> {
     let song = &project.song;
-    let mut out = Vec::new();
-    for t in &song.tracks {
-        out.extend(t.channel.inserts.iter().map(|p| (t.name.clone(), p)));
-    }
-    for g in &song.groups {
-        out.extend(g.channel.inserts.iter().map(|p| (g.name.clone(), p)));
-    }
-    for r in &song.returns {
-        out.extend(r.channel.inserts.iter().map(|p| (r.name.clone(), p)));
-    }
-    if let Some(m) = &song.master {
-        out.extend(m.inserts.iter().map(|p| ("Master".to_owned(), p)));
-    }
+    let mut out: Vec<(String, &[crate::model::Processor])> = Vec::new();
+    out.extend(
+        song.tracks
+            .iter()
+            .map(|t| (t.name.clone(), t.channel.inserts.as_slice())),
+    );
+    out.extend(
+        song.groups
+            .iter()
+            .map(|g| (g.name.clone(), g.channel.inserts.as_slice())),
+    );
+    out.extend(
+        song.returns
+            .iter()
+            .map(|r| (r.name.clone(), r.channel.inserts.as_slice())),
+    );
+    out.extend(
+        song.master
+            .iter()
+            .map(|m| ("Master".to_owned(), m.inserts.as_slice())),
+    );
+    out.extend(
+        song.instruments
+            .iter()
+            .map(|i| (i.name.clone(), i.post_processors.as_slice())),
+    );
     out
+}
+
+/// The effect chain on the named host in a version.
+fn chain_named<'a>(
+    project: Option<&'a Project>,
+    host: &str,
+) -> Option<&'a [crate::model::Processor]> {
+    chains(project?)
+        .into_iter()
+        .find(|(name, _)| name == host)
+        .map(|(_, chain)| chain)
+}
+
+/// One effect in a chain, by ID.
+fn processor_in<'a>(
+    chain: Option<&'a [crate::model::Processor]>,
+    id: &str,
+) -> Option<&'a crate::model::Processor> {
+    chain?.iter().find(|p| p.id == id)
+}
+
+/// Every effect with the name of what it sits on.
+fn processors(project: &Project) -> Vec<(String, &crate::model::Processor)> {
+    chains(project)
+        .into_iter()
+        .flat_map(|(host, chain)| chain.iter().map(move |p| (host.clone(), p)))
+        .collect()
 }
 
 /// The sound a set of changes belongs to: an instrument and the track playing it, or a pattern.
@@ -823,6 +871,8 @@ struct Focus {
     track: Option<String>,
     pattern: Option<String>,
     tempo: bool,
+    /// An effect chain off any track (a group, return, the Master, an instrument), by host name.
+    effects_on: Option<String>,
 }
 
 fn focus_of(project: &Project, changes: &[ValueChange]) -> Option<Focus> {
@@ -869,8 +919,11 @@ fn focus_of(project: &Project, changes: &[ValueChange]) -> Option<Focus> {
                 focus.track = Some(track.id.clone());
                 focus.instrument = Some(track.instrument.clone());
             } else {
-                // A group, return or Master effect: show just the effects.
-                focus.track = None;
+                // A group, return, Master or instrument effect: show that chain.
+                focus.effects_on = chains(project)
+                    .into_iter()
+                    .find(|(_, chain)| chain.iter().any(|p| p.id == *id))
+                    .map(|(host, _)| host);
             }
         }
     }
@@ -945,6 +998,7 @@ fn dial(
     min: f64,
     max: f64,
     unit: crate::model::Unit,
+    text: &dyn Fn(f64) -> String,
     mark: Option<Mark>,
     other_word: &str,
     accent: Color32,
@@ -985,8 +1039,14 @@ fn dial(
                 Stroke::new(2.0_f32, theme::TEXT_SECONDARY),
             );
         }
+        // Pan and other centred ranges fill out from the middle, as the mixer's do.
+        let origin = if widgets::fills_from_centre(unit, min, max) {
+            theme::value_to_norm(0.0, min, max, unit)
+        } else {
+            0.0
+        };
         painter.add(egui::Shape::line(
-            arc(0.0, norm),
+            arc(origin.min(norm), origin.max(norm)),
             Stroke::new(
                 4.0_f32,
                 if edited {
@@ -1024,17 +1084,17 @@ fn dial(
                     .color(theme::TEXT_SECONDARY),
             );
             ui.label(
-                RichText::new(theme::format_compact_value(value, unit))
+                RichText::new(text(value))
                     .monospace()
                     .size(11.5)
                     .color(theme::TEXT_PRIMARY),
             );
             let note = match mark {
                 Some(Mark::Edited(prev)) => {
-                    format!("previous {}", theme::format_compact_value(prev, unit))
+                    format!("previous {}", text(prev))
                 }
                 Some(Mark::Differs(other)) => {
-                    format!("{other_word} {}", theme::format_compact_value(other, unit))
+                    format!("{other_word} {}", text(other))
                 }
                 None => " ".to_owned(),
             };
@@ -1072,6 +1132,14 @@ fn fader(ui: &mut Ui, db: f64, mark: Option<Mark>, other_word: &str) {
         let cap =
             Rect::from_center_size(Pos2::new(slot.center().x, y_of(db)), Vec2::new(34.0, 12.0));
         painter.rect_filled(cap, 3.0, theme::TEXT_PRIMARY);
+        if let Some(Mark::Differs(_)) = mark {
+            painter.rect_stroke(
+                cap.expand(3.0),
+                4.0,
+                Stroke::new(1.0_f32, theme::BORDER_STRONG),
+                StrokeKind::Outside,
+            );
+        }
         if matches!(mark, Some(Mark::Edited(_))) {
             painter.rect_stroke(
                 cap.expand(3.0),
@@ -1205,6 +1273,7 @@ fn sound_panel(ui: &mut Ui, view: &SoundView<'_>, focus: &Focus) {
                     60.0,
                     180.0,
                     Unit::Ratio,
+                    &|bpm| format!("{bpm:.1} BPM"),
                     mark(
                         song.tempo_bpm,
                         prev_song.map(|s| s.tempo_bpm),
@@ -1234,7 +1303,8 @@ fn sound_panel(ui: &mut Ui, view: &SoundView<'_>, focus: &Focus) {
                 None => inst.name.clone(),
             };
             section(ui, Kind::Instrument, &name, |ui| {
-                ui.horizontal_top(|ui| {
+                // Instruments with many parameters wrap rather than running off the panel.
+                ui.horizontal_wrapped(|ui| {
                     for param in &inst.parameters {
                         dial(
                             ui,
@@ -1243,6 +1313,7 @@ fn sound_panel(ui: &mut Ui, view: &SoundView<'_>, focus: &Focus) {
                             param.minimum,
                             param.maximum,
                             param.unit,
+                            &|v| theme::format_compact_value(v, param.unit),
                             mark(
                                 param.value,
                                 find(prev_song, &param.key),
@@ -1278,6 +1349,7 @@ fn sound_panel(ui: &mut Ui, view: &SoundView<'_>, focus: &Focus) {
                         -1.0,
                         1.0,
                         Unit::Pan,
+                        &|v| theme::format_compact_value(v, Unit::Pan),
                         mark(
                             pan,
                             prev.map(|t| t.channel.panner.primary_position()),
@@ -1299,6 +1371,23 @@ fn sound_panel(ui: &mut Ui, view: &SoundView<'_>, focus: &Focus) {
                     }
                 });
             }
+        }
+        if let Some(host) = &focus.effects_on
+            && let Some(chain) = chain_named(Some(view.shown), host)
+        {
+            let prev_chain = chain_named(view.previous, host);
+            let other_chain = chain_named(view.other, host);
+            section(ui, Kind::Fx, &format!("Effects on {host}"), |ui| {
+                for processor in chain {
+                    effect_settings(
+                        ui,
+                        processor,
+                        processor_in(prev_chain, &processor.id),
+                        processor_in(other_chain, &processor.id),
+                        word,
+                    );
+                }
+            });
         }
         if let Some(pattern) = focus
             .pattern
@@ -1352,6 +1441,28 @@ fn effect_settings(
     );
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = Vec2::new(6.0, 6.0);
+        // Bypass, when it is on or moved, as its own chip.
+        let bypass_word = |on: bool| if on { "bypassed" } else { "on" };
+        let bypass_prev = previous
+            .map(|p| p.bypass)
+            .filter(|b| *b != processor.bypass);
+        let bypass_other = other.map(|p| p.bypass).filter(|b| *b != processor.bypass);
+        if processor.bypass || bypass_prev.is_some() || bypass_other.is_some() {
+            let text = match (bypass_prev, bypass_other) {
+                (Some(prev), _) => format!(
+                    "{} (previous {})",
+                    bypass_word(processor.bypass),
+                    bypass_word(prev)
+                ),
+                (None, Some(other)) => format!(
+                    "{} ({other_word} {})",
+                    bypass_word(processor.bypass),
+                    bypass_word(other)
+                ),
+                _ => bypass_word(processor.bypass).to_owned(),
+            };
+            setting_chip(ui, &text, bypass_prev.is_some(), bypass_other.is_some());
+        }
         for setting in &processor.settings {
             let value_in = |p: Option<&crate::model::Processor>| {
                 p.and_then(|p| p.settings.iter().find(|s| s.key == setting.key))
@@ -1380,48 +1491,54 @@ fn effect_settings(
                 ),
                 _ => (format!("{} {value}", setting.key), false, false),
             };
-            let width = ui
-                .painter()
-                .layout_no_wrap(
-                    text.clone(),
-                    FontId::proportional(10.5),
-                    theme::TEXT_PRIMARY,
-                )
-                .size()
-                .x
-                + 16.0;
-            let (rect, _) = ui.allocate_exact_size(Vec2::new(width, 22.0), Sense::hover());
-            let painter = ui.painter();
-            painter.rect_filled(rect, 3.0, theme::BG_CARD);
-            painter.rect_stroke(
-                rect,
-                3.0,
-                Stroke::new(
-                    1.0_f32,
-                    if lit {
-                        theme::SELECTION
-                    } else if quiet {
-                        theme::BORDER_STRONG
-                    } else {
-                        theme::BORDER_SUBTLE
-                    },
-                ),
-                StrokeKind::Inside,
-            );
-            painter.text(
-                rect.center(),
-                Align2::CENTER_CENTER,
-                text,
-                FontId::proportional(10.5),
-                if lit || quiet {
-                    theme::TEXT_PRIMARY
-                } else {
-                    theme::TEXT_SECONDARY
-                },
-            );
+            setting_chip(ui, &text, lit, quiet);
         }
     });
     ui.add_space(6.0);
+}
+
+/// One effect setting as a chip: lit when this edit moved it, outlined when it differs from the
+/// other side of Then / Now.
+fn setting_chip(ui: &mut Ui, text: &str, lit: bool, quiet: bool) {
+    let width = ui
+        .painter()
+        .layout_no_wrap(
+            text.to_owned(),
+            FontId::proportional(10.5),
+            theme::TEXT_PRIMARY,
+        )
+        .size()
+        .x
+        + 16.0;
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, 22.0), Sense::hover());
+    let painter = ui.painter();
+    painter.rect_filled(rect, 3.0, theme::BG_CARD);
+    painter.rect_stroke(
+        rect,
+        3.0,
+        Stroke::new(
+            1.0_f32,
+            if lit {
+                theme::SELECTION
+            } else if quiet {
+                theme::BORDER_STRONG
+            } else {
+                theme::BORDER_SUBTLE
+            },
+        ),
+        StrokeKind::Inside,
+    );
+    painter.text(
+        rect.center(),
+        Align2::CENTER_CENTER,
+        text,
+        FontId::proportional(10.5),
+        if lit || quiet {
+            theme::TEXT_PRIMARY
+        } else {
+            theme::TEXT_SECONDARY
+        },
+    );
 }
 
 /// A titled list of value changes: owner and control, the old value dimmed, the new one strong.
@@ -1654,27 +1771,32 @@ fn transport(ui: &mut Ui, cx: &mut Cx<'_>, items: &[Item<'_>], item: &Item<'_>) 
         {
             if playing {
                 cx.send(Action::StopPlayback);
+            } else if show_now || is_current(app, item.entry) {
+                // The current version plays as itself.
+                cx.send(Action::TogglePlayback);
             } else {
-                if show_now {
-                    cx.send(Action::TogglePlayback);
-                } else {
-                    cx.send(Action::PlayHistoryVersion(item.entry.id.clone()));
-                }
+                cx.send(Action::PlayHistoryVersion(item.entry.id.clone()));
             }
         }
-        // Then / Now swaps what the panel shows and, while playing, what you hear.
+        // Then / Now swaps what the panel shows and, while playing, what you hear. On the
+        // current version both are the same, so the switch steps aside.
+        let current = is_current(app, item.entry);
         for (label, now) in [("Then", false), ("Now", true)] {
-            if widgets::pill_toggle(
-                ui,
-                label,
-                show_now == now,
-                if now {
-                    "Show and hear the current version"
-                } else {
-                    "Show and hear this version"
-                },
-            )
-            .clicked()
+            if ui
+                .add_enabled_ui(!current, |ui| {
+                    widgets::pill_toggle(
+                        ui,
+                        label,
+                        show_now == now,
+                        if now {
+                            "Show and hear the current version"
+                        } else {
+                            "Show and hear this version"
+                        },
+                    )
+                })
+                .inner
+                .clicked()
             {
                 cx.state.history_show_now = now;
             }
@@ -1792,6 +1914,24 @@ pub(super) mod tests {
         assert_eq!(focus.instrument.as_deref(), Some("dh-bass"));
         assert_eq!(focus.track.as_deref(), Some("bass"));
         app.shutdown();
+    }
+
+    #[test]
+    fn an_effect_off_any_track_shows_its_own_chain() {
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/deep-house-reference");
+        let bundle = crate::project::load_project(&root).unwrap();
+        let project = bundle.project.as_ref().unwrap();
+        let change = ValueChange {
+            area: Area::Processor("music-color".to_owned()),
+            owner: String::new(),
+            label: String::new(),
+            before: String::new(),
+            after: String::new(),
+        };
+        let focus = focus_of(project, &[change]).unwrap();
+        assert_eq!(focus.effects_on.as_deref(), Some("Music"), "the group's chain");
+        assert!(chain_named(Some(project), "Music").is_some_and(|c| !c.is_empty()));
     }
 
     #[test]
