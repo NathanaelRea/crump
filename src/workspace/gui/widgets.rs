@@ -980,6 +980,39 @@ pub(super) fn horizontal_mini_slider(
 // ── Hardware LED Switches & Segmented Pills ─────────────────────────────────
 
 /// Crisp studio hardware LED toggle switch (`M`, `S`, `C`, `A`, etc.).
+/// Keys for optimistic preview values. Every control that shows the same durable value uses the
+/// same key, so dragging one moves the others at once and a committed value shows everywhere
+/// until its edit reloads, instead of each control catching up separately.
+pub(super) mod preview_key {
+    pub(in crate::workspace::gui) fn instrument_parameter(
+        instrument: &str,
+        parameter: &str,
+    ) -> String {
+        format!("param:{instrument}:{parameter}")
+    }
+
+    pub(in crate::workspace::gui) fn processor_setting(processor: &str, setting: &str) -> String {
+        format!("proc:{processor}:{setting}")
+    }
+
+    /// `identity` is the channel's mixer identity: `track/ID`, `group/ID`, `return/ID`, `master`.
+    pub(in crate::workspace::gui) fn channel_level(identity: &str) -> String {
+        format!("level:{identity}")
+    }
+
+    pub(in crate::workspace::gui) fn channel_pan(identity: &str) -> String {
+        format!("pan:{identity}")
+    }
+
+    pub(in crate::workspace::gui) fn channel_mute(identity: &str) -> String {
+        format!("mute:{identity}")
+    }
+
+    pub(in crate::workspace::gui) fn processor_bypass(processor: &str) -> String {
+        format!("bypass:{processor}")
+    }
+}
+
 /// A left-aligned label in a slot of exactly `width`, truncated with a tooltip when it overflows,
 /// so changing text never moves the widgets after it.
 pub(super) fn fixed_label(ui: &mut Ui, width: f32, text: RichText) -> egui::Response {

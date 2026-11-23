@@ -4,6 +4,7 @@
 //! PRE/POST tags, clickable insert bypass LEDs, bank filter pills, and Console | FX Rack sub-bar.
 
 use super::theme::{self, with_alpha};
+use super::widgets::preview_key;
 use super::widgets::{
     Cell, apply_row_click, horizontal_mini_slider, led_button, paint_dbfs_meter_vertical,
     pill_toggle, rotary_knob, table, toolbar, unavailable, vertical_fader,
@@ -437,7 +438,7 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                             let pan_out = rotary_knob(
                                 ui,
                                 cx.state,
-                                &format!("mix-pan-{}", desc.identity),
+                                &preview_key::channel_pan(&desc.identity),
                                 "PAN",
                                 pan_val,
                                 -1.0,
@@ -465,16 +466,19 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 4.0;
                                 let btn_w = ((inner_w - 8.0) / 3.0).max(24.0);
+                                let mute_key = preview_key::channel_mute(&desc.identity);
+                                let muted = cx.state.flag(&mute_key, desc.channel.mute);
                                 if led_button(
                                     ui,
                                     "M",
-                                    desc.channel.mute,
+                                    muted,
                                     theme::MUTE_LIT,
                                     Vec2::new(btn_w, 20.0),
                                     "Durable source Mute · m",
                                 )
                                 .clicked()
                                 {
+                                    cx.state.hold_flag(&mute_key, !muted);
                                     if let Some(idx) = level_idx {
                                         cx.send(Action::SelectMixerParameter(idx));
                                     }
@@ -534,7 +538,7 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                         let fader_out = vertical_fader(
                             ui,
                             cx.state,
-                            &format!("mix-fader-{}", desc.identity),
+                            &preview_key::channel_level(&desc.identity),
                             desc.channel.level_db,
                             -60.0,
                             12.0,
@@ -630,13 +634,15 @@ fn inserts_box(ui: &mut Ui, cx: &mut Cx<'_>, inserts: &[Processor], level_idx: O
                 } else {
                     for proc in inserts.iter().take(3) {
                         let color = theme::processor_color(proc.kind);
+                        let bypass_key = preview_key::processor_bypass(&proc.id);
+                        let durable = cx.state.flag(&bypass_key, proc.bypass);
                         let bypassed = cx
                             .app
                             .audition_plan
                             .transient_bypass
                             .get(&proc.id)
                             .copied()
-                            .unwrap_or(proc.bypass);
+                            .unwrap_or(durable);
                         let (rect, resp) = ui.allocate_exact_size(
                             Vec2::new(ui.available_width(), 14.0),
                             Sense::click(),
@@ -676,6 +682,7 @@ fn inserts_box(ui: &mut Ui, cx: &mut Cx<'_>, inserts: &[Processor], level_idx: O
                                 .interact_pointer_pos()
                                 .is_some_and(|pos| led_zone.contains(pos));
                             if clicked_led {
+                                cx.state.hold_flag(&bypass_key, !durable);
                                 cx.send(Action::ToggleProcessorDurableBypass {
                                     processor: proc.id.clone(),
                                 });
@@ -928,7 +935,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                     let fader_out = vertical_fader(
                         ui,
                         cx.state,
-                        "mix-fader-master",
+                        &preview_key::channel_level("master"),
                         master_level_db,
                         -60.0,
                         12.0,

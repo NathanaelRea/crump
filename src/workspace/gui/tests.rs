@@ -743,3 +743,28 @@ fn positions_count_beats_in_the_meter_denominator() {
     assert_eq!(theme::format_bar_beat(2.5, compound), "1.6.1");
     assert_eq!(theme::format_bar_beat(3.25, compound), "2.1.2");
 }
+
+#[test]
+fn controls_of_one_value_share_its_preview() {
+    // Dragging any control of a value moves every other control of it at once, and a
+    // committed value shows everywhere until its edit reloads.
+    let mut state = UiState::default();
+    let knob = widgets::preview_key::instrument_parameter("bass", "cutoff");
+    let bar = widgets::preview_key::instrument_parameter("bass", "cutoff");
+    state.set_drag_preview(&knob, 0.42);
+    assert_eq!(state.drag_preview(&bar), Some(0.42));
+    state.take_drag_preview(&knob);
+    assert_eq!(state.drag_preview(&bar), Some(0.42));
+    assert_eq!(
+        widgets::preview_key::channel_level("track/kick"),
+        widgets::preview_key::channel_level(&format!("track/{}", "kick")),
+    );
+
+    let mute = widgets::preview_key::channel_mute("track/kick");
+    assert!(!state.flag(&mute, false));
+    state.hold_flag(&mute, true);
+    assert!(
+        state.flag(&mute, false),
+        "a clicked toggle shows its new state at once"
+    );
+}

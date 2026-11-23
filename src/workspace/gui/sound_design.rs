@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::f32::consts::PI;
 
 use super::theme::{self, with_alpha};
+use super::widgets::preview_key;
 use super::widgets::{
     context_combo, horizontal_mini_slider, led_button, pill_toggle, rotary_knob_modulated,
     section_header, unavailable,
@@ -426,10 +427,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                                     ui.add_space(6.0);
 
                                                     if let Some(param) = parameter {
-                                                        let drag_key = format!(
-                                                            "fp:{}:{}",
-                                                            instrument.id, param.key
-                                                        );
+                                                        let drag_key = preview_key::instrument_parameter(&instrument.id, &param.key);
                                                         let out = rotary_knob_modulated(
                                                             ui,
                                                             cx.state,
@@ -600,7 +598,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 ui.add_space(6.0);
                                 let slider_w = (ui.available_width() - 4.0).max(140.0);
                                 for param in instrument.parameters.iter().take(4) {
-                                    let drag_key = format!("fpq:{}:{}", instrument.id, param.key);
+                                    let drag_key = preview_key::instrument_parameter(&instrument.id, &param.key);
                                     let out = horizontal_mini_slider(
                                         ui,
                                         cx.state,
@@ -777,7 +775,6 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                             instrument,
                             &osc_params,
                             theme::ACCENT_AMBER,
-                            "osc",
                             &mut pending_actions,
                         );
                     },
@@ -845,7 +842,6 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                         instrument,
                         &flt_params,
                         theme::ACCENT_CYAN,
-                        "flt",
                         &mut pending_actions,
                     );
                 });
@@ -883,7 +879,6 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                         instrument,
                         &env_params,
                         theme::ACCENT_VIOLET,
-                        "env",
                         &mut pending_actions,
                     );
                 });
@@ -1019,8 +1014,10 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                                                 .find(|p| p.key == row.id)
                                         {
                                             ui.add_space(8.0);
-                                            let drag_key =
-                                                format!("instsec:{}:{}", instrument.id, param.key);
+                                            let drag_key = preview_key::instrument_parameter(
+                                                &instrument.id,
+                                                &param.key,
+                                            );
                                             let out = horizontal_mini_slider(
                                                 ui,
                                                 cx.state,
@@ -1133,7 +1130,6 @@ fn draw_module_knob_row(
     instrument: &Instrument,
     params: &[&Parameter],
     accent: Color32,
-    prefix: &str,
     pending_actions: &mut Vec<Action>,
 ) {
     if params.is_empty() {
@@ -1151,7 +1147,7 @@ fn draw_module_knob_row(
     ui.columns(cols, |columns| {
         for (i, param) in params.iter().enumerate() {
             columns[i].vertical_centered(|ui| {
-                let drag_key = format!("synth:{prefix}:{}:{}", instrument.id, param.key);
+                let drag_key = preview_key::instrument_parameter(&instrument.id, &param.key);
                 let mod_range = param_static_mod_range(instrument, param);
                 let mod_eff = effective_param_value(app, instrument, &param.key);
                 let out = rotary_knob_modulated(
@@ -1690,8 +1686,8 @@ fn paint_instrument_filter_scope(
     );
     let inner = rect.shrink(6.0);
 
-    let cut_key = cut_p.map(|p| format!("bode_cut:{}:{}", instrument.id, p.key));
-    let res_key = res_p.map(|p| format!("bode_res:{}:{}", instrument.id, p.key));
+    let cut_key = cut_p.map(|p| preview_key::instrument_parameter(&instrument.id, &p.key));
+    let res_key = res_p.map(|p| preview_key::instrument_parameter(&instrument.id, &p.key));
 
     // Direct 2D drag on Bode plot adjusts Cutoff (X, log Hz) and Resonance (Y)
     if interactive
@@ -1895,8 +1891,8 @@ fn paint_instrument_adsr_scope(
     );
     let inner = rect.shrink(7.0);
 
-    let dec_key = dec_p.map(|p| format!("adsr_dec:{}:{}", instrument.id, p.key));
-    let sus_key = sus_p.map(|p| format!("adsr_sus:{}:{}", instrument.id, p.key));
+    let dec_key = dec_p.map(|p| preview_key::instrument_parameter(&instrument.id, &p.key));
+    let sus_key = sus_p.map(|p| preview_key::instrument_parameter(&instrument.id, &p.key));
 
     if interactive
         && resp.dragged()
@@ -2968,7 +2964,7 @@ fn draw_graph_inspector(
                 if let SettingValue::Parameter(param_key) = &setting.value
                     && let Some(param) = instrument.parameters.iter().find(|p| p.key == *param_key)
                 {
-                    let drag_key = format!("graph:{}:{}:{}", instrument.id, node.id, param.key);
+                    let drag_key = preview_key::instrument_parameter(&instrument.id, &param.key);
                     let out = horizontal_mini_slider(
                         ui,
                         state,
@@ -3455,7 +3451,7 @@ fn draw_parameter_matrix_card(
 
             // Card Body: Tactile Rotary Knob + Range Metadata & Slider
             ui.horizontal(|ui| {
-                let drag_key = format!("pmat:{}:{}", instrument.id, param.key);
+                let drag_key = preview_key::instrument_parameter(&instrument.id, &param.key);
                 let out = rotary_knob_modulated(
                     ui,
                     state,
@@ -3490,7 +3486,7 @@ fn draw_parameter_matrix_card(
                 ui.add_space(6.0);
                 ui.vertical(|ui| {
                     let slider_w = (ui.available_width() - 4.0).max(96.0);
-                    let slider_key = format!("pmats:{}:{}", instrument.id, param.key);
+                    let slider_key = preview_key::instrument_parameter(&instrument.id, &param.key);
                     let sout = horizontal_mini_slider(
                         ui,
                         state,

@@ -94,6 +94,8 @@ struct UiState {
     /// Committed values shown until their edit reloads; see [`UiState::settle_held_previews`].
     held_previews: BTreeMap<String, f64>,
     held_revision: Option<crate::project::RevisionId>,
+    /// Toggles clicked whose edit has not reloaded yet, shown in their new state meanwhile.
+    held_flags: BTreeMap<String, bool>,
     /// Studio keyboard base octave offset (`C3` = 3).
     keyboard_octave: i8,
     /// Sustain / hold latch for the on-screen studio keyboard.
@@ -169,6 +171,7 @@ impl Default for UiState {
             drag_previews: BTreeMap::new(),
             held_previews: BTreeMap::new(),
             held_revision: None,
+            held_flags: BTreeMap::new(),
             keyboard_octave: 3,
             keyboard_latch: false,
             show_keyboard: true,
@@ -232,6 +235,16 @@ impl UiState {
         self.held_previews.insert(key.to_owned(), value);
     }
 
+    /// A toggle's state as shown: the session's, unless a click on it has not reloaded yet.
+    fn flag(&self, key: &str, actual: bool) -> bool {
+        self.held_flags.get(key).copied().unwrap_or(actual)
+    }
+
+    /// Shows a toggle in `value` until the edit committing it reloads.
+    fn hold_flag(&mut self, key: &str, value: bool) {
+        self.held_flags.insert(key.to_owned(), value);
+    }
+
     /// Ends a drag that commits nothing.
     fn cancel_drag_preview(&mut self, key: &str) {
         self.drag_previews.remove(key);
@@ -243,6 +256,7 @@ impl UiState {
         let revision = &app.bundle.revision;
         if self.held_revision.as_ref() != Some(revision) || !app.edits_pending() {
             self.held_previews.clear();
+            self.held_flags.clear();
             self.held_revision = Some(revision.clone());
         }
     }

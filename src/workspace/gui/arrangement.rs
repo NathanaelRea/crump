@@ -3,6 +3,7 @@
 //! locator/ruler header, clamped loop brace, and direct clip manipulation with live drag ghosts.
 
 use super::theme::{self, with_alpha};
+use super::widgets::preview_key;
 use super::widgets::{
     dbfs_meter_horizontal, horizontal_mini_slider, led_button, paint_dbfs_meter_vertical,
     pill_toggle, unavailable,
@@ -543,6 +544,8 @@ fn track_header(
     let is_selected = index == selected;
     let color = theme::track_color(index);
     let identity = format!("track/{}", track.id);
+    let mute_key = preview_key::channel_mute(&identity);
+    let muted = cx.state.flag(&mute_key, track.channel.mute);
     let is_solo = app.audition_plan.soloed_channels.contains(&identity);
     let is_armed = matches!(
         &app.audition_plan.target,
@@ -634,7 +637,7 @@ fn track_header(
                 );
                 ui.add(
                     egui::Label::new(RichText::new(&track.name).strong().size(12.5).color(
-                        if track.channel.mute {
+                        if muted {
                             theme::TEXT_MUTED
                         } else {
                             theme::TEXT_PRIMARY
@@ -648,13 +651,14 @@ fn track_header(
         if led_button(
             ui,
             "M",
-            track.channel.mute,
+            muted,
             theme::MUTE_LIT,
             Vec2::new(19.0, 17.0),
             "Mute Track (authored)",
         )
         .clicked()
         {
+            cx.state.hold_flag(&mute_key, !muted);
             cx.select(selected, index);
             cx.send(Action::ToggleChannelMute {
                 identity: identity.clone(),
@@ -695,7 +699,7 @@ fn track_header(
         ui.spacing_mut().item_spacing.x = 4.0;
         let pan_w = 56.0;
         let slider_w = (inner_rect.width() - pan_w - 4.0).max(70.0);
-        let drag_key = format!("tl-lvl-{}", track.id);
+        let drag_key = preview_key::channel_level(&format!("track/{}", track.id));
         let out = horizontal_mini_slider(
             ui,
             cx.state,
@@ -720,7 +724,7 @@ fn track_header(
             });
         }
 
-        let pan_key = format!("tl-pan-{}", track.id);
+        let pan_key = preview_key::channel_pan(&format!("track/{}", track.id));
         let pan_out = horizontal_mini_slider(
             ui,
             cx.state,

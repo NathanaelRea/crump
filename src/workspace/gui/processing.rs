@@ -6,6 +6,7 @@
 //!   frequency & transfer analyzer and primary device controls.
 
 use super::theme::{self, with_alpha};
+use super::widgets::preview_key;
 use super::widgets::{
     Cell, apply_row_click, led_button, paint_dbfs_meter_vertical, paint_gr_meter_vertical,
     pill_toggle, rotary_knob, table, toolbar, unavailable,
@@ -493,6 +494,9 @@ fn device_card(
                             if pwr_resp.clicked() {
                                 cx.send(Action::SelectProcessor(global_idx));
                                 if ui.input(|i| i.modifiers.shift) {
+                                    let key = preview_key::processor_bypass(&proc.id);
+                                    let durable = cx.state.flag(&key, proc.authored_bypass);
+                                    cx.state.hold_flag(&key, !durable);
                                     cx.send(Action::ToggleProcessorDurableBypass {
                                         processor: proc.id.clone(),
                                     });
@@ -587,7 +591,8 @@ fn device_card(
                         ui.set_max_height(body_h - 12.0);
                         ui.spacing_mut().item_spacing.y = 6.0;
 
-                        visualizer_bay(ui, proc, meter, accent, active_audio, 64.0);
+                        let shown = with_previews(proc, cx.state);
+                        visualizer_bay(ui, &shown, meter, accent, active_audio, 64.0);
 
                         // 4. Interactive discrete choice pills (click to cycle!)
                         let choices: Vec<_> = proc
@@ -701,9 +706,9 @@ fn device_card(
                                                     let out = rotary_knob(
                                                         ui,
                                                         cx.state,
-                                                        &format!(
-                                                            "proc-{}-{}",
-                                                            proc.id, setting.key
+                                                        &preview_key::processor_setting(
+                                                            &proc.id,
+                                                            &setting.key,
                                                         ),
                                                         &label,
                                                         *value,
@@ -780,20 +785,19 @@ fn device_card(
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                 // The normal, processing state stays unlit; only a bypassed
                                 // device lights up.
+                                let bypass_key = preview_key::processor_bypass(&proc.id);
+                                let bypassed = cx.state.flag(&bypass_key, proc.authored_bypass);
                                 if led_button(
                                     ui,
-                                    if proc.authored_bypass {
-                                        "BYPASSED"
-                                    } else {
-                                        "Bypass"
-                                    },
-                                    proc.authored_bypass,
+                                    if bypassed { "BYPASSED" } else { "Bypass" },
+                                    bypassed,
                                     theme::SIG_HOT,
                                     Vec2::new(66.0, 18.0),
                                     "Toggle durable source bypass · B",
                                 )
                                 .clicked()
                                 {
+                                    cx.state.hold_flag(&bypass_key, !bypassed);
                                     cx.send(Action::ToggleProcessorDurableBypass {
                                         processor: proc.id.clone(),
                                     });
@@ -871,20 +875,19 @@ fn focused_device_inspector(
 
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 5.0;
+            let bypass_key = preview_key::processor_bypass(&proc.id);
+            let bypassed = cx.state.flag(&bypass_key, proc.authored_bypass);
             if led_button(
                 ui,
-                if proc.authored_bypass {
-                    "BYPASSED"
-                } else {
-                    "Bypass"
-                },
-                proc.authored_bypass,
+                if bypassed { "BYPASSED" } else { "Bypass" },
+                bypassed,
                 theme::SIG_HOT,
                 Vec2::new(76.0, 20.0),
                 "Toggle durable source bypass · B",
             )
             .clicked()
             {
+                cx.state.hold_flag(&bypass_key, !bypassed);
                 cx.send(Action::ToggleProcessorDurableBypass {
                     processor: proc.id.clone(),
                 });
@@ -953,9 +956,10 @@ fn focused_device_inspector(
 
         // Left: Large High-Res FabFilter-style Interactive Analyzer
         ui.allocate_ui(Vec2::new(left_w, avail_h), |ui| {
+            let shown = with_previews(proc, cx.state);
             paint_deep_analyzer(
                 ui,
-                proc,
+                &shown,
                 meter,
                 accent,
                 active_audio,
@@ -1028,7 +1032,7 @@ fn focused_device_inspector(
                                     let out = rotary_knob(
                                         ui,
                                         cx.state,
-                                        &format!("insp-{}-{}", proc.id, setting.key),
+                                        &preview_key::processor_setting(&proc.id, &setting.key),
                                         &short_setting_label(&setting.key),
                                         *value,
                                         *min,
@@ -1337,6 +1341,32 @@ fn visualizer_bay(
             paint_fx_transfer_preview(painter, center, proc, curve_color, false);
         }
     }
+}
+
+/// The processor as its controls currently show it: settings being dragged, or committed and not
+/// yet reloaded, replace their stored values, so the curves move with the knobs.
+fn with_previews<'a>(
+    proc: &'a CompiledProcessorInspection,
+    state: &UiState,
+) -> std::borrow::Cow<'a, CompiledProcessorInspection> {
+    let previews = proc
+        .settings
+        .iter()
+        .enumerate()
+        .filter_map(|(index, setting)| {
+            state
+                .drag_preview(&preview_key::processor_setting(&proc.id, &setting.key))
+                .map(|value| (index, value))
+        })
+        .collect::<Vec<_>>();
+    if previews.is_empty() {
+        return std::borrow::Cow::Borrowed(proc);
+    }
+    let mut shown = proc.clone();
+    for (index, value) in previews {
+        shown.settings[index].value = Some(value);
+    }
+    std::borrow::Cow::Owned(shown)
 }
 
 fn setting_val(proc: &CompiledProcessorInspection, needle: &str) -> Option<f64> {
