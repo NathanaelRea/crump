@@ -516,12 +516,18 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
         .and_then(|id| version_project(cx, &id));
     let mut pick: Option<usize> = None;
 
-    // A version being heard follows the playhead as it moves.
-    if let Some((heard, _)) = &app.history_preview
-        && !cx.state.history_show_now
-        && *heard != item.entry.id
-    {
-        cx.send(Action::PreviewHistoryVersion(Some(item.entry.id.clone())));
+    // While playing, what you hear follows the page: Then plays the version at the playhead,
+    // Now plays the current one.
+    let playing = app.player.is_some() || app.playback_requested;
+    let heard = app.history_preview.as_ref().map(|(id, _)| id);
+    if playing {
+        if cx.state.history_show_now {
+            if heard.is_some() {
+                cx.send(Action::PreviewHistoryVersion(None));
+            }
+        } else if heard != Some(&item.entry.id) {
+            cx.send(Action::PreviewHistoryVersion(Some(item.entry.id.clone())));
+        }
     }
 
     egui::Frame::new()
@@ -577,10 +583,10 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui.set_width(SIDE_WIDTH);
                     change_list(ui, "THIS EDIT", &this_edit, "No values moved.");
                     ui.add_space(14.0);
-                    let title = if is_current(app, item.entry) {
+                    let title = if since.is_empty() {
                         "SINCE THIS VERSION".to_owned()
                     } else {
-                        format!("SINCE THIS VERSION · {}", plural(selected, "change"))
+                        format!("SINCE THIS VERSION · {}", plural(since.len(), "difference"))
                     };
                     change_list(ui, &title, &since, "This is the version you hear now.");
                 });
@@ -588,29 +594,20 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
         });
 
     if let Some(index) = pick {
+        // Moving the playhead looks at that version.
+        cx.state.history_show_now = false;
         cx.select(selected, index);
     }
 }
 
 const SIDE_WIDTH: f32 = 340.0;
 
-/// The Project a History entry published, rebuilt once from its snapshot and cached.
+/// The Project a History entry published, from the workspace's shared cache of snapshots.
 fn version_project(
     cx: &mut Cx<'_>,
     id: &str,
 ) -> Option<std::sync::Arc<crate::project::ProjectBundle>> {
-    if let Some(cached) = cx.state.history_versions.get(id) {
-        return cached.clone();
-    }
-    let bundle = crate::history::HistoryStore::open(&cx.app.root)
-        .and_then(|store| store.bundle_at(id))
-        .ok()
-        .filter(|bundle| bundle.project.is_some())
-        .map(std::sync::Arc::new);
-    cx.state
-        .history_versions
-        .insert(id.to_owned(), bundle.clone());
-    bundle
+    cx.app.history_version(id)
 }
 
 /// Where a value change landed.
@@ -1263,6 +1260,24 @@ fn sound_panel(ui: &mut Ui, view: &SoundView<'_>, focus: &Focus) {
     });
 }
 
+/// A setting literal as people read it: `-25db` as `-25 dB`, `105ms` as `105 ms`.
+fn readable_literal(value: &str) -> String {
+    for (suffix, unit) in [
+        ("db", " dB"),
+        ("khz", " kHz"),
+        ("hz", " Hz"),
+        ("ms", " ms"),
+        ("st", " st"),
+    ] {
+        if let Some(number) = value.strip_suffix(suffix)
+            && number.parse::<f64>().is_ok()
+        {
+            return format!("{number}{unit}");
+        }
+    }
+    value.replace('_', " ")
+}
+
 /// One effect's settings as chips; edited ones lit with their previous value, ones that differ
 /// from the other side outlined quietly.
 fn effect_settings(
@@ -1290,18 +1305,27 @@ fn effect_settings(
                     .map(|s| s.value.clone())
                     .filter(|v| *v != setting.value)
             };
+            let value = readable_literal(&setting.value);
             let (text, lit, quiet) = match (value_in(previous), value_in(other)) {
                 (Some(prev), _) => (
-                    format!("{} {} (previous {prev})", setting.key, setting.value),
+                    format!(
+                        "{} {value} (previous {})",
+                        setting.key,
+                        readable_literal(&prev)
+                    ),
                     true,
                     false,
                 ),
                 (None, Some(other)) => (
-                    format!("{} {} ({other_word} {other})", setting.key, setting.value),
+                    format!(
+                        "{} {value} ({other_word} {})",
+                        setting.key,
+                        readable_literal(&other)
+                    ),
                     false,
                     true,
                 ),
-                _ => (format!("{} {}", setting.key, setting.value), false, false),
+                _ => (format!("{} {value}", setting.key), false, false),
             };
             let width = ui
                 .painter()
@@ -1381,13 +1405,15 @@ fn change_list(ui: &mut Ui, title: &str, changes: &[ValueChange], empty: &str) {
                         );
                         ui.label(RichText::new("to").size(10.5).color(theme::TEXT_MUTED));
                     }
-                    ui.label(
-                        RichText::new(&change.after)
-                            .monospace()
-                            .strong()
-                            .size(14.0)
-                            .color(theme::TEXT_PRIMARY),
-                    );
+                    // Values in mono; a sentence ("1 of 4 events changed") in the text font.
+                    let after = RichText::new(&change.after)
+                        .strong()
+                        .color(theme::TEXT_PRIMARY);
+                    ui.label(if change.before.is_empty() {
+                        after.size(12.5)
+                    } else {
+                        after.monospace().size(14.0)
+                    });
                 });
                 ui.add_space(4.0);
             }
@@ -1411,7 +1437,8 @@ fn scrub_rail(ui: &mut Ui, items: &[Item<'_>], selected: usize, pick: &mut Optio
     let slot = rail.width() / n as f32;
     let x_of = |index: usize| rail.right() - slot * (index as f32 + 0.5);
     painter.rect_filled(rect, 6.0, theme::BG_WELL);
-    for (band, session) in sessions(items).iter().enumerate() {
+    let mut label_end = f32::NEG_INFINITY;
+    for (band, session) in sessions(items).iter().enumerate().rev() {
         let oldest = &session[session.len() - 1];
         let x0 = x_of(oldest.index) - slot * 0.5;
         let x1 = x_of(session[0].index) + slot * 0.5;
@@ -1422,13 +1449,17 @@ fn scrub_rail(ui: &mut Ui, items: &[Item<'_>], selected: usize, pick: &mut Optio
                 with_alpha(theme::BG_SURFACE, 0.8),
             );
         }
-        painter.text(
-            Pos2::new(x0 + 6.0, rect.top() + 5.0),
-            Align2::LEFT_TOP,
-            format!("{} {}", day_label(oldest.at), clock(oldest.at)),
-            FontId::proportional(9.5),
-            theme::TEXT_MUTED,
-        );
+        // Labels left to right, each skipped if it would run into the one before.
+        if x0 + 6.0 > label_end {
+            let label = painter.text(
+                Pos2::new(x0 + 6.0, rect.top() + 5.0),
+                Align2::LEFT_TOP,
+                format!("{} {}", day_label(oldest.at), clock(oldest.at)),
+                FontId::proportional(9.5),
+                theme::TEXT_MUTED,
+            );
+            label_end = label.right() + 8.0;
+        }
     }
     let y = rect.bottom() - 18.0;
     painter.hline(
@@ -1460,7 +1491,7 @@ fn scrub_rail(ui: &mut Ui, items: &[Item<'_>], selected: usize, pick: &mut Optio
             let tall = if related { 12.0 } else { 7.0 };
             painter.line_segment(
                 [Pos2::new(x, y - tall), Pos2::new(x, y + 4.0)],
-                Stroke::new(3.0_f32, color),
+                Stroke::new(3.0_f32.min(slot * 0.6).max(1.0), color),
             );
         }
     }
@@ -1510,7 +1541,6 @@ fn scrub_rail(ui: &mut Ui, items: &[Item<'_>], selected: usize, pick: &mut Optio
 fn transport(ui: &mut Ui, cx: &mut Cx<'_>, items: &[Item<'_>], item: &Item<'_>) {
     let app = cx.app;
     let selected = item.index;
-    let hearing = app.history_preview.as_ref().map(|(id, _)| id.clone());
     let playing = app.player.is_some() || app.playback_requested;
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
@@ -1520,6 +1550,7 @@ fn transport(ui: &mut Ui, cx: &mut Cx<'_>, items: &[Item<'_>], item: &Item<'_>) 
             .on_hover_text("Step to the version before this one")
             .clicked()
         {
+            cx.state.history_show_now = false;
             cx.select(selected, selected + 1);
         }
         if ui
@@ -1527,10 +1558,11 @@ fn transport(ui: &mut Ui, cx: &mut Cx<'_>, items: &[Item<'_>], item: &Item<'_>) 
             .on_hover_text("Step to the version after this one")
             .clicked()
         {
+            cx.state.history_show_now = false;
             cx.select(selected, selected - 1);
         }
         ui.add_space(8.0);
-        let previewing = playing && hearing.is_some();
+        // Play starts from the cursor; what it plays follows Then / Now.
         let (rect, response) = ui.allocate_exact_size(Vec2::new(170.0, 30.0), Sense::click());
         let painter = ui.painter();
         painter.rect_filled(
@@ -1546,18 +1578,19 @@ fn transport(ui: &mut Ui, cx: &mut Cx<'_>, items: &[Item<'_>], item: &Item<'_>) 
             Pos2::new(rect.left() + 18.0, rect.center().y),
             Vec2::splat(16.0),
         );
-        if previewing {
+        if playing {
             theme::paint_stop_icon(painter, icon, theme::TEXT_PRIMARY);
         } else {
             theme::paint_play_icon(painter, icon, theme::SIG_NOMINAL);
         }
+        let show_now = cx.state.history_show_now;
         painter.text(
             Pos2::new(rect.left() + 34.0, rect.center().y),
             Align2::LEFT_CENTER,
-            if previewing {
-                "Stop"
-            } else {
-                "Play this version"
+            match (playing, show_now) {
+                (true, _) => "Stop",
+                (false, false) => "Play this version",
+                (false, true) => "Play now",
             },
             FontId::proportional(12.0),
             theme::TEXT_PRIMARY,
@@ -1566,18 +1599,16 @@ fn transport(ui: &mut Ui, cx: &mut Cx<'_>, items: &[Item<'_>], item: &Item<'_>) 
             .on_hover_text("Hear the project as it was at this version, from the cursor")
             .clicked()
         {
-            if previewing {
+            if playing {
                 cx.send(Action::StopPlayback);
             } else {
-                cx.state.history_show_now = false;
-                cx.send(Action::PreviewHistoryVersion(Some(item.entry.id.clone())));
-                if !playing {
-                    cx.send(Action::TogglePlayback);
+                if !show_now {
+                    cx.send(Action::PreviewHistoryVersion(Some(item.entry.id.clone())));
                 }
+                cx.send(Action::TogglePlayback);
             }
         }
-        // Then / Now swaps what the panel shows and, while a version plays, what you hear.
-        let show_now = cx.state.history_show_now;
+        // Then / Now swaps what the panel shows and, while playing, what you hear.
         for (label, now) in [("Then", false), ("Now", true)] {
             if widgets::pill_toggle(
                 ui,
@@ -1590,17 +1621,11 @@ fn transport(ui: &mut Ui, cx: &mut Cx<'_>, items: &[Item<'_>], item: &Item<'_>) 
                 },
             )
             .clicked()
-                && show_now != now
             {
                 cx.state.history_show_now = now;
-                if previewing || (playing && hearing.is_none() && !now) {
-                    cx.send(Action::PreviewHistoryVersion(
-                        (!now).then(|| item.entry.id.clone()),
-                    ));
-                }
             }
         }
-        if previewing {
+        if playing {
             ui.label(
                 RichText::new(if show_now {
                     "Hearing now".to_owned()

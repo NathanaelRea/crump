@@ -160,8 +160,6 @@ struct UiState {
     before_diagnostics: View,
     /// The view the last frame drew, to spot a page switch.
     drawn_view: Option<View>,
-    /// Projects rebuilt from History snapshots, by entry ID (`None` when unreadable).
-    history_versions: BTreeMap<String, Option<std::sync::Arc<crate::project::ProjectBundle>>>,
     /// History shows (and, while previewing, plays) the current version instead of the picked one.
     history_show_now: bool,
 }
@@ -213,7 +211,6 @@ impl Default for UiState {
             last_view: View::Timeline,
             before_diagnostics: View::Timeline,
             drawn_view: None,
-            history_versions: BTreeMap::new(),
             history_show_now: false,
         }
     }
@@ -777,12 +774,10 @@ fn transport_deck(ui: &mut Ui, cx: &mut Cx<'_>) {
 
                 // A past version playing from History is named, so it is never mistaken for the
                 // current project.
-                if let Some((entry, _)) = &app.history_preview {
-                    let number = app
-                        .history
-                        .iter()
-                        .position(|candidate| candidate.id == *entry)
-                        .map_or(0, |index| app.history.len() - index);
+                if let Some((entry, _)) = &app.history_preview
+                    && let Some(index) = app.history.iter().position(|c| c.id == *entry)
+                {
+                    let number = app.history.len() - index;
                     ui.label(
                         RichText::new(format!("Hearing v{number}"))
                             .strong()

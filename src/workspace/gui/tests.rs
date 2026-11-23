@@ -959,6 +959,12 @@ fn a_history_version_can_be_previewed_and_dropped() {
         app.runtime_bundle().map(|b| b.revision.clone()),
         Some(bundle.revision.clone())
     );
+    // Scrubbing back to a version already seen reuses its rebuilt Project.
+    let cached = app.history_version(&older).expect("cached");
+    assert!(
+        std::sync::Arc::ptr_eq(&cached, &bundle),
+        "one rebuild per version"
+    );
     app.dispatch(Action::PreviewHistoryVersion(None));
     assert!(app.history_preview.is_none());
     assert_eq!(

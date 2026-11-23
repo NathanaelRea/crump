@@ -301,6 +301,9 @@ pub struct Workspace {
     /// A History version auditioned in place of the Active Revision, by entry ID. Playback
     /// prepares from it while set; Stop or leaving History clears it.
     history_preview: Option<(String, Arc<ProjectBundle>)>,
+    /// Projects rebuilt from History snapshots, most recent last, shared by History's view and
+    /// its playback preview so a scrub step never reads the same snapshot twice.
+    history_versions: RefCell<Vec<(String, Option<Arc<ProjectBundle>>)>>,
     audible_bundle: Option<Arc<ProjectBundle>>,
     pending_active_inspection: Option<PendingActiveInspection>,
     /// Project History, newest entry first.
@@ -550,6 +553,7 @@ impl Workspace {
             active_entry,
             active_bundle,
             history_preview: None,
+            history_versions: RefCell::new(Vec::new()),
             audible_bundle: None,
             pending_active_inspection: None,
             history,
@@ -1164,14 +1168,52 @@ impl Workspace {
             .or_else(|| self.active_bundle.clone())
     }
 
+    /// The Project a History entry published, rebuilt from its snapshot. The last dozen are kept.
+    fn history_version(&self, id: &str) -> Option<Arc<ProjectBundle>> {
+        const KEEP: usize = 12;
+        let mut cache = self.history_versions.borrow_mut();
+        if let Some(position) = cache.iter().position(|(entry, _)| entry == id) {
+            let hit = cache.remove(position);
+            let bundle = hit.1.clone();
+            cache.push(hit);
+            return bundle;
+        }
+        let bundle = HistoryStore::open(&self.root)
+            .and_then(|store| store.bundle_at(id))
+            .ok()
+            .filter(|bundle| bundle.project.is_some())
+            .map(Arc::new);
+        cache.push((id.to_owned(), bundle.clone()));
+        if cache.len() > KEEP {
+            cache.remove(0);
+        }
+        bundle
+    }
+
+    /// After a History preview ends, rebuilds the current version's runtime state (mixer graph,
+    /// channel map) if the last prepared one came from the preview.
+    fn prepare_current_if_stale(&mut self) {
+        let stale = self
+            .audible_bundle
+            .as_ref()
+            .is_some_and(|bundle| Some(&bundle.revision) != self.active_revision.as_ref());
+        if stale && self.active_bundle.is_some() {
+            self.queue_active_preparation(false);
+        }
+    }
+
     /// Auditions a History version in place of the Active Revision, or returns to it with `None`.
     /// While playing, the swap keeps the transport position.
     fn preview_history_version(&mut self, entry: Option<String>) {
         let playing = self.player.is_some() || self.playback_requested;
         match entry {
             None => {
-                if self.history_preview.take().is_some() && playing {
-                    self.queue_active_preparation(false);
+                if self.history_preview.take().is_some() {
+                    if playing {
+                        self.queue_active_preparation(false);
+                    } else {
+                        self.prepare_current_if_stale();
+                    }
                 }
             }
             Some(id) => {
@@ -1182,17 +1224,16 @@ impl Workspace {
                 {
                     return;
                 }
-                match HistoryStore::open(&self.root).and_then(|store| store.bundle_at(&id)) {
-                    Ok(bundle) if bundle.publishable().is_some() => {
-                        self.history_preview = Some((id, Arc::new(bundle)));
+                match self.history_version(&id) {
+                    Some(bundle) if bundle.publishable().is_some() => {
+                        self.history_preview = Some((id, bundle));
                         if playing {
                             self.queue_active_preparation(false);
                         }
                     }
-                    Ok(_) => {
-                        self.status = "That version no longer builds, so it cannot play".to_owned();
+                    _ => {
+                        self.status = "That version could not be read, so it cannot play".to_owned()
                     }
-                    Err(error) => self.status = format!("Could not read that version: {error}"),
                 }
             }
         }
@@ -1906,7 +1947,9 @@ impl Workspace {
         self.telemetry = PlayerTelemetry::default();
         self.held_notes.clear();
         // Stopping a History preview returns to the current version.
-        self.history_preview = None;
+        if self.history_preview.take().is_some() {
+            self.prepare_current_if_stale();
+        }
         self.status = "Audition stopped · target, range, and bypass state remain armed".to_owned();
     }
 
@@ -4050,6 +4093,8 @@ impl Workspace {
     }
 
     fn restore_history(&mut self, entry_id: &str) {
+        // A restore replaces what is current; stop hearing any earlier version.
+        self.preview_history_version(None);
         self.queue_mutation(
             ProductionViewRequest {
                 expected_revision: Some(self.bundle.revision.clone()),
