@@ -328,7 +328,7 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
 
     let strip_h = desc.height;
     let inner_w = STRIP_WIDTH - 12.0;
-    let fader_h = (strip_h - UPPER_BAY_HEIGHT - 56.0).clamp(160.0, 340.0);
+    let fader_h = (strip_h - UPPER_BAY_HEIGHT - 62.0).clamp(160.0, 560.0);
 
     let frame = egui::Frame::new()
         .fill(if is_selected {
@@ -779,7 +779,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
     let headroom = (0.0 - peak_db).max(0.0);
 
     let inner_w = MASTER_WIDTH - 12.0;
-    let fader_h = (strip_h - UPPER_BAY_HEIGHT - 56.0).clamp(160.0, 340.0);
+    let fader_h = (strip_h - UPPER_BAY_HEIGHT - 62.0).clamp(160.0, 560.0);
 
     egui::Frame::new()
         .fill(Color32::from_rgb(33, 36, 44))

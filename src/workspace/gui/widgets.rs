@@ -878,11 +878,6 @@ pub(super) fn horizontal_mini_slider(
             Pos2::new(rect.left() + fill_w, rect.bottom()),
         );
         painter.rect_filled(fill_rect, 3.0, with_alpha(accent, 0.36));
-        painter.vline(
-            rect.left() + fill_w - 1.0,
-            (rect.top() + 1.0)..=(rect.bottom() - 1.0),
-            Stroke::new(2.0_f32, accent),
-        );
     }
     painter.rect_stroke(
         rect,
@@ -909,13 +904,15 @@ pub(super) fn horizontal_mini_slider(
         Pos2::new(rect.right() - 4.0, rect.center().y),
         value_galley.size(),
     );
-    painter.rect_filled(
-        value_rect
-            .expand2(Vec2::new(2.0, 0.0))
-            .intersect(rect.shrink(1.0)),
-        2.0,
-        with_alpha(theme::BG_WELL, 0.88),
-    );
+    // The fill edge is drawn only where it cannot cut through the value readout.
+    let edge_x = rect.left() + fill_w - 1.0;
+    if fill_w > 1.0 && !(value_rect.left() - 3.0..=value_rect.right() + 3.0).contains(&edge_x) {
+        painter.vline(
+            edge_x,
+            (rect.top() + 2.0)..=(rect.bottom() - 2.0),
+            Stroke::new(1.5_f32, accent),
+        );
+    }
     painter.galley(value_rect.min, value_galley, theme::TEXT_PRIMARY);
     if !label.is_empty() {
         let label_clip = Rect::from_min_max(
