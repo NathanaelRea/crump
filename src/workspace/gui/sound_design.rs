@@ -634,6 +634,9 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                         .corner_radius(6.0)
                         .inner_margin(egui::Margin::same(12))
                         .show(ui, |ui| {
+                            // Hold the panel to the deck width so its edges line up with the
+                            // panels above it.
+                            ui.set_width(deck_w - 26.0);
                             ui.horizontal(|ui| {
                                 section_header(ui, "ACTIVE MODULATION & ROUTING", theme::ACCENT_VIOLET);
                                 ui.label(
