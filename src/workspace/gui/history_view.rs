@@ -5,13 +5,13 @@
 use std::sync::OnceLock;
 
 use super::theme::{self, with_alpha};
-use super::widgets::{self, led_button};
+use super::widgets;
 use super::*;
 use crate::history::{HistoryEntry, OriginKind};
+use crate::model::Project;
 
 /// Silence that starts a new working session.
 const SESSION_GAP_SECS: i64 = 30 * 60;
-const INSPECTOR_WIDTH: f32 = 380.0;
 
 /// What a History entry changed, for its tag and colour.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -107,11 +107,6 @@ fn sessions<'a, 'b>(items: &'b [Item<'a>]) -> Vec<&'b [Item<'a>]> {
     split_where(items, |newer, older| newer.at - older.at > SESSION_GAP_SECS)
 }
 
-/// A session split into runs of back-to-back edits to the same thing.
-fn runs<'a, 'b>(session: &'b [Item<'a>]) -> Vec<&'b [Item<'a>]> {
-    split_where(session, |newer, older| !newer.same_subject(older))
-}
-
 fn split_where<'a, 'b>(
     items: &'b [Item<'a>],
     boundary: impl Fn(&Item<'a>, &Item<'a>) -> bool,
@@ -128,27 +123,6 @@ fn split_where<'a, 'b>(
         out.push(&items[start..]);
     }
     out
-}
-
-/// What a run did, oldest first: distinct actions with repeat counts.
-fn run_actions(run: &[Item<'_>]) -> String {
-    let mut seen: Vec<(&str, usize)> = Vec::new();
-    for item in run.iter().rev() {
-        match seen.iter_mut().find(|(action, _)| *action == item.action) {
-            Some((_, count)) => *count += 1,
-            None => seen.push((&item.action, 1)),
-        }
-    }
-    seen.iter()
-        .map(|(action, count)| {
-            if *count > 1 {
-                format!("{action} ×{count}")
-            } else {
-                (*action).to_owned()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
 }
 
 /// What a session touched, oldest first, without repeats: "Deep House Bass, kick-four, Mix".
@@ -483,18 +457,6 @@ fn who(entry: &HistoryEntry) -> String {
     }
 }
 
-/// Everyone who made changes in a session, oldest first: "You, Claude (agent)".
-fn authors(session: &[Item<'_>]) -> Vec<String> {
-    let mut names: Vec<String> = Vec::new();
-    for item in session.iter().rev() {
-        let name = who(item.entry);
-        if !names.contains(&name) {
-            names.push(name);
-        }
-    }
-    names
-}
-
 fn plural(count: usize, noun: &str) -> String {
     format!("{count} {noun}{}", if count == 1 { "" } else { "s" })
 }
@@ -530,478 +492,1180 @@ fn kind_chip(ui: &mut Ui, kind: Kind) {
     );
 }
 
-/// A small "Current" marker: the version you hear now.
-fn current_marker(ui: &mut Ui) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(62.0, 18.0), Sense::hover());
-    let painter = ui.painter();
-    painter.rect_filled(rect, 9.0, theme::BG_ACTIVE);
-    painter.circle_filled(
-        Pos2::new(rect.left() + 9.0, rect.center().y),
-        3.0,
-        theme::TEXT_PRIMARY,
-    );
-    painter.text(
-        Pos2::new(rect.left() + 16.0, rect.center().y),
-        Align2::LEFT_CENTER,
-        "Current",
-        FontId::proportional(10.0),
-        theme::TEXT_PRIMARY,
-    );
-}
-
-/// Expand/collapse triangle.
-fn disclosure(painter: &egui::Painter, center: Pos2, open: bool, color: Color32) {
-    let points = if open {
-        vec![
-            Pos2::new(center.x - 4.0, center.y - 2.0),
-            Pos2::new(center.x + 4.0, center.y - 2.0),
-            Pos2::new(center.x, center.y + 3.0),
-        ]
-    } else {
-        vec![
-            Pos2::new(center.x - 2.0, center.y - 4.0),
-            Pos2::new(center.x + 3.0, center.y),
-            Pos2::new(center.x - 2.0, center.y + 4.0),
-        ]
-    };
-    painter.add(egui::Shape::convex_polygon(points, color, Stroke::NONE));
-}
-
 /// Draws History once it has entries; the caller draws the empty state.
+///
+/// A scrub rail across the top holds every version; the page below shows the sound as it was at
+/// the playhead, rebuilt from that version's snapshot: the instrument's dials, its track and its
+/// effects, each changed control showing where it came from. Play auditions that version in
+/// place of the current one, Then / Now swaps view and sound between them, and Restore brings it
+/// back for good.
 pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
     let items = items(app);
-    let selected = clamp_index(app.selected_history, app.history.len());
+    let selected = clamp_index(app.selected_history, items.len());
+    let item = &items[selected];
+    let this = version_project(cx, &item.entry.id);
+    let previous = item
+        .entry
+        .parent
+        .as_ref()
+        .and_then(|parent| version_project(cx, parent));
+    let now = app
+        .active_entry
+        .clone()
+        .and_then(|id| version_project(cx, &id));
     let mut pick: Option<usize> = None;
-    let mut restore = false;
-    let mut compare = false;
-    let mut show_change = false;
-    let mut jump: Option<usize> = None;
 
-    // A jump from the inspector lands on a row that may be folded away: open its session and
-    // run, and scroll it into view once.
-    if let Some(id) = cx.state.history_reveal.take()
-        && let Some(target) = items.iter().find(|item| item.entry.id == id)
+    // A version being heard follows the playhead as it moves.
+    if let Some((heard, _)) = &app.history_preview
+        && !cx.state.history_show_now
+        && *heard != item.entry.id
     {
-        for session in sessions(&items) {
-            if session.iter().any(|item| item.index == target.index) {
-                let key = session[session.len() - 1].entry.id.clone();
-                cx.state.history_sessions.insert(key, true);
-                for run in runs(session) {
-                    if run.len() > 1 && run.iter().any(|item| item.index == target.index) {
-                        cx.state
-                            .history_runs
-                            .insert(run[run.len() - 1].entry.id.clone());
-                    }
-                }
-            }
-        }
-        cx.state.history_scroll = Some(id);
+        cx.send(Action::PreviewHistoryVersion(Some(item.entry.id.clone())));
     }
 
-    egui::SidePanel::right("crump-history-inspector")
-        .exact_width(INSPECTOR_WIDTH)
-        .resizable(false)
-        .frame(
-            egui::Frame::new()
-                .fill(theme::BG_SURFACE)
-                .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
-                .inner_margin(egui::Margin::same(18)),
-        )
-        .show_inside(ui, |ui| {
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    if let Some(item) = items.get(selected) {
-                        let mut actions = InspectorActions {
-                            jump: &mut jump,
-                            restore: &mut restore,
-                            compare: &mut compare,
-                            show_change: &mut show_change,
-                        };
-                        inspector(ui, app, &items, item, &mut actions);
-                    }
-                });
-        });
-
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
+    egui::Frame::new()
+        .inner_margin(egui::Margin::symmetric(22, 14))
         .show(ui, |ui| {
-            egui::Frame::new()
-                .inner_margin(egui::Margin::symmetric(22, 14))
-                .show(ui, |ui| {
-                    for (number, session) in sessions(&items).into_iter().enumerate() {
-                        session_block(ui, cx, &items, session, number, selected, &mut pick);
+            scrub_rail(ui, &items, selected, &mut pick);
+            ui.add_space(10.0);
+            transport(ui, cx, &items, item);
+            ui.add_space(14.0);
+            header(ui, &items, item, items.len() - selected, items.len());
+            ui.add_space(14.0);
+
+            let Some(this) = this.as_ref().and_then(|bundle| bundle.project.as_ref()) else {
+                ui.label(
+                    RichText::new("This version's snapshot could not be read.")
+                        .color(theme::TEXT_MUTED),
+                );
+                return;
+            };
+            let previous = previous.as_ref().and_then(|bundle| bundle.project.as_ref());
+            let now = now.as_ref().and_then(|bundle| bundle.project.as_ref());
+            let this_edit = value_changes(previous, this);
+            let since = now
+                .map(|now| value_changes(Some(this), now))
+                .unwrap_or_default();
+            let focus = focus_of(this, &this_edit).or_else(|| focus_of(this, &since));
+
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    ui.set_width((ui.available_width() - SIDE_WIDTH - 16.0).max(320.0));
+                    let showing_now = cx.state.history_show_now;
+                    let view = SoundView {
+                        shown: if showing_now {
+                            now.unwrap_or(this)
+                        } else {
+                            this
+                        },
+                        previous: if showing_now { None } else { previous },
+                        other: if showing_now { Some(this) } else { now },
+                        other_word: if showing_now { "then" } else { "now" },
+                    };
+                    match &focus {
+                        Some(focus) => sound_panel(ui, &view, focus),
+                        None => {
+                            ui.label(
+                                RichText::new("This change has no dials to show.")
+                                    .color(theme::TEXT_MUTED),
+                            );
+                        }
                     }
                 });
+                ui.vertical(|ui| {
+                    ui.set_width(SIDE_WIDTH);
+                    change_list(ui, "THIS EDIT", &this_edit, "No values moved.");
+                    ui.add_space(14.0);
+                    let title = if is_current(app, item.entry) {
+                        "SINCE THIS VERSION".to_owned()
+                    } else {
+                        format!("SINCE THIS VERSION · {}", plural(selected, "change"))
+                    };
+                    change_list(ui, &title, &since, "This is the version you hear now.");
+                });
+            });
         });
 
-    if let Some(index) = jump {
-        cx.state.history_reveal = Some(items[index].entry.id.clone());
-        pick = Some(index);
-    }
     if let Some(index) = pick {
         cx.select(selected, index);
     }
-    if compare {
-        cx.send(Action::CompareHistoryWithActive);
-    }
-    if show_change {
-        cx.send(Action::OpenHistoryDiff);
-    }
-    if restore {
-        cx.send(Action::OpenRestore);
-    }
 }
 
-fn session_block(
-    ui: &mut Ui,
-    cx: &mut Cx<'_>,
-    items: &[Item<'_>],
-    session: &[Item<'_>],
-    number: usize,
-    selected: usize,
-    pick: &mut Option<usize>,
-) {
-    let first = &session[session.len() - 1];
-    let last = &session[0];
-    // Sessions are keyed by their oldest entry, which never changes as the session grows.
-    let key = first.entry.id.clone();
-    let holds_selection = session.iter().any(|item| item.index == selected);
-    // The latest session and the one holding the selection start open; the rest are folded.
-    let open = match cx.state.history_sessions.get(&key) {
-        Some(open) => *open,
-        None => number == 0 || holds_selection,
-    };
+const SIDE_WIDTH: f32 = 340.0;
 
-    let header = ui.horizontal(|ui| {
-        let (tri, _) = ui.allocate_exact_size(Vec2::new(14.0, 18.0), Sense::hover());
-        disclosure(ui.painter(), tri.center(), open, theme::TEXT_SECONDARY);
-        ui.label(
-            RichText::new(format!(
-                "{} · {}–{}",
-                day_label(first.at),
-                clock(first.at),
-                clock(last.at)
-            ))
-            .strong()
-            .size(12.0)
-            .color(theme::TEXT_PRIMARY),
-        );
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            ui.label(
-                RichText::new(format!(
-                    "{} · {} min · {}",
-                    plural(session.len(), "change"),
-                    ((last.at - first.at) / 60).max(1),
-                    authors(session).join(", ")
-                ))
-                .size(10.5)
-                .color(theme::TEXT_MUTED),
-            );
-        });
-    });
-    ui.horizontal(|ui| {
-        ui.add_space(20.0);
-        ui.add(
-            egui::Label::new(
-                RichText::new(session_subjects(session))
-                    .size(11.0)
-                    .color(theme::TEXT_SECONDARY),
-            )
-            .truncate(),
-        );
-    });
-    if header
-        .response
-        .interact(Sense::click())
-        .on_hover_text(if open {
-            "Fold this session"
-        } else {
-            "Show this session"
-        })
-        .clicked()
-    {
-        cx.state.history_sessions.insert(key, !open);
+/// The Project a History entry published, rebuilt once from its snapshot and cached.
+fn version_project(
+    cx: &mut Cx<'_>,
+    id: &str,
+) -> Option<std::sync::Arc<crate::project::ProjectBundle>> {
+    if let Some(cached) = cx.state.history_versions.get(id) {
+        return cached.clone();
     }
-    let (rule, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), Sense::hover());
-    ui.painter().rect_filled(rule, 0.0, theme::SEAM_DARK);
-    ui.add_space(6.0);
-    if open {
-        // Name who made a run only when the session had more than one author.
-        let mixed = authors(session).len() > 1;
-        for run in runs(session) {
-            run_rows(ui, cx, items, run, selected, mixed, pick);
+    let bundle = crate::history::HistoryStore::open(&cx.app.root)
+        .and_then(|store| store.bundle_at(id))
+        .ok()
+        .filter(|bundle| bundle.project.is_some())
+        .map(std::sync::Arc::new);
+    cx.state
+        .history_versions
+        .insert(id.to_owned(), bundle.clone());
+    bundle
+}
+
+/// Where a value change landed.
+#[derive(Clone, PartialEq)]
+enum Area {
+    Tempo,
+    Instrument(String),
+    Track(String),
+    Processor(String),
+    Pattern(String),
+}
+
+/// One value that differs between two versions.
+#[derive(Clone)]
+struct ValueChange {
+    area: Area,
+    owner: String,
+    label: String,
+    before: String,
+    after: String,
+}
+
+/// Every value that differs from `before` to `after`, in plain words.
+fn value_changes(before: Option<&Project>, after: &Project) -> Vec<ValueChange> {
+    use crate::model::Unit;
+    let mut out = Vec::new();
+    let Some(before) = before else {
+        return out;
+    };
+    let mut push = |area: Area, owner: &str, label: &str, before: String, after: String| {
+        if before != after {
+            out.push(ValueChange {
+                area,
+                owner: owner.to_owned(),
+                label: label.to_owned(),
+                before,
+                after,
+            });
+        }
+    };
+    push(
+        Area::Tempo,
+        "Song",
+        "Tempo",
+        format!("{:.1} BPM", before.song.tempo_bpm),
+        format!("{:.1} BPM", after.song.tempo_bpm),
+    );
+    for inst in &after.song.instruments {
+        let Some(old) = before.song.instruments.iter().find(|i| i.id == inst.id) else {
+            continue;
+        };
+        for param in &inst.parameters {
+            if let Some(prev) = old.parameters.iter().find(|p| p.key == param.key) {
+                push(
+                    Area::Instrument(inst.id.clone()),
+                    &inst.name,
+                    &param.name,
+                    theme::format_compact_value(prev.value, param.unit),
+                    theme::format_compact_value(param.value, param.unit),
+                );
+            }
         }
     }
-    ui.add_space(18.0);
+    for track in &after.song.tracks {
+        let Some(old) = before.song.tracks.iter().find(|t| t.id == track.id) else {
+            continue;
+        };
+        push(
+            Area::Track(track.id.clone()),
+            &track.name,
+            "Level",
+            theme::format_compact_value(old.channel.level_db, Unit::Decibels),
+            theme::format_compact_value(track.channel.level_db, Unit::Decibels),
+        );
+        push(
+            Area::Track(track.id.clone()),
+            &track.name,
+            "Pan",
+            theme::format_compact_value(old.channel.panner.primary_position(), Unit::Pan),
+            theme::format_compact_value(track.channel.panner.primary_position(), Unit::Pan),
+        );
+    }
+    let old_processors = processors(before);
+    for (host, processor) in processors(after) {
+        let Some((_, old)) = old_processors.iter().find(|(_, p)| p.id == processor.id) else {
+            continue;
+        };
+        let owner = format!("{} on {host}", theme::processor_title(processor.kind));
+        for setting in &processor.settings {
+            if let Some(prev) = old.settings.iter().find(|s| s.key == setting.key) {
+                push(
+                    Area::Processor(processor.id.clone()),
+                    &owner,
+                    &title(&setting.key),
+                    prev.value.clone(),
+                    setting.value.clone(),
+                );
+            }
+        }
+        push(
+            Area::Processor(processor.id.clone()),
+            &owner,
+            "Bypass",
+            if old.bypass { "on" } else { "off" }.to_owned(),
+            if processor.bypass { "on" } else { "off" }.to_owned(),
+        );
+    }
+    for pattern in &after.song.patterns {
+        if let Some(old) = before.song.patterns.iter().find(|p| p.id == pattern.id)
+            && musical_events(old) != musical_events(pattern)
+        {
+            let (was, is) = (musical_events(old), musical_events(pattern));
+            // Same number of events: say how many changed rather than "4 to 4".
+            let (before, after) = if was.len() == is.len() {
+                let changed = was.iter().zip(&is).filter(|(a, b)| a != b).count();
+                (
+                    String::new(),
+                    format!("{changed} of {} changed", plural(is.len(), "event")),
+                )
+            } else {
+                (plural(was.len(), "event"), plural(is.len(), "event"))
+            };
+            out.push(ValueChange {
+                area: Area::Pattern(pattern.id.clone()),
+                owner: pattern.id.clone(),
+                label: "Notes".to_owned(),
+                before,
+                after,
+            });
+        }
+    }
+    out
 }
 
-fn run_rows(
-    ui: &mut Ui,
-    cx: &mut Cx<'_>,
-    items: &[Item<'_>],
-    run: &[Item<'_>],
-    selected: usize,
-    mixed_authors: bool,
-    pick: &mut Option<usize>,
-) {
-    let app = cx.app;
-    let head = &run[0];
-    let oldest = &run[run.len() - 1];
-    let folds = run.len() > 1;
-    let expanded = folds && cx.state.history_runs.contains(&oldest.entry.id);
-    let holds_selection = run.iter().any(|item| item.index == selected);
-    let highlight = holds_selection && !expanded;
-    let current = run.iter().any(|item| is_current(app, item.entry));
-    // A restore reads as where it went back to.
-    let target = (head.kind == Kind::Restore)
-        .then(|| restore_target(items, head))
-        .flatten();
-    let subject = target.map_or_else(
-        || head.subject.clone(),
-        |target| format!("Back to {} — {}", target.subject, target.action),
-    );
-    let detail = if let Some(target) = target {
-        format!("version from {}", clock(target.at))
-    } else if folds {
-        format!("{} · {}", plural(run.len(), "change"), run_actions(run))
-    } else {
-        head.action.clone()
-    };
-    let mut triangle = Rect::NOTHING;
-    let hover_bg = ui.painter().add(egui::Shape::Noop);
-    let row = egui::Frame::new()
-        .fill(if highlight {
-            theme::BG_CARD
-        } else {
-            Color32::TRANSPARENT
+/// A pattern's events as music only (time, pitch or voice, length, velocity), ignoring where
+/// they sit in the source, which shifts whenever a file is edited.
+fn musical_events(pattern: &crate::model::Pattern) -> Vec<String> {
+    use crate::model::PatternEvent;
+    pattern
+        .events
+        .iter()
+        .map(|event| match event {
+            PatternEvent::Note {
+                at,
+                pitch,
+                duration,
+                velocity,
+                ..
+            } => format!("note {at} {pitch} {duration} {velocity}"),
+            PatternEvent::Hit {
+                at,
+                voice,
+                velocity,
+                ..
+            } => format!("hit {at} {voice:?} {velocity}"),
+            PatternEvent::Sample {
+                at,
+                mapping,
+                duration,
+                velocity,
+                ..
+            } => format!("sample {at} {mapping} {duration} {velocity}"),
         })
-        .stroke(Stroke::new(
-            1.0_f32,
-            if highlight {
-                theme::SELECTION
+        .collect()
+}
+
+/// Every track, group, return and Master insert with the name of the channel it sits on.
+fn processors(project: &Project) -> Vec<(String, &crate::model::Processor)> {
+    let song = &project.song;
+    let mut out = Vec::new();
+    for t in &song.tracks {
+        out.extend(t.channel.inserts.iter().map(|p| (t.name.clone(), p)));
+    }
+    for g in &song.groups {
+        out.extend(g.channel.inserts.iter().map(|p| (g.name.clone(), p)));
+    }
+    for r in &song.returns {
+        out.extend(r.channel.inserts.iter().map(|p| (r.name.clone(), p)));
+    }
+    if let Some(m) = &song.master {
+        out.extend(m.inserts.iter().map(|p| ("Master".to_owned(), p)));
+    }
+    out
+}
+
+/// The sound a set of changes belongs to: an instrument and the track playing it, or a pattern.
+#[derive(Default, Clone)]
+struct Focus {
+    instrument: Option<String>,
+    track: Option<String>,
+    pattern: Option<String>,
+    tempo: bool,
+}
+
+fn focus_of(project: &Project, changes: &[ValueChange]) -> Option<Focus> {
+    let song = &project.song;
+    let track_playing = |instrument: &str| {
+        song.tracks
+            .iter()
+            .find(|t| t.instrument == instrument)
+            .map(|t| t.id.clone())
+    };
+    let change = changes.first()?;
+    let mut focus = Focus::default();
+    match &change.area {
+        Area::Tempo => focus.tempo = true,
+        Area::Instrument(id) => {
+            focus.instrument = Some(id.clone());
+            focus.track = track_playing(id);
+        }
+        Area::Track(track) => {
+            focus.track = Some(track.clone());
+            focus.instrument = song
+                .tracks
+                .iter()
+                .find(|t| t.id == *track)
+                .map(|t| t.instrument.clone());
+        }
+        Area::Pattern(pattern) => {
+            focus.pattern = Some(pattern.clone());
+            if let Some(track) = song
+                .tracks
+                .iter()
+                .find(|t| t.clips.iter().any(|c| c.pattern == *pattern))
+            {
+                focus.track = Some(track.id.clone());
+                focus.instrument = Some(track.instrument.clone());
+            }
+        }
+        Area::Processor(id) => {
+            if let Some(track) = song
+                .tracks
+                .iter()
+                .find(|t| t.channel.inserts.iter().any(|p| p.id == *id))
+            {
+                focus.track = Some(track.id.clone());
+                focus.instrument = Some(track.instrument.clone());
             } else {
-                Color32::TRANSPARENT
-            },
-        ))
-        .corner_radius(5.0)
-        .inner_margin(egui::Margin::symmetric(8, 6))
+                // A group, return or Master effect: show just the effects.
+                focus.track = None;
+            }
+        }
+    }
+    Some(focus)
+}
+
+/// Which version the sound panel shows and what it compares against.
+struct SoundView<'a> {
+    /// The version drawn.
+    shown: &'a Project,
+    /// The version before it, whose values ghost behind this edit's controls.
+    previous: Option<&'a Project>,
+    /// The other side of Then / Now, whose differing values are marked more quietly.
+    other: Option<&'a Project>,
+    other_word: &'a str,
+}
+
+/// How a control differs: this edit moved it, or it differs from the other side.
+#[derive(Clone, Copy)]
+enum Mark {
+    Edited(f64),
+    Differs(f64),
+}
+
+fn mark(value: f64, previous: Option<f64>, other: Option<f64>) -> Option<Mark> {
+    let moved = |v: f64| (v - value).abs() > 1e-9;
+    match (previous.filter(|v| moved(*v)), other.filter(|v| moved(*v))) {
+        (Some(prev), _) => Some(Mark::Edited(prev)),
+        (None, Some(other)) => Some(Mark::Differs(other)),
+        _ => None,
+    }
+}
+
+/// A read-only dial. An edited control lights its arc, ghosts its previous position on the arc
+/// and names the previous value; a control that only differs from the other side gets a quiet
+/// outline and names the other value.
+#[allow(clippy::too_many_arguments)]
+fn dial(
+    ui: &mut Ui,
+    label: &str,
+    value: f64,
+    min: f64,
+    max: f64,
+    unit: crate::model::Unit,
+    mark: Option<Mark>,
+    other_word: &str,
+    accent: Color32,
+) {
+    const SIZE: f32 = 64.0;
+    ui.vertical(|ui| {
+        ui.set_width(SIZE + 30.0);
+        let (rect, _) = ui.allocate_exact_size(Vec2::new(SIZE + 30.0, SIZE + 8.0), Sense::hover());
+        let painter = ui.painter();
+        let center = rect.center();
+        let radius = SIZE * 0.42;
+        let start = std::f32::consts::PI * 0.75;
+        let sweep = std::f32::consts::PI * 1.5;
+        let point = |t: f32, r: f32| {
+            let a = start + sweep * t;
+            Pos2::new(center.x + r * a.cos(), center.y + r * a.sin())
+        };
+        let arc = |from: f32, to: f32| {
+            (0..=32)
+                .map(|i| point(from + (to - from) * i as f32 / 32.0, radius))
+                .collect::<Vec<_>>()
+        };
+        let norm = theme::value_to_norm(value, min, max, unit);
+        painter.circle_filled(center, radius * 0.78, theme::BG_CARD);
+        painter.add(egui::Shape::line(
+            arc(0.0, 1.0),
+            Stroke::new(4.0_f32, theme::BG_WELL),
+        ));
+        let edited = matches!(mark, Some(Mark::Edited(_)));
+        if let Some(Mark::Edited(prev)) = mark {
+            let was = theme::value_to_norm(prev, min, max, unit);
+            painter.add(egui::Shape::line(
+                arc(was.min(norm), was.max(norm)),
+                Stroke::new(4.0_f32, with_alpha(accent, 0.28)),
+            ));
+            painter.line_segment(
+                [point(was, radius - 7.0), point(was, radius + 6.0)],
+                Stroke::new(2.0_f32, theme::TEXT_SECONDARY),
+            );
+        }
+        painter.add(egui::Shape::line(
+            arc(0.0, norm),
+            Stroke::new(
+                4.0_f32,
+                if edited {
+                    accent
+                } else {
+                    with_alpha(accent, 0.5)
+                },
+            ),
+        ));
+        painter.line_segment(
+            [center, point(norm, radius * 0.7)],
+            Stroke::new(2.0_f32, theme::TEXT_PRIMARY),
+        );
+        match mark {
+            Some(Mark::Edited(_)) => {
+                painter.circle_stroke(
+                    center,
+                    radius + 10.0,
+                    Stroke::new(1.5_f32, theme::SELECTION),
+                );
+            }
+            Some(Mark::Differs(_)) => {
+                painter.circle_stroke(
+                    center,
+                    radius + 10.0,
+                    Stroke::new(1.0_f32, theme::BORDER_STRONG),
+                );
+            }
+            None => {}
+        }
+        ui.vertical_centered(|ui| {
+            ui.label(
+                RichText::new(label.to_uppercase())
+                    .size(9.5)
+                    .color(theme::TEXT_SECONDARY),
+            );
+            ui.label(
+                RichText::new(theme::format_compact_value(value, unit))
+                    .monospace()
+                    .size(11.5)
+                    .color(theme::TEXT_PRIMARY),
+            );
+            let note = match mark {
+                Some(Mark::Edited(prev)) => {
+                    format!("previous {}", theme::format_compact_value(prev, unit))
+                }
+                Some(Mark::Differs(other)) => {
+                    format!("{other_word} {}", theme::format_compact_value(other, unit))
+                }
+                None => " ".to_owned(),
+            };
+            ui.label(RichText::new(note).size(10.0).color(theme::TEXT_MUTED));
+        });
+    });
+}
+
+/// A small vertical fader, its marked level ghosted.
+fn fader(ui: &mut Ui, db: f64, mark: Option<Mark>, other_word: &str) {
+    use crate::model::Unit;
+    ui.vertical(|ui| {
+        ui.set_width(64.0);
+        let (rect, _) = ui.allocate_exact_size(Vec2::new(64.0, 116.0), Sense::hover());
+        let painter = ui.painter();
+        let slot = Rect::from_center_size(rect.center(), Vec2::new(6.0, rect.height() - 10.0));
+        painter.rect_filled(slot, 3.0, theme::BG_WELL);
+        let y_of =
+            |db: f64| slot.bottom() - widgets::fader_db_to_norm(db, -60.0, 12.0) * slot.height();
+        painter.hline(
+            (slot.left() - 8.0)..=(slot.right() + 8.0),
+            y_of(0.0),
+            Stroke::new(1.0_f32, theme::BORDER_STRONG),
+        );
+        if let Some(Mark::Edited(prev) | Mark::Differs(prev)) = mark {
+            painter.rect_filled(
+                Rect::from_center_size(
+                    Pos2::new(slot.center().x, y_of(prev)),
+                    Vec2::new(30.0, 4.0),
+                ),
+                2.0,
+                with_alpha(theme::TEXT_SECONDARY, 0.6),
+            );
+        }
+        let cap =
+            Rect::from_center_size(Pos2::new(slot.center().x, y_of(db)), Vec2::new(34.0, 12.0));
+        painter.rect_filled(cap, 3.0, theme::TEXT_PRIMARY);
+        if matches!(mark, Some(Mark::Edited(_))) {
+            painter.rect_stroke(
+                cap.expand(3.0),
+                4.0,
+                Stroke::new(1.5_f32, theme::SELECTION),
+                StrokeKind::Outside,
+            );
+        }
+        ui.vertical_centered(|ui| {
+            ui.label(
+                RichText::new("LEVEL")
+                    .size(9.5)
+                    .color(theme::TEXT_SECONDARY),
+            );
+            ui.label(
+                RichText::new(theme::format_compact_value(db, Unit::Decibels))
+                    .monospace()
+                    .size(11.5)
+                    .color(theme::TEXT_PRIMARY),
+            );
+            let note = match mark {
+                Some(Mark::Edited(prev)) => {
+                    format!(
+                        "previous {}",
+                        theme::format_compact_value(prev, Unit::Decibels)
+                    )
+                }
+                Some(Mark::Differs(other)) => {
+                    format!(
+                        "{other_word} {}",
+                        theme::format_compact_value(other, Unit::Decibels)
+                    )
+                }
+                None => " ".to_owned(),
+            };
+            ui.label(RichText::new(note).size(10.0).color(theme::TEXT_MUTED));
+        });
+    });
+}
+
+/// A pattern drawn small: notes or hits over its span.
+fn pattern_thumb(
+    painter: &egui::Painter,
+    rect: Rect,
+    pattern: &crate::model::Pattern,
+    color: Color32,
+) {
+    use crate::model::PatternEvent;
+    painter.rect_filled(rect, 4.0, theme::BG_WELL);
+    let span = pattern.span.as_f64().max(0.25);
+    let pitches = pattern
+        .events
+        .iter()
+        .filter_map(|e| match e {
+            PatternEvent::Note { pitch, .. } => Some(*pitch),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let hi = pitches.iter().max().copied().unwrap_or(60);
+    let lo = pitches.iter().min().copied().unwrap_or(48);
+    let rows = f32::from(hi.saturating_sub(lo).max(4)) + 1.0;
+    for beat in 0..(span.ceil() as usize) {
+        painter.vline(
+            rect.left() + rect.width() * (beat as f64 / span) as f32,
+            rect.y_range(),
+            Stroke::new(1.0_f32, with_alpha(theme::BORDER_SUBTLE, 0.6)),
+        );
+    }
+    let h = ((rect.height() - 8.0) / rows).max(3.0);
+    for event in &pattern.events {
+        let (at, len, row) = match event {
+            PatternEvent::Note {
+                at,
+                pitch,
+                duration,
+                ..
+            } => (at.as_f64(), duration.as_f64(), f32::from(hi - pitch)),
+            PatternEvent::Hit { at, voice, .. } => (at.as_f64(), 0.12, *voice as u8 as f32),
+            PatternEvent::Sample { at, duration, .. } => (at.as_f64(), duration.as_f64(), 0.0),
+        };
+        let x0 = rect.left() + rect.width() * (at / span) as f32;
+        let x1 = rect.left() + rect.width() * ((at + len) / span) as f32;
+        let y = rect.top() + 4.0 + row.min(rows - 1.0) * h;
+        painter.rect_filled(
+            Rect::from_min_max(Pos2::new(x0, y), Pos2::new(x1.max(x0 + 3.0), y + h)),
+            1.5,
+            color,
+        );
+    }
+}
+
+fn section(ui: &mut Ui, kind: Kind, name: &str, body: impl FnOnce(&mut Ui)) {
+    egui::Frame::new()
+        .fill(theme::BG_SURFACE)
+        .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
+        .corner_radius(8.0)
+        .inner_margin(egui::Margin::same(12))
+        .show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.horizontal(|ui| {
+                    kind_chip(ui, kind);
+                    ui.label(
+                        RichText::new(name)
+                            .strong()
+                            .size(12.5)
+                            .color(theme::TEXT_PRIMARY),
+                    );
+                });
+                ui.add_space(8.0);
+                body(ui);
+            });
+        });
+}
+
+/// The sound a version belongs to: synth dials, its track's level and pan, its effects and its
+/// pattern, as `view.shown` has them.
+fn sound_panel(ui: &mut Ui, view: &SoundView<'_>, focus: &Focus) {
+    use crate::model::Unit;
+    let song = &view.shown.song;
+    let prev_song = view.previous.map(|p| &p.song);
+    let other_song = view.other.map(|p| &p.song);
+    let word = view.other_word;
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = Vec2::new(16.0, 16.0);
+        if focus.tempo {
+            section(ui, Kind::Song, "Song", |ui| {
+                dial(
+                    ui,
+                    "Tempo",
+                    song.tempo_bpm,
+                    60.0,
+                    180.0,
+                    Unit::Ratio,
+                    mark(
+                        song.tempo_bpm,
+                        prev_song.map(|s| s.tempo_bpm),
+                        other_song.map(|s| s.tempo_bpm),
+                    ),
+                    word,
+                    theme::TEXT_PRIMARY,
+                );
+            });
+        }
+        let track = focus
+            .track
+            .as_ref()
+            .and_then(|id| song.tracks.iter().find(|t| t.id == *id));
+        if let Some(inst) = focus
+            .instrument
+            .as_ref()
+            .and_then(|id| song.instruments.iter().find(|i| i.id == *id))
+        {
+            let find = |s: Option<&crate::model::Song>, key: &str| {
+                s.and_then(|s| s.instruments.iter().find(|i| i.id == inst.id))
+                    .and_then(|i| i.parameters.iter().find(|p| p.key == key))
+                    .map(|p| p.value)
+            };
+            let name = match track {
+                Some(track) => format!("{} on {}", inst.name, track.name),
+                None => inst.name.clone(),
+            };
+            section(ui, Kind::Instrument, &name, |ui| {
+                ui.horizontal_top(|ui| {
+                    for param in &inst.parameters {
+                        dial(
+                            ui,
+                            &param.name,
+                            param.value,
+                            param.minimum,
+                            param.maximum,
+                            param.unit,
+                            mark(
+                                param.value,
+                                find(prev_song, &param.key),
+                                find(other_song, &param.key),
+                            ),
+                            word,
+                            Kind::Instrument.color(),
+                        );
+                    }
+                });
+            });
+        }
+        if let Some(track) = track {
+            let prev = prev_song.and_then(|s| s.tracks.iter().find(|t| t.id == track.id));
+            let other = other_song.and_then(|s| s.tracks.iter().find(|t| t.id == track.id));
+            section(ui, Kind::Mix, &track.name, |ui| {
+                ui.horizontal_top(|ui| {
+                    fader(
+                        ui,
+                        track.channel.level_db,
+                        mark(
+                            track.channel.level_db,
+                            prev.map(|t| t.channel.level_db),
+                            other.map(|t| t.channel.level_db),
+                        ),
+                        word,
+                    );
+                    let pan = track.channel.panner.primary_position();
+                    dial(
+                        ui,
+                        "Pan",
+                        pan,
+                        -1.0,
+                        1.0,
+                        Unit::Pan,
+                        mark(
+                            pan,
+                            prev.map(|t| t.channel.panner.primary_position()),
+                            other.map(|t| t.channel.panner.primary_position()),
+                        ),
+                        word,
+                        Kind::Mix.color(),
+                    );
+                });
+            });
+            if !track.channel.inserts.is_empty() {
+                section(ui, Kind::Fx, &format!("Effects on {}", track.name), |ui| {
+                    for processor in &track.channel.inserts {
+                        let prev_p = prev
+                            .and_then(|t| t.channel.inserts.iter().find(|p| p.id == processor.id));
+                        let other_p = other
+                            .and_then(|t| t.channel.inserts.iter().find(|p| p.id == processor.id));
+                        effect_settings(ui, processor, prev_p, other_p, word);
+                    }
+                });
+            }
+        }
+        if let Some(pattern) = focus
+            .pattern
+            .as_ref()
+            .and_then(|id| song.patterns.iter().find(|p| p.id == *id))
+        {
+            section(ui, Kind::Pattern, &pattern.id, |ui| {
+                let (rect, _) = ui.allocate_exact_size(Vec2::new(300.0, 96.0), Sense::hover());
+                pattern_thumb(ui.painter(), rect, pattern, Kind::Pattern.color());
+            });
+        }
+    });
+}
+
+/// One effect's settings as chips; edited ones lit with their previous value, ones that differ
+/// from the other side outlined quietly.
+fn effect_settings(
+    ui: &mut Ui,
+    processor: &crate::model::Processor,
+    previous: Option<&crate::model::Processor>,
+    other: Option<&crate::model::Processor>,
+    other_word: &str,
+) {
+    ui.label(
+        RichText::new(theme::processor_title(processor.kind))
+            .strong()
+            .size(11.5)
+            .color(if processor.bypass {
+                theme::TEXT_MUTED
+            } else {
+                theme::TEXT_PRIMARY
+            }),
+    );
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = Vec2::new(6.0, 6.0);
+        for setting in &processor.settings {
+            let value_in = |p: Option<&crate::model::Processor>| {
+                p.and_then(|p| p.settings.iter().find(|s| s.key == setting.key))
+                    .map(|s| s.value.clone())
+                    .filter(|v| *v != setting.value)
+            };
+            let (text, lit, quiet) = match (value_in(previous), value_in(other)) {
+                (Some(prev), _) => (
+                    format!("{} {} (previous {prev})", setting.key, setting.value),
+                    true,
+                    false,
+                ),
+                (None, Some(other)) => (
+                    format!("{} {} ({other_word} {other})", setting.key, setting.value),
+                    false,
+                    true,
+                ),
+                _ => (format!("{} {}", setting.key, setting.value), false, false),
+            };
+            let width = ui
+                .painter()
+                .layout_no_wrap(
+                    text.clone(),
+                    FontId::proportional(10.5),
+                    theme::TEXT_PRIMARY,
+                )
+                .size()
+                .x
+                + 16.0;
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(width, 22.0), Sense::hover());
+            let painter = ui.painter();
+            painter.rect_filled(rect, 3.0, theme::BG_CARD);
+            painter.rect_stroke(
+                rect,
+                3.0,
+                Stroke::new(
+                    1.0_f32,
+                    if lit {
+                        theme::SELECTION
+                    } else if quiet {
+                        theme::BORDER_STRONG
+                    } else {
+                        theme::BORDER_SUBTLE
+                    },
+                ),
+                StrokeKind::Inside,
+            );
+            painter.text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                text,
+                FontId::proportional(10.5),
+                if lit || quiet {
+                    theme::TEXT_PRIMARY
+                } else {
+                    theme::TEXT_SECONDARY
+                },
+            );
+        }
+    });
+    ui.add_space(6.0);
+}
+
+/// A titled list of value changes: owner and control, the old value dimmed, the new one strong.
+fn change_list(ui: &mut Ui, title: &str, changes: &[ValueChange], empty: &str) {
+    egui::Frame::new()
+        .fill(theme::BG_SURFACE)
+        .corner_radius(8.0)
+        .inner_margin(egui::Margin::same(14))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                let (tri, _) = ui.allocate_exact_size(Vec2::splat(14.0), Sense::hover());
-                triangle = tri.expand(6.0);
-                if folds {
-                    disclosure(ui.painter(), tri.center(), expanded, theme::TEXT_SECONDARY);
-                }
-                kind_chip(ui, head.kind);
+            ui.label(
+                RichText::new(title)
+                    .strong()
+                    .size(9.5)
+                    .color(theme::TEXT_MUTED),
+            );
+            ui.add_space(6.0);
+            if changes.is_empty() {
+                ui.label(RichText::new(empty).size(11.0).color(theme::TEXT_MUTED));
+            }
+            for change in changes {
                 ui.label(
-                    RichText::new(subject)
-                        .strong()
-                        .size(12.5)
-                        .color(theme::TEXT_PRIMARY),
+                    RichText::new(format!("{} · {}", change.owner, change.label))
+                        .size(11.0)
+                        .color(theme::TEXT_SECONDARY),
                 );
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.label(
-                        RichText::new(if folds {
-                            format!("{}–{}", clock(oldest.at), clock(head.at))
-                        } else {
-                            clock(head.at)
-                        })
-                        .monospace()
-                        .size(10.5)
-                        .color(theme::TEXT_MUTED),
-                    );
-                    if current {
-                        current_marker(ui);
-                    }
-                    if mixed_authors {
+                ui.horizontal(|ui| {
+                    if !change.before.is_empty() {
                         ui.label(
-                            RichText::new(who(head.entry))
-                                .size(10.5)
+                            RichText::new(&change.before)
+                                .monospace()
+                                .size(12.0)
                                 .color(theme::TEXT_MUTED),
                         );
+                        ui.label(RichText::new("to").size(10.5).color(theme::TEXT_MUTED));
                     }
-                    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(detail)
-                                    .size(11.5)
-                                    .color(theme::TEXT_SECONDARY),
-                            )
-                            .truncate(),
-                        );
-                    });
-                });
-            });
-        });
-    // The row selects the run's latest change and opens a run; only the triangle folds it.
-    let response = row.response.interact(Sense::click());
-    if response.hovered() && !highlight {
-        ui.painter().set(
-            hover_bg,
-            egui::Shape::rect_filled(response.rect, 5.0, theme::BG_HOVER),
-        );
-    }
-    let folded_target = !expanded
-        && cx
-            .state
-            .history_scroll
-            .as_ref()
-            .is_some_and(|id| run.iter().any(|item| item.entry.id == *id));
-    if folded_target {
-        response.scroll_to_me(Some(Align::Center));
-        cx.state.history_scroll = None;
-    }
-    let response = if folds {
-        response.on_hover_text("Click to open · the triangle folds it again")
-    } else {
-        response
-    };
-    if response.clicked() {
-        let on_triangle = response
-            .interact_pointer_pos()
-            .is_some_and(|pos| triangle.contains(pos));
-        if folds && on_triangle {
-            if expanded {
-                cx.state.history_runs.remove(&oldest.entry.id);
-            } else {
-                cx.state.history_runs.insert(oldest.entry.id.clone());
-            }
-        } else {
-            *pick = Some(head.index);
-            if folds {
-                cx.state.history_runs.insert(oldest.entry.id.clone());
-            }
-        }
-    }
-    if expanded {
-        for item in run {
-            child_row(ui, app, item, selected, &mut cx.state.history_scroll, pick);
-        }
-    }
-    ui.add_space(2.0);
-}
-
-fn child_row(
-    ui: &mut Ui,
-    app: &Workspace,
-    item: &Item<'_>,
-    selected: usize,
-    scroll: &mut Option<String>,
-    pick: &mut Option<usize>,
-) {
-    let is_selected = item.index == selected;
-    let hover_bg = ui.painter().add(egui::Shape::Noop);
-    let row = egui::Frame::new()
-        .fill(if is_selected {
-            theme::BG_CARD
-        } else {
-            Color32::TRANSPARENT
-        })
-        .stroke(Stroke::new(
-            1.0_f32,
-            if is_selected {
-                theme::SELECTION
-            } else {
-                Color32::TRANSPARENT
-            },
-        ))
-        .corner_radius(4.0)
-        .inner_margin(egui::Margin {
-            left: 100,
-            right: 8,
-            top: 3,
-            bottom: 3,
-        })
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                let (dot, _) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
-                ui.painter()
-                    .circle_filled(dot.center(), 3.0, theme::BORDER_STRONG);
-                ui.label(
-                    RichText::new(&item.action)
-                        .size(11.5)
-                        .color(theme::TEXT_PRIMARY),
-                );
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(
-                        RichText::new(clock(item.at))
+                        RichText::new(&change.after)
                             .monospace()
-                            .size(10.0)
-                            .color(theme::TEXT_MUTED),
+                            .strong()
+                            .size(14.0)
+                            .color(theme::TEXT_PRIMARY),
                     );
-                    if is_current(app, item.entry) {
-                        current_marker(ui);
-                    }
                 });
-            });
+                ui.add_space(4.0);
+            }
         });
-    let response = row.response.interact(Sense::click());
-    if response.hovered() && !is_selected {
-        ui.painter().set(
-            hover_bg,
-            egui::Shape::rect_filled(response.rect, 4.0, theme::BG_HOVER),
+}
+
+/// Every version as a tick, oldest on the left and Now at the right end, sessions as bands.
+/// Ticks for the selected sound stand out; restores are diamonds. Drag anywhere to scrub.
+fn scrub_rail(ui: &mut Ui, items: &[Item<'_>], selected: usize, pick: &mut Option<usize>) {
+    let n = items.len().max(1);
+    let height = 58.0;
+    let (rect, response) = ui.allocate_exact_size(
+        Vec2::new(ui.available_width(), height),
+        Sense::click_and_drag(),
+    );
+    let painter = ui.painter();
+    let rail = Rect::from_min_max(
+        Pos2::new(rect.left() + 14.0, rect.top()),
+        Pos2::new(rect.right() - 56.0, rect.bottom()),
+    );
+    let slot = rail.width() / n as f32;
+    let x_of = |index: usize| rail.right() - slot * (index as f32 + 0.5);
+    painter.rect_filled(rect, 6.0, theme::BG_WELL);
+    for (band, session) in sessions(items).iter().enumerate() {
+        let oldest = &session[session.len() - 1];
+        let x0 = x_of(oldest.index) - slot * 0.5;
+        let x1 = x_of(session[0].index) + slot * 0.5;
+        if band % 2 == 1 {
+            painter.rect_filled(
+                Rect::from_min_max(Pos2::new(x0, rect.top()), Pos2::new(x1, rect.bottom())),
+                0.0,
+                with_alpha(theme::BG_SURFACE, 0.8),
+            );
+        }
+        painter.text(
+            Pos2::new(x0 + 6.0, rect.top() + 5.0),
+            Align2::LEFT_TOP,
+            format!("{} {}", day_label(oldest.at), clock(oldest.at)),
+            FontId::proportional(9.5),
+            theme::TEXT_MUTED,
         );
     }
-    if scroll.as_ref() == Some(&item.entry.id) {
-        response.scroll_to_me(Some(Align::Center));
-        *scroll = None;
+    let y = rect.bottom() - 18.0;
+    painter.hline(
+        rail.x_range(),
+        y,
+        Stroke::new(2.0_f32, theme::BORDER_SUBTLE),
+    );
+    let focus = &items[selected];
+    for item in items {
+        let x = x_of(item.index);
+        let related = item.same_subject(focus) || item.index == selected;
+        let color = if related {
+            item.kind.color()
+        } else {
+            with_alpha(item.kind.color(), 0.4)
+        };
+        if item.kind == Kind::Restore {
+            painter.add(egui::Shape::convex_polygon(
+                vec![
+                    Pos2::new(x, y - 7.0),
+                    Pos2::new(x + 5.0, y),
+                    Pos2::new(x, y + 7.0),
+                    Pos2::new(x - 5.0, y),
+                ],
+                color,
+                Stroke::NONE,
+            ));
+        } else {
+            let tall = if related { 12.0 } else { 7.0 };
+            painter.line_segment(
+                [Pos2::new(x, y - tall), Pos2::new(x, y + 4.0)],
+                Stroke::new(3.0_f32, color),
+            );
+        }
     }
-    if response.clicked() {
-        *pick = Some(item.index);
+    // Now: the right end of time.
+    let now_x = rect.right() - 30.0;
+    painter.text(
+        Pos2::new(now_x, y),
+        Align2::CENTER_CENTER,
+        "Now",
+        FontId::proportional(10.5),
+        theme::TEXT_SECONDARY,
+    );
+    let px = x_of(selected);
+    painter.vline(
+        px,
+        (rect.top() + 18.0)..=rect.bottom(),
+        Stroke::new(2.0_f32, theme::SELECTION),
+    );
+    painter.add(egui::Shape::convex_polygon(
+        vec![
+            Pos2::new(px - 6.0, rect.top() + 18.0),
+            Pos2::new(px + 6.0, rect.top() + 18.0),
+            Pos2::new(px, rect.top() + 26.0),
+        ],
+        theme::SELECTION,
+        Stroke::NONE,
+    ));
+    let index_at = |x: f32| (((rail.right() - x) / slot).floor().max(0.0) as usize).min(n - 1);
+    if let Some(pos) = response.hover_pos() {
+        let hovered = &items[index_at(pos.x)];
+        response.clone().on_hover_text(format!(
+            "{} — {}\n{} at {}",
+            hovered.subject,
+            hovered.action,
+            day_label(hovered.at),
+            clock(hovered.at)
+        ));
+    }
+    if (response.dragged() || response.clicked())
+        && let Some(pos) = response.interact_pointer_pos()
+    {
+        *pick = Some(index_at(pos.x));
     }
 }
 
-/// What the inspector asked for this frame.
-struct InspectorActions<'a> {
-    /// Select another entry and reveal it in the list.
-    jump: &'a mut Option<usize>,
-    restore: &'a mut bool,
-    compare: &'a mut bool,
-    show_change: &'a mut bool,
+/// Older / Newer, Play this version, Then / Now and Restore.
+fn transport(ui: &mut Ui, cx: &mut Cx<'_>, items: &[Item<'_>], item: &Item<'_>) {
+    let app = cx.app;
+    let selected = item.index;
+    let hearing = app.history_preview.as_ref().map(|(id, _)| id.clone());
+    let playing = app.player.is_some() || app.playback_requested;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        // Newest first: older is a higher index.
+        if ui
+            .add_enabled(selected + 1 < items.len(), egui::Button::new("Older"))
+            .on_hover_text("Step to the version before this one")
+            .clicked()
+        {
+            cx.select(selected, selected + 1);
+        }
+        if ui
+            .add_enabled(selected > 0, egui::Button::new("Newer"))
+            .on_hover_text("Step to the version after this one")
+            .clicked()
+        {
+            cx.select(selected, selected - 1);
+        }
+        ui.add_space(8.0);
+        let previewing = playing && hearing.is_some();
+        let (rect, response) = ui.allocate_exact_size(Vec2::new(170.0, 30.0), Sense::click());
+        let painter = ui.painter();
+        painter.rect_filled(
+            rect,
+            15.0,
+            if response.hovered() {
+                theme::BG_HOVER
+            } else {
+                theme::BG_ACTIVE
+            },
+        );
+        let icon = Rect::from_center_size(
+            Pos2::new(rect.left() + 18.0, rect.center().y),
+            Vec2::splat(16.0),
+        );
+        if previewing {
+            theme::paint_stop_icon(painter, icon, theme::TEXT_PRIMARY);
+        } else {
+            theme::paint_play_icon(painter, icon, theme::SIG_NOMINAL);
+        }
+        painter.text(
+            Pos2::new(rect.left() + 34.0, rect.center().y),
+            Align2::LEFT_CENTER,
+            if previewing {
+                "Stop"
+            } else {
+                "Play this version"
+            },
+            FontId::proportional(12.0),
+            theme::TEXT_PRIMARY,
+        );
+        if response
+            .on_hover_text("Hear the project as it was at this version, from the cursor")
+            .clicked()
+        {
+            if previewing {
+                cx.send(Action::StopPlayback);
+            } else {
+                cx.state.history_show_now = false;
+                cx.send(Action::PreviewHistoryVersion(Some(item.entry.id.clone())));
+                if !playing {
+                    cx.send(Action::TogglePlayback);
+                }
+            }
+        }
+        // Then / Now swaps what the panel shows and, while a version plays, what you hear.
+        let show_now = cx.state.history_show_now;
+        for (label, now) in [("Then", false), ("Now", true)] {
+            if widgets::pill_toggle(
+                ui,
+                label,
+                show_now == now,
+                if now {
+                    "Show and hear the current version"
+                } else {
+                    "Show and hear this version"
+                },
+            )
+            .clicked()
+                && show_now != now
+            {
+                cx.state.history_show_now = now;
+                if previewing || (playing && hearing.is_none() && !now) {
+                    cx.send(Action::PreviewHistoryVersion(
+                        (!now).then(|| item.entry.id.clone()),
+                    ));
+                }
+            }
+        }
+        if previewing {
+            ui.label(
+                RichText::new(if show_now {
+                    "Hearing now".to_owned()
+                } else {
+                    format!("Hearing version {}", items.len() - selected)
+                })
+                .size(11.0)
+                .color(theme::TEXT_SECONDARY),
+            );
+        }
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            let current = is_current(app, item.entry);
+            let later = &items[..selected];
+            let impact = if later.is_empty() {
+                "This is the latest change.".to_owned()
+            } else {
+                format!(
+                    "Restoring undoes the {} made after it ({}). They stay in History.",
+                    plural(later.len(), "change"),
+                    session_subjects(later)
+                )
+            };
+            if ui
+                .add_enabled(!current, egui::Button::new("Restore this version"))
+                .on_hover_text(impact)
+                .clicked()
+            {
+                cx.send(Action::OpenRestore);
+            }
+            if ui
+                .add(egui::Button::new(RichText::new("Source diff").size(10.5)).frame(false))
+                .on_hover_text("The source this change edited · d")
+                .clicked()
+            {
+                cx.send(Action::OpenHistoryDiff);
+            }
+        });
+    });
 }
 
-fn inspector(
-    ui: &mut Ui,
-    app: &Workspace,
-    items: &[Item<'_>],
-    item: &Item<'_>,
-    actions: &mut InspectorActions<'_>,
-) {
+fn header(ui: &mut Ui, items: &[Item<'_>], item: &Item<'_>, number: usize, total: usize) {
+    // A restore reads as where it went back to.
+    let headline = restore_target(items, item).map_or_else(
+        || format!("{} — {}", item.subject, item.action),
+        |target| {
+            format!(
+                "Went back to {} — {} ({})",
+                target.subject,
+                target.action,
+                clock(target.at)
+            )
+        },
+    );
     ui.horizontal(|ui| {
         kind_chip(ui, item.kind);
         ui.label(
-            RichText::new(&item.subject)
+            RichText::new(headline)
                 .strong()
-                .size(13.5)
+                .size(17.0)
                 .color(theme::TEXT_PRIMARY),
         );
     });
-    ui.add_space(8.0);
-    let headline = match restore_target(items, item) {
-        Some(target) => format!(
-            "Went back to {} — {} ({})",
-            target.subject,
-            target.action,
-            clock(target.at)
-        ),
-        None => item.action.clone(),
-    };
-    ui.add(
-        egui::Label::new(
-            RichText::new(headline)
-                .size(18.0)
-                .color(theme::TEXT_PRIMARY),
-        )
-        .wrap(),
-    );
-    ui.add_space(4.0);
     ui.label(
         RichText::new(format!(
-            "{} · {} at {} · {}",
+            "Version {number} of {total} · {} · {} at {} · {}",
             who(item.entry),
             day_label(item.at),
             clock(item.at),
@@ -1010,189 +1674,45 @@ fn inspector(
         .size(11.0)
         .color(theme::TEXT_SECONDARY),
     );
-    if is_current(app, item.entry) {
-        ui.add_space(8.0);
-        current_marker(ui);
-    }
-    if !item.entry.explanation.is_empty() {
-        ui.add_space(10.0);
-        ui.add(
-            egui::Label::new(
-                RichText::new(format!("“{}”", item.entry.explanation))
-                    .italics()
-                    .size(11.5)
-                    .color(theme::TEXT_SECONDARY),
-            )
-            .wrap(),
-        );
-    }
-    if let Some(target) = restore_target(items, item) {
-        ui.add_space(8.0);
-        if ui
-            .add(egui::Button::new("Show that version").fill(theme::BG_CARD))
-            .clicked()
-        {
-            *actions.jump = Some(target.index);
-        }
-    }
-    // The other direction: this version was brought back later.
-    for later in items
-        .iter()
-        .filter(|other| other.entry.restored_from.as_ref() == Some(&item.entry.id))
-    {
-        ui.add_space(6.0);
-        if ui
-            .add(egui::Button::new(format!("Restored at {}", clock(later.at))).fill(theme::BG_CARD))
-            .on_hover_text("Show the restore")
-            .clicked()
-        {
-            *actions.jump = Some(later.index);
-        }
-    }
-
-    // What a restore would undo: every later change (History is newest first).
-    ui.add_space(16.0);
-    let later = &items[..item.index];
-    let impact = if is_current(app, item.entry) {
-        "This is the version you are hearing now.".to_owned()
-    } else if later.is_empty() {
-        "This is the latest change.".to_owned()
-    } else {
-        format!(
-            "Restoring undoes the {} made after it ({}). They stay in History, and the restore \
-             is added as a new change.",
-            plural(later.len(), "change"),
-            session_subjects(later)
-        )
-    };
-    ui.add(
-        egui::Label::new(
-            RichText::new(impact)
-                .size(10.5)
+    // Only an agent's note says something; workspace edits carry a fixed one.
+    if item.entry.origin.kind == OriginKind::Agent && !item.entry.explanation.is_empty() {
+        ui.label(
+            RichText::new(format!("“{}”", item.entry.explanation))
+                .italics()
+                .size(11.5)
                 .color(theme::TEXT_SECONDARY),
-        )
-        .wrap(),
-    );
-    ui.add_space(8.0);
-    ui.horizontal(|ui| {
-        let can_restore = !is_current(app, item.entry);
-        if ui
-            .add_enabled(
-                can_restore,
-                egui::Button::new("Compare with now").fill(theme::BG_CARD),
-            )
-            .on_hover_text("Show what restoring this version would change")
-            .clicked()
-        {
-            *actions.compare = true;
-        }
-        if ui
-            .add_enabled(
-                can_restore,
-                egui::Button::new("Restore this version").fill(theme::BG_CARD),
-            )
-            .on_hover_text("Bring back the whole project as it was after this change · R")
-            .clicked()
-        {
-            *actions.restore = true;
-        }
-    });
-    if ui
-        .add(egui::Button::new(RichText::new("Show this change").size(10.5)).frame(false))
-        .on_hover_text("What this change itself edited, against the version before it · d")
-        .clicked()
-    {
-        *actions.show_change = true;
-    }
-
-    // Every change to the same thing, newest first, to jump between versions of it.
-    let others = items
-        .iter()
-        .filter(|other| other.same_subject(item) && other.kind != Kind::Restore)
-        .collect::<Vec<_>>();
-    if others.len() > 1 {
-        ui.add_space(18.0);
-        ui.label(
-            RichText::new(format!("ALL CHANGES TO {}", item.subject.to_uppercase()))
-                .strong()
-                .size(9.5)
-                .color(theme::TEXT_MUTED),
         );
-        ui.add_space(6.0);
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(4.0, 4.0);
-            for other in others {
-                let text = format!("{} {}", clock(other.at), other.action);
-                let width = ui
-                    .painter()
-                    .layout_no_wrap(
-                        text.clone(),
-                        FontId::proportional(10.5),
-                        theme::TEXT_PRIMARY,
-                    )
-                    .size()
-                    .x
-                    + 16.0;
-                let width = width.min(ui.available_width());
-                if led_button(
-                    ui,
-                    &text,
-                    other.index == item.index,
-                    theme::SELECTION,
-                    Vec2::new(width, 22.0),
-                    &format!("{} · {}", day_label(other.at), ago(other.at)),
-                )
-                .clicked()
-                {
-                    *actions.jump = Some(other.index);
-                }
-            }
-        });
     }
-
-    // File-level detail stays available, folded away.
-    ui.add_space(18.0);
-    egui::CollapsingHeader::new(
-        RichText::new("Technical details")
-            .size(10.5)
-            .color(theme::TEXT_MUTED),
-    )
-    .id_salt("history-technical")
-    .show(ui, |ui| {
-        ui.label(
-            RichText::new(format!(
-                "Change {} · {}",
-                item.entry.id,
-                plural(item.entry.changes.len(), "file")
-            ))
-            .monospace()
-            .size(10.0)
-            .color(theme::TEXT_MUTED),
-        );
-        for change in &item.entry.changes {
-            ui.label(
-                RichText::new(widgets::legible(&change.path.display().to_string()))
-                    .monospace()
-                    .size(10.5)
-                    .color(theme::TEXT_SECONDARY),
-            );
-        }
-    });
 }
 
 #[cfg(test)]
 pub(super) mod tests {
     use super::*;
 
-    /// Sessions and the runs inside the newest one, as (subject, edits).
-    pub(in crate::workspace::gui) fn shape(app: &Workspace) -> (usize, Vec<(String, usize)>) {
-        let items = items(app);
-        let sessions = sessions(&items);
-        let runs = runs(sessions[0])
+    #[test]
+    fn a_version_reads_as_what_it_moved() {
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/deep-house-reference");
+        let (_dir, mut app) = super::super::tests::seed_real_history(&root);
+        let drive = app
+            .history
             .iter()
-            .map(|run| (run[0].subject.clone(), run.len()))
-            .collect();
-        (sessions.len(), runs)
+            .find(|entry| entry.summary.contains("dh-bass.drive"))
+            .expect("the drive edit")
+            .clone();
+        let store = crate::history::HistoryStore::open(&app.root).unwrap();
+        let after = store.bundle_at(&drive.id).unwrap();
+        let before = store.bundle_at(drive.parent.as_ref().unwrap()).unwrap();
+        let changes = value_changes(before.project.as_ref(), after.project.as_ref().unwrap());
+        let read = changes
+            .iter()
+            .map(|c| format!("{} · {}: {} to {}", c.owner, c.label, c.before, c.after))
+            .collect::<Vec<_>>();
+        assert_eq!(read, ["Deep House Bass · Drive: 20% to 42%"]);
+        let focus = focus_of(after.project.as_ref().unwrap(), &changes).unwrap();
+        assert_eq!(focus.instrument.as_deref(), Some("dh-bass"));
+        assert_eq!(focus.track.as_deref(), Some("bass"));
+        app.shutdown();
     }
 
     #[test]

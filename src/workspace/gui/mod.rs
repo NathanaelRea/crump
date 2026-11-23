@@ -160,13 +160,10 @@ struct UiState {
     before_diagnostics: View,
     /// The view the last frame drew, to spot a page switch.
     drawn_view: Option<View>,
-    /// History sessions folded or opened by hand, keyed by their oldest entry.
-    history_sessions: BTreeMap<String, bool>,
-    /// History runs opened to show each edit, keyed by their oldest entry.
-    history_runs: std::collections::BTreeSet<String>,
-    /// A History entry to reveal next frame, and the row to scroll to once it is drawn.
-    history_reveal: Option<String>,
-    history_scroll: Option<String>,
+    /// Projects rebuilt from History snapshots, by entry ID (`None` when unreadable).
+    history_versions: BTreeMap<String, Option<std::sync::Arc<crate::project::ProjectBundle>>>,
+    /// History shows (and, while previewing, plays) the current version instead of the picked one.
+    history_show_now: bool,
 }
 
 impl Default for UiState {
@@ -216,10 +213,8 @@ impl Default for UiState {
             last_view: View::Timeline,
             before_diagnostics: View::Timeline,
             drawn_view: None,
-            history_sessions: BTreeMap::new(),
-            history_runs: std::collections::BTreeSet::new(),
-            history_reveal: None,
-            history_scroll: None,
+            history_versions: BTreeMap::new(),
+            history_show_now: false,
         }
     }
 }
@@ -478,6 +473,10 @@ fn draw(ctx: &egui::Context, app: &Workspace, state: &mut UiState) -> Vec<Action
             }
         });
 
+    // A History version is only heard while History is open.
+    if app.view != View::History && app.history_preview.is_some() {
+        cx.send(Action::PreviewHistoryVersion(None));
+    }
     modal(ctx, &mut cx);
     cx.actions
 }
@@ -776,6 +775,22 @@ fn transport_deck(ui: &mut Ui, cx: &mut Cx<'_>) {
                     );
                 }
 
+                // A past version playing from History is named, so it is never mistaken for the
+                // current project.
+                if let Some((entry, _)) = &app.history_preview {
+                    let number = app
+                        .history
+                        .iter()
+                        .position(|candidate| candidate.id == *entry)
+                        .map_or(0, |index| app.history.len() - index);
+                    ui.label(
+                        RichText::new(format!("Hearing v{number}"))
+                            .strong()
+                            .size(10.5)
+                            .color(theme::ACCENT_CYAN),
+                    )
+                    .on_hover_text("Playing an earlier version from History");
+                }
                 // Active voices in a fixed slot that stays put when nothing sounds.
                 ui.separator();
                 let voices = app.telemetry.engine.active_voices;

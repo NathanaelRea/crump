@@ -396,6 +396,18 @@ impl HistoryStore {
         Ok(diff_snapshots(before.as_ref(), &after))
     }
 
+    /// The exact Project an entry published, rebuilt from its snapshot.
+    pub fn bundle_at(&self, id: &str) -> Result<ProjectBundle, HistoryError> {
+        let entry = self.entry_metadata(id)?;
+        let snapshot = self.snapshot_metadata(&entry.revision)?;
+        let asset_bytes = self.snapshot_asset_bytes(&snapshot)?;
+        Ok(load_project_sources_with_assets(
+            self.root.clone(),
+            snapshot.sources,
+            &asset_bytes,
+        ))
+    }
+
     /// Produces an exact unified source diff from one entry's state to another's.
     pub fn diff_between(&self, from_id: &str, to_id: &str) -> Result<String, HistoryError> {
         let from = self.entry_metadata(from_id)?;

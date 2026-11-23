@@ -67,6 +67,9 @@ pub enum Action {
     /// Show what restoring the selected History entry would change: the Active Revision's
     /// source against the selected entry's.
     CompareHistoryWithActive,
+    /// Audition a History version (by entry ID) in place of the Active Revision, or return to
+    /// the Active Revision with `None`. While playing, the transport position is kept.
+    PreviewHistoryVersion(Option<String>),
     /// Show or hide workspace performance diagnostics.
     TogglePerformanceDiagnostics,
 
@@ -685,6 +688,7 @@ impl Workspace {
             Action::OpenRestore => self.open_restore(),
             Action::OpenHistoryDiff => self.open_history_diff(),
             Action::CompareHistoryWithActive => self.compare_history_with_active(),
+            Action::PreviewHistoryVersion(entry) => self.preview_history_version(entry),
             Action::TogglePerformanceDiagnostics => {
                 let visible = self.performance.toggle();
                 self.status = format!(

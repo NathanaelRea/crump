@@ -298,6 +298,9 @@ pub struct Workspace {
     active_revision: Option<RevisionId>,
     active_entry: Option<String>,
     active_bundle: Option<Arc<ProjectBundle>>,
+    /// A History version auditioned in place of the Active Revision, by entry ID. Playback
+    /// prepares from it while set; Stop or leaving History clears it.
+    history_preview: Option<(String, Arc<ProjectBundle>)>,
     audible_bundle: Option<Arc<ProjectBundle>>,
     pending_active_inspection: Option<PendingActiveInspection>,
     /// Project History, newest entry first.
@@ -546,6 +549,7 @@ impl Workspace {
             active_revision,
             active_entry,
             active_bundle,
+            history_preview: None,
             audible_bundle: None,
             pending_active_inspection: None,
             history,
@@ -797,7 +801,7 @@ impl Workspace {
         if !self.active_prepare_requested {
             return false;
         }
-        let Some(active) = self.active_bundle.clone() else {
+        let Some(active) = self.runtime_bundle() else {
             if self.history_reload_requested {
                 return false;
             }
@@ -805,7 +809,8 @@ impl Workspace {
             self.status = "Publish a valid Candidate before preparing an audition".to_owned();
             return false;
         };
-        if self.active_revision.as_ref() != Some(&active.revision) {
+        if self.history_preview.is_none() && self.active_revision.as_ref() != Some(&active.revision)
+        {
             if self.history_reload_requested {
                 return false;
             }
@@ -1151,8 +1156,55 @@ impl Workspace {
         }
     }
 
+    /// The Project playback prepares from: a previewed History version, else the Active Revision.
+    fn runtime_bundle(&self) -> Option<Arc<ProjectBundle>> {
+        self.history_preview
+            .as_ref()
+            .map(|(_, bundle)| Arc::clone(bundle))
+            .or_else(|| self.active_bundle.clone())
+    }
+
+    /// Auditions a History version in place of the Active Revision, or returns to it with `None`.
+    /// While playing, the swap keeps the transport position.
+    fn preview_history_version(&mut self, entry: Option<String>) {
+        let playing = self.player.is_some() || self.playback_requested;
+        match entry {
+            None => {
+                if self.history_preview.take().is_some() && playing {
+                    self.queue_active_preparation(false);
+                }
+            }
+            Some(id) => {
+                if self
+                    .history_preview
+                    .as_ref()
+                    .is_some_and(|(current, _)| *current == id)
+                {
+                    return;
+                }
+                match HistoryStore::open(&self.root).and_then(|store| store.bundle_at(&id)) {
+                    Ok(bundle) if bundle.publishable().is_some() => {
+                        self.history_preview = Some((id, Arc::new(bundle)));
+                        if playing {
+                            self.queue_active_preparation(false);
+                        }
+                    }
+                    Ok(_) => {
+                        self.status = "That version no longer builds, so it cannot play".to_owned();
+                    }
+                    Err(error) => self.status = format!("Could not read that version: {error}"),
+                }
+            }
+        }
+    }
+
     fn active_request_is_current(&self, key: &ActiveRequestKey) -> bool {
-        self.active_revision.as_ref() == Some(&key.active_revision)
+        let expected = self
+            .history_preview
+            .as_ref()
+            .map(|(_, bundle)| &bundle.revision)
+            .or(self.active_revision.as_ref());
+        expected == Some(&key.active_revision)
             && self.audition_epoch == key.audition_epoch
             && self.playback_epoch == key.playback_epoch
     }
@@ -1812,7 +1864,7 @@ impl Workspace {
             self.status = "Pending playback start cancelled".to_owned();
             return;
         }
-        if self.active_bundle.is_none() {
+        if self.runtime_bundle().is_none() {
             self.status = "Publish a valid Candidate before playback".to_owned();
             return;
         }
@@ -1853,6 +1905,8 @@ impl Workspace {
         self.playback_paused = false;
         self.telemetry = PlayerTelemetry::default();
         self.held_notes.clear();
+        // Stopping a History preview returns to the current version.
+        self.history_preview = None;
         self.status = "Audition stopped · target, range, and bypass state remain armed".to_owned();
     }
 
@@ -2050,7 +2104,8 @@ impl Workspace {
     }
 
     fn timeline_frame_at(&self, at: crate::time::MusicalTime) -> Option<u64> {
-        let project = self.active_bundle.as_ref()?.publishable()?;
+        let runtime = self.runtime_bundle()?;
+        let project = runtime.publishable()?;
         let frame = at
             .to_frames(project.song.tempo_bpm, project.sample_rate)
             .ok()?;
