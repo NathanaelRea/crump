@@ -18,6 +18,7 @@ use eframe::egui::{
 
 use super::keymap::Keymap;
 use super::*;
+use widgets::TabPress;
 
 mod arrangement;
 mod input;
@@ -144,6 +145,14 @@ struct UiState {
     graph_zoom: f32,
     graph_fitted_for: Option<String>,
     graph_node_offsets: BTreeMap<String, Vec2>,
+    /// The status line last drawn and when it first appeared, so hints can expire.
+    status_seen: Option<(String, Instant)>,
+    /// The view drawn last frame, and the last one that was not Diagnostics, so the window can
+    /// step off an empty Diagnostics list the way it came.
+    last_view: View,
+    before_diagnostics: View,
+    /// The view the last frame drew, to spot a page switch.
+    drawn_view: Option<View>,
 }
 
 impl Default for UiState {
@@ -188,6 +197,10 @@ impl Default for UiState {
             graph_zoom: 1.0,
             graph_fitted_for: None,
             graph_node_offsets: BTreeMap::new(),
+            status_seen: None,
+            last_view: View::Timeline,
+            before_diagnostics: View::Timeline,
+            drawn_view: None,
         }
     }
 }
@@ -290,6 +303,7 @@ impl eframe::App for Client {
             self.app.dispatch(Action::Quit);
         }
 
+        settle_view(&mut self.app, &mut self.state);
         let actions = draw(ctx, &self.app, &mut self.state);
         let acted = !actions.is_empty();
         for action in actions {
@@ -321,6 +335,23 @@ impl eframe::App for Client {
         if let Some(report) = self.app.performance.report() {
             eprintln!("{report}");
         }
+    }
+}
+
+/// Keeps the window off an empty Diagnostics list. Diagnostics have no page of their own in the
+/// window, only a chip while problems exist, so Tab steps over the list and fixing the last
+/// problem returns to the view it was opened from.
+fn settle_view(app: &mut Workspace, state: &mut UiState) {
+    if app.view == View::Diagnostics && app.bundle.diagnostics.as_slice().is_empty() {
+        app.dispatch(match state.last_view {
+            View::Source => Action::CycleView(1),
+            View::History => Action::CycleView(-1),
+            _ => Action::ShowView(state.before_diagnostics),
+        });
+    }
+    state.last_view = app.view;
+    if app.view != View::Diagnostics {
+        state.before_diagnostics = app.view;
     }
 }
 
@@ -374,19 +405,30 @@ fn draw(ctx: &egui::Context, app: &Workspace, state: &mut UiState) -> Vec<Action
                 .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
                 .inner_margin(egui::Margin::symmetric(10, 3)),
         )
-        .show(ctx, |ui| footer(ui, &cx));
+        .show(ctx, |ui| footer(ui, &mut cx));
 
     // Tactile Studio Keyboard / Drum Pad Dock on Sound & Event Grid views
     let keyboard_eligible = keymap::NOTE_VIEWS.contains(&app.view) || app.view == View::EventGrid;
     if keyboard_eligible && cx.state.show_keyboard {
-        egui::TopBottomPanel::bottom("crump-notes")
-            .frame(
-                egui::Frame::new()
-                    .fill(theme::BG_SURFACE)
-                    .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
-                    .inner_margin(egui::Margin::symmetric(10, 5)),
-            )
-            .show(ctx, |ui| widgets::note_strip(ui, &mut cx));
+        // One panel memory per view: the drum pads and the keyboard differ in height.
+        egui::TopBottomPanel::bottom(egui::Id::new((
+            "crump-notes",
+            std::mem::discriminant(&app.view),
+        )))
+        .frame(
+            egui::Frame::new()
+                .fill(theme::BG_SURFACE)
+                .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
+                .inner_margin(egui::Margin::symmetric(10, 5)),
+        )
+        .show(ctx, |ui| widgets::note_strip(ui, &mut cx));
+    }
+
+    // A view's first frame measures itself (scroll extents, panel heights); discard that pass
+    // so a page switch is drawn once, already laid out, instead of settling visibly.
+    if cx.state.drawn_view != Some(app.view) {
+        cx.state.drawn_view = Some(app.view);
+        ctx.request_discard("view changed");
     }
 
     // Primary Studio Canvas (zero extra padding so Timeline / Mixer / Piano Roll fill edge-to-edge)
@@ -482,7 +524,7 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ),
                     ] {
                         if widgets::pill_toggle(ui, label, mode == m, theme::ACCENT_AMBER, tip)
-                            .clicked()
+                            .tab_pressed()
                         {
                             cx.send(Action::ShowView(target));
                         }
@@ -701,55 +743,46 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 5.0;
 
-            // Compact Utility Pills (?, Hist, Diag, Src) — rendered right-to-left
+            // Utility pills (?, History, Source), rendered right to left. Diagnostics have no
+            // page of their own here: a red chip appears only while the Candidate has problems.
             let has_errors = app.bundle.diagnostics.has_errors();
-            let diag_count = app.bundle.diagnostics.as_slice().len();
-            for (v, label, tip, alert) in [
-                (View::Help, "?", "Shortcuts & Help · ?", false),
-                (View::History, "History", "Revision History · H", false),
-                (
-                    View::Diagnostics,
-                    if diag_count > 0 {
-                        "Diagnostics!"
-                    } else {
-                        "Diagnostics"
-                    },
-                    "Project Diagnostics",
-                    has_errors,
-                ),
-                (
-                    View::Source,
-                    "Source",
-                    "Authoritative .crump Source · 0",
-                    false,
-                ),
+            for (v, label, tip) in [
+                (View::Help, "?", "Shortcuts & Help · ?"),
+                (View::History, "History", "Revision History · H"),
+                (View::Source, "Source", "Authoritative .crump Source · 0"),
             ] {
-                // These buttons are the utility views' navigation: the open one lights in the
-                // selection color, and an alert overrides it.
                 let active = app.view == v;
-                let color = if alert {
-                    theme::SIG_CLIP
+                let width = if label == "?" {
+                    22.0
                 } else {
-                    theme::ACCENT_CYAN
+                    14.0 + label.chars().count() as f32 * 6.4
                 };
                 if widgets::led_button(
                     ui,
                     label,
-                    active || alert,
-                    if alert { color } else { theme::SELECTION },
-                    Vec2::new(
-                        if label == "?" {
-                            22.0
-                        } else {
-                            14.0 + label.chars().count() as f32 * 6.4
-                        },
-                        22.0,
-                    ),
+                    active,
+                    theme::SELECTION,
+                    Vec2::new(width, 22.0),
                     tip,
                 )
-                .clicked()
+                .tab_pressed()
                 {
                     cx.send(Action::ShowView(v));
+                }
+            }
+            if let Some((label, color)) = issue_chip(app) {
+                let width = 14.0 + label.chars().count() as f32 * 6.4;
+                if widgets::led_button(
+                    ui,
+                    &label,
+                    true,
+                    color,
+                    Vec2::new(width, 22.0),
+                    "Problems in the Candidate source · click to inspect",
+                )
+                .tab_pressed()
+                {
+                    cx.send(Action::ShowView(View::Diagnostics));
                 }
             }
 
@@ -785,7 +818,11 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
             ui.separator();
 
             // Publish & Undo CTAs
-            let needs_publish = !app.candidate_is_active() && !has_errors && !loading(app);
+            // Amber only once the session has settled on a valid, unpublished Candidate: an edit
+            // publishes itself, and its reload must not flash the button on the way through.
+            let settling = app.publication_settling();
+            let needs_publish =
+                !app.candidate_is_active() && !has_errors && !loading(app) && !settling;
             if ui
                 .add(
                     egui::Button::new(RichText::new("Publish").size(10.5).strong().color(
@@ -837,7 +874,7 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                     theme::SIG_CLIP,
                     "Invalid Candidate (has diagnostics)".to_owned(),
                 )
-            } else if app.candidate_is_active() {
+            } else if app.candidate_is_active() || settling {
                 (
                     theme::SIG_NOMINAL,
                     format!(
@@ -900,23 +937,125 @@ fn compact_audition_target(app: &Workspace) -> String {
     }
 }
 
+/// The top-bar problem chip: only while the Candidate has diagnostics, red for errors.
+fn issue_chip(app: &Workspace) -> Option<(String, Color32)> {
+    let diagnostics = app.bundle.diagnostics.as_slice();
+    let errors = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity == crate::diagnostic::Severity::Error)
+        .count();
+    let plural =
+        |count: usize, noun: &str| format!("{count} {noun}{}", if count == 1 { "" } else { "s" });
+    if errors > 0 {
+        Some((plural(errors, "error"), theme::SIG_CLIP))
+    } else if !diagnostics.is_empty() {
+        Some((plural(diagnostics.len(), "warning"), theme::SIG_HOT))
+    } else {
+        None
+    }
+}
+
 /// Whether the session is still reading the Project for the first time.
 fn loading(app: &Workspace) -> bool {
     app.bundle.project.is_none() && app.bundle.revision.0.is_empty() && app.has_pending_work()
 }
 
-fn footer(ui: &mut Ui, cx: &Cx<'_>) {
+/// How long a hint about a refused action stays in the footer.
+const GUIDANCE_LINGER: Duration = Duration::from_secs(6);
+
+/// How the footer treats the session's status line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StatusTone {
+    /// Progress and confirmations: the window already shows the outcome, so nothing is said.
+    Quiet,
+    /// An action was refused or needs something first; shown in amber for a few seconds.
+    Guidance,
+    /// Something failed; shown in red until the next status replaces it.
+    Failure,
+}
+
+fn status_tone(status: &str) -> StatusTone {
+    const FAILURE: [&str; 8] = [
+        "failed",
+        "could not",
+        "cannot",
+        "invalid",
+        "rejected",
+        "delayed",
+        "is stale",
+        "error",
+    ];
+    const GUIDANCE: [&str; 17] = [
+        "unavailable",
+        "not found",
+        " before ",
+        " first",
+        "requires",
+        "must ",
+        "has no ",
+        "no further",
+        "no prior",
+        "no clip",
+        "no project",
+        "no continuous",
+        "no timeline",
+        "is undefined",
+        "is unset",
+        "nothing earlier",
+        "already",
+    ];
+    let status = status.to_lowercase();
+    if FAILURE.iter().any(|word| status.contains(word)) {
+        StatusTone::Failure
+    } else if GUIDANCE.iter().any(|word| status.contains(word))
+        || status.contains(" as `")
+        || status.contains("is the only")
+    {
+        StatusTone::Guidance
+    } else {
+        StatusTone::Quiet
+    }
+}
+
+fn footer(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
+    // The footer speaks only when something is wrong; routine progress stays silent.
+    let since = match &cx.state.status_seen {
+        Some((text, since)) if *text == app.status => *since,
+        _ => {
+            let now = Instant::now();
+            cx.state.status_seen = Some((app.status.clone(), now));
+            now
+        }
+    };
+    let shown = match status_tone(&app.status) {
+        StatusTone::Failure => Some(theme::SIG_CLIP),
+        StatusTone::Guidance if since.elapsed() < GUIDANCE_LINGER => Some(theme::SIG_HOT),
+        _ => None,
+    };
+    if shown.is_some() {
+        // Repaint once the hint expires, so it leaves without waiting for input.
+        ui.ctx().request_repaint_after(GUIDANCE_LINGER);
+    }
     ui.horizontal_centered(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
-        let (dot, _) = ui.allocate_exact_size(Vec2::splat(6.0), Sense::hover());
-        ui.painter()
-            .circle_filled(dot.center(), 2.8, theme::ACCENT_CYAN);
-        ui.label(
-            RichText::new(widgets::legible(&app.status))
-                .size(10.5)
-                .color(theme::TEXT_SECONDARY),
-        );
+        if let Some(color) = shown {
+            let (dot, _) = ui.allocate_exact_size(Vec2::splat(6.0), Sense::hover());
+            ui.painter().circle_filled(dot.center(), 2.8, color);
+            // Leave room for the mode badge and the revision readout on the right.
+            let width = (ui.available_width() - 300.0).max(120.0);
+            ui.allocate_ui(Vec2::new(width, 16.0), |ui| {
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(widgets::legible(&app.status))
+                            .size(10.5)
+                            .color(color),
+                    )
+                    .truncate(),
+                )
+                .on_hover_text(widgets::legible(&app.status));
+            });
+        }
 
         if app.note_mode {
             ui.label(

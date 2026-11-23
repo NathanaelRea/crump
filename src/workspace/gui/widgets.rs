@@ -965,6 +965,22 @@ pub(super) fn horizontal_mini_slider(
 // ── Hardware LED Switches & Segmented Pills ─────────────────────────────────
 
 /// Crisp studio hardware LED toggle switch (`M`, `S`, `C`, `A`, etc.).
+/// Selection of a tab-like control that should take effect on mouse-down.
+pub(super) trait TabPress {
+    /// Whether the control was pressed or clicked this frame. Tabs select on press, as a
+    /// DAW's do: a quick click whose pointer is still travelling would otherwise read as a
+    /// drag and be dropped. Only use it where selecting twice is harmless.
+    fn tab_pressed(&self) -> bool;
+}
+
+impl TabPress for egui::Response {
+    fn tab_pressed(&self) -> bool {
+        self.clicked()
+            || (self.is_pointer_button_down_on()
+                && self.ctx.input(|input| input.pointer.primary_pressed()))
+    }
+}
+
 pub(super) fn led_button(
     ui: &mut Ui,
     label: &str,

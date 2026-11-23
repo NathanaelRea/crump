@@ -1027,6 +1027,19 @@ impl Workspace {
             )
     }
 
+    /// Whether an edit or reload is still landing, so the Candidate and Active Revision may
+    /// briefly disagree while the session catches up.
+    fn publication_settling(&self) -> bool {
+        self.edits_pending()
+            || self.history_reload_requested
+            || self.history_verification.is_some()
+            || matches!(
+                self.work_in_flight,
+                Some(WorkspaceWorkKind::Reload { history: true, .. })
+                    | Some(WorkspaceWorkKind::HistoryVerification)
+            )
+    }
+
     fn finish_mutation(&mut self, result: MutationResult) -> bool {
         self.mutation_in_flight = false;
         match result.result {

@@ -27,7 +27,7 @@ fn edit_mode_pills(ui: &mut Ui, cx: &mut Cx<'_>) {
         theme::ACCENT_AMBER,
         "Pattern Piano Roll & Velocity Editor · 4",
     )
-    .clicked()
+    .tab_pressed()
     {
         cx.send(Action::ShowView(View::EventGrid));
     }
@@ -38,7 +38,7 @@ fn edit_mode_pills(ui: &mut Ui, cx: &mut Cx<'_>) {
         theme::ACCENT_AMBER,
         "Interactive 2D Automation Curve Editor · 8",
     )
-    .clicked()
+    .tab_pressed()
     {
         cx.send(Action::ShowView(View::Automation));
     }

@@ -40,7 +40,7 @@ fn sound_subbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, instrument: &In
                         theme::ACCENT_AMBER,
                         &format!("{label} · Key {key}"),
                     )
-                    .clicked()
+                    .tab_pressed()
                     {
                         cx.send(Action::ShowView(view));
                     }
@@ -2957,11 +2957,12 @@ fn draw_graph_inspector(
 
     section_header(ui, "SETTINGS & PARAMETERS", theme::BORDER_STRONG);
     ui.add_space(4.0);
-    let slider_w = (ui.available_width() - 4.0).max(160.0);
-
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
+            // Measured inside the scroll area, so the scrollbar's width is already taken out;
+            // measured outside, the rows overflow it and the resizable panel creeps wider.
+            let slider_w = (ui.available_width() - 4.0).max(160.0);
             for setting in &node.settings {
                 if let SettingValue::Parameter(param_key) = &setting.value
                     && let Some(param) = instrument.parameters.iter().find(|p| p.key == *param_key)

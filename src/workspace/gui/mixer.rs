@@ -41,7 +41,7 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                     theme::ACCENT_AMBER,
                     "Studio vertical channel-strip mixing console · 2",
                 )
-                .clicked()
+                .tab_pressed()
                 {
                     cx.state.mixer_table_mode = false;
                 }
@@ -52,7 +52,7 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                     theme::ACCENT_AMBER,
                     "Open Processing FX Rack & Device Inspector · 3",
                 )
-                .clicked()
+                .tab_pressed()
                 {
                     cx.send(Action::ShowView(View::Processing));
                 }
@@ -86,7 +86,7 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                         accent,
                         "Filter console banks",
                     )
-                    .clicked()
+                    .tab_pressed()
                     {
                         cx.state.mixer_bank_filter = code;
                         cx.state.mixer_table_mode = false;
@@ -921,7 +921,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                             Vec2::new(inner_w, 22.0),
                             "Open Master bus inserts in FX Rack",
                         )
-                        .clicked()
+                        .tab_pressed()
                         {
                             cx.state.processing_owner_filter = Some("master".to_owned());
                             cx.send(Action::ShowView(View::Processing));

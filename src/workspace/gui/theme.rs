@@ -267,11 +267,17 @@ pub(super) fn apply_theme(ctx: &egui::Context) {
         style.spacing.combo_width = 148.0;
         style.spacing.scroll = ScrollStyle {
             bar_width: 8.0,
-            floating: false,
+            // Floating bars overlay the content instead of taking width from it, so content
+            // never reflows as a bar appears; a slim handle stays visible and widens on hover.
+            floating: true,
+            floating_width: 4.0,
+            floating_allocated_width: 0.0,
+            dormant_background_opacity: 0.0,
+            dormant_handle_opacity: 0.6,
             // Slate handle from the widget fill (brightening on hover/drag) instead of the
             // near-white text color, so scrollbars never outshine the content they scroll.
             foreground_color: false,
-            ..ScrollStyle::default()
+            ..ScrollStyle::floating()
         };
 
         let mut visuals = egui::Visuals::dark();

@@ -3,7 +3,14 @@
 use super::*;
 
 pub(super) fn view(ui: &mut Ui, cx: &mut Cx<'_>) {
-    match cx.app.view {
+    // Each view keeps its own widget memory (scroll extents, sizing passes), so arriving at a
+    // view lays it out exactly as it was left instead of with another view's measurements.
+    let view = cx.app.view;
+    ui.push_id(std::mem::discriminant(&view), |ui| draw(ui, cx, view));
+}
+
+fn draw(ui: &mut Ui, cx: &mut Cx<'_>, view: View) {
+    match view {
         View::Timeline => arrangement::timeline(ui, cx),
         View::Mixer => mixer::mixer(ui, cx),
         View::Processing => processing::processing(ui, cx),

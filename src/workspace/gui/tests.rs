@@ -52,9 +52,10 @@ impl Window {
             &mut self.state.modal_submit,
             focused,
         );
+        settle_view(app, &mut self.state);
         let mut actions = Vec::new();
         let output = self.ctx.run(input, |ctx| {
-            actions = draw(ctx, app, &mut self.state);
+            actions.extend(draw(ctx, app, &mut self.state));
         });
         for action in &actions {
             app.dispatch(action.clone());
@@ -110,6 +111,10 @@ fn every_view_and_modal_draws_without_a_display() {
     assert!(app.bundle.project.is_some());
     let mut window = Window::new();
     for view in VIEWS {
+        // A clean Candidate has no Diagnostics list to show; the window steps over it.
+        if view == View::Diagnostics {
+            continue;
+        }
         app.dispatch(Action::ShowView(view));
         window.frame(&mut app, Vec::new());
         let (_, shapes) = window.frame(&mut app, Vec::new());
@@ -366,7 +371,6 @@ fn render_gui_snapshots() {
         ("08_automation", View::Automation),
         ("09_graph", View::Graph),
         ("10_source", View::Source),
-        ("11_diagnostics", View::Diagnostics),
         ("12_history", View::History),
         ("13_help", View::Help),
     ];
@@ -566,5 +570,165 @@ fn render_gui_snapshots() {
         file.write_all(&bytes).expect("write pixels");
     }
 
+    app.shutdown();
+}
+
+/// Where the top bar's `label` tab sits, found by probing along the bar.
+fn top_bar_tab(window: &mut Window, app: &mut Workspace, view: View) -> Pos2 {
+    app.dispatch(Action::ShowView(View::Help));
+    (0..SCREEN.x as i32)
+        .step_by(4)
+        .map(|x| Pos2::new(x as f32, 22.0))
+        .find(|position| {
+            window.click(app, *position);
+            let hit = app.view == view;
+            app.dispatch(Action::ShowView(View::Help));
+            hit
+        })
+        .expect("the top bar has the tab")
+}
+
+#[test]
+fn tabs_switch_even_when_the_pointer_travels_during_the_click() {
+    let (_root, mut app) = workspace(include_str!("../../../tests/fixtures/production_mix.crump"));
+    let mut window = Window::new();
+    window.frame(&mut app, Vec::new());
+    let mix = top_bar_tab(&mut window, &mut app, View::Mixer);
+    let history = top_bar_tab(&mut window, &mut app, View::History);
+    for (target, view) in [(mix, View::Mixer), (history, View::History)] {
+        app.dispatch(Action::ShowView(View::Timeline));
+        // A quick flick: the button goes down, and the pointer is past click distance by the
+        // time it comes up, which egui would otherwise treat as an abandoned drag.
+        window.frame(&mut app, vec![Event::PointerMoved(target)]);
+        window.frame(&mut app, vec![button(target, true)]);
+        let moved = target + Vec2::new(9.0, 0.0);
+        window.frame(
+            &mut app,
+            vec![Event::PointerMoved(moved), button(moved, false)],
+        );
+        assert_eq!(app.view, view);
+        window.time += 2.0;
+    }
+    app.shutdown();
+}
+
+#[test]
+fn returning_to_a_view_draws_its_settled_layout_on_the_first_frame() {
+    let (_root, mut app) = workspace(include_str!("../../../tests/fixtures/production_mix.crump"));
+    let mut window = Window::new();
+    let views = VIEWS
+        .into_iter()
+        .filter(|view| *view != View::Diagnostics)
+        .collect::<Vec<_>>();
+    let mut frame = |app: &mut Workspace| {
+        window.time += 0.1;
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
+            time: Some(window.time),
+            ..Default::default()
+        };
+        let output = window.ctx.run(input, |ctx| {
+            let _ = draw(ctx, app, &mut window.state);
+        });
+        output
+            .shapes
+            .iter()
+            .map(|clipped| {
+                // Whole points, which also makes empty and degenerate shapes comparable.
+                let rect = clipped.shape.visual_bounding_rect();
+                [rect.min.x, rect.min.y, rect.max.x, rect.max.y].map(|edge| edge as i32)
+            })
+            .collect::<Vec<_>>()
+    };
+    for view in &views {
+        app.dispatch(Action::ShowView(*view));
+        for _ in 0..4 {
+            frame(&mut app);
+        }
+    }
+    for pair in views.windows(2) {
+        app.dispatch(Action::ShowView(pair[0]));
+        for _ in 0..4 {
+            frame(&mut app);
+        }
+        app.dispatch(Action::ShowView(pair[1]));
+        let first = frame(&mut app);
+        for _ in 0..3 {
+            frame(&mut app);
+        }
+        assert_eq!(
+            first,
+            frame(&mut app),
+            "{:?} -> {:?} shifted",
+            pair[0],
+            pair[1]
+        );
+    }
+    app.shutdown();
+}
+
+#[test]
+fn tab_steps_over_an_empty_diagnostics_list() {
+    let (_root, mut app) = workspace(include_str!("../../../tests/fixtures/minimal.crump"));
+    assert!(app.bundle.diagnostics.as_slice().is_empty());
+    let mut window = Window::new();
+    app.dispatch(Action::ShowView(View::Source));
+    window.frame(&mut app, Vec::new());
+    app.dispatch(Action::CycleView(1));
+    window.frame(&mut app, Vec::new());
+    assert_eq!(app.view, View::History);
+    app.dispatch(Action::CycleView(-1));
+    window.frame(&mut app, Vec::new());
+    assert_eq!(app.view, View::Source);
+    app.shutdown();
+}
+
+#[test]
+fn the_footer_names_only_problems() {
+    for quiet in [
+        "Candidate reconstructed · verifying latest filesystem generation",
+        "Saved and published history entry 000000000004",
+        "Published revision loaded",
+        "Edit queued · 2 pending",
+        "Valid external Candidate loaded · press P to publish",
+    ] {
+        assert_eq!(status_tone(quiet), StatusTone::Quiet, "{quiet}");
+    }
+    for guidance in [
+        "Select a processor before editing settings",
+        "Selected Instrument is unavailable",
+        "No further Locator",
+        "Candidate is already the Active Revision",
+    ] {
+        assert_eq!(status_tone(guidance), StatusTone::Guidance, "{guidance}");
+    }
+    for failure in [
+        "Edit transaction failed: expected revision mismatch",
+        "Could not start Project mutation: busy",
+        "Invalid Candidate cannot publish; inspect Diagnostics",
+    ] {
+        assert_eq!(status_tone(failure), StatusTone::Failure, "{failure}");
+    }
+}
+
+#[test]
+fn an_edit_never_shows_its_candidate_as_unpublished_on_the_way_through() {
+    let (_root, mut app) = workspace(include_str!("../../../tests/fixtures/minimal.crump"));
+    crate::workspace::tests::settle_background(&mut app);
+    for bpm in [124.0, 126.0] {
+        app.dispatch(Action::SetSongTempo { bpm });
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while app.background_work_pending() {
+            app.poll_background_work();
+            // What the Publish button and revision dot read: amber only once settled.
+            assert!(
+                app.candidate_is_active() || app.publication_settling(),
+                "the edit at {bpm} BPM surfaced an unpublished Candidate mid-reload"
+            );
+            assert!(Instant::now() < deadline, "edit timed out");
+            std::thread::yield_now();
+        }
+        assert!(app.candidate_is_active(), "the edit published itself");
+    }
     app.shutdown();
 }

@@ -62,7 +62,7 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                     theme::ACCENT_AMBER,
                     "Return to Mixer Console · 2",
                 )
-                .clicked()
+                .tab_pressed()
                 {
                     cx.send(Action::ShowView(View::Mixer));
                 }
@@ -73,7 +73,7 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                     theme::ACCENT_AMBER,
                     "Horizontal FX signal-chain device rack · 3",
                 )
-                .clicked()
+                .tab_pressed()
                 {
                     cx.state.processing_table_mode = false;
                 }
