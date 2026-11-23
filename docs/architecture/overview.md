@@ -79,7 +79,8 @@ The Candidate is current source bytes. The Active Revision is an exact committed
 | `engine::render` | exact Active offline processing, aligned Track/Group stem capture, finalized-file verification, and atomic multi-WAV/manifest publication |
 | `realtime` | one `Player` controller and callback (fixed queues, transitions, reclamation, recovery telemetry) behind two drivers: native PipeWire audio/MIDI streams, and an in-memory driver whose owner steps the callback explicitly |
 | `project_picker` | interactive nested-Project discovery with `fzf` and numbered terminal selection |
-| `workspace` | Ratatui Production Views and external-change observation, with terminal lifecycle, rendering, input parsing, and a Ratatui-independent cached Timeline arrangement/waveform projection separated from workspace state/actions |
+| `workspace` | client-independent workspace session: Candidate/Active tracking, external-change observation, playback and audition control, selection and modal state, and the cached Timeline arrangement/waveform projection, changed only through `Workspace::dispatch(Action)` and `Workspace::tick` |
+| `workspace::tui` | the Ratatui client behind the default `tui` feature: key-to-`Action` bindings, rendering, and terminal lifecycle; the only code that depends on a terminal library |
 | `cli` | human and schema-versioned external-Agent boundary, with argument schema and command execution separated from adapter entry/response types |
 
 ## Deep seams

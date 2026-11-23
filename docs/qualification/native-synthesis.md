@@ -13,7 +13,7 @@ cargo test --locked 'realtime::native::tests::maximum_topology_' --all-features 
 cargo test --locked realtime::native::tests::granular_spectral_independent_maxima_callback_is_allocation_free --all-features -- --exact --test-threads=1
 sudo tests/qualification/clean-account-portability.sh target/debug/crump
 cargo test --all-targets --all-features --locked
-cargo test --all-targets --no-default-features --locked
+cargo test --all-targets --no-default-features --features tui --locked
 cargo clippy --all-targets --all-features --locked -- -D warnings
 cargo fmt --all --check
 ```

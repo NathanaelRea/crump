@@ -54,7 +54,7 @@ cargo install --path . --locked
 crump doctor
 ```
 
-To build without PipeWire, run `cargo build --release --no-default-features`. That build has no playback, but validation, history, rendering and the workspace still work. To build a `.deb` package, run `packaging/build-deb.sh dist`.
+To build without PipeWire, run `cargo build --release --no-default-features --features tui`. That build has no playback, but validation, history, rendering and the workspace still work. Leaving out `tui` as well drops the terminal client and its dependencies, keeping the library, the client-independent workspace session and every non-interactive CLI command. To build a `.deb` package, run `packaging/build-deb.sh dist`.
 
 ## Quick start
 
