@@ -2022,10 +2022,41 @@ fn automation_curve_canvas(
     }
 
     // Horizontal physical-unit reference gridlines & cleanly inset Y-axis labels
-    for i in 0..=4 {
-        let frac = i as f32 / 4.0;
-        let y = y_bot_val - frac * y_span;
-        let v = theme::norm_to_value(frac, min_val, max_val, unit);
+    // The range ends are labelled exactly; interior references are rounded values placed at
+    // their true positions, so the ruler reads like a scale rather than arbitrary numbers.
+    let mut ruler: Vec<f64> = vec![min_val, max_val];
+    let interior: Vec<f64> = if matches!(unit, Unit::Hertz) {
+        [
+            20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10_000.0,
+        ]
+        .into_iter()
+        .filter(|v| *v > min_val && *v < max_val)
+        .collect()
+    } else {
+        let raw = (max_val - min_val) / 4.0;
+        let mag = 10_f64.powf(raw.abs().max(1e-9).log10().floor());
+        let step = [1.0, 2.0, 2.5, 5.0, 10.0]
+            .into_iter()
+            .map(|m| m * mag)
+            .find(|s| *s >= raw)
+            .unwrap_or(10.0 * mag);
+        let mut v = (min_val / step).floor() * step + step;
+        let mut out = Vec::new();
+        while v < max_val - 1e-9 && out.len() < 8 {
+            out.push(v);
+            v += step;
+        }
+        out
+    };
+    let y_of_val = |v: f64| y_bot_val - theme::value_to_norm(v, min_val, max_val, unit) * y_span;
+    for v in interior {
+        let y = y_of_val(v);
+        if ruler.iter().all(|r| (y_of_val(*r) - y).abs() >= 22.0) {
+            ruler.push(v);
+        }
+    }
+    for v in ruler {
+        let y = y_of_val(v);
         painter.hline(plot.x_range(), y, Stroke::new(1.0_f32, theme::GRID_BEAT));
         painter.text(
             Pos2::new(plot.left() - 6.0, y),
