@@ -15,7 +15,7 @@ const STRIP_WIDTH: f32 = 116.0;
 const MASTER_WIDTH: f32 = 128.0;
 /// Fixed upper-bay height above the fader/meter bay shared by channel strips and Master strip
 /// so every fader in the console aligns horizontally on one unified 0 dB datum line.
-const UPPER_BAY_HEIGHT: f32 = 252.0;
+const UPPER_BAY_HEIGHT: f32 = 276.0;
 
 pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
@@ -49,7 +49,7 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui,
                     "FX Rack",
                     app.view == View::Processing,
-                    theme::ACCENT_CYAN,
+                    theme::ACCENT_AMBER,
                     "Open Processing FX Rack & Device Inspector · 3",
                 )
                 .clicked()
@@ -360,6 +360,7 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                         Vec2::new(inner_w, UPPER_BAY_HEIGHT),
                         Layout::top_down(Align::Center),
                         |ui| {
+                            ui.set_min_height(UPPER_BAY_HEIGHT);
                             ui.spacing_mut().item_spacing.y = 5.0;
 
                             // 1. Top 4px color bar
@@ -804,6 +805,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                     Vec2::new(inner_w, UPPER_BAY_HEIGHT),
                     Layout::top_down(Align::Center),
                     |ui| {
+                        ui.set_min_height(UPPER_BAY_HEIGHT);
                         ui.spacing_mut().item_spacing.y = 5.0;
 
                         let (bar_rect, _) =

@@ -968,10 +968,26 @@ fn clips(
         if content_rect.height() >= 8.0
             && content_rect.width() >= 6.0
             && let Some(pattern) = project.song.patterns.iter().find(|p| p.id == clip.pattern)
-            && !pattern.events.is_empty()
         {
-            paint_clip_midi_preview(painter, geometry, content_rect, clip, pattern, color);
-            drew_any_midi = true;
+            // Pattern Variations carry lineage rather than Events; preview what they will play.
+            let materialized;
+            let pattern = if pattern.variation.is_some() {
+                materialized = crate::model::Pattern {
+                    events: crate::engine::schedule::materialized_pattern_events(
+                        project,
+                        &pattern.id,
+                    )
+                    .unwrap_or_default(),
+                    ..pattern.clone()
+                };
+                &materialized
+            } else {
+                pattern
+            };
+            if !pattern.events.is_empty() {
+                paint_clip_midi_preview(painter, geometry, content_rect, clip, pattern, color);
+                drew_any_midi = true;
+            }
         }
 
         // Visual fade-in / fade-out wedges when authored
@@ -984,7 +1000,7 @@ fn clips(
                     Pos2::new(fx, header_rect.bottom()),
                     Pos2::new(body.left(), body.bottom()),
                 ],
-                with_alpha(theme::BG_WELL, 0.45),
+                with_alpha(theme::BG_WELL, 0.55),
                 Stroke::NONE,
             ));
             painter.line_segment(
@@ -992,7 +1008,8 @@ fn clips(
                     Pos2::new(body.left(), body.bottom()),
                     Pos2::new(fx, header_rect.bottom()),
                 ],
-                Stroke::new(1.4_f32, theme::TEXT_PRIMARY),
+                // A fade is a gain curve in the clip's own color, never a white strike-through.
+                Stroke::new(1.0_f32, with_alpha(color, 0.8)),
             );
         }
         let fade_out_q = clip.fade_out.as_f64();
@@ -1004,7 +1021,7 @@ fn clips(
                     Pos2::new(body.right(), header_rect.bottom()),
                     Pos2::new(body.right(), body.bottom()),
                 ],
-                with_alpha(theme::BG_WELL, 0.45),
+                with_alpha(theme::BG_WELL, 0.55),
                 Stroke::NONE,
             ));
             painter.line_segment(
@@ -1012,7 +1029,8 @@ fn clips(
                     Pos2::new(fx, header_rect.bottom()),
                     Pos2::new(body.right(), body.bottom()),
                 ],
-                Stroke::new(1.4_f32, theme::TEXT_PRIMARY),
+                // A fade is a gain curve in the clip's own color, never a white strike-through.
+                Stroke::new(1.0_f32, with_alpha(color, 0.8)),
             );
         }
 

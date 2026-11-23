@@ -17,6 +17,7 @@ fn utility_subbar(ui: &mut Ui, cx: &mut Cx<'_>) {
         .inner_margin(egui::Margin::symmetric(10, 5))
         .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 5.0;
                 for (view, label, key) in [
@@ -29,7 +30,7 @@ fn utility_subbar(ui: &mut Ui, cx: &mut Cx<'_>) {
                     {
                         theme::SIG_CLIP
                     } else {
-                        theme::ACCENT_CYAN
+                        theme::ACCENT_AMBER
                     };
                     let title = if view == View::Diagnostics && diag_count > 0 {
                         format!("{label} ({diag_count})")
@@ -1259,7 +1260,10 @@ pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
                 );
                 ui.add(
                     egui::TextEdit::singleline(&mut cx.state.help_search)
-                        .hint_text("Filter shortcuts — loop, split, solo…")
+                        .hint_text(
+                            RichText::new("Filter shortcuts — loop, split, solo…")
+                                .color(theme::TEXT_MUTED),
+                        )
                         .font(FontId::proportional(12.0))
                         .desired_width(320.0),
                 );

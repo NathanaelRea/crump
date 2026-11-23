@@ -657,6 +657,26 @@ fn materialize_patterns(
     Ok(materialized)
 }
 
+/// The events a Pattern actually plays: its own Events, or for a Pattern Variation the
+/// deterministic transform of its source lineage. Clients use this to preview Variations exactly
+/// as the engine will schedule them; `None` when the lineage cannot be materialized.
+pub(crate) fn materialized_pattern_events(
+    project: &Project,
+    id: &str,
+) -> Option<Vec<PatternEvent>> {
+    let authored = project
+        .song
+        .patterns
+        .iter()
+        .map(|pattern| (pattern.id.as_str(), pattern))
+        .collect::<BTreeMap<_, _>>();
+    let mut materialized = BTreeMap::new();
+    let mut visiting = BTreeSet::new();
+    materialize_pattern(id, &authored, &mut materialized, &mut visiting)
+        .ok()
+        .map(|pattern| pattern.events)
+}
+
 fn materialize_pattern(
     id: &str,
     authored: &BTreeMap<&str, &Pattern>,

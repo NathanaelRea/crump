@@ -35,7 +35,7 @@ fn edit_mode_pills(ui: &mut Ui, cx: &mut Cx<'_>) {
         ui,
         "Automation",
         cx.app.view == View::Automation,
-        theme::ACCENT_CYAN,
+        theme::ACCENT_AMBER,
         "Interactive 2D Automation Curve Editor · 8",
     )
     .clicked()
@@ -641,7 +641,7 @@ fn piano_roll_canvas(
             Pos2::new(grid_rect.left(), active_rows_bottom),
             grid_rect.max,
         );
-        painter.rect_filled(lower_grid, 0.0, with_alpha(theme::BG_WELL, 0.75));
+        painter.rect_filled(lower_grid, 0.0, theme::BG_WELL);
         // Subtle step-matrix legend / author hint
         if lower_grid.height() > 40.0 {
             let hint = painter.layout_no_wrap(
@@ -1726,7 +1726,12 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                             .color(theme::ACCENT_AMBER),
                     );
                     ui.label(
-                        RichText::new(format!("@ {}  ·  {}", pt.at, pt.value))
+                        RichText::new(format!(
+                            "@ {}  ·  {}",
+                            pt.at,
+                            unit.parse_value(&pt.value)
+                                .map_or_else(|_| pt.value.clone(), |v| theme::format_compact_value(v, unit))
+                        ))
                             .monospace()
                             .size(11.0)
                             .color(theme::TEXT_PRIMARY),

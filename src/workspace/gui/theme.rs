@@ -47,7 +47,7 @@ pub(super) const TEXT_PRIMARY: Color32 = Color32::from_rgb(232, 236, 244);
 /// Secondary labels, units, inactive tabs.
 pub(super) const TEXT_SECONDARY: Color32 = Color32::from_rgb(154, 164, 182);
 /// Muted annotations, grid numbers, hints.
-pub(super) const TEXT_MUTED: Color32 = Color32::from_rgb(102, 112, 130);
+pub(super) const TEXT_MUTED: Color32 = Color32::from_rgb(118, 128, 147);
 
 // ── Semantic Studio Accents ─────────────────────────────────────────────────
 

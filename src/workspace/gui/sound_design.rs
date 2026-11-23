@@ -440,7 +440,10 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                                             mod_range,
                                                             mod_eff,
                                                             &control.explanation,
-                                                            68.0,
+                                                            // Macro knobs scale with their card
+                                                            // so wide cards don't float a tiny dial.
+                                                            (ui.available_width() * 0.16)
+                                                                .clamp(68.0, 104.0),
                                                         );
                                                         if out.clicked || out.committed.is_some() {
                                                             new_selected = Some(index);
@@ -639,7 +642,6 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                         instrument.modulation_sources.len(),
                                         instrument.modulation_routes.len()
                                     ))
-                                    .monospace()
                                     .size(10.0)
                                     .color(theme::TEXT_MUTED),
                                 );
@@ -669,7 +671,6 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                     );
                                     ui.label(
                                         RichText::new(summarize_osc_nodes(instrument))
-                                            .monospace()
                                             .size(11.0)
                                             .color(theme::TEXT_SECONDARY),
                                     );
@@ -758,7 +759,6 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ui.add_space(6.0);
                         ui.label(
                             RichText::new(truncate_text(&summarize_osc_nodes(instrument), 44))
-                                .monospace()
                                 .size(10.0)
                                 .color(theme::TEXT_SECONDARY),
                         );
@@ -797,7 +797,6 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 theme::format_compact_value(cut, Unit::Hertz),
                                 res * 100.0
                             ))
-                            .monospace()
                             .size(10.0)
                             .color(theme::TEXT_SECONDARY),
                         );
@@ -866,7 +865,6 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 .filter(|r| !r.bypass)
                                 .count()
                         ))
-                        .monospace()
                         .size(10.0)
                         .color(theme::TEXT_SECONDARY),
                     );
@@ -896,6 +894,7 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
         .inner_margin(egui::Margin::symmetric(12, 5))
         .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 for (index, sec) in sections.iter().enumerate() {
@@ -2111,7 +2110,6 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
                         voice.max_nodes,
                         voice.connections.len()
                     ))
-                    .monospace()
                     .size(10.5)
                     .color(theme::TEXT_SECONDARY),
                 );
@@ -2215,7 +2213,7 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
 
     // Base geometry at zoom = 1.0 to decide stacking + auto-fit
     let base_node_w = 166.0_f32;
-    let base_node_h = 84.0_f32;
+    let base_node_h = 92.0_f32;
     let base_col_gap = 64.0_f32;
     let base_row_gap = 26.0_f32;
 
@@ -2786,7 +2784,7 @@ fn paint_graph_node_card(
 
     // Header text: truncated node ID (left) + kind tag (right) with zero collision
     let kind_label = theme::node_kind_label(node.kind);
-    let id_font_size = (11.0 * zoom).clamp(9.0, 12.5);
+    let id_font_size = (12.0 * zoom).clamp(10.0, 13.5);
     let kind_font_size = (8.5 * zoom).clamp(7.5, 10.0);
     let kind_w = kind_label.chars().count() as f32 * kind_font_size * 0.62;
     let id_room = rect.width() - 13.0 - kind_w - 10.0;
@@ -2809,7 +2807,7 @@ fn paint_graph_node_card(
 
     // Center body: compact top 2 settings, inset past the widest port label on each side so
     // jack names and settings never overlap.
-    let port_font = FontId::monospace((8.0 * zoom).clamp(7.0, 9.5));
+    let port_font = FontId::monospace((9.0 * zoom).clamp(8.0, 10.5));
     let port_char_w = port_font.size * 0.62;
     let label_span = |ports: &[String], max: usize| {
         let longest = ports.iter().map(|p| p.chars().count().min(max)).max();
@@ -2817,7 +2815,7 @@ fn paint_graph_node_card(
     };
     let body_left = rect.left() + label_span(&ln.in_ports, 8);
     let body_right = rect.right() - label_span(&ln.out_ports, 8);
-    let setting_font = FontId::monospace((9.0 * zoom).clamp(7.5, 10.5));
+    let setting_font = FontId::monospace((10.0 * zoom).clamp(8.5, 11.5));
     let setting_chars = ((body_right - body_left) / (setting_font.size * 0.62)).max(4.0) as usize;
     let body_clip = painter.with_clip_rect(Rect::from_min_max(
         Pos2::new(body_left, header.bottom() + 2.0),
@@ -2832,7 +2830,7 @@ fn paint_graph_node_card(
             setting_font.clone(),
             theme::TEXT_MUTED,
         );
-        y += 11.0 * zoom;
+        y += 12.0 * zoom;
         body_clip.text(
             Pos2::new(body_left, y),
             Align2::LEFT_TOP,
@@ -2844,7 +2842,7 @@ fn paint_graph_node_card(
                 theme::TEXT_PRIMARY
             },
         );
-        y += 14.0 * zoom;
+        y += 15.0 * zoom;
     }
 
     // Named per-port Input Jacks (left edge)
@@ -3078,7 +3076,7 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
                 );
                 ui.add(
                     egui::TextEdit::singleline(&mut cx.state.param_search)
-                        .hint_text("Filter by name or key…")
+                        .hint_text(RichText::new("Filter by name or key…").color(theme::TEXT_MUTED))
                         .font(FontId::proportional(12.0))
                         .desired_width(220.0),
                 );

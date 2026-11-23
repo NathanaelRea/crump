@@ -66,7 +66,7 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui,
                     "FX Rack",
                     app.view == View::Processing && !cx.state.processing_table_mode,
-                    theme::ACCENT_CYAN,
+                    theme::ACCENT_AMBER,
                     "Horizontal FX signal-chain device rack · 3",
                 )
                 .clicked()
@@ -86,7 +86,7 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui,
                     &format!("All ({})", graph.processors.len()),
                     cx.state.processing_owner_filter.is_none(),
-                    theme::ACCENT_AMBER,
+                    theme::ACCENT_CYAN,
                     "Show all processors across the mix graph",
                 )
                 .clicked()
@@ -527,8 +527,10 @@ fn device_card(
                                         .fill(theme::BG_WELL)
                                         .stroke(Stroke::new(
                                             1.0_f32,
+                                            // Neutral frame like any selector; the accent lives
+                                            // only in the value text so it never reads as an error.
                                             if next.is_some() {
-                                                with_alpha(accent, 0.5)
+                                                theme::BORDER_STRONG
                                             } else {
                                                 theme::BORDER_SUBTLE
                                             },
@@ -596,7 +598,7 @@ fn device_card(
                             .show(ui, |ui| {
                                 let col_w = ((CARD_WIDTH - 24.0) / 3.0).floor();
                                 for chunk in continuous.chunks(3) {
-                                    ui.horizontal(|ui| {
+                                    ui.horizontal_top(|ui| {
                                         ui.spacing_mut().item_spacing.x = 0.0;
                                         for (setting, unit, value, min, max) in chunk {
                                             ui.allocate_ui_with_layout(
@@ -1131,9 +1133,25 @@ fn short_setting_label(key: &str) -> String {
         .replace("_seconds", "")
         .replace("_ratio", "")
         .replace('_', " ");
-    let up = clean.to_uppercase();
-    if up.len() > 10 {
-        up.chars().take(10).collect()
+    // Abbreviate long words the way hardware panels do instead of cutting mid-word.
+    let words: Vec<String> = clean
+        .split_whitespace()
+        .map(|word| match word {
+            "frequency" | "freq" => "FREQ".to_owned(),
+            "resonance" => "RES".to_owned(),
+            "threshold" => "THRESH".to_owned(),
+            "release" if clean.len() > 10 => "REL".to_owned(),
+            "attack" if clean.len() > 10 => "ATK".to_owned(),
+            "feedback" => "FDBK".to_owned(),
+            "lookahead" => "LOOKAHEAD".to_owned(),
+            other => other.to_uppercase(),
+        })
+        .collect();
+    let up = words.join(" ");
+    if up.chars().count() > 12 {
+        let mut short: String = up.chars().take(11).collect();
+        short.push('…');
+        short
     } else {
         up
     }

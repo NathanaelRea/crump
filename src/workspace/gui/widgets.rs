@@ -864,16 +864,48 @@ pub(super) fn horizontal_mini_slider(
     }
 
     let painter = ui.painter();
+    // The readout owns an opaque gutter on the right, sized to the widest value this control can
+    // show so it never jitters while dragging. The fill lives only in the rail to its left, so no
+    // fill boundary can ever split the digits.
+    let value_font = FontId::monospace(10.0);
+    let gutter_w = [min, max, current]
+        .iter()
+        .map(|v| {
+            painter
+                .layout_no_wrap(
+                    theme::format_compact_value(*v, unit),
+                    value_font.clone(),
+                    theme::TEXT_PRIMARY,
+                )
+                .size()
+                .x
+        })
+        .fold(0.0_f32, f32::max)
+        + 10.0;
+    let gutter_w = gutter_w.min(rect.width() * 0.6);
+    let rail = Rect::from_min_max(rect.min, Pos2::new(rect.right() - gutter_w, rect.bottom()));
+    let gutter = Rect::from_min_max(Pos2::new(rail.right(), rect.top()), rect.max);
+
     painter.rect_filled(rect, 3.0, theme::BG_WELL);
     let norm = theme::value_to_norm(current, min, max, unit);
-    let fill_w = (rect.width() * norm).clamp(0.0, rect.width());
+    let fill_w = (rail.width() * norm).clamp(0.0, rail.width());
     if fill_w > 1.0 {
-        let fill_rect = Rect::from_min_max(
-            rect.left_top(),
-            Pos2::new(rect.left() + fill_w, rect.bottom()),
+        painter.rect_filled(
+            Rect::from_min_max(rail.min, Pos2::new(rail.left() + fill_w, rail.bottom())),
+            CornerRadius {
+                nw: 3,
+                sw: 3,
+                ne: 0,
+                se: 0,
+            },
+            with_alpha(accent, 0.36),
         );
-        painter.rect_filled(fill_rect, 3.0, with_alpha(accent, 0.36));
     }
+    painter.vline(
+        gutter.left(),
+        (rect.top() + 1.0)..=(rect.bottom() - 1.0),
+        Stroke::new(1.0_f32, theme::BORDER_SUBTLE),
+    );
     painter.rect_stroke(
         rect,
         3.0,
@@ -887,55 +919,28 @@ pub(super) fn horizontal_mini_slider(
         ),
         StrokeKind::Inside,
     );
-
-    // The value owns the right edge on its own backing so the fill edge never cuts through it;
-    // the label is clipped to the space left of it.
-    let value_galley = painter.layout_no_wrap(
+    painter.text(
+        Pos2::new(gutter.right() - 5.0, gutter.center().y),
+        Align2::RIGHT_CENTER,
         theme::format_compact_value(current, unit),
-        FontId::monospace(10.0),
+        value_font,
         theme::TEXT_PRIMARY,
     );
-    let value_rect = Align2::RIGHT_CENTER.anchor_size(
-        Pos2::new(rect.right() - 4.0, rect.center().y),
-        value_galley.size(),
-    );
-    // The fill edge is drawn only where it cannot cut through the value readout or the label.
-    let edge_x = rect.left() + fill_w - 1.0;
-    let label_right = if label.is_empty() {
-        rect.left()
-    } else {
-        let label_w = painter
-            .layout_no_wrap(
-                label.to_owned(),
-                FontId::proportional(10.0),
-                theme::TEXT_SECONDARY,
-            )
-            .size()
-            .x;
-        (rect.left() + 5.0 + label_w).min(value_rect.left() - 5.0)
-    };
-    let over_text = (rect.left()..=label_right + 3.0).contains(&edge_x)
-        || (value_rect.left() - 3.0..=value_rect.right() + 3.0).contains(&edge_x);
-    if fill_w > 1.0 && !over_text {
-        painter.vline(
-            edge_x,
-            (rect.top() + 2.0)..=(rect.bottom() - 2.0),
-            Stroke::new(1.5_f32, accent),
-        );
-    }
-    painter.galley(value_rect.min, value_galley, theme::TEXT_PRIMARY);
     if !label.is_empty() {
-        let label_clip = Rect::from_min_max(
-            Pos2::new(rect.left() + 4.0, rect.top()),
-            Pos2::new(value_rect.left() - 5.0, rect.bottom()),
-        );
+        let label_clip = rail.shrink2(Vec2::new(4.0, 0.0));
         if label_clip.width() > 8.0 {
-            painter.with_clip_rect(label_clip).text(
-                Pos2::new(rect.left() + 5.0, rect.center().y),
-                Align2::LEFT_CENTER,
+            let fitted = ellipsize(
+                painter,
                 label,
+                &FontId::proportional(10.0),
+                label_clip.width() - 2.0,
+            );
+            painter.with_clip_rect(label_clip).text(
+                Pos2::new(rail.left() + 5.0, rail.center().y),
+                Align2::LEFT_CENTER,
+                fitted,
                 FontId::proportional(10.0),
-                theme::TEXT_SECONDARY,
+                theme::TEXT_PRIMARY,
             );
         }
     }
@@ -998,6 +1003,32 @@ pub(super) fn led_button(
     } else {
         response.on_hover_text(legible(tooltip))
     }
+}
+
+/// `text` shortened with a trailing ellipsis so it fits `max_width` in `font`.
+pub(super) fn ellipsize(
+    painter: &egui::Painter,
+    text: &str,
+    font: &FontId,
+    max_width: f32,
+) -> String {
+    let width = |t: &str| {
+        painter
+            .layout_no_wrap(t.to_owned(), font.clone(), theme::TEXT_PRIMARY)
+            .size()
+            .x
+    };
+    if width(text) <= max_width {
+        return text.to_owned();
+    }
+    let chars: Vec<char> = text.chars().collect();
+    for keep in (1..chars.len()).rev() {
+        let candidate: String = chars[..keep].iter().collect::<String>() + "…";
+        if width(&candidate) <= max_width {
+            return candidate;
+        }
+    }
+    "…".to_owned()
 }
 
 /// The one section-header style: a short accent bar and a muted uppercase title. Color lives
