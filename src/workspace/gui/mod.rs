@@ -661,7 +661,7 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                             .drag_preview(bpm_key)
                             .unwrap_or(project.song.tempo_bpm);
                         let (bpm_rect, bpm_resp) =
-                            ui.allocate_exact_size(Vec2::new(58.0, 20.0), Sense::click_and_drag());
+                            ui.allocate_exact_size(Vec2::new(66.0, 20.0), Sense::click_and_drag());
                         if bpm_resp.hovered() || bpm_resp.dragged() {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
                         }
@@ -695,7 +695,12 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ui.painter().text(
                             bpm_rect.center(),
                             Align2::CENTER_CENTER,
-                            format!("{live_bpm:.0} BPM"),
+                            // Edits land in half-BPM steps; show the half when there is one.
+                            if (live_bpm * 2.0).round() % 2.0 == 0.0 {
+                                format!("{live_bpm:.0} BPM")
+                            } else {
+                                format!("{:.1} BPM", (live_bpm * 2.0).round() / 2.0)
+                            },
                             FontId::monospace(11.0),
                             theme::TEXT_PRIMARY,
                         );
@@ -1106,7 +1111,7 @@ fn footer(ui: &mut Ui, cx: &mut Cx<'_>) {
                         // Named by its role: never published, published, or awaiting publish.
                         if app.active_revision.is_none() {
                             "Unpublished"
-                        } else if app.candidate_is_active() {
+                        } else if app.candidate_is_active() || app.publication_settling() {
                             "Rev"
                         } else {
                             "Candidate"

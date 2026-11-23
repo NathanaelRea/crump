@@ -1556,16 +1556,9 @@ pub(super) fn note_strip(ui: &mut Ui, cx: &mut Cx<'_>) {
 }
 
 fn drum_pad_bank(ui: &mut Ui, cx: &mut Cx<'_>) {
-    const FALLBACK_DRUMS: [&str; 8] = [
-        "Kick",
-        "Snare",
-        "Closed Hat",
-        "Clap",
-        "Open Hat",
-        "Rim",
-        "Low Tom",
-        "Crash",
-    ];
+    // The stock kit has four voices; its second row of keys (Z X C V) plays the same four, so
+    // it gets four pads rather than four more that only repeat them under other names.
+    const STOCK_DRUMS: [&str; 4] = ["Kick", "Snare", "Closed Hat", "Clap"];
     let app = cx.app;
     let instrument = app
         .bundle
@@ -1589,12 +1582,8 @@ fn drum_pad_bank(ui: &mut Ui, cx: &mut Cx<'_>) {
         }
     }
     if pads.is_empty() {
-        const EXTRA_KEYS: [(char, u8); 4] = [('g', 46), ('h', 37), ('j', 45), ('k', 49)];
-        for (idx, name) in FALLBACK_DRUMS.iter().enumerate() {
-            let (key, pitch) = DRUM_NOTES
-                .get(idx)
-                .copied()
-                .unwrap_or_else(|| EXTRA_KEYS[(idx - DRUM_NOTES.len()).min(3)]);
+        for (idx, name) in STOCK_DRUMS.iter().enumerate() {
+            let (key, pitch) = DRUM_NOTES[idx];
             pads.push((key, pitch, (*name).to_owned()));
         }
     }

@@ -2161,7 +2161,7 @@ fn automation_curve_canvas(
         painter.vline(
             x,
             plot.y_range(),
-            Stroke::new(1.0_f32, with_alpha(theme::SIG_HOT, 0.16)),
+            Stroke::new(1.0_f32, with_alpha(theme::TEXT_MUTED, 0.14)),
         );
         let fw = (loc.name.len() as f32 * 5.6 + 10.0).clamp(28.0, 82.0);
         // A flag that would run off the right edge hangs left of its line instead.
@@ -2174,12 +2174,12 @@ fn automation_curve_canvas(
             Pos2::new(flag_x, locator_band.top() + 1.5),
             Vec2::new(fw, LOC_BAND_H - 3.0),
         );
-        // Neutral chip with an amber tick: amber stays reserved for selection and primary action.
+        // Neutral chip and muted tick: resting locators stay quiet beside clips and curves.
         painter.rect_filled(flag, 2.5, theme::BG_CARD);
         painter.rect_filled(
             Rect::from_min_size(flag.left_top(), Vec2::new(2.5, flag.height())),
             1.0,
-            theme::SIG_HOT,
+            theme::TEXT_MUTED,
         );
         painter.text(
             Pos2::new(flag.left() + 6.0, flag.center().y),

@@ -576,14 +576,13 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
             ui.add_space(4.0);
             ui.label(
                 RichText::new(
-                    "Publishing checkpoints the Candidate as an Active Revision you can diff and restore.",
+                    "Publish this version to save a revision you can compare or restore.",
                 )
                 .size(11.5)
                 .color(theme::TEXT_SECONDARY),
             );
             ui.add_space(14.0);
-            if widgets::publish_button(ui, "Publish Revision", needs_publish(app)).clicked()
-            {
+            if widgets::publish_button(ui, "Publish Revision", needs_publish(app)).clicked() {
                 cx.send(Action::OpenPublish);
             }
         });

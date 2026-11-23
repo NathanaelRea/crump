@@ -52,7 +52,9 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
         .inner_margin(egui::Margin::symmetric(10, 4))
         .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
         .show(ui, |ui| {
-            ui.horizontal_wrapped(|ui| {
+            // One row, as in the Console: a wrapping row pushed the right-aligned Params Table
+            // toggle onto a hidden second line.
+            ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 5.0;
 
                 // Matching Mix sub-view switcher (Console | FX Rack)
@@ -1700,7 +1702,8 @@ fn paint_fx_transfer_preview(
     painter.text(
         Pos2::new(rect.left() + 4.0, rect.top() + 3.0),
         Align2::LEFT_TOP,
-        format!("MIX {:.0}%", mix * 100.0),
+        // The curve is the wet shaper alone; the mix setting lives with the controls.
+        "WET TRANSFER",
         FontId::monospace(9.0),
         theme::TEXT_SECONDARY,
     );

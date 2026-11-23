@@ -1413,7 +1413,7 @@ fn markers(
         painter.vline(
             x,
             geometry.full_canvas.y_range(),
-            Stroke::new(1.0_f32, with_alpha(theme::SIG_HOT, 0.16)),
+            Stroke::new(1.0_f32, with_alpha(theme::TEXT_MUTED, 0.14)),
         );
         let font = FontId::proportional(9.5);
         let flag_w = (painter
@@ -1434,12 +1434,12 @@ fn markers(
             Pos2::new(flag_x, rect.top() + 2.0),
             Vec2::new(flag_w, LOCATOR_BAND_H - 4.0),
         );
-        // Neutral chip with an amber tick: amber stays reserved for selection and primary action.
+        // Neutral chip and muted tick: resting locators stay quiet beside clips and curves.
         painter.rect_filled(flag, 2.5, theme::BG_CARD);
         painter.rect_filled(
             Rect::from_min_size(flag.left_top(), Vec2::new(2.5, flag.height())),
             1.0,
-            theme::SIG_HOT,
+            theme::TEXT_MUTED,
         );
         painter.text(
             Pos2::new(flag.left() + 6.0, flag.center().y),
