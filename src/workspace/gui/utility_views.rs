@@ -1225,6 +1225,7 @@ fn desktop_help_text(line: &str) -> String {
         .replace("Graph:", "Patch Graph:")
         .replace("Instrument:", "Synth:")
         .replace("gi Instrument", "gi Synth")
+        .replace("gm Mixer", "gm Console")
         .replace("Instrument views", "Sound views")
 }
 

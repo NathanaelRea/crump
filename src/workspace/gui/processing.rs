@@ -31,9 +31,15 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
         return;
     };
 
-    // Collect distinct owners in deterministic chain order
+    // Distinct owners in the rack's signal order: channel chains first, then the rest.
     let mut owners: Vec<String> = Vec::new();
-    for proc in &graph.processors {
+    let signal_order = graph
+        .channels
+        .iter()
+        .flat_map(|channel| &channel.processors)
+        .filter_map(|id| graph.processors.iter().find(|proc| proc.id == *id))
+        .chain(&graph.processors);
+    for proc in signal_order {
         if !owners.contains(&proc.owner) {
             owners.push(proc.owner.clone());
         }
@@ -846,6 +852,10 @@ fn focused_device_inspector(
 ) {
     let app = cx.app;
     let accent = theme::processor_color(proc.kind);
+    // Reordering stops at the ends of the processor's own chain.
+    let (can_earlier, can_later) = app
+        .processing_graph()
+        .map_or((true, true), |graph| chain_moves(graph, &proc.id));
     let meter = (proc.index < app.telemetry.engine.processor_count)
         .then(|| app.telemetry.engine.processor_activity[proc.index]);
     let transient = app.audition_plan.transient_bypass.get(&proc.id).copied();
@@ -932,30 +942,38 @@ fn focused_device_inspector(
                     processor: proc.id.clone(),
                 });
             }
-            if led_button(
-                ui,
-                "Later >",
-                false,
-                accent,
-                Vec2::new(56.0, 20.0),
-                "Move processor later in chain · J",
-            )
-            .clicked()
+            if ui
+                .add_enabled_ui(can_later, |ui| {
+                    led_button(
+                        ui,
+                        "Later >",
+                        false,
+                        accent,
+                        Vec2::new(56.0, 20.0),
+                        "Move processor later in chain · J",
+                    )
+                })
+                .inner
+                .clicked()
             {
                 cx.send(Action::MoveProcessor {
                     processor: proc.id.clone(),
                     direction: MoveDirection::Later,
                 });
             }
-            if led_button(
-                ui,
-                "< Earlier",
-                false,
-                accent,
-                Vec2::new(62.0, 20.0),
-                "Move processor earlier in chain · K",
-            )
-            .clicked()
+            if ui
+                .add_enabled_ui(can_earlier, |ui| {
+                    led_button(
+                        ui,
+                        "< Earlier",
+                        false,
+                        accent,
+                        Vec2::new(62.0, 20.0),
+                        "Move processor earlier in chain · K",
+                    )
+                })
+                .inner
+                .clicked()
             {
                 cx.send(Action::MoveProcessor {
                     processor: proc.id.clone(),
@@ -1009,12 +1027,25 @@ fn focused_device_inspector(
                         );
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if let Some(m) = meter {
+                                // Gain reduction only means something for dynamics.
+                                let gr = matches!(
+                                    proc.kind,
+                                    ProcessorKind::Compressor
+                                        | ProcessorKind::Gate
+                                        | ProcessorKind::Limiter
+                                )
+                                .then(|| {
+                                    format!(
+                                        " · GR {}",
+                                        theme::format_db(f64::from(m.gain_reduction_db))
+                                    )
+                                })
+                                .unwrap_or_default();
                                 ui.label(
                                     RichText::new(format!(
-                                        "IN {} dB · OUT {} dB · GR {}",
+                                        "IN {} dB · OUT {} dB{gr}",
                                         theme::format_dbfs(m.input_peak),
                                         theme::format_dbfs(m.output_peak),
-                                        theme::format_db(f64::from(m.gain_reduction_db))
                                     ))
                                     .monospace()
                                     .size(9.5)
@@ -1389,6 +1420,18 @@ fn with_previews<'a>(
         shown.settings[index].value = Some(value);
     }
     std::borrow::Cow::Owned(shown)
+}
+
+/// Whether the processor can move earlier and later within its own channel chain.
+fn chain_moves(graph: &MixGraphInspection, processor: &str) -> (bool, bool) {
+    graph
+        .channels
+        .iter()
+        .find_map(|channel| {
+            let index = channel.processors.iter().position(|id| id == processor)?;
+            Some((index > 0, index + 1 < channel.processors.len()))
+        })
+        .unwrap_or((true, true))
 }
 
 fn setting_val(proc: &CompiledProcessorInspection, needle: &str) -> Option<f64> {

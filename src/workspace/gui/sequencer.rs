@@ -1567,7 +1567,9 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
 
                 // "+ New Lane" menu button for creating automation on any automatable song parameter
                 ui.menu_button(
-                    RichText::new("+ Lane").size(11.0).color(theme::SIG_NOMINAL),
+                    RichText::new("+ Lane")
+                        .size(11.0)
+                        .color(theme::TEXT_PRIMARY),
                     |ui| {
                         ui.set_min_width(220.0);
                         ui.label(

@@ -941,8 +941,9 @@ fn status_cluster(ui: &mut Ui, cx: &mut Cx<'_>, show_meter: bool) {
             "Invalid Candidate (has diagnostics)".to_owned(),
         )
     } else if app.candidate_is_active() || settling {
+        // In sync is the normal state: the dot stays quiet.
         (
-            theme::SIG_NOMINAL,
+            theme::TEXT_MUTED,
             format!(
                 "Active Revision {} (in sync)",
                 short_revision(&app.bundle.revision)
@@ -1219,7 +1220,7 @@ fn footer(ui: &mut Ui, cx: &mut Cx<'_>) {
                     RichText::new("RANGE SELECT")
                         .strong()
                         .size(10.0)
-                        .color(theme::SIG_NOMINAL),
+                        .color(theme::ACCENT_CYAN),
                 );
             }
         });

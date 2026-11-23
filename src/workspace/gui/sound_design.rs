@@ -1238,9 +1238,12 @@ fn draw_mod_route_row(
         .map(|p| (p.maximum - p.minimum).abs().max(1.0))
         .unwrap_or(1.0);
     let current_depth = unit.parse_value(&route.depth).unwrap_or(0.0);
+    // A bypass click shows at once, like Mute, instead of waiting for its edit to reload.
+    let bypass_key = format!("route-bypass:{}:{}", instrument.id, route.id);
+    let bypassed = state.flag(&bypass_key, route.bypass);
 
     egui::Frame::new()
-        .fill(if route.bypass {
+        .fill(if bypassed {
             theme::BG_WELL
         } else {
             theme::BG_CANVAS
@@ -1253,14 +1256,15 @@ fn draw_mod_route_row(
             ui.horizontal(|ui| {
                 if led_button(
                     ui,
-                    if route.bypass { "OFF" } else { "ON" },
-                    !route.bypass,
+                    if bypassed { "OFF" } else { "ON" },
+                    !bypassed,
                     theme::ACCENT_VIOLET,
                     Vec2::new(34.0, 20.0),
                     "Toggle modulation route bypass",
                 )
                 .clicked()
                 {
+                    state.hold_flag(&bypass_key, !bypassed);
                     pending_actions.push(Action::ToggleInstrumentRouteBypassById {
                         instrument: instrument.id.clone(),
                         route: route.id.clone(),
@@ -1290,7 +1294,7 @@ fn draw_mod_route_row(
                     max_depth,
                     target_param,
                     unit,
-                    if route.bypass {
+                    if bypassed {
                         theme::TEXT_MUTED
                     } else {
                         theme::ACCENT_VIOLET

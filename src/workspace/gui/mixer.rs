@@ -799,13 +799,14 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
 
                         let (bar_rect, _) =
                             ui.allocate_exact_size(Vec2::new(inner_w, 4.0), Sense::hover());
-                        ui.painter().rect_filled(bar_rect, 2.0, theme::ACCENT_AMBER);
+                        ui.painter()
+                            .rect_filled(bar_rect, 2.0, theme::TEXT_SECONDARY);
 
                         ui.label(
                             RichText::new("MASTER")
                                 .strong()
                                 .size(12.5)
-                                .color(theme::ACCENT_AMBER),
+                                .color(theme::TEXT_PRIMARY),
                         );
                         ui.label(
                             RichText::new("STEREO OUT")
