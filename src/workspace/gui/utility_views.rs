@@ -34,7 +34,7 @@ pub(super) fn source(ui: &mut Ui, cx: &mut Cx<'_>) {
     // Left File Tree Sidebar
     egui::SidePanel::left("crump-source-files")
         .resizable(true)
-        .default_width(245.0)
+        .default_width(280.0)
         .min_width(180.0)
         .max_width(350.0)
         .frame(
@@ -207,7 +207,7 @@ pub(super) fn source(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 .monospace()
                                 .size(11.5)
                                 .color(if is_target {
-                                    theme::ACCENT_AMBER
+                                    theme::TEXT_PRIMARY
                                 } else {
                                     theme::TEXT_MUTED
                                 }),

@@ -281,7 +281,22 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                     if !project.song.locators.is_empty() {
                         ui.separator();
                         let cur_at = app.timeline_position().at;
-                        for (idx, locator) in project.song.locators.iter().enumerate().take(5).rev()
+                        // As many locators as the toolbar has room for, rather than a fixed five.
+                        let pill_w =
+                            |name: &str| (name.len() as f32 * 6.5 + 14.0).clamp(42.0, 92.0);
+                        let room = ui.available_width() - 8.0;
+                        let fit = project
+                            .song
+                            .locators
+                            .iter()
+                            .scan(0.0, |used, locator| {
+                                *used += pill_w(&locator.name) + ui.spacing().item_spacing.x;
+                                Some(*used)
+                            })
+                            .take_while(|used| *used <= room)
+                            .count();
+                        for (idx, locator) in
+                            project.song.locators.iter().enumerate().take(fit).rev()
                         {
                             let at_here = locator.at == cur_at;
                             if led_button(
@@ -289,10 +304,7 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                                 &locator.name,
                                 at_here,
                                 theme::TEXT_SECONDARY,
-                                Vec2::new(
-                                    (locator.name.len() as f32 * 6.5 + 14.0).clamp(42.0, 92.0),
-                                    20.0,
-                                ),
+                                Vec2::new(pill_w(&locator.name), 20.0),
                                 &format!("Jump to locator {} ({})", locator.name, locator.at),
                             )
                             .clicked()
@@ -612,6 +624,8 @@ fn track_header(
             Vec2::new(name_w, 18.0),
             Layout::left_to_right(Align::Center),
             |ui| {
+                // Full width whatever the name, so M / S / A line up in columns down the tracks.
+                ui.set_min_width(name_w);
                 ui.label(
                     RichText::new(format!("{:02}", index + 1))
                         .monospace()

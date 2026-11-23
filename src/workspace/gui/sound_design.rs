@@ -320,7 +320,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     if !instrument.presentation.tags.is_empty() {
                                         for tag in instrument.presentation.tags.iter().take(4) {
-                                            badge_chip(ui, tag, theme::ACCENT_VIOLET);
+                                            badge_chip(ui, tag, theme::TEXT_SECONDARY);
                                         }
                                     }
                                 });
@@ -2112,7 +2112,7 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new(format!(
-                        "Voice Domain: {}/{} nodes · {} cables",
+                        "Voice Domain: {} nodes (limit {}) · {} cables",
                         voice.nodes.len(),
                         voice.max_nodes,
                         voice.connections.len()
@@ -3231,6 +3231,9 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
                             ui.columns(2, |cols| {
                                 // Left: Automation Coverage
                                 cols[0].vertical(|ui| {
+                                    // A gutter before the Modulation column, so `Edit >` stays
+                                    // with its own row.
+                                    ui.set_max_width(ui.available_width() - 18.0);
                                     section_header(ui, "SONG AUTOMATION COVERAGE", theme::SIG_NOMINAL);
                                     ui.add_space(5.0);
                                     let inst_lanes: Vec<_> = project

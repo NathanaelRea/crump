@@ -1453,17 +1453,7 @@ pub(super) fn note_strip(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 cx.send(Action::NoteOff { key });
                             }
                         }
-                        let voices = app.telemetry.engine.active_voices;
-                        ui.label(
-                            RichText::new(format!("{voices}v"))
-                                .monospace()
-                                .size(10.0)
-                                .color(if voices > 0 {
-                                    theme::SIG_NOMINAL
-                                } else {
-                                    theme::TEXT_MUTED
-                                }),
-                        );
+                        // The voice count lives in the transport deck only.
                         if app.note_mode {
                             ui.label(
                                 RichText::new("LIVE")
