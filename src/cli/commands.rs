@@ -18,11 +18,27 @@ pub(super) fn execute(cli: &Cli) -> Result<Success, Failure> {
         Some(Command::Asset(command)) => command_asset(cli, command),
         Some(Command::Module(command)) => command_module(cli, command),
         Some(Command::Doctor) => command_doctor(cli),
+        // A bare interactive `crump` opens the desktop window where a display exists, the
+        // terminal workspace on a plain terminal, and `status` for scripts and `--json`.
+        None if !cli.json
+            && cfg!(feature = "gui")
+            && graphical_display_available()
+            && (std::io::stdin().is_terminal() || !workspace_needs_project_picker(cli)) =>
+        {
+            command_gui(cli)
+        }
         None if !cli.json && std::io::stdin().is_terminal() && std::io::stdout().is_terminal() => {
             command_workspace(cli)
         }
         None => command_status(cli),
     }
+}
+
+/// Whether a Wayland or X11 display is reachable, so a window can open.
+fn graphical_display_available() -> bool {
+    ["WAYLAND_DISPLAY", "DISPLAY"]
+        .iter()
+        .any(|name| std::env::var_os(name).is_some_and(|value| !value.is_empty()))
 }
 
 fn command_new(cli: &Cli, args: &NewArgs) -> Result<Success, Failure> {

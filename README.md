@@ -58,27 +58,20 @@ To build without PipeWire, run `cargo build --release --no-default-features --fe
 
 ## Desktop window
 
-Crump has an optional desktop window. It shows the same views as the terminal workspace and takes the same keys, and adds full mouse editing: drag clips, faders, knobs and automation points, draw notes in the piano roll, and Ctrl-scroll to zoom. Every edit is saved, validated and recorded in History like any other.
+Crump opens a desktop window by default. It shows the same views as the terminal workspace and takes the same keys, and adds full mouse editing: drag clips, faders, knobs and automation points, draw notes in the piano roll, and Ctrl-scroll to zoom. Every edit is saved, validated and recorded in History like any other.
 
 | | |
 |---|---|
 | ![FX rack with processor cards and inspector](assets/screenshots/gui-fx-rack.png) | ![Synth view with oscillator, filter and envelope displays](assets/screenshots/gui-synth.png) |
 | ![Patch graph of an instrument's voice](assets/screenshots/gui-patch-graph.png) | ![Piano roll with velocity lane and drum pads](assets/screenshots/gui-piano-roll.png) |
 
-The window is behind the `gui` Cargo feature, so it isn't in the default build:
+Running `crump` with no command opens it whenever a Wayland or X11 display is available; on a plain terminal (SSH, a console) you get the terminal workspace instead, and `crump gui` / `crump workspace` pick one explicitly. To try it from a checkout:
 
 ```sh
-cargo install --path . --locked --features gui
-crump gui --project path/to/project
+cargo run --release -- --project fixtures/deep-house-reference
 ```
 
-To try it from a checkout without installing:
-
-```sh
-cargo run --release --features gui -- gui --project fixtures/deep-house-reference
-```
-
-Use `--release`: a debug build is too slow for the realtime audio thread, and the system kills the process when playback starts. It needs a Wayland or X11 session. Run from a terminal without `--project` and it offers the project picker. More in [docs/workspace.md](docs/workspace.md#desktop-window).
+Use `--release`: a debug build is too slow for the realtime audio thread, and the system kills the process when playback starts. Run from a terminal without `--project` and it offers the project picker. To build without the window, use `--no-default-features --features pipewire,tui`. More in [docs/workspace.md](docs/workspace.md#desktop-window).
 
 ## Quick start
 

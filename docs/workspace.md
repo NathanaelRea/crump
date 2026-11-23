@@ -1,10 +1,10 @@
 # Production Workspace
 
-Run `crump` with no command in an interactive terminal, or use `crump workspace`. Ratatui is the first-party client; the Project model, validator, history, engine, renderer, and real-time adapter do not depend on it.
+Run `crump workspace`, or `crump` with no command in an interactive terminal that has no graphical display (where a display is available, a bare `crump` opens the desktop window below instead). Ratatui is the reference client; the Project model, validator, history, engine, renderer, and real-time adapter do not depend on it.
 
 ## Desktop window
 
-A build with the `gui` Cargo feature also has `crump gui`, which opens the same workspace in a desktop window ([ADR 0027](adr/0027-optional-desktop-client.md)). It has the same views and every key below works in it. On top of that:
+Default builds also have `crump gui`, which a bare interactive `crump` uses when a Wayland or X11 display is available. It opens the same workspace in a desktop window ([ADR 0027](adr/0027-optional-desktop-client.md)). It has the same views and every key below works in it. On top of that:
 
 - Click a view tab, a table row, or a toolbar button; each button's hover text names its key. Double-click a row for its exact edit.
 - In the Timeline, click to place the cursor and select a Track, drag to select a range, Ctrl-scroll to zoom, Shift-scroll to pan, double-click a Clip to open its Pattern, and right-click for more.

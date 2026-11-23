@@ -660,6 +660,7 @@ fn materialize_patterns(
 /// The events a Pattern actually plays: its own Events, or for a Pattern Variation the
 /// deterministic transform of its source lineage. Clients use this to preview Variations exactly
 /// as the engine will schedule them; `None` when the lineage cannot be materialized.
+#[cfg(feature = "gui")]
 pub(crate) fn materialized_pattern_events(
     project: &Project,
     id: &str,

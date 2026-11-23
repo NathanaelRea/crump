@@ -142,6 +142,7 @@ Priority: optional
 Architecture: $architecture
 Maintainer: Crump contributors
 Depends: libc6, libpipewire-0.3-0 (>= 1.2)
+Recommends: libegl1, libgl1, libxkbcommon0, libwayland-client0 | libx11-6
 Installed-Size: $installed_size
 Homepage: https://github.com/NathanaelRea/crump
 Description: terminal-first guided production instrument

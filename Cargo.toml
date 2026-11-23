@@ -12,12 +12,13 @@ categories = ["multimedia::audio", "command-line-utilities"]
 default-run = "crump"
 
 [features]
-default = ["pipewire", "tui"]
+default = ["pipewire", "tui", "gui"]
 pipewire = ["dep:pipewire"]
 # The Ratatui terminal client. Without it the library keeps the client-independent workspace
 # session and every CLI command except the interactive workspace.
 tui = ["dep:crossterm", "dep:ratatui", "dep:unicode-width"]
-# The egui desktop client, an optional second adapter over the same workspace session.
+# The egui desktop client, a second adapter over the same workspace session. On by default; a
+# bare interactive `crump` opens it when a display is available.
 gui = ["dep:eframe", "dep:egui_extras"]
 
 [dependencies]
