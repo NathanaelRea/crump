@@ -2,6 +2,18 @@
 
 Run `crump` with no command in an interactive terminal, or use `crump workspace`. Ratatui is the first-party client; the Project model, validator, history, engine, renderer, and real-time adapter do not depend on it.
 
+## Desktop window
+
+A build with the `gui` Cargo feature also has `crump gui`, which opens the same workspace in a desktop window ([ADR 0027](adr/0027-optional-desktop-client.md)). It has the same views and every key below works in it. On top of that:
+
+- Click a view tab, a table row, or a toolbar button; each button's hover text names its key. Double-click a row for its exact edit.
+- In the Timeline, click to place the cursor and select a Track, drag to select a range, Ctrl-scroll to zoom, Shift-scroll to pan, double-click a Clip to open its Pattern, and right-click for more.
+- Instrument views show clickable Note Audition keys while playback runs.
+- `e` in Source opens the file with the desktop's default application through `xdg-open` rather than `$EDITOR`; saved changes reload automatically.
+- Closing the window exits, as does Ctrl-C.
+
+`crump gui` needs a Project: pass `--project`, run it in a Project directory, or start it from a terminal to get the Project picker.
+
 The workspace probes Project source, declared media, and Active History metadata several times per second. A metadata change invalidates the relevant cache and triggers exact-byte reconstruction; metadata never defines Candidate or Media Asset identity. External file or Agent changes therefore appear without restarting the application, while an unchanged Project is not reparsed on the UI thread.
 
 ## Revision header

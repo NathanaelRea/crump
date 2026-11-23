@@ -4,10 +4,13 @@
 //! adapters own the mapping from their input (keys, pointer, menus) to [`Action`]; this module
 //! depends on no terminal or windowing library.
 
-use std::{path::Path, time::Instant};
+use std::{
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
-use super::{HeldNote, Modal, View, Workspace, WorkspaceError};
-use crate::{model::TapPoint, production_view::MoveDirection};
+use super::{HeldNote, Modal, TimelinePosition, View, Workspace, WorkspaceError, timeline};
+use crate::{history::write_atomic, model::TapPoint, production_view::MoveDirection};
 
 /// One client-independent request to change workspace state.
 ///
@@ -136,6 +139,8 @@ pub enum Action {
     ModalSelectAll,
     /// Append one character to the modal input.
     ModalInsert(char),
+    /// Replace the whole modal input, for clients that edit it in a native text field.
+    ModalSetInput(String),
     /// Scroll a text modal by a signed line count.
     ModalScroll(i16),
 
@@ -175,6 +180,18 @@ pub enum TimelineAction {
     SetMark(char),
     /// Return the cursor to a named mark.
     JumpMark(char),
+    /// Move the cursor to a Track and to the grid position nearest a pointer.
+    ///
+    /// The pointer is given as one column of a `columns`-wide division of the viewport, so a
+    /// client needs no Musical Time arithmetic of its own.
+    PlaceCursor {
+        /// Index of the Track under the pointer.
+        track: usize,
+        /// Zero-based column under the pointer.
+        column: usize,
+        /// Number of equal columns the client divides the viewport into.
+        columns: usize,
+    },
 
     /// Make the grid finer or coarser.
     ChangeGrid(isize),
@@ -231,6 +248,12 @@ pub enum TimelineAction {
     GoProcessing,
 }
 
+impl From<TimelineAction> for Action {
+    fn from(action: TimelineAction) -> Self {
+        Self::Timeline(action)
+    }
+}
+
 impl Workspace {
     /// Opens the workspace for one Project and starts loading it in the background.
     ///
@@ -279,6 +302,38 @@ impl Workspace {
     /// The client owns how a source file is edited; the workspace only records the request.
     pub fn take_editor_request(&mut self) -> bool {
         std::mem::take(&mut self.editor_requested)
+    }
+
+    /// Prepares the selected source file for editing outside the workspace.
+    ///
+    /// Releases held audition notes and returns the absolute path to edit, writing the file
+    /// first when it exists only as an imported snapshot. Call this after
+    /// [`Workspace::take_editor_request`] reports a request; `None` means no file is selected.
+    pub fn source_edit_path(&mut self) -> Result<Option<PathBuf>, WorkspaceError> {
+        let Some(relative_path) = self
+            .bundle
+            .sources
+            .keys()
+            .nth(self.selected_source)
+            .cloned()
+        else {
+            self.status = "No Project source file is selected".to_owned();
+            return Ok(None);
+        };
+        if let Some(player) = self.player.as_mut() {
+            let _ = player.all_notes_off();
+        }
+        self.held_notes.clear();
+        let source_path = self.root.join(&relative_path);
+        if !source_path.exists()
+            && let Some(source) = self.bundle.sources.get(&relative_path)
+        {
+            // Personal-library imports are snapshotted under a safe project-local
+            // display path. Editing one materializes that exact source locally so
+            // the shared library is never modified as a side effect.
+            write_atomic(&source_path, source.as_bytes())?;
+        }
+        Ok(Some(source_path))
     }
 
     /// Tells the workspace how many lines of help the client shows, bounding Help scrolling.
@@ -407,6 +462,17 @@ impl Workspace {
                     value.push(character);
                 }
             }
+            Action::ModalSetInput(input) => {
+                if let Some(Modal::Input {
+                    value,
+                    replace_on_type,
+                    ..
+                }) = &mut self.modal
+                {
+                    *value = input;
+                    *replace_on_type = false;
+                }
+            }
             Action::ModalScroll(delta) => {
                 if let Some(Modal::Text { scroll, .. }) = &mut self.modal {
                     *scroll = scroll.saturating_add_signed(delta);
@@ -432,6 +498,11 @@ impl Workspace {
             TimelineAction::JumpHistory(direction) => self.jump_timeline_history(direction),
             TimelineAction::SetMark(mark) => self.set_timeline_mark(mark),
             TimelineAction::JumpMark(mark) => self.jump_timeline_mark(mark),
+            TimelineAction::PlaceCursor {
+                track,
+                column,
+                columns,
+            } => self.place_timeline_cursor(track, column, columns),
 
             TimelineAction::ChangeGrid(direction) => self.change_timeline_grid(direction),
             TimelineAction::Zoom(direction) => self.zoom_timeline(direction),
@@ -471,6 +542,25 @@ impl Workspace {
             TimelineAction::GoMixer => self.timeline_go_mixer(),
             TimelineAction::GoProcessing => self.timeline_go_processing(),
         }
+    }
+
+    fn place_timeline_cursor(&mut self, track: usize, column: usize, columns: usize) {
+        let Some(project) = self.bundle.project.as_ref() else {
+            return;
+        };
+        let window = self.timeline_viewport.window(project.song.end);
+        let grid = self.timeline_state.grid(project);
+        let Some(at) = timeline::column_time_span(window, column, columns)
+            .and_then(|(left, _)| left.snap_to_grid(grid).ok())
+        else {
+            return;
+        };
+        self.set_timeline_position(
+            TimelinePosition { at, track },
+            false,
+            true,
+            "Timeline cursor placed",
+        );
     }
 
     fn reveal_timeline_cursor(&mut self) {

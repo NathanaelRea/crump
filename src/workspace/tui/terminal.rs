@@ -98,14 +98,9 @@ fn launch_source_editor(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
     app: &mut Workspace,
 ) -> Result<(), WorkspaceError> {
-    let Some(relative_path) = app.bundle.sources.keys().nth(app.selected_source).cloned() else {
-        app.status = "No Project source file is selected".to_owned();
+    let Some(source_path) = app.source_edit_path()? else {
         return Ok(());
     };
-    if let Some(player) = app.player.as_mut() {
-        let _ = player.all_notes_off();
-    }
-    app.held_notes.clear();
 
     execute!(
         terminal.backend_mut(),
@@ -117,15 +112,6 @@ fn launch_source_editor(
     let editor = std::env::var_os("VISUAL")
         .or_else(|| std::env::var_os("EDITOR"))
         .unwrap_or_else(|| "vi".into());
-    let source_path = app.root.join(&relative_path);
-    if !source_path.exists()
-        && let Some(source) = app.bundle.sources.get(&relative_path)
-    {
-        // Personal-library imports are snapshotted under a safe project-local
-        // display path. Editing one materializes that exact source locally so
-        // the shared library is never modified as a side effect.
-        write_atomic(&source_path, source.as_bytes())?;
-    }
     let result = Command::new(editor).arg(&source_path).status();
 
     enable_raw_mode()?;
@@ -139,6 +125,7 @@ fn launch_source_editor(
     terminal.resize(area)?;
     app.status = match result {
         Ok(status) if status.success() => {
+            let relative_path = source_path.strip_prefix(&app.root).unwrap_or(&source_path);
             format!("Editor closed · reloaded {}", relative_path.display())
         }
         Ok(status) => format!("Editor exited with {status} · reloaded Candidate"),

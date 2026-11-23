@@ -40,6 +40,31 @@ pub(super) struct InstrumentSectionRow {
     pub(super) source_offset: usize,
 }
 
+/// One live modulation route as a client shows it: identity, scope, bypass, and contribution.
+pub(super) fn instrument_modulation_route_label(
+    route: &crate::engine::control::InstrumentModulationValueSnapshot,
+    unit: crate::model::Unit,
+) -> String {
+    let (scope, contribution) = match route.scope {
+        crate::model::InstrumentModulationScope::Global => (
+            "global",
+            route.contribution.map_or_else(
+                || "unavailable".to_owned(),
+                |contribution| unit.format_value(contribution),
+            ),
+        ),
+        crate::model::InstrumentModulationScope::Instrument => {
+            ("instrument/per-track", "per-track".to_owned())
+        }
+        crate::model::InstrumentModulationScope::PerVoice => ("per_voice", "per-voice".to_owned()),
+    };
+    format!(
+        "instrument:{}[{scope}]{}={contribution}",
+        route.route,
+        if route.bypass { "(bypass)" } else { "" },
+    )
+}
+
 #[cfg(test)]
 pub(super) fn instrument_section_views(
     project: &Project,

@@ -10,6 +10,7 @@ pub(super) fn execute(cli: &Cli) -> Result<Success, Failure> {
         Some(Command::Check) => command_check(cli),
         Some(Command::Play(args)) => command_play(cli, args),
         Some(Command::Workspace) => command_workspace(cli),
+        Some(Command::Gui) => command_gui(cli),
         Some(Command::Render(args)) => command_render(cli, args),
         Some(Command::Qualify(args)) => command_qualify(cli, args),
         Some(Command::History(command)) => command_history(cli, command),
@@ -687,21 +688,12 @@ fn command_workspace(cli: &Cli) -> Result<Success, Failure> {
         ));
     }
 
-    let project = if workspace_needs_project_picker(cli) {
-        match select_project(&cli.project)
-            .map_err(|error| Failure::operational("workspace", "project_selection", error))?
-        {
-            ProjectSelection::Selected(project) => project,
-            ProjectSelection::Cancelled => {
-                return Ok(Success {
-                    command: "workspace",
-                    human: "Project selection cancelled".to_owned(),
-                    data: json!({ "closed": true, "opened": false }),
-                });
-            }
-        }
-    } else {
-        cli.project.clone()
+    let Some(project) = interactive_project(cli, "workspace")? else {
+        return Ok(Success {
+            command: "workspace",
+            human: "Project selection cancelled".to_owned(),
+            data: json!({ "closed": true, "opened": false }),
+        });
     };
 
     #[cfg(feature = "tui")]
@@ -722,6 +714,72 @@ fn command_workspace(cli: &Cli) -> Result<Success, Failure> {
         human: "Production Workspace closed".to_owned(),
         data: json!({ "closed": true, "opened": true, "project": project }),
     })
+}
+
+fn command_gui(cli: &Cli) -> Result<Success, Failure> {
+    if cli.json {
+        return Err(Failure::blocked(
+            "gui",
+            "interactive_command",
+            "the desktop Production Workspace is interactive and cannot use --json",
+            json!([]),
+        ));
+    }
+    // A window can be launched without a terminal, where the interactive Project picker cannot
+    // run, so the Project must then already be identified.
+    let terminal = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+    if workspace_needs_project_picker(cli) && !terminal {
+        return Err(Failure::blocked(
+            "gui",
+            "project_required",
+            format!(
+                "{} is not a Crump Project; pass --project with a Project directory",
+                cli.project.display()
+            ),
+            json!([]),
+        ));
+    }
+    let Some(project) = interactive_project(cli, "gui")? else {
+        return Ok(Success {
+            command: "gui",
+            human: "Project selection cancelled".to_owned(),
+            data: json!({ "closed": true, "opened": false }),
+        });
+    };
+
+    #[cfg(feature = "gui")]
+    {
+        crate::workspace::run_gui(&project)
+            .map_err(|error| Failure::operational("gui", "workspace_error", error))?;
+        Ok(Success {
+            command: "gui",
+            human: "Production Workspace closed".to_owned(),
+            data: json!({ "closed": true, "opened": true, "project": project }),
+        })
+    }
+    #[cfg(not(feature = "gui"))]
+    Err(Failure::operational(
+        "gui",
+        "desktop_client_unavailable",
+        format!(
+            "this build has no desktop client and cannot open {}; rebuild with the `gui` feature",
+            project.display()
+        ),
+    ))
+}
+
+/// The Project an interactive client should open, asking the terminal Project picker when the
+/// working directory is not a Project. `None` means the user cancelled the picker.
+fn interactive_project(cli: &Cli, command: &'static str) -> Result<Option<PathBuf>, Failure> {
+    if !workspace_needs_project_picker(cli) {
+        return Ok(Some(cli.project.clone()));
+    }
+    match select_project(&cli.project)
+        .map_err(|error| Failure::operational(command, "project_selection", error))?
+    {
+        ProjectSelection::Selected(project) => Ok(Some(project)),
+        ProjectSelection::Cancelled => Ok(None),
+    }
 }
 
 pub(super) fn workspace_needs_project_picker(cli: &Cli) -> bool {

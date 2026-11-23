@@ -38,6 +38,8 @@ pub(super) enum Command {
     Play(PlayArgs),
     /// Open the keyboard-complete Ratatui Production Workspace.
     Workspace,
+    /// Open the Production Workspace in a desktop window (builds with the `gui` feature).
+    Gui,
     /// Render the exact Active Revision to an atomic float-WAV bundle.
     Render(RenderArgs),
     /// Profile one exact Active range at a supported offline callback quantum.
