@@ -300,6 +300,7 @@ pub struct Workspace {
     active_bundle: Option<Arc<ProjectBundle>>,
     audible_bundle: Option<Arc<ProjectBundle>>,
     pending_active_inspection: Option<PendingActiveInspection>,
+    /// Project History, newest entry first.
     history: Vec<HistoryEntry>,
     view: View,
     selected_track: usize,
@@ -4352,7 +4353,8 @@ type HistorySnapshot = (
 fn history_state(root: &Path) -> Result<HistorySnapshot, crate::history::HistoryError> {
     let store = HistoryStore::open(root)?;
     let state = store.active_state()?;
-    let history = store.list()?;
+    let mut history = store.list()?;
+    history.reverse();
     let active_bundle = store.active_bundle()?.map(Arc::new);
     Ok(if let Some(state) = state {
         (

@@ -790,3 +790,20 @@ fn only_pan_and_symmetric_amounts_fill_from_the_centre() {
     assert!(!widgets::fills_from_centre(Unit::Decibels, -24.0, 24.0));
     assert!(!widgets::fills_from_centre(Unit::Ratio, 0.0, 1.0));
 }
+
+#[test]
+fn history_lists_the_newest_entry_first() {
+    let (_root, mut app) = workspace(include_str!("../../../tests/fixtures/minimal.crump"));
+    crate::workspace::tests::settle_background(&mut app);
+    for bpm in [124.0, 126.0] {
+        app.dispatch(Action::SetSongTempo { bpm });
+        crate::workspace::tests::settle_background(&mut app);
+    }
+    assert!(app.history.len() >= 2);
+    assert_eq!(
+        app.active_entry.as_ref(),
+        Some(&app.history[0].id),
+        "the latest published entry leads the list"
+    );
+    app.shutdown();
+}

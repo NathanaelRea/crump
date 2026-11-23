@@ -1548,7 +1548,8 @@ impl Workspace {
             self.status = "Nothing earlier in Project History to undo".to_owned();
             return;
         }
-        let entry_id = self.history[self.history.len() - 2].id.clone();
+        // History is newest first, so the entry before the latest is the second one.
+        let entry_id = self.history[1].id.clone();
         self.restore_history(&entry_id);
     }
 }
