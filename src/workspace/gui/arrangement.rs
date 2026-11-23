@@ -417,7 +417,14 @@ fn lanes(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
             "{:.0} BPM · {} · END {}",
             project.song.tempo_bpm,
             project.song.meter,
-            timeline_time_label(project.song.end, project.song.meter)
+            theme::format_bar_beat(
+                project.song.end.as_f64(),
+                project
+                    .song
+                    .meter
+                    .bar_length()
+                    .map_or(4.0, crate::time::MusicalTime::as_f64),
+            )
         ),
         FontId::monospace(10.0),
         theme::TEXT_SECONDARY,
