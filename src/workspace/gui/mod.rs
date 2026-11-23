@@ -573,19 +573,23 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui.separator();
 
                     // LCD Bar:Beat Position
-                    let pos_text = if app.player.is_some() {
-                        transport_label(app)
-                    } else if let Some(project) = &app.bundle.project {
-                        let pos = app.timeline_position();
-                        let bar_q = (f64::from(project.song.meter.numerator)
-                            * (4.0 / f64::from(project.song.meter.denominator).max(1.0)))
-                        .max(1.0);
-                        let q = pos.at.as_f64().max(0.0);
-                        let bar = (q / bar_q).floor() as u32 + 1;
-                        let beat = (q % bar_q).floor() as u32 + 1;
-                        format!("{bar}:{beat:02}")
-                    } else {
-                        "1:01".to_owned()
+                    // One position format everywhere: bar.beat.sixteenth, 1-based.
+                    let pos_text = match (&app.bundle.project, app.player.is_some()) {
+                        (Some(project), playing) => {
+                            let bar_q = project
+                                .song
+                                .meter
+                                .bar_length()
+                                .map_or(4.0, crate::time::MusicalTime::as_f64);
+                            let q = if playing {
+                                transport_quarter_notes(app)
+                            } else {
+                                app.timeline_position().at.as_f64()
+                            };
+                            theme::format_bar_beat(q, bar_q)
+                        }
+                        (None, true) => transport_label(app),
+                        (None, false) => "1.1.1".to_owned(),
                     };
                     ui.label(
                         RichText::new(pos_text)

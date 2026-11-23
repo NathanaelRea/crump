@@ -395,10 +395,8 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                             let (name_rect, name_resp) =
                                 ui.allocate_exact_size(Vec2::new(inner_w, 30.0), Sense::click());
                             ui.painter().galley(
-                                Pos2::new(
-                                    name_rect.center().x,
-                                    name_rect.center().y - galley.size().y * 0.5,
-                                ),
+                                // Top-aligned so one- and two-line names share a baseline.
+                                Pos2::new(name_rect.center().x, name_rect.top() + 1.0),
                                 galley,
                                 theme::TEXT_PRIMARY,
                             );

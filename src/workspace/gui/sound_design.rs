@@ -2900,12 +2900,13 @@ fn draw_graph_inspector(
     section_header(ui, "NODE INSPECTOR", theme::ACCENT_AMBER);
     ui.add_space(6.0);
 
+    let voice_domain = if instrument.polyphony == 1 {
+        "Mono Voice"
+    } else {
+        "Polyphonic Voice"
+    };
     let resolved: Option<(&Graph, &GraphNode, &str)> = if selected < voice_order.len() {
-        Some((
-            voice,
-            &voice.nodes[voice_order[selected]],
-            "Polyphonic Voice",
-        ))
+        Some((voice, &voice.nodes[voice_order[selected]], voice_domain))
     } else if let Some(shared) = &instrument.shared_graph
         && selected >= shared_node_offset
         && selected < shared_node_offset + shared_order.len()
@@ -2918,7 +2919,7 @@ fn draw_graph_inspector(
     } else {
         voice_order
             .first()
-            .map(|&idx| (voice, &voice.nodes[idx], "Polyphonic Voice"))
+            .map(|&idx| (voice, &voice.nodes[idx], voice_domain))
     };
 
     let Some((domain_graph, node, domain_name)) = resolved else {
@@ -2936,9 +2937,15 @@ fn draw_graph_inspector(
         );
         badge_chip(ui, theme::node_kind_label(node.kind), accent);
     });
+    // Domain and source location on their own lines, so neither wraps mid-phrase.
+    ui.label(
+        RichText::new(domain_name)
+            .size(10.5)
+            .color(theme::TEXT_SECONDARY),
+    );
     ui.label(
         RichText::new(format!(
-            "{domain_name} · {}:{}",
+            "{}:{}",
             node.location.file.display(),
             node.location.line
         ))

@@ -2093,7 +2093,7 @@ fn automation_curve_canvas(
     let y_of_val = |v: f64| y_bot_val - theme::value_to_norm(v, min_val, max_val, unit) * y_span;
     for v in interior {
         let y = y_of_val(v);
-        if ruler.iter().all(|r| (y_of_val(*r) - y).abs() >= 22.0) {
+        if ruler.iter().all(|r| (y_of_val(*r) - y).abs() >= 32.0) {
             ruler.push(v);
         }
     }

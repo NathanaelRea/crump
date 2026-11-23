@@ -191,6 +191,7 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                 .inner_margin(egui::Margin::same(10)),
         )
         .show_inside(ui, |ui| {
+            let rack_rect = ui.max_rect();
             let rack_cap = (ui.available_height() - 14.0).max(250.0);
             let tallest = visible
                 .iter()
@@ -224,6 +225,20 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                         }
                     });
                 });
+            // Fade the rack's right edge so a card cut by the window reads as "more to scroll".
+            let fade = Rect::from_min_max(
+                Pos2::new(rack_rect.right() - 48.0, rack_rect.top()),
+                rack_rect.right_bottom(),
+            );
+            let mut mesh = egui::Mesh::default();
+            let clear = with_alpha(theme::BG_WELL, 0.0);
+            mesh.colored_vertex(fade.left_top(), clear);
+            mesh.colored_vertex(fade.right_top(), theme::BG_WELL);
+            mesh.colored_vertex(fade.right_bottom(), theme::BG_WELL);
+            mesh.colored_vertex(fade.left_bottom(), clear);
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(0, 2, 3);
+            ui.painter().add(egui::Shape::mesh(mesh));
         });
 }
 

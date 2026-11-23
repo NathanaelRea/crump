@@ -103,39 +103,45 @@ pub(super) fn source(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 },
                             ))
                             .corner_radius(4.0)
-                            .inner_margin(egui::Margin::symmetric(8, 5));
+                            .inner_margin(egui::Margin::symmetric(8, 0));
+                        // Compact editor-sidebar rows: name left, line count right, one line high.
                         let resp = frame.show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                    ui.label(
-                                        RichText::new(format!("{line_count}L"))
-                                            .monospace()
-                                            .size(9.5)
-                                            .color(theme::TEXT_MUTED),
-                                    );
-                                    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                                        ui.add(
-                                            egui::Label::new(
-                                                RichText::new(&display)
-                                                    .monospace()
-                                                    .size(11.0)
-                                                    .color(if is_sel {
-                                                        theme::TEXT_PRIMARY
-                                                    } else {
-                                                        theme::TEXT_SECONDARY
-                                                    }),
-                                            )
-                                            .truncate(),
-                                        )
-                                        .on_hover_text(&full);
-                                    });
-                                });
-                            });
+                            let (row, row_resp) = ui.allocate_exact_size(
+                                Vec2::new(ui.available_width(), 24.0),
+                                Sense::click(),
+                            );
+                            let painter = ui.painter();
+                            let count = format!("{line_count}L");
+                            painter.text(
+                                Pos2::new(row.right(), row.center().y),
+                                Align2::RIGHT_CENTER,
+                                &count,
+                                FontId::monospace(9.5),
+                                theme::TEXT_MUTED,
+                            );
+                            let name_font = FontId::monospace(11.0);
+                            let name = super::widgets::ellipsize(
+                                painter,
+                                &display,
+                                &name_font,
+                                row.width() - 40.0,
+                            );
+                            painter.text(
+                                Pos2::new(row.left(), row.center().y),
+                                Align2::LEFT_CENTER,
+                                name,
+                                name_font,
+                                if is_sel {
+                                    theme::TEXT_PRIMARY
+                                } else {
+                                    theme::TEXT_SECONDARY
+                                },
+                            );
+                            row_resp.on_hover_text(&full).clicked()
                         });
-                        if resp.response.interact(Sense::click()).clicked() {
+                        if resp.inner {
                             select_file = Some(idx);
                         }
-                        ui.add_space(2.0);
                     }
                 });
         });
@@ -684,7 +690,15 @@ fn preflight_check_row(ui: &mut Ui, ok: bool, title: &str, detail: &str) {
     };
     egui::Frame::new()
         .fill(theme::BG_WELL)
-        .stroke(Stroke::new(1.0_f32, with_alpha(color, 0.30)))
+        // Neutral card; status lives in the dot, with an amber border only for pending checks.
+        .stroke(Stroke::new(
+            1.0_f32,
+            if ok {
+                theme::BORDER_SUBTLE
+            } else {
+                with_alpha(color, 0.45)
+            },
+        ))
         .corner_radius(5.0)
         .inner_margin(egui::Margin::symmetric(10, 8))
         .show(ui, |ui| {
@@ -789,17 +803,19 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
                     {
                         cx.send(Action::UndoHistory);
                     }
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                RichText::new("Publish Revision")
-                                    .strong()
-                                    .size(11.0)
-                                    .color(theme::BG_WELL),
+                    // The empty state carries its own Publish action; don't repeat it here.
+                    if !app.history.is_empty()
+                        && ui
+                            .add(
+                                egui::Button::new(
+                                    RichText::new("Publish Revision")
+                                        .strong()
+                                        .size(11.0)
+                                        .color(theme::BG_WELL),
+                                )
+                                .fill(theme::ACCENT_AMBER),
                             )
-                            .fill(theme::ACCENT_AMBER),
-                        )
-                        .clicked()
+                            .clicked()
                     {
                         cx.send(Action::OpenPublish);
                     }
@@ -1333,7 +1349,7 @@ fn help_card_pairs(ui: &mut Ui, title: &str, accent: Color32, rows: &[(&str, &st
 fn help_card_lines(ui: &mut Ui, title: &str, accent: Color32, lines: &[&str], query: &str) {
     let matched: Vec<String> = lines
         .iter()
-        .map(|line| legible(line).into_owned())
+        .map(|line| desktop_help_text(&legible(line)))
         .filter(|text| {
             query.is_empty()
                 || title.to_lowercase().contains(query)
@@ -1399,6 +1415,10 @@ fn help_binding_flow(ui: &mut Ui, line: &str) {
                 && context.len() <= 24
                 && context.chars().next().is_some_and(char::is_uppercase)
             {
+                // A new context mid-line starts its own row so sections never run together.
+                if index > 0 {
+                    ui.end_row();
+                }
                 ui.label(
                     RichText::new(context)
                         .size(11.5)
@@ -1427,6 +1447,12 @@ fn help_binding_flow(ui: &mut Ui, line: &str) {
             }
         }
     });
+}
+
+/// The shared help text with terminal-only wording adapted for the desktop window.
+fn desktop_help_text(line: &str) -> String {
+    line.replace("Ctrl-C is the only exit", "Ctrl-C quits")
+        .replace("plays C4–C5", "plays one octave from the keyboard's C")
 }
 
 /// Whether a help token names a key or chord rather than an ordinary word.

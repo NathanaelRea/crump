@@ -255,8 +255,14 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
 
                 // Right-aligned cursor readout & working locator jump pills
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    let cursor_str =
-                        timeline_time_label(app.timeline_position().at, project.song.meter);
+                    let cursor_str = theme::format_bar_beat(
+                        app.timeline_position().at.as_f64(),
+                        project
+                            .song
+                            .meter
+                            .bar_length()
+                            .map_or(4.0, crate::time::MusicalTime::as_f64),
+                    );
                     ui.label(
                         RichText::new(format!("CUR {cursor_str}"))
                             .monospace()
