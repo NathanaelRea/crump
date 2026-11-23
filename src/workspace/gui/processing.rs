@@ -963,7 +963,7 @@ fn focused_device_inspector(
                             if let Some(m) = meter {
                                 ui.label(
                                     RichText::new(format!(
-                                        "IN {} · OUT {} · GR {}",
+                                        "IN {} dB · OUT {} dB · GR {}",
                                         theme::format_dbfs(m.input_peak),
                                         theme::format_dbfs(m.output_peak),
                                         theme::format_db(f64::from(m.gain_reduction_db))

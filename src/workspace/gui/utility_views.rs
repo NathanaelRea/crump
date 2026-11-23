@@ -1451,7 +1451,12 @@ fn help_binding_flow(ui: &mut Ui, line: &str) {
 
 /// The shared help text with terminal-only wording adapted for the desktop window.
 fn desktop_help_text(line: &str) -> String {
-    line.replace("Ctrl-C is the only exit", "Ctrl-C quits")
+    // The bundled monospace font draws the arrow glyphs poorly inside keycaps; spell them out.
+    line.replace("⬅/➡", "Left/Right")
+        .replace("←/→", "Left/Right")
+        .replace("⬆/⬇", "Up/Down")
+        .replace("↑/↓", "Up/Down")
+        .replace("Ctrl-C is the only exit", "Ctrl-C quits")
         .replace("plays C4–C5", "plays one octave from the keyboard's C")
 }
 

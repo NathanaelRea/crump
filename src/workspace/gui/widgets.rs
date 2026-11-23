@@ -108,9 +108,11 @@ pub(super) fn paint_dbfs_meter_vertical(painter: &egui::Painter, rect: Rect, pea
             Pos2::new(inner.left(), y_top),
             Pos2::new(inner.right(), y_bot),
         );
-        let base_color = if frac_high >= 0.86 {
+        // Colour zones follow the meter's own dBFS scale: red above 0 dBFS, amber above -6.
+        let frac_mid = (frac_low + frac_high) * 0.5;
+        let base_color = if frac_mid >= theme::dbfs_to_norm(0.0) {
             theme::SIG_CLIP
-        } else if frac_high >= 0.64 {
+        } else if frac_mid >= theme::dbfs_to_norm(-6.0) {
             theme::SIG_HOT
         } else {
             theme::SIG_NOMINAL
