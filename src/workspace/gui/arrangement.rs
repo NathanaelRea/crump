@@ -156,7 +156,6 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                     ui,
                     "Fit",
                     app.timeline_viewport.is_fit(),
-                    theme::ACCENT_CYAN,
                     "Fit whole Song · Home",
                 )
                 .clicked()
@@ -168,7 +167,6 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                     ui,
                     "Follow",
                     app.timeline_state.follow_playhead(),
-                    theme::ACCENT_AMBER,
                     "Follow playhead · f",
                 )
                 .clicked()
@@ -203,14 +201,8 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                     |ui| {
                         ui.set_min_width(slot_w);
                         if app.timeline_state.visual() {
-                            if pill_toggle(
-                                ui,
-                                "Loop Range",
-                                true,
-                                theme::ACCENT_AMBER,
-                                "Loop selected range · L",
-                            )
-                            .clicked()
+                            if pill_toggle(ui, "Loop Range", true, "Loop selected range · L")
+                                .clicked()
                             {
                                 cx.send(TimelineAction::ApplyRange { looping: true });
                             }
@@ -218,55 +210,28 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                                 ui,
                                 "Play Range",
                                 false,
-                                theme::SIG_NOMINAL,
                                 "Play selected range once · Enter",
                             )
                             .clicked()
                             {
                                 cx.send(TimelineAction::ApplyRange { looping: false });
                             }
-                            if pill_toggle(
-                                ui,
-                                "Fit Range",
-                                false,
-                                theme::ACCENT_CYAN,
-                                "Zoom to range · zf",
-                            )
-                            .clicked()
+                            if pill_toggle(ui, "Fit Range", false, "Zoom to range · zf").clicked()
                             {
                                 cx.send(TimelineAction::FitRange);
                             }
-                            if pill_toggle(
-                                ui,
-                                "Cancel",
-                                false,
-                                theme::SIG_CLIP,
-                                "Exit RANGE mode · Esc",
-                            )
-                            .clicked()
+                            if pill_toggle(ui, "Cancel", false, "Exit RANGE mode · Esc").clicked()
                             {
                                 cx.send(Action::CancelMode);
                             }
                         } else {
-                            if pill_toggle(
-                                ui,
-                                "Range",
-                                false,
-                                theme::SIG_NOMINAL,
-                                "Select a range on the Timeline · V",
-                            )
-                            .clicked()
+                            if pill_toggle(ui, "Range", false, "Select a range on the Timeline · V")
+                                .clicked()
                             {
                                 cx.send(TimelineAction::BeginRange);
                             }
-                            if pill_toggle(
-                                ui,
-                                "+ Locator",
-                                false,
-                                theme::SIG_HOT,
-                                "Create a Locator at cursor · M",
-                            )
-                            .clicked()
+                            if pill_toggle(ui, "+ Locator", false, "Create a Locator at cursor · M")
+                                .clicked()
                             {
                                 cx.send(TimelineAction::OpenLocator);
                             }
@@ -274,7 +239,6 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                                 ui,
                                 "Search",
                                 false,
-                                theme::ACCENT_CYAN,
                                 "Search Tracks, Clips, Patterns, Locators · /",
                             )
                             .clicked()
@@ -1859,49 +1823,19 @@ fn contextual_bar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
         // Right-aligned quick studio view jumps for the selected track
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             // Named as the window's tabs are.
-            if pill_toggle(
-                ui,
-                "FX Rack",
-                false,
-                theme::ACCENT_CYAN,
-                "Open the FX Rack · gp",
-            )
-            .clicked()
-            {
+            if pill_toggle(ui, "FX Rack", false, "Open the FX Rack · gp").clicked() {
                 cx.send(TimelineAction::GoProcessing);
             }
-            if pill_toggle(
-                ui,
-                "Synth",
-                false,
-                theme::ACCENT_AMBER,
-                "Open the Synth · gi",
-            )
-            .clicked()
-            {
+            if pill_toggle(ui, "Synth", false, "Open the Synth · gi").clicked() {
                 cx.send(TimelineAction::GoInstrument);
             }
-            if pill_toggle(
-                ui,
-                "Console",
-                false,
-                theme::SIG_NOMINAL,
-                "Open the Console · gm",
-            )
-            .clicked()
-            {
+            if pill_toggle(ui, "Console", false, "Open the Console · gm").clicked() {
                 cx.send(TimelineAction::GoMixer);
             }
             // Always in place, disabled off a clip, so the meter beside it never jumps.
             if ui
                 .add_enabled_ui(active_clip.is_some(), |ui| {
-                    pill_toggle(
-                        ui,
-                        "Piano Roll",
-                        false,
-                        theme::ACCENT_VIOLET,
-                        "Open Pattern · gd",
-                    )
+                    pill_toggle(ui, "Piano Roll", false, "Open Pattern · gd")
                 })
                 .inner
                 .clicked()

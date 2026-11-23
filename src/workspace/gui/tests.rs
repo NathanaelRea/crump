@@ -771,3 +771,13 @@ fn controls_of_one_value_share_its_preview() {
         "a clicked toggle shows its new state at once"
     );
 }
+
+#[test]
+fn only_pan_and_symmetric_amounts_fill_from_the_centre() {
+    use crate::model::Unit;
+    assert!(widgets::fills_from_centre(Unit::Pan, -1.0, 1.0));
+    assert!(widgets::fills_from_centre(Unit::Semitones, -12.0, 12.0));
+    assert!(!widgets::fills_from_centre(Unit::Decibels, -60.0, 6.0));
+    assert!(!widgets::fills_from_centre(Unit::Decibels, -24.0, 24.0));
+    assert!(!widgets::fills_from_centre(Unit::Ratio, 0.0, 1.0));
+}

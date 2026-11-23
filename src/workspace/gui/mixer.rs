@@ -39,7 +39,6 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui,
                     "Console",
                     app.view == View::Mixer && !cx.state.mixer_table_mode,
-                    theme::ACCENT_AMBER,
                     "Studio vertical channel-strip mixing console · 2",
                 )
                 .tab_pressed()
@@ -50,7 +49,6 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui,
                     "FX Rack",
                     app.view == View::Processing,
-                    theme::ACCENT_AMBER,
                     "Open Processing FX Rack & Device Inspector · 3",
                 )
                 .tab_pressed()
@@ -61,30 +59,17 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                 ui.separator();
 
                 // Bank visibility filter pills
-                let filters: [(u8, &str, Color32); 4] = [
-                    (0, "All", theme::TEXT_PRIMARY),
-                    (
-                        1,
-                        &format!("Tracks ({})", project.song.tracks.len()),
-                        theme::ACCENT_AMBER,
-                    ),
-                    (
-                        2,
-                        &format!("Groups ({})", project.song.groups.len()),
-                        theme::ACCENT_CYAN,
-                    ),
-                    (
-                        3,
-                        &format!("Returns ({})", project.song.returns.len()),
-                        theme::ACCENT_VIOLET,
-                    ),
+                let filters: [(u8, String); 4] = [
+                    (0, "All".to_owned()),
+                    (1, format!("Tracks ({})", project.song.tracks.len())),
+                    (2, format!("Groups ({})", project.song.groups.len())),
+                    (3, format!("Returns ({})", project.song.returns.len())),
                 ];
-                for (code, label, accent) in filters {
+                for (code, label) in filters {
                     if pill_toggle(
                         ui,
-                        label,
+                        &label,
                         cx.state.mixer_bank_filter == code,
-                        accent,
                         "Filter console banks",
                     )
                     .tab_pressed()
@@ -114,7 +99,6 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ui,
                         "Params Table",
                         cx.state.mixer_table_mode,
-                        theme::ACCENT_CYAN,
                         "Inspect all raw mixer parameter targets in table form",
                     )
                     .clicked()

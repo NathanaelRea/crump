@@ -537,9 +537,7 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                             "Faceplate, Synth, Graph & Params · Key 5-7, 9",
                         ),
                     ] {
-                        if widgets::pill_toggle(ui, label, mode == m, theme::ACCENT_AMBER, tip)
-                            .tab_pressed()
-                        {
+                        if widgets::pill_toggle(ui, label, mode == m, tip).tab_pressed() {
                             cx.send(Action::ShowView(target));
                         }
                     }
@@ -772,11 +770,12 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                 } else {
                     14.0 + label.chars().count() as f32 * 6.4
                 };
+                // Lit neutral when open: these are navigation, not a call to action.
                 if widgets::led_button(
                     ui,
                     label,
                     active,
-                    theme::SELECTION,
+                    theme::TEXT_SECONDARY,
                     Vec2::new(width, 22.0),
                     tip,
                 )

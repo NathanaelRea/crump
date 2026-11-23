@@ -907,9 +907,9 @@ pub(super) fn horizontal_mini_slider(
     painter.rect_filled(rect, 3.0, theme::BG_WELL);
     let norm = theme::value_to_norm(current, min, max, unit);
     let fill_w = (rail.width() * norm).clamp(0.0, rail.width());
-    // A range straddling zero (pan, bipolar amounts) fills out from its centre, so centred
-    // reads calm and left and right read symmetrically.
-    let bipolar = min < 0.0 && max > 0.0;
+    // Pan and symmetric signed amounts (-x..x) fill out from their centre, so centred reads
+    // calm and both directions read alike. Gain is never bipolar: -60..+6 dB fills from the left.
+    let bipolar = fills_from_centre(unit, min, max);
     if bipolar {
         let zero_x = rail.left() + rail.width() * theme::value_to_norm(0.0, min, max, unit);
         let value_x = rail.left() + fill_w;
@@ -965,7 +965,7 @@ pub(super) fn horizontal_mini_slider(
     );
     // A narrow bipolar rail (a pan control) keeps its label in the tooltip: a letter over a
     // centre-out fill reads badly.
-    if !label.is_empty() && !(bipolar && rail.width() < 48.0) {
+    if !label.is_empty() && !(unit == Unit::Pan && rail.width() < 48.0) {
         let label_clip = rail.shrink2(Vec2::new(4.0, 0.0));
         if label_clip.width() > 8.0 {
             let fitted = ellipsize(
@@ -1002,6 +1002,13 @@ pub(super) fn horizontal_mini_slider(
 // ── Hardware LED Switches & Segmented Pills ─────────────────────────────────
 
 /// Crisp studio hardware LED toggle switch (`M`, `S`, `C`, `A`, etc.).
+/// Whether a slider fills out from its centre: pan and symmetric signed amounts (`-x..x`), never
+/// gain, whose `-60..+6 dB` range reads as a level filling from the left.
+pub(super) fn fills_from_centre(unit: Unit, min: f64, max: f64) -> bool {
+    unit == Unit::Pan
+        || (unit != Unit::Decibels && min < 0.0 && (min + max).abs() <= 1e-9 * max.abs().max(1.0))
+}
+
 /// Keys for optimistic preview values. Every control that shows the same durable value uses the
 /// same key, so dragging one moves the others at once and a committed value shows everywhere
 /// until its edit reloads, instead of each control catching up separately.
@@ -1173,13 +1180,9 @@ pub(super) fn section_header(ui: &mut Ui, title: &str, accent: Color32) {
 }
 
 /// Sleek studio pill toggle for primary workspace modes and sub-view selectors.
-pub(super) fn pill_toggle(
-    ui: &mut Ui,
-    label: &str,
-    active: bool,
-    accent: Color32,
-    tooltip: &str,
-) -> egui::Response {
+/// A tab or toggle. Every one shares the same active treatment, a raised neutral tab with a
+/// slim selection-coloured underline, so tabs never compete with real attention states.
+pub(super) fn pill_toggle(ui: &mut Ui, label: &str, active: bool, tooltip: &str) -> egui::Response {
     let font = FontId::proportional(12.0);
     let galley = ui
         .painter()
@@ -1215,7 +1218,7 @@ pub(super) fn pill_toggle(
             Pos2::new(rect.left() + 6.0, rect.bottom() - 3.0),
             Pos2::new(rect.right() - 6.0, rect.bottom() - 1.0),
         );
-        painter.rect_filled(underline, 1.0, accent);
+        painter.rect_filled(underline, 1.0, theme::SELECTION);
     }
     painter.text(rect.center(), Align2::CENTER_CENTER, label, font, fg);
     if tooltip.is_empty() {

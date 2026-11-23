@@ -60,7 +60,6 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui,
                     "Console",
                     app.view == View::Mixer,
-                    theme::ACCENT_AMBER,
                     "Return to Mixer Console · 2",
                 )
                 .tab_pressed()
@@ -71,7 +70,6 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui,
                     "FX Rack",
                     app.view == View::Processing && !cx.state.processing_table_mode,
-                    theme::ACCENT_AMBER,
                     "Horizontal FX signal-chain device rack · 3",
                 )
                 .tab_pressed()
@@ -91,7 +89,6 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui,
                     &format!("All ({})", graph.processors.len()),
                     cx.state.processing_owner_filter.is_none(),
-                    theme::ACCENT_CYAN,
                     "Show all processors across the mix graph",
                 )
                 .clicked()
@@ -111,7 +108,6 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ui,
                         &format!("{short} ({count})"),
                         active,
-                        theme::ACCENT_CYAN,
                         &format!("Filter device rack to {owner}"),
                     )
                     .clicked()
@@ -125,7 +121,6 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ui,
                         "Params Table",
                         cx.state.processing_table_mode,
-                        theme::ACCENT_CYAN,
                         "Show full processor inspection table",
                     )
                     .clicked()

@@ -34,14 +34,8 @@ fn sound_subbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, instrument: &In
                     (View::Graph, "Patch Graph", "9"),
                     (View::Parameters, "Parameters", "7"),
                 ] {
-                    if pill_toggle(
-                        ui,
-                        label,
-                        app.view == view,
-                        theme::ACCENT_AMBER,
-                        &format!("{label} · Key {key}"),
-                    )
-                    .tab_pressed()
+                    if pill_toggle(ui, label, app.view == view, &format!("{label} · Key {key}"))
+                        .tab_pressed()
                     {
                         cx.send(Action::ShowView(view));
                     }
@@ -79,7 +73,6 @@ fn sound_subbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, instrument: &In
                         ui,
                         "Keys",
                         cx.state.show_keyboard,
-                        theme::ACCENT_CYAN,
                         "Toggle on-screen studio keyboard",
                     )
                     .clicked()
@@ -90,7 +83,6 @@ fn sound_subbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, instrument: &In
                         ui,
                         "Audition",
                         false,
-                        theme::SIG_NOMINAL,
                         "Arm this Instrument for audition · A",
                     )
                     .clicked()
@@ -907,9 +899,7 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                     } else {
                         sec.name.clone()
                     };
-                    if pill_toggle(ui, &label, active, theme::ACCENT_CYAN, &sec.name).clicked()
-                        && !active
-                    {
+                    if pill_toggle(ui, &label, active, &sec.name).clicked() && !active {
                         pending_actions.push(Action::AdjustSelected(
                             index as isize - app.selected_instrument_section as isize,
                         ));
@@ -3102,16 +3092,11 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
                 }
 
                 ui.separator();
-                for (mode, label, accent) in [
-                    (0u8, "All", theme::ACCENT_AMBER),
-                    (1u8, "Automated", theme::SIG_NOMINAL),
-                    (2u8, "Modulated", theme::ACCENT_VIOLET),
-                ] {
+                for (mode, label) in [(0u8, "All"), (1u8, "Automated"), (2u8, "Modulated")] {
                     if pill_toggle(
                         ui,
                         label,
                         cx.state.param_filter_mode == mode,
-                        accent,
                         &format!("Show {label} parameters"),
                     )
                     .clicked()

@@ -24,7 +24,6 @@ fn edit_mode_pills(ui: &mut Ui, cx: &mut Cx<'_>) {
         ui,
         "Piano Roll",
         cx.app.view == View::EventGrid,
-        theme::ACCENT_AMBER,
         "Pattern Piano Roll & Velocity Editor · 4",
     )
     .tab_pressed()
@@ -35,7 +34,6 @@ fn edit_mode_pills(ui: &mut Ui, cx: &mut Cx<'_>) {
         ui,
         "Automation",
         cx.app.view == View::Automation,
-        theme::ACCENT_AMBER,
         "Interactive 2D Automation Curve Editor · 8",
     )
     .tab_pressed()
@@ -194,15 +192,7 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
 
                 ui.separator();
 
-                if pill_toggle(
-                    ui,
-                    "Loop",
-                    is_looping_pattern,
-                    theme::ACCENT_AMBER,
-                    "Loop this Pattern · L",
-                )
-                .clicked()
-                {
+                if pill_toggle(ui, "Loop", is_looping_pattern, "Loop this Pattern · L").clicked() {
                     cx.send(Action::TogglePatternLoop);
                 }
 
@@ -211,7 +201,6 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ui,
                         "Event List",
                         cx.state.event_table_open,
-                        theme::ACCENT_CYAN,
                         "Toggle tabular event inspector",
                     )
                     .clicked()
@@ -1702,7 +1691,6 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ui,
                         "Point List",
                         cx.state.automation_table_open,
-                        theme::ACCENT_CYAN,
                         "Toggle automation point table",
                     )
                     .clicked()
@@ -1819,7 +1807,6 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                             ui,
                             label,
                             is_active,
-                            theme::ACCENT_CYAN,
                             "Set outgoing curve shape (or drag diamond midpoint handle)",
                         )
                         .clicked()
@@ -1857,7 +1844,6 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                             ui,
                             "Exact…",
                             false,
-                            theme::ACCENT_AMBER,
                             "Edit exact value · Enter",
                         )
                         .clicked()
