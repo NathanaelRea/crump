@@ -16,6 +16,7 @@ pub(super) fn take_keys(
     app: &mut Workspace,
     keymap: &mut Keymap,
     modal_submit: &mut bool,
+    inline_text_focused: bool,
 ) {
     let alt_chord = raw_input.events.iter().any(|event| {
         matches!(event, Event::Key { pressed: true, modifiers, .. } if modifiers.alt && !modifiers.ctrl)
@@ -41,6 +42,9 @@ pub(super) fn take_keys(
                 }
                 _ => true,
             };
+        }
+        if inline_text_focused {
+            return true;
         }
         match event {
             Event::Text(text) => {

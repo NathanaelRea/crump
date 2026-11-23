@@ -1,7 +1,7 @@
 crump-module 2
 instrument dh-pad "Deep House Analog Pad" graph {
   polyphony 8
-  parameter cutoff "Cutoff" hz 180hz 14000hz 1800hz 2400hz automatable modulatable
+  parameter cutoff "Cutoff" hz 180hz 14000hz 1800hz 666.8533614827319hz automatable modulatable
   parameter width "Width" ratio 0 1 0.65 0.78 automatable modulatable
   faceplate {
     control cutoff "Glow" "Opens the shared pad filter" maps cutoff

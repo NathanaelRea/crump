@@ -174,6 +174,13 @@ pub struct AuditionPrepareOptions {
     pub initial_range_offset: Option<u64>,
     /// Preserve the prepared pre-roll state through realtime publication as an explicit seek.
     pub explicit_seek: bool,
+    /// Locate the runtime with a cleared seek instead of deterministic preroll from Song zero.
+    ///
+    /// Preroll renders every frame before the start, so a mid-Song start costs about as long as
+    /// playing up to it. A cleared seek positions schedule cursors and clears voices and processor
+    /// state, as a DAW locate does: notes and effect tails begun before the start are not heard.
+    /// Interactive playback uses this; offline render, bounce and qualification keep preroll.
+    pub cleared_seek: bool,
 }
 
 /// Resolved state shown by CLI and workspace inspection.
@@ -421,7 +428,11 @@ impl AuditionPlan {
             let cursor = source_start.saturating_add(range_offset).min(source_end);
             runtime.set_raw_audition(source, cursor, source_end, cursor, end)?;
         }
-        runtime.advance_to(start)?;
+        if options.cleared_seek {
+            runtime.seek_transport(start);
+        } else {
+            runtime.advance_to(start)?;
+        }
         runtime.set_audition_range(start, end)?;
         for (processor, bypass) in &self.transient_bypass {
             if runtime.set_processor_bypass(processor, Some(*bypass)) == 0 {
@@ -487,7 +498,11 @@ impl AuditionPlan {
         }
 
         if initial > start {
-            runtime.advance_audition_to(initial)?;
+            if options.cleared_seek {
+                runtime.locate_audition(initial);
+            } else {
+                runtime.advance_audition_to(initial)?;
+            }
         }
         if self.range.looping {
             runtime.enable_audition_loop(start, end)?;
@@ -1226,6 +1241,7 @@ project "Audition Publication" {{
                 initial_frame: None,
                 initial_range_offset: Some(offset),
                 explicit_seek: false,
+                ..AuditionPrepareOptions::default()
             },
         )
         .expect("prepare original relative position");
@@ -1245,6 +1261,7 @@ project "Audition Publication" {{
                 initial_frame: None,
                 initial_range_offset: Some(offset),
                 explicit_seek: false,
+                ..AuditionPrepareOptions::default()
             },
         )
         .expect("prepare moved relative position");
@@ -1492,6 +1509,7 @@ project "Audition Publication" {{
             initial_frame: Some(frame),
             initial_range_offset: None,
             explicit_seek,
+            ..AuditionPrepareOptions::default()
         };
         let mut baseline = plan
             .prepare_with_options(&revision, project, &bundle.assets, at_frame(300, true))
@@ -1535,6 +1553,47 @@ project "Audition Publication" {{
     }
 
     #[test]
+    fn cleared_seek_locates_without_preroll_and_keeps_the_raw_cursor_aligned() {
+        let bundle = sampler_fixture();
+        let project = bundle.publishable().expect("sampler Project");
+        let revision = RevisionId("cleared-seek".to_owned());
+        let plan = AuditionPlan {
+            target: AuditionTarget::Asset {
+                asset: "source".to_owned(),
+                start_frame: None,
+                end_frame: None,
+            },
+            path: AuditionPath::Raw,
+            ..AuditionPlan::default()
+        };
+        let options = |cleared_seek| AuditionPrepareOptions {
+            initial_frame: Some(300),
+            explicit_seek: true,
+            cleared_seek,
+            ..AuditionPrepareOptions::default()
+        };
+        let prerolled = plan
+            .prepare_with_options(&revision, project, &bundle.assets, options(false))
+            .expect("prepare prerolled raw audition");
+        let cleared = plan
+            .prepare_with_options(&revision, project, &bundle.assets, options(true))
+            .expect("prepare cleared raw audition");
+        assert_eq!(cleared.status().transport_frame, 300);
+        let mut prerolled = prerolled.into_runtime();
+        let mut cleared = cleared.into_runtime();
+        for _ in 0..128 {
+            assert_eq!(
+                cleared
+                    .process_frame(ProcessingMode::Monitoring)
+                    .expect("cleared raw frame"),
+                prerolled
+                    .process_frame(ProcessingMode::Monitoring)
+                    .expect("prerolled raw frame")
+            );
+        }
+    }
+
+    #[test]
     fn incompatible_mapping_publication_refires_the_selected_mapping() {
         let bundle = sampler_fixture();
         let project = bundle.publishable().expect("sampler Project");
@@ -1564,6 +1623,7 @@ project "Audition Publication" {{
                     initial_frame: Some(300),
                     initial_range_offset: None,
                     explicit_seek: true,
+                    ..AuditionPrepareOptions::default()
                 },
             )
             .expect("prepare current Mapping audition")
@@ -1577,6 +1637,7 @@ project "Audition Publication" {{
                     initial_frame: Some(80),
                     initial_range_offset: None,
                     explicit_seek: false,
+                    ..AuditionPrepareOptions::default()
                 },
             )
             .expect("prepare replacement Mapping audition")

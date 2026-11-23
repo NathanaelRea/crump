@@ -2,9 +2,9 @@
 
 # Crump
 
-Crump is a music production tool that runs in your terminal. You make electronic music with keyboard-driven DAW views. The song itself is stored as plain text files you can read, diff and commit.
+Crump is a music production tool for making electronic music. It runs as a desktop window or in your terminal, and both clients are fully keyboard-driven. The song itself is stored as plain text files you can read, diff and commit.
 
-![Timeline view of the deep-house reference Project](assets/screenshots/timeline.png)
+![Arrangement view of the deep-house reference Project in the desktop window](assets/screenshots/gui-timeline.png)
 
 Every sound is built from Crump's own synths, samplers and effects. There are no plug-ins. A project is a folder of `.crump` files plus any WAV samples it uses. You can edit it in the workspace, in your text editor, or through the `crump` CLI, and all three see the same files. That last part makes Crump work well with coding agents. Every command has a `--json` mode that returns one structured response.
 
@@ -40,7 +40,7 @@ instruments/dh-bass.crump:5:3: error[CRV024]: authored Parameter value is outsid
 
 This is what makes it safe to have an editor, an agent and the workspace all open on the same project.
 
-![Source view of an instrument module](assets/screenshots/source.png)
+![Mixer console with channel strips, sends, pan, and meters](assets/screenshots/gui-mixer.png)
 
 ## Install
 
@@ -58,9 +58,12 @@ To build without PipeWire, run `cargo build --release --no-default-features --fe
 
 ## Desktop window
 
-Crump also has an optional desktop window. It shows the same views as the terminal workspace, takes the same keys, and adds mouse support: click to place the cursor, drag to select a range, Ctrl-scroll to zoom.
+Crump has an optional desktop window. It shows the same views as the terminal workspace and takes the same keys, and adds full mouse editing: drag clips, faders, knobs and automation points, draw notes in the piano roll, and Ctrl-scroll to zoom. Every edit is saved, validated and recorded in History like any other.
 
-![Desktop window showing the Timeline of the deep-house reference Project](assets/screenshots/gui-timeline.png)
+| | |
+|---|---|
+| ![FX rack with processor cards and inspector](assets/screenshots/gui-fx-rack.png) | ![Synth view with oscillator, filter and envelope displays](assets/screenshots/gui-synth.png) |
+| ![Patch graph of an instrument's voice](assets/screenshots/gui-patch-graph.png) | ![Piano roll with velocity lane and drum pads](assets/screenshots/gui-piano-roll.png) |
 
 The window is behind the `gui` Cargo feature, so it isn't in the default build:
 

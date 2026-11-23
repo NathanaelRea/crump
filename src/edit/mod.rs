@@ -829,6 +829,152 @@ pub fn set_track_pan(
     )
 }
 
+/// Builds a checked insertion for a new pitched note event inside a Pattern block.
+pub fn create_pattern_note(
+    bundle: &ProjectBundle,
+    pattern_id: &str,
+    at: &str,
+    pitch: &str,
+    duration: &str,
+    velocity: f64,
+) -> Result<CheckedReplacement, EditError> {
+    if !velocity.is_finite() || !(0.0..=1.0).contains(&velocity) {
+        return Err(EditError::OutOfRange {
+            target: format!("Pattern `{pattern_id}` note velocity"),
+            minimum: 0.0,
+            maximum: 1.0,
+            unit: Unit::Ratio,
+        });
+    }
+    let _ = crate::model::parse_pitch(pitch)
+        .map_err(|error| EditError::InvalidValue(error.to_string()))?;
+    let project = bundle.project.as_ref().ok_or(EditError::InvalidBase)?;
+    let pattern = project
+        .song
+        .patterns
+        .iter()
+        .find(|pattern| pattern.id == pattern_id)
+        .ok_or_else(|| EditError::UnknownTarget(format!("Pattern `{pattern_id}`")))?;
+    let (file, offset, indentation) = block_insertion(
+        bundle,
+        &pattern.location,
+        &format!("Pattern `{pattern_id}`"),
+    )?;
+    let vel = ((velocity * 100.0).round() / 100.0).clamp(0.01, 1.0);
+    Ok(CheckedReplacement {
+        file,
+        start: offset,
+        end: offset,
+        expected: String::new(),
+        replacement: format!("{indentation}note {at} {pitch} {duration} {vel:.2}\n"),
+    })
+}
+
+/// Builds a checked insertion for a new drum hit event inside a Pattern block.
+pub fn create_pattern_hit(
+    bundle: &ProjectBundle,
+    pattern_id: &str,
+    at: &str,
+    voice: &str,
+    velocity: f64,
+) -> Result<CheckedReplacement, EditError> {
+    if !velocity.is_finite() || !(0.0..=1.0).contains(&velocity) {
+        return Err(EditError::OutOfRange {
+            target: format!("Pattern `{pattern_id}` hit velocity"),
+            minimum: 0.0,
+            maximum: 1.0,
+            unit: Unit::Ratio,
+        });
+    }
+    let _ = voice
+        .parse::<crate::model::DrumVoice>()
+        .map_err(|error| EditError::InvalidValue(error.to_string()))?;
+    let project = bundle.project.as_ref().ok_or(EditError::InvalidBase)?;
+    let pattern = project
+        .song
+        .patterns
+        .iter()
+        .find(|pattern| pattern.id == pattern_id)
+        .ok_or_else(|| EditError::UnknownTarget(format!("Pattern `{pattern_id}`")))?;
+    let (file, offset, indentation) = block_insertion(
+        bundle,
+        &pattern.location,
+        &format!("Pattern `{pattern_id}`"),
+    )?;
+    let vel = ((velocity * 100.0).round() / 100.0).clamp(0.01, 1.0);
+    Ok(CheckedReplacement {
+        file,
+        start: offset,
+        end: offset,
+        expected: String::new(),
+        replacement: format!("{indentation}hit {at} {voice} {vel:.2}\n"),
+    })
+}
+
+/// Builds a checked deletion for one event line in a Pattern block.
+pub fn delete_pattern_event(
+    bundle: &ProjectBundle,
+    pattern_id: &str,
+    event_index: usize,
+) -> Result<CheckedReplacement, EditError> {
+    let (_, event) = pattern_event(bundle, pattern_id, event_index)?;
+    let site = match event {
+        PatternEvent::Note { site, .. } | PatternEvent::Hit { site, .. } => site,
+        PatternEvent::Sample { sites, .. } => &sites.site,
+    };
+    let location = SourceLocation {
+        file: site.file.clone(),
+        start: site.start,
+        end: site.end,
+        line: 0,
+        column: 0,
+    };
+    line_replacement(bundle, &location)
+}
+
+/// Builds a checked replacement for the Song's `tempo <N>bpm` declaration.
+pub fn set_song_tempo(bundle: &ProjectBundle, bpm: f64) -> Result<CheckedReplacement, EditError> {
+    if !bpm.is_finite() || !(20.0..=300.0).contains(&bpm) {
+        return Err(EditError::OutOfRange {
+            target: "Song tempo".to_owned(),
+            minimum: 20.0,
+            maximum: 300.0,
+            unit: Unit::Ratio,
+        });
+    }
+    let project = bundle.project.as_ref().ok_or(EditError::InvalidBase)?;
+    let loc = &project.song.location;
+    let source = bundle
+        .sources
+        .get(&loc.file)
+        .ok_or_else(|| EditError::UnknownSource(loc.file.clone()))?;
+    let slice = source
+        .get(loc.start..loc.end)
+        .ok_or_else(|| EditError::OverlappingOrInvalidRange(loc.file.clone()))?;
+    let rel = slice
+        .find("tempo ")
+        .ok_or_else(|| EditError::UnknownTarget("Song tempo declaration".to_owned()))?;
+    let after = &slice[rel + 6..];
+    let token_len = after
+        .find(|c: char| c.is_whitespace() || c == '{' || c == '}')
+        .unwrap_or(after.len());
+    let start = loc.start + rel + 6;
+    let end = start + token_len;
+    let rounded = (bpm * 10.0).round() / 10.0;
+    let replacement = if (rounded - rounded.round()).abs() < 1e-4 {
+        format!("{}bpm", rounded.round() as i64)
+    } else {
+        format!("{rounded:.1}bpm")
+    };
+    Ok(CheckedReplacement {
+        file: loc.file.clone(),
+        start,
+        end,
+        expected: source[start..end].to_owned(),
+        replacement,
+    })
+}
+
 fn line_bounds(source: &str, location: &SourceLocation) -> Result<(usize, usize), EditError> {
     if location.start > location.end || location.end > source.len() {
         return Err(EditError::OverlappingOrInvalidRange(location.file.clone()));

@@ -1507,6 +1507,16 @@ impl SongRuntime {
         Ok(())
     }
 
+    /// Moves an audition runtime to `target_frame` inside its range by a cleared seek, keeping
+    /// a raw source cursor aligned with the range offset.
+    pub(crate) fn locate_audition(&mut self, target_frame: u64) {
+        let target = target_frame.min(self.playback_end());
+        self.seek_transport(target);
+        if let (Some((start, _)), Some(raw)) = (self.audition_range, &mut self.raw_audition) {
+            raw.realign(self.frame.saturating_sub(start));
+        }
+    }
+
     pub(crate) fn request_audition_seek(&mut self) {
         self.audition_seek_requested = true;
     }

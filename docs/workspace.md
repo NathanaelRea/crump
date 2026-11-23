@@ -124,7 +124,7 @@ Processing displays the ordered compiled processor route for the armed Audition 
 - `b` toggles a monitoring-only transient bypass override. It changes neither source, Active identity, History, nor offline rendering.
 - `B` toggles durable source-backed `bypass`; `Enter` edits an exact `KEY VALUE`; `K`/`J` moves the complete processor block one position earlier/later in the same owner chain. These checked operations validate, publish, and record History.
 
-Target/range/path changes prepare and deterministically preroll a replacement runtime off the callback, then use the bounded publication transition. Compatible source publication retains the durable target, range, transient bypass/Solo/cue state, and relative transport frame when still valid. If a referenced ID or range disappears, the workspace reports the rejection and leaves the prior runtime audible.
+Target/range/path changes prepare a replacement runtime off the callback and locate it with a cleared seek ([ADR 0028](adr/0028-interactive-playback-locates-by-cleared-seek.md)), then use the bounded publication transition. Compatible source publication retains the durable target, range, transient bypass/Solo/cue state, and relative transport frame when still valid. If a referenced ID or range disappears, the workspace reports the rejection and leaves the prior runtime audible.
 
 ## Event Grid
 
@@ -214,7 +214,7 @@ Restoring never deletes or rewrites earlier entries.
 
 ## Playback and publication
 
-Space compiles and prerolls the armed Audition Plan from the Active snapshot before creating PipeWire streams. While running, Space pauses or resumes without destroying transport, voices, processor tails, loop state, or prepared runtime state; `S` explicitly stops. Candidate source or media is never used implicitly. Exact declared media is stored in Active snapshots and sampler Instruments decode/resample it off the callback before playback; Media Track playback is unsupported. When another process publishes a revision while playback is running, the workspace:
+Space compiles the armed Audition Plan from the Active snapshot and locates it at the armed cursor or range start with a cleared seek before creating PipeWire streams, so a mid-Song start is as quick as one from bar 0; notes and tails begun before that point are not heard. While running, Space pauses or resumes without destroying transport, voices, processor tails, loop state, or prepared runtime state; `S` explicitly stops. Candidate source or media is never used implicitly. Exact declared media is stored in Active snapshots and sampler Instruments decode/resample it off the callback before playback; Media Track playback is unsupported. When another process publishes a revision while playback is running, the workspace:
 
 1. loads and validates the exact Active snapshot from History;
 2. resolves the retained audition target/range and deterministically initializes a replacement runtime off the audio thread from the latest observed frame offset;

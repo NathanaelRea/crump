@@ -1128,3 +1128,56 @@ fn pointer_actions_place_the_cursor_on_the_grid_and_replace_modal_input() {
     assert_eq!(path, workspace.root.join("project.crump"));
     workspace.shutdown();
 }
+
+#[test]
+fn back_to_back_edits_queue_instead_of_being_dropped() {
+    let source =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/deep-house-reference");
+    let root = tempfile::tempdir().expect("temporary Project");
+    let copied = std::process::Command::new("cp")
+        .arg("-r")
+        .arg(source.join("."))
+        .arg(root.path())
+        .status()
+        .expect("copy fixture");
+    assert!(copied.success());
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    settle_background(&mut workspace);
+    // A local `.crump/` History may lag the checked-in source; edits require Candidate == Active.
+    workspace.commit_input("Fixture baseline".to_owned(), InputAction::Publish);
+    settle_background(&mut workspace);
+    assert!(workspace.candidate_is_active(), "{}", workspace.status);
+
+    // Three edits in one burst, as a GUI frame can produce: the second and third arrive while the
+    // first is in flight, and the last two write the same value so only the final one replays.
+    for (target, value) in [
+        ("track/bass/level", -9.0),
+        ("track/keys/level", -12.0),
+        ("track/keys/level", -13.0),
+    ] {
+        workspace.dispatch(Action::SetParameterTargetValue {
+            target: target.to_owned(),
+            value,
+        });
+        assert!(workspace.edits_pending());
+    }
+    assert_eq!(
+        workspace.queued_mutations.len(),
+        1,
+        "same-value edits merge"
+    );
+    settle_background(&mut workspace);
+    assert!(!workspace.edits_pending(), "{}", workspace.status);
+
+    let song = &workspace.bundle.project.as_ref().expect("Project").song;
+    let level = |id: &str| {
+        song.tracks
+            .iter()
+            .find(|track| track.id == id)
+            .expect("Track")
+            .channel
+            .level_db
+    };
+    assert!((level("bass") - -9.0).abs() < 1e-9);
+    assert!((level("keys") - -13.0).abs() < 1e-9);
+}

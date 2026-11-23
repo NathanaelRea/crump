@@ -119,6 +119,7 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
             initial_frame,
             initial_range_offset,
             explicit_seek,
+            cleared_seek: true,
         },
     ) {
         Ok(prepared) => prepared,
