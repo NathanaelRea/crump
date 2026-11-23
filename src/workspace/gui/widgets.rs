@@ -1646,7 +1646,8 @@ fn staggered_piano(ui: &mut Ui, cx: &mut Cx<'_>) {
             krect.bottom() - 1.0,
             Stroke::new(1.0_f32, with_alpha(theme::SEAM_DARK, 0.4)),
         );
-        // C-note markers or QWERTY hint at bottom
+        // C keys carry their pitch; every mapped key also carries its QWERTY shortcut.
+        let mapped = (semi as usize) < KEYBOARD_NOTES.len() && white_w >= 26.0;
         if semi % 12 == 0 {
             painter.text(
                 Pos2::new(krect.center().x, krect.bottom() - 3.0),
@@ -1659,7 +1660,20 @@ fn staggered_piano(ui: &mut Ui, cx: &mut Cx<'_>) {
                     Color32::from_rgb(46, 52, 64)
                 },
             );
-        } else if (semi as usize) < KEYBOARD_NOTES.len() && white_w >= 26.0 {
+            if mapped {
+                painter.text(
+                    Pos2::new(krect.center().x, krect.bottom() - 16.0),
+                    Align2::CENTER_BOTTOM,
+                    key_ch.to_ascii_uppercase().to_string(),
+                    FontId::monospace(8.5),
+                    if is_held {
+                        theme::BG_WELL
+                    } else {
+                        Color32::from_rgb(78, 86, 100)
+                    },
+                );
+            }
+        } else if mapped {
             painter.text(
                 Pos2::new(krect.center().x, krect.bottom() - 3.0),
                 Align2::CENTER_BOTTOM,
@@ -1717,6 +1731,19 @@ fn staggered_piano(ui: &mut Ui, cx: &mut Cx<'_>) {
             ),
             StrokeKind::Inside,
         );
+        if (semi as usize) < KEYBOARD_NOTES.len() && black_w >= 14.0 {
+            painter.text(
+                Pos2::new(krect.center().x, krect.bottom() - 7.0),
+                Align2::CENTER_BOTTOM,
+                key_ch.to_ascii_uppercase().to_string(),
+                FontId::monospace(8.0),
+                if is_held {
+                    theme::BG_WELL
+                } else {
+                    theme::TEXT_MUTED
+                },
+            );
+        }
         // Subtle front bevel on black key
         if !is_held {
             painter.rect_filled(
