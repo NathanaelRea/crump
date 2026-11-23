@@ -8,7 +8,11 @@ A Linux-first terminal Guided Production Instrument in which text is the durable
 
 ### Terminal-First
 
-The supported human client is a Ratatui workspace, while the Project model, engine, and authoring operations do not depend on terminal rendering. No alternative client is supported by this term.
+The default and reference human client is a Ratatui workspace, while the Project model, engine, and authoring operations do not depend on terminal rendering. An optional Desktop Client offers the same workspace in a window; no browser client exists.
+
+### Desktop Client
+
+The optional egui window over the same workspace session as the terminal client, built with the `gui` feature and opened with `crump gui`. It shares the terminal's key bindings and adds pointer input; it owns no Project state and is not a separate product or project format.
 
 ### Guided Production Instrument
 

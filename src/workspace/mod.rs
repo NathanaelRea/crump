@@ -4,8 +4,10 @@
 //! tracking, background reload, playback, audition, selection, and modal state, and it changes
 //! only through [`Workspace::dispatch`] and [`Workspace::tick`]. A client adapter translates its
 //! own input into [`Action`] values and draws the resulting state. The first-party adapter is the
-//! Ratatui terminal client in the `tui` submodule, compiled with the `tui` feature; nothing
-//! outside that submodule depends on a terminal library.
+//! Ratatui terminal client in the `tui` submodule, compiled with the `tui` feature; the optional
+//! egui desktop client is the `gui` submodule behind the `gui` feature. Nothing outside those
+//! submodules depends on a terminal or windowing library, and both share the key bindings in
+//! the `keymap` submodule.
 
 // The read side of the session (projections, labels, timing statistics) is consumed only by a
 // client adapter, so a build without one would otherwise report it as dead.
@@ -60,8 +62,12 @@ const VIEWS: [View; 13] = [
 mod action;
 mod active;
 mod background;
+#[cfg(feature = "gui")]
+mod gui;
 mod input;
 mod instrument;
+#[cfg(any(feature = "tui", feature = "gui"))]
+mod keymap;
 mod performance;
 mod reload;
 mod timeline;
@@ -78,6 +84,8 @@ use active::{
     PreparedActiveMode,
 };
 use background::{BackgroundPoll, BackgroundWorker, RetireQueue};
+#[cfg(feature = "gui")]
+pub use gui::run as run_gui;
 use input::{parse_fade_pair, parse_frame_pair};
 #[cfg(test)]
 use instrument::instrument_section_views;
@@ -4785,6 +4793,10 @@ pub enum WorkspaceError {
     /// Project History could not initialize.
     #[error(transparent)]
     History(#[from] crate::history::HistoryError),
+    /// The desktop window could not be created or failed while running.
+    #[cfg(feature = "gui")]
+    #[error("desktop client failed: {0}")]
+    Gui(String),
 }
 
 #[cfg(test)]

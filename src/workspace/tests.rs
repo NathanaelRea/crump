@@ -1059,3 +1059,72 @@ fn actions_drive_the_session_without_a_client_adapter() {
     assert!(workspace.quit_requested());
     workspace.shutdown();
 }
+
+#[test]
+fn pointer_actions_place_the_cursor_on_the_grid_and_replace_modal_input() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    let song_end = workspace.bundle.project.as_ref().expect("Project").song.end;
+    assert_eq!(song_end, crate::time::MusicalTime::whole(4));
+
+    // The fitted viewport spans four beats, so column 26 of 100 lies just past beat one and
+    // snaps to it on the default one-beat grid.
+    workspace.dispatch(Action::Timeline(TimelineAction::PlaceCursor {
+        track: 0,
+        column: 26,
+        columns: 100,
+    }));
+    assert_eq!(
+        workspace.timeline_position().at,
+        crate::time::MusicalTime::whole(1)
+    );
+    // A pointer past the last Track or column stays inside the Song.
+    workspace.dispatch(Action::Timeline(TimelineAction::PlaceCursor {
+        track: 99,
+        column: 99,
+        columns: 100,
+    }));
+    assert_eq!(workspace.timeline_position().at, song_end);
+    assert_eq!(workspace.selected_track, workspace.track_count() - 1);
+    // Dragging after BeginRange moves the active edge, as the keyboard does.
+    workspace.dispatch(Action::Timeline(TimelineAction::BeginRange));
+    workspace.dispatch(Action::Timeline(TimelineAction::PlaceCursor {
+        track: 0,
+        column: 50,
+        columns: 100,
+    }));
+    let range = workspace
+        .timeline_state
+        .visual_range()
+        .expect("range selection");
+    assert_eq!(range.start, crate::time::MusicalTime::whole(2));
+    assert_eq!(range.end, song_end);
+    workspace.dispatch(Action::CancelMode);
+
+    workspace.dispatch(Action::Timeline(TimelineAction::OpenGoto));
+    workspace.dispatch(Action::ModalSetInput("1.3".to_owned()));
+    let Some(Modal::Input {
+        value,
+        replace_on_type,
+        ..
+    }) = &workspace.modal
+    else {
+        panic!("goto prompt stays open while its input is replaced");
+    };
+    assert_eq!(value, "1.3");
+    assert!(!replace_on_type);
+    workspace.dispatch(Action::ModalDismiss);
+
+    workspace.dispatch(Action::ShowView(View::Source));
+    let path = workspace
+        .source_edit_path()
+        .expect("prepare source")
+        .expect("selected source");
+    assert_eq!(path, workspace.root.join("project.crump"));
+    workspace.shutdown();
+}

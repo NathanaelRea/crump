@@ -33,7 +33,7 @@ Consumers must:
 - tolerate additional object members in schema version 1; and
 - use process status as the coarse class, not parse human stderr.
 
-The Ratatui `workspace` is interactive and rejects `--json` before emitting terminal control bytes.
+The Ratatui `workspace` is interactive and rejects `--json` before emitting terminal control bytes. The desktop `gui` command, present in builds with the `gui` feature, is interactive in the same way and also rejects `--json`.
 
 ## Exit classes
 

@@ -30,7 +30,7 @@ use ratatui::{
 };
 
 use super::*;
-use crate::{diagnostic::Severity, history::write_atomic};
+use crate::diagnostic::Severity;
 
 mod keymap;
 mod rendering;

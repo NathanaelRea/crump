@@ -56,6 +56,27 @@ crump doctor
 
 To build without PipeWire, run `cargo build --release --no-default-features --features tui`. That build has no playback, but validation, history, rendering and the workspace still work. Leaving out `tui` as well drops the terminal client and its dependencies, keeping the library, the client-independent workspace session and every non-interactive CLI command. To build a `.deb` package, run `packaging/build-deb.sh dist`.
 
+## Desktop window
+
+Crump also has an optional desktop window. It shows the same views as the terminal workspace, takes the same keys, and adds mouse support: click to place the cursor, drag to select a range, Ctrl-scroll to zoom.
+
+![Desktop window showing the Timeline of the deep-house reference Project](assets/screenshots/gui-timeline.png)
+
+The window is behind the `gui` Cargo feature, so it isn't in the default build:
+
+```sh
+cargo install --path . --locked --features gui
+crump gui --project path/to/project
+```
+
+To try it from a checkout without installing:
+
+```sh
+cargo run --release --features gui -- gui --project fixtures/deep-house-reference
+```
+
+Use `--release`: a debug build is too slow for the realtime audio thread, and the system kills the process when playback starts. It needs a Wayland or X11 session. Run from a terminal without `--project` and it offers the project picker. More in [docs/workspace.md](docs/workspace.md#desktop-window).
+
 ## Quick start
 
 ```bash
@@ -105,7 +126,7 @@ In each project, every instrument lives in its own `instruments/<id>.crump` file
 ## CLI
 
 ```text
-new  validate  inspect  status  publish  check  workspace  play  render  qualify  doctor
+new  validate  inspect  status  publish  check  workspace  gui  play  render  qualify  doctor
 history  list | show | diff | restore
 edit     parameters, notes, clips, automation, locators, grooves, samples, ...
 asset    import | import-wavetable | collect | bounce | prepare | list

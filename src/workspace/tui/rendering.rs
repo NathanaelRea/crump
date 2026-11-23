@@ -1,5 +1,6 @@
 use super::timeline::{TimelineCell, TimelineGridMark, TimelineWindow};
 use super::*;
+use crate::workspace::instrument::instrument_modulation_route_label;
 use ratatui::widgets::{HighlightSpacing, ListState};
 
 pub(super) fn render(frame: &mut Frame<'_>, app: &Workspace) {
@@ -1280,30 +1281,6 @@ fn render_parameters(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     frame.render_stateful_widget(table, area, &mut state);
 }
 
-fn instrument_modulation_route_label(
-    route: &crate::engine::control::InstrumentModulationValueSnapshot,
-    unit: crate::model::Unit,
-) -> String {
-    let (scope, contribution) = match route.scope {
-        crate::model::InstrumentModulationScope::Global => (
-            "global",
-            route.contribution.map_or_else(
-                || "unavailable".to_owned(),
-                |contribution| unit.format_value(contribution),
-            ),
-        ),
-        crate::model::InstrumentModulationScope::Instrument => {
-            ("instrument/per-track", "per-track".to_owned())
-        }
-        crate::model::InstrumentModulationScope::PerVoice => ("per_voice", "per-voice".to_owned()),
-    };
-    format!(
-        "instrument:{}[{scope}]{}={contribution}",
-        route.route,
-        if route.bypass { "(bypass)" } else { "" },
-    )
-}
-
 fn render_automation(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
     let Some(project) = app.bundle.project.as_ref() else {
         render_unavailable(
@@ -1903,65 +1880,20 @@ fn render_history(frame: &mut Frame<'_>, app: &Workspace, area: Rect) {
 }
 
 fn help_lines() -> Vec<Line<'static>> {
-    let heading = |text: &'static str| {
-        Line::from(Span::styled(
-            text,
+    let mut lines = Vec::with_capacity(crate::workspace::keymap::help_line_count());
+    for (index, (heading, section)) in crate::workspace::keymap::HELP.iter().enumerate() {
+        if index > 0 {
+            lines.push(Line::from(""));
+        }
+        lines.push(Line::from(Span::styled(
+            *heading,
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
-        ))
-    };
-    vec![
-        heading("WORKSPACE"),
-        Line::from("1–9/0 views · gt/gT or Tab/Shift-Tab cycle · H History · ? Help"),
-        Line::from("j/k or ↑/↓ select · gg/G first/last · Ctrl-u/Ctrl-d move 4 rows"),
-        Line::from("Space start/pause/resume · S stop · P publish · Ctrl-C is the only exit"),
-        Line::from("Esc or Ctrl-[ cancels a modal/mode and returns to NORMAL; it never exits"),
-        Line::from(""),
-        heading("TIMELINE MOTION"),
-        Line::from(
-            "h/l or </> grid step · w/b next/previous boundary · e Clip end · % matching edge",
-        ),
-        Line::from("^/$ first/last Track material · g0/g$ Song edges · */# matching Pattern Clip"),
-        Line::from(
-            "{/} previous/next Locator · [/] grid size · : exact jump · / search · n/N repeat",
-        ),
-        Line::from("ma set transient mark · 'a jump · '' return · Ctrl-o/Ctrl-i jump history"),
-        Line::from(""),
-        heading("TIMELINE RANGE / VIEWPORT"),
-        Line::from("V RANGE mode · h/l or </> move edge · o swap edge · L loop · Enter one-shot"),
-        Line::from("gv restore prior range · zf fit range · zz center · zs/ze align cursor"),
-        Line::from("zh/zl or ,/. pan · Ctrl-b/Ctrl-f full viewport · +/- zoom · Home fit Song"),
-        Line::from("f follow playhead · L toggles armed loop · M creates a durable Locator"),
-        Line::from(""),
-        heading("TIMELINE CONTEXT"),
-        Line::from("gd Pattern/Event Grid · gf source · gi Instrument · gm Mixer · gp Processing"),
-        Line::from("A arms selected Track · Enter exact level · p exact pan"),
-        Line::from(""),
-        heading("OTHER PRODUCTION VIEWS"),
-        Line::from("Processing: A target · a path · F range · L loop · b/B bypass · K/J reorder"),
-        Line::from(
-            "Event Grid: A audition · t/u/v time/duration/velocity · x/f/Alt-g/p sample edits",
-        ),
-        Line::from("Faceplate/Parameters: ←/→ bounded step · Enter exact physical value"),
-        Line::from("Instrument: ←/→ section · Enter edit/source · b route bypass"),
-        Line::from("Automation: [/] lane · ←/→ value · Enter exact · t time · c curve"),
-        Line::from("Graph: ←/→ Instrument · Enter source · Source: ←/→ file · e external editor"),
-        Line::from("History: Enter/d diff · R restore as new entry"),
-        Line::from(""),
-        heading("NOTE MODE"),
-        Line::from("Press i in Instrument views; A W S E D F T G Y H U J K plays C4–C5"),
-        Line::from("Esc releases held notes and returns to NORMAL; j/k navigate outside NOTE mode"),
-        Line::from(""),
-        heading("SAFETY"),
-        Line::from(
-            "Cursor, range, marks, search, Solo/cue/bypass, and loops are transient Audition State",
-        ),
-        Line::from(
-            "M and other Production View edits are checked source edits recorded in History",
-        ),
-        Line::from("Invalid Candidate source never replaces the prior audible Active Revision"),
-    ]
+        )));
+        lines.extend(section.iter().map(|line| Line::from(*line)));
+    }
+    lines
 }
 
 pub(super) fn help_line_count() -> usize {
@@ -2134,7 +2066,8 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 
 #[cfg(test)]
 mod tests {
-    use super::{instrument_modulation_route_label, selection_window};
+    use super::selection_window;
+    use crate::workspace::instrument::instrument_modulation_route_label;
     use crate::{
         engine::control::InstrumentModulationValueSnapshot,
         model::{InstrumentModulationScope, Unit},

@@ -2152,6 +2152,15 @@ fn workspace_json_is_rejected_without_terminal_control_bytes() {
 }
 
 #[test]
+fn gui_json_is_rejected_before_opening_a_window() {
+    let root = fixture_project();
+    let output = invoke(&root, &["gui"]);
+    assert_eq!(output.status.code(), Some(2));
+    let value = response(&output);
+    assert_eq!(value["error"]["code"], "interactive_command");
+}
+
+#[test]
 fn unknown_history_ids_are_blocked_input_not_operational_failures() {
     let root = fixture_project();
     publish(&root);

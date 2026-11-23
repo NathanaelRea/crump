@@ -1756,7 +1756,7 @@ fn project_ruler(
     (grid, ruler.into_iter().collect())
 }
 
-fn column_time_span(
+pub(super) fn column_time_span(
     window: TimelineWindow,
     column: usize,
     columns: usize,
