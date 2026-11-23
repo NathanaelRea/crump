@@ -12,8 +12,8 @@ use std::{
 };
 
 use eframe::egui::{
-    self, Align, Align2, Color32, FontId, Layout, Pos2, Rect, RichText, Sense, Stroke, StrokeKind,
-    Ui, Vec2,
+    self, Align, Align2, Color32, CornerRadius, FontId, Layout, Pos2, Rect, RichText, Sense,
+    Stroke, StrokeKind, Ui, Vec2,
 };
 
 use super::keymap::Keymap;
@@ -21,6 +21,12 @@ use super::*;
 
 mod arrangement;
 mod input;
+mod mixer;
+mod processing;
+mod sequencer;
+mod sound_design;
+mod theme;
+mod utility_views;
 mod views;
 mod widgets;
 
@@ -30,23 +36,6 @@ mod tests;
 const TICK_RATE: Duration = Duration::from_millis(33);
 const BACKGROUND_POLL_RATE: Duration = Duration::from_millis(5);
 const REFRESH_RATE: Duration = Duration::from_millis(400);
-
-/// Colours shared by every view.
-mod palette {
-    use super::Color32;
-
-    pub(super) const ACCENT: Color32 = Color32::from_rgb(64, 200, 220);
-    pub(super) const GOOD: Color32 = Color32::from_rgb(104, 204, 128);
-    pub(super) const WARN: Color32 = Color32::from_rgb(232, 196, 88);
-    pub(super) const BAD: Color32 = Color32::from_rgb(236, 100, 100);
-    pub(super) const MUTED: Color32 = Color32::from_rgb(138, 146, 158);
-    pub(super) const CLIP: Color32 = Color32::from_rgb(40, 88, 140);
-    pub(super) const CLIP_EDGE: Color32 = Color32::from_rgb(104, 164, 232);
-    pub(super) const LANE: Color32 = Color32::from_rgb(24, 27, 32);
-    pub(super) const LANE_ALTERNATE: Color32 = Color32::from_rgb(29, 32, 38);
-    pub(super) const GRID_BAR: Color32 = Color32::from_rgb(62, 68, 78);
-    pub(super) const GRID_BEAT: Color32 = Color32::from_rgb(40, 44, 52);
-}
 
 /// Runs the desktop workspace window for one Project.
 pub fn run(path: impl AsRef<Path>) -> Result<(), WorkspaceError> {
@@ -82,17 +71,10 @@ pub fn run(path: impl AsRef<Path>) -> Result<(), WorkspaceError> {
 }
 
 fn style(ctx: &egui::Context) {
-    ctx.set_theme(egui::Theme::Dark);
-    ctx.style_mut_of(egui::Theme::Dark, |style| {
-        style.visuals.selection.bg_fill = Color32::from_rgb(24, 92, 108);
-        style.visuals.selection.stroke = Stroke::new(1.0_f32, palette::ACCENT);
-        style.visuals.hyperlink_color = palette::ACCENT;
-        style.interaction.selectable_labels = false;
-    });
+    theme::apply_theme(ctx);
 }
 
 /// Window-only state: nothing here is part of the workspace session.
-#[derive(Default)]
 struct UiState {
     /// The selection each table last scrolled to, so a table follows keyboard selection without
     /// fighting the scroll wheel.
@@ -106,6 +88,151 @@ struct UiState {
     pan_scroll: f32,
     zoom_scroll: f32,
     piano_key: Option<char>,
+    /// Live local drag preview values for smooth 60fps knob/fader/slider response before commit.
+    drag_previews: BTreeMap<String, f64>,
+    /// Committed values shown until their edit reloads; see [`UiState::settle_held_previews`].
+    held_previews: BTreeMap<String, f64>,
+    held_revision: Option<crate::project::RevisionId>,
+    /// Studio keyboard base octave offset (`C3` = 3).
+    keyboard_octave: i8,
+    /// Sustain / hold latch for the on-screen studio keyboard.
+    keyboard_latch: bool,
+    /// Whether the docked studio keyboard strip is visible on sound/sequencer views.
+    show_keyboard: bool,
+    /// Optional compact table mode toggle in Mixer view.
+    mixer_table_mode: bool,
+    /// Mixer bank filter (`0=All, 1=Tracks, 2=Groups, 3=Returns`).
+    mixer_bank_filter: u8,
+    /// Channel-scope filter in Processing FX Rack (`None` = All channels).
+    processing_owner_filter: Option<String>,
+    /// Optional table mode toggle in Processing view.
+    processing_table_mode: bool,
+    /// Piano Roll snap grid in quarter notes (`0.25` = 1/16th, `0.0` = Off).
+    roll_snap_quarters: f64,
+    /// Piano Roll horizontal zoom multiplier.
+    roll_zoom: f32,
+    /// Currently sounding piano-gutter audition key so pointer release emits NoteOff.
+    gutter_audition_key: Option<char>,
+    /// Collapsible event list inspector drawer in Piano Roll.
+    event_table_open: bool,
+    /// Collapsible point list inspector drawer in Automation.
+    automation_table_open: bool,
+    /// Automation snap grid in quarter notes (`0.25` = 1/16th, `0.0` = Off).
+    auto_snap_quarters: f64,
+    /// Automation horizontal zoom multiplier.
+    auto_zoom: f32,
+    /// Active Automation segment midpoint curvature drag `(point_index, live_power)`.
+    auto_curve_drag: Option<(usize, f64)>,
+    /// Active Timeline clip drag `(clip_id, is_resize, is_duplicate, orig_start_q, orig_dur_q, live_q)`.
+    clip_drag: Option<(String, bool, bool, f64, f64, f64)>,
+    /// Active Piano Roll note drag `(event_index, is_resize, live_at_q, live_row_delta, live_dur_q)`.
+    note_drag: Option<(usize, bool, f64, i32, f64)>,
+    /// Active Automation breakpoint 2D drag `point_index`.
+    auto_point_drag: Option<usize>,
+    /// Search query in Parameters Deck.
+    param_search: String,
+    /// Parameter Deck filter mode (`0=All, 1=Automated, 2=Modulated`).
+    param_filter_mode: u8,
+    /// Search query in Shortcuts Reference.
+    help_search: String,
+    /// Last active sub-views per primary mode.
+    last_mix_view: View,
+    last_edit_view: View,
+    last_sound_view: View,
+    /// Pan offset, zoom scale, auto-fit marker, and user node drag offsets for Patch Graph.
+    graph_pan: Vec2,
+    graph_zoom: f32,
+    graph_fitted_for: Option<String>,
+    graph_node_offsets: BTreeMap<String, Vec2>,
+}
+
+impl Default for UiState {
+    fn default() -> Self {
+        Self {
+            scrolled: BTreeMap::new(),
+            modal_input: None,
+            modal_submit: false,
+            modal_scroll: 0,
+            source_scroll: None,
+            pan_scroll: 0.0,
+            zoom_scroll: 0.0,
+            piano_key: None,
+            drag_previews: BTreeMap::new(),
+            held_previews: BTreeMap::new(),
+            held_revision: None,
+            keyboard_octave: 3,
+            keyboard_latch: false,
+            show_keyboard: true,
+            mixer_table_mode: false,
+            mixer_bank_filter: 0,
+            processing_owner_filter: None,
+            processing_table_mode: false,
+            roll_snap_quarters: 0.25,
+            roll_zoom: 1.0,
+            gutter_audition_key: None,
+            event_table_open: false,
+            automation_table_open: false,
+            auto_snap_quarters: 0.25,
+            auto_zoom: 1.0,
+            auto_curve_drag: None,
+            clip_drag: None,
+            note_drag: None,
+            auto_point_drag: None,
+            param_search: String::new(),
+            param_filter_mode: 0,
+            help_search: String::new(),
+            last_mix_view: View::Mixer,
+            last_edit_view: View::EventGrid,
+            last_sound_view: View::Faceplate,
+            graph_pan: Vec2::ZERO,
+            graph_zoom: 1.0,
+            graph_fitted_for: None,
+            graph_node_offsets: BTreeMap::new(),
+        }
+    }
+}
+
+impl UiState {
+    /// The value a control shows instead of the session's: a drag in progress, or a value it
+    /// committed whose edit has not reloaded yet.
+    fn drag_preview(&self, key: &str) -> Option<f64> {
+        self.drag_previews
+            .get(key)
+            .or_else(|| self.held_previews.get(key))
+            .copied()
+    }
+
+    fn set_drag_preview(&mut self, key: &str, value: f64) {
+        self.drag_previews.insert(key.to_owned(), value);
+    }
+
+    /// Ends a drag and keeps showing its final value until the edit it commits reloads.
+    fn take_drag_preview(&mut self, key: &str) -> Option<f64> {
+        let value = self.drag_previews.remove(key)?;
+        self.held_previews.insert(key.to_owned(), value);
+        Some(value)
+    }
+
+    /// Shows `value` until the edit committing it reloads, such as a double-click reset.
+    fn hold_preview(&mut self, key: &str, value: f64) {
+        self.drag_previews.remove(key);
+        self.held_previews.insert(key.to_owned(), value);
+    }
+
+    /// Ends a drag that commits nothing.
+    fn cancel_drag_preview(&mut self, key: &str) {
+        self.drag_previews.remove(key);
+    }
+
+    /// Drops held values once the session has reloaded past them or has no edit outstanding,
+    /// whether it landed or failed.
+    fn settle_held_previews(&mut self, app: &Workspace) {
+        let revision = &app.bundle.revision;
+        if self.held_revision.as_ref() != Some(revision) || !app.edits_pending() {
+            self.held_previews.clear();
+            self.held_revision = Some(revision.clone());
+        }
+    }
 }
 
 /// One frame of drawing: the session to read, window state, and the actions the frame produced.
@@ -135,13 +262,21 @@ struct Client {
     next_refresh: Instant,
 }
 
+pub(super) fn inline_text_focused(ctx: &egui::Context, app: &Workspace) -> bool {
+    app.modal.is_none()
+        && matches!(app.view, View::Parameters | View::Help)
+        && ctx.wants_keyboard_input()
+}
+
 impl eframe::App for Client {
-    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        let focused = inline_text_focused(ctx, &self.app);
         input::take_keys(
             raw_input,
             &mut self.app,
             &mut self.keymap,
             &mut self.state.modal_submit,
+            focused,
         );
     }
 
@@ -190,9 +325,6 @@ impl eframe::App for Client {
 }
 
 /// Opens the selected source file with the desktop's default application.
-///
-/// A window has no terminal to lend to `$EDITOR`, so the file goes to `xdg-open` and the
-/// workspace picks up saved changes through its usual file watch.
 fn open_source_file(app: &mut Workspace) {
     let status = match app.source_edit_path() {
         Ok(Some(path)) => match Command::new("xdg-open").arg(&path).spawn() {
@@ -215,107 +347,527 @@ fn open_source_file(app: &mut Workspace) {
 
 /// Draws one frame and returns the actions its widgets produced.
 fn draw(ctx: &egui::Context, app: &Workspace, state: &mut UiState) -> Vec<Action> {
+    state.settle_held_previews(app);
     let mut cx = Cx {
         app,
         state,
         actions: Vec::new(),
     };
-    egui::TopBottomPanel::top("crump-header").show(ctx, |ui| header(ui, &mut cx));
-    egui::TopBottomPanel::top("crump-views").show(ctx, |ui| view_tabs(ui, &mut cx));
-    egui::TopBottomPanel::bottom("crump-status").show(ctx, |ui| footer(ui, &cx));
-    if keymap::NOTE_VIEWS.contains(&app.view) {
+
+    // Unified 44px Studio Top Transport & Navigation Bar
+    egui::TopBottomPanel::top("crump-topbar")
+        .exact_height(44.0)
+        .frame(
+            egui::Frame::new()
+                .fill(theme::BG_SURFACE)
+                .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
+                .inner_margin(egui::Margin::symmetric(10, 6)),
+        )
+        .show(ctx, |ui| studio_top_bar(ui, &mut cx));
+
+    // Slim 22px Studio Status Footer
+    egui::TopBottomPanel::bottom("crump-status")
+        .exact_height(22.0)
+        .frame(
+            egui::Frame::new()
+                .fill(theme::BG_SURFACE)
+                .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
+                .inner_margin(egui::Margin::symmetric(10, 3)),
+        )
+        .show(ctx, |ui| footer(ui, &cx));
+
+    // Tactile Studio Keyboard / Drum Pad Dock on Sound & Event Grid views
+    let keyboard_eligible = keymap::NOTE_VIEWS.contains(&app.view) || app.view == View::EventGrid;
+    if keyboard_eligible && cx.state.show_keyboard {
         egui::TopBottomPanel::bottom("crump-notes")
+            .frame(
+                egui::Frame::new()
+                    .fill(theme::BG_SURFACE)
+                    .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
+                    .inner_margin(egui::Margin::symmetric(10, 5)),
+            )
             .show(ctx, |ui| widgets::note_strip(ui, &mut cx));
     }
-    egui::CentralPanel::default().show(ctx, |ui| {
-        if loading(app) {
-            ui.centered_and_justified(|ui| ui.spinner());
-        } else {
-            views::view(ui, &mut cx);
-        }
-    });
+
+    // Primary Studio Canvas (zero extra padding so Timeline / Mixer / Piano Roll fill edge-to-edge)
+    egui::CentralPanel::default()
+        .frame(egui::Frame::new().fill(theme::BG_CANVAS))
+        .show(ctx, |ui| {
+            if loading(app) {
+                ui.centered_and_justified(|ui| ui.spinner());
+            } else {
+                views::view(ui, &mut cx);
+            }
+        });
+
     modal(ctx, &mut cx);
     cx.actions
 }
 
-fn header(ui: &mut Ui, cx: &mut Cx<'_>) {
+/// Primary 4-mode studio navigation grouping for the 13 views.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PrimaryMode {
+    Arrange,
+    Mix,
+    Edit,
+    Sound,
+    Utility,
+}
+
+fn primary_mode_of(view: View) -> PrimaryMode {
+    match view {
+        View::Timeline => PrimaryMode::Arrange,
+        View::Mixer | View::Processing => PrimaryMode::Mix,
+        View::EventGrid | View::Automation => PrimaryMode::Edit,
+        View::Faceplate | View::Instrument | View::Graph | View::Parameters => PrimaryMode::Sound,
+        View::Source | View::Diagnostics | View::History | View::Help => PrimaryMode::Utility,
+    }
+}
+
+/// Unified single-row 44px Studio Top Bar:
+/// Left: 4 Primary Mode Pills (`Arrange | Mix | Edit | Sound`)
+/// Center: Recessed Hardware Transport Deck (Vector RTZ / Play / Stop / Loop + LCD Bar:Beat / BPM / Meter / Target)
+/// Right: Utility micro-pills (`Src | Diag | Hist | ?`) + Publish/Undo + DSP% + Master dBFS Meter + Project Badge
+fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
-    ui.add_space(4.0);
-    ui.horizontal(|ui| {
-        let project_name = match app.bundle.project.as_ref() {
-            Some(project) => project.name.as_str(),
-            None if loading(app) => "Loading…",
-            None => "Unparsable Project",
-        };
-        ui.label(
-            RichText::new(format!("CRUMP · {project_name}"))
-                .strong()
-                .size(16.0)
-                .color(palette::ACCENT),
-        );
-        let (state, color) = if loading(app) {
-            ("LOADING", palette::MUTED)
-        } else if app.bundle.diagnostics.has_errors() {
-            ("INVALID CANDIDATE", palette::BAD)
-        } else if app.candidate_is_active() {
-            ("ACTIVE", palette::GOOD)
-        } else {
-            ("VALID CANDIDATE", palette::WARN)
-        };
-        ui.label(RichText::new(state).strong().color(color));
-        ui.label(
-            RichText::new(format!(
-                "C:{}  A:{}",
-                short_revision(&app.bundle.revision),
-                short_optional(app.active_revision.as_ref())
-            ))
-            .monospace()
-            .color(palette::MUTED),
-        )
-        .on_hover_text("Candidate and Active Revision");
-        if app.note_mode {
-            ui.label(RichText::new("NOTE MODE").strong().color(palette::WARN));
-        } else if app.timeline_state.visual() && app.view == View::Timeline {
-            ui.label(RichText::new("RANGE MODE").strong().color(palette::GOOD));
+    let mode = primary_mode_of(app.view);
+    match app.view {
+        View::Mixer | View::Processing => cx.state.last_mix_view = app.view,
+        View::EventGrid | View::Automation => cx.state.last_edit_view = app.view,
+        View::Faceplate | View::Instrument | View::Graph | View::Parameters => {
+            cx.state.last_sound_view = app.view;
         }
+        _ => {}
+    }
+
+    ui.horizontal_centered(|ui| {
+        ui.spacing_mut().item_spacing.x = 6.0;
+
+        // ── Left: Brand mark + 4 Primary Mode Segmented Control ──
+        let (mark, _) = ui.allocate_exact_size(Vec2::new(6.0, 18.0), Sense::hover());
+        ui.painter().rect_filled(mark, 2.0, theme::ACCENT_AMBER);
+
+        egui::Frame::new()
+            .fill(theme::BG_WELL)
+            .corner_radius(5.0)
+            .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
+            .inner_margin(egui::Margin::same(2))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    for (m, label, target, tip) in [
+                        (
+                            PrimaryMode::Arrange,
+                            "Arrange",
+                            View::Timeline,
+                            "Timeline Arrangement · Key 1",
+                        ),
+                        (
+                            PrimaryMode::Mix,
+                            "Mix",
+                            cx.state.last_mix_view,
+                            "Mixing Console & FX Rack · Key 2 / 3",
+                        ),
+                        (
+                            PrimaryMode::Edit,
+                            "Edit",
+                            cx.state.last_edit_view,
+                            "Piano Roll & Automation · Key 4 / 8",
+                        ),
+                        (
+                            PrimaryMode::Sound,
+                            "Sound",
+                            cx.state.last_sound_view,
+                            "Faceplate, Synth, Graph & Params · Key 5-7, 9",
+                        ),
+                    ] {
+                        if widgets::pill_toggle(ui, label, mode == m, theme::ACCENT_AMBER, tip)
+                            .clicked()
+                        {
+                            cx.send(Action::ShowView(target));
+                        }
+                    }
+                });
+            });
+
+        ui.add_space(6.0);
+
+        // ── Center: Recessed Hardware Transport Deck ──
+        let playing = app.player.is_some() && !app.playback_paused;
+        let looping = app.audition_status.as_ref().is_some_and(|s| s.looping)
+            || app.audition_plan.range.looping;
+
+        egui::Frame::new()
+            .fill(theme::BG_WELL)
+            .corner_radius(5.0)
+            .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
+            .inner_margin(egui::Margin::symmetric(6, 3))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+
+                    if widgets::icon_button(
+                        ui,
+                        Vec2::new(24.0, 22.0),
+                        false,
+                        theme::TEXT_PRIMARY,
+                        "Return to Zero (Bar 1)",
+                        theme::paint_rtz_icon,
+                    )
+                    .clicked()
+                    {
+                        cx.send(Action::Timeline(TimelineAction::MoveSongEdge {
+                            end: false,
+                        }));
+                    }
+
+                    if widgets::icon_button(
+                        ui,
+                        Vec2::new(28.0, 22.0),
+                        playing,
+                        theme::SIG_NOMINAL,
+                        if playing {
+                            "Pause · Space"
+                        } else {
+                            "Play · Space"
+                        },
+                        |p, r, c| {
+                            if playing {
+                                theme::paint_pause_icon(p, r, c);
+                            } else {
+                                theme::paint_play_icon(p, r, c);
+                            }
+                        },
+                    )
+                    .clicked()
+                    {
+                        cx.send(Action::TogglePlayback);
+                    }
+
+                    if widgets::icon_button(
+                        ui,
+                        Vec2::new(24.0, 22.0),
+                        false,
+                        theme::SIG_CLIP,
+                        "Stop · S",
+                        theme::paint_stop_icon,
+                    )
+                    .clicked()
+                    {
+                        cx.send(Action::StopPlayback);
+                    }
+
+                    if widgets::icon_button(
+                        ui,
+                        Vec2::new(24.0, 22.0),
+                        looping,
+                        theme::ACCENT_AMBER,
+                        "Toggle Loop · L",
+                        theme::paint_loop_icon,
+                    )
+                    .clicked()
+                    {
+                        cx.send(Action::ToggleAuditionRangeLoop);
+                    }
+
+                    ui.separator();
+
+                    // LCD Bar:Beat Position
+                    let pos_text = if app.player.is_some() {
+                        transport_label(app)
+                    } else if let Some(project) = &app.bundle.project {
+                        let pos = app.timeline_position();
+                        let bar_q = (f64::from(project.song.meter.numerator)
+                            * (4.0 / f64::from(project.song.meter.denominator).max(1.0)))
+                        .max(1.0);
+                        let q = pos.at.as_f64().max(0.0);
+                        let bar = (q / bar_q).floor() as u32 + 1;
+                        let beat = (q % bar_q).floor() as u32 + 1;
+                        format!("{bar}:{beat:02}")
+                    } else {
+                        "1:01".to_owned()
+                    };
+                    ui.label(
+                        RichText::new(pos_text)
+                            .monospace()
+                            .strong()
+                            .size(13.5)
+                            .color(if playing {
+                                theme::SIG_NOMINAL
+                            } else {
+                                theme::TEXT_PRIMARY
+                            }),
+                    )
+                    .on_hover_text("Transport position (Bar:Beat)");
+
+                    // Draggable Tempo & Meter from Project
+                    if let Some(project) = &app.bundle.project {
+                        ui.separator();
+                        let bpm_key = "transport-bpm";
+                        let live_bpm = cx
+                            .state
+                            .drag_preview(bpm_key)
+                            .unwrap_or(project.song.tempo_bpm);
+                        let (bpm_rect, bpm_resp) =
+                            ui.allocate_exact_size(Vec2::new(58.0, 20.0), Sense::click_and_drag());
+                        if bpm_resp.hovered() || bpm_resp.dragged() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+                        }
+                        if bpm_resp.drag_started() {
+                            cx.state.set_drag_preview(bpm_key, live_bpm);
+                        }
+                        if bpm_resp.dragged() {
+                            let fine = ui.input(|i| i.modifiers.shift);
+                            let step = if fine { 0.1 } else { 0.5 };
+                            let next = (live_bpm - f64::from(bpm_resp.drag_delta().y) * step)
+                                .clamp(20.0, 300.0);
+                            cx.state.set_drag_preview(bpm_key, next);
+                        }
+                        if bpm_resp.drag_stopped()
+                            && let Some(final_bpm) = cx.state.take_drag_preview(bpm_key)
+                        {
+                            let rounded = (final_bpm * 2.0).round() / 2.0;
+                            if (rounded - project.song.tempo_bpm).abs() > 0.05 {
+                                cx.send(Action::SetSongTempo { bpm: rounded });
+                            }
+                        }
+                        ui.painter().rect_filled(
+                            bpm_rect,
+                            3.0,
+                            if bpm_resp.hovered() || bpm_resp.dragged() {
+                                theme::BG_HOVER
+                            } else {
+                                Color32::TRANSPARENT
+                            },
+                        );
+                        ui.painter().text(
+                            bpm_rect.center(),
+                            Align2::CENTER_CENTER,
+                            format!("{live_bpm:.0} BPM"),
+                            FontId::monospace(11.0),
+                            theme::ACCENT_AMBER,
+                        );
+                        bpm_resp.on_hover_text(
+                            "Song Tempo · Drag vertically to adjust · Shift+drag fine",
+                        );
+
+                        let meter = &project.song.meter;
+                        ui.label(
+                            RichText::new(format!("{}/{}", meter.numerator, meter.denominator))
+                                .monospace()
+                                .size(11.0)
+                                .color(theme::TEXT_SECONDARY),
+                        );
+                    }
+
+                    // Active Voices badge when > 0
+                    if app.telemetry.engine.active_voices > 0 {
+                        ui.separator();
+                        ui.label(
+                            RichText::new(format!("{}v", app.telemetry.engine.active_voices))
+                                .monospace()
+                                .size(10.5)
+                                .color(theme::ACCENT_CYAN),
+                        )
+                        .on_hover_text("Active polyphonic synth voices");
+                    }
+
+                    // Clean clickable Audition Target indicator
+                    ui.separator();
+                    let target_short = compact_audition_target(app);
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                RichText::new(target_short)
+                                    .monospace()
+                                    .size(10.5)
+                                    .color(theme::ACCENT_CYAN),
+                            )
+                            .fill(theme::BG_SURFACE),
+                        )
+                        .on_hover_text("Click to choose Audition target · A")
+                        .clicked()
+                    {
+                        cx.send(Action::OpenAuditionTarget);
+                    }
+                });
+            });
+
+        // ── Right: Utility Icons, Master dBFS Meter, DSP%, Publish, Undo, Project Status ──
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            widgets::meter(ui, app.telemetry.engine.current_peak, 150.0)
-                .on_hover_text("Monitor peak");
+            ui.spacing_mut().item_spacing.x = 5.0;
+
+            // Compact Utility Pills (?, Hist, Diag, Src) — rendered right-to-left
+            let has_errors = app.bundle.diagnostics.has_errors();
+            let diag_count = app.bundle.diagnostics.as_slice().len();
+            for (v, label, tip, alert) in [
+                (View::Help, "?", "Shortcuts & Help · ?", false),
+                (View::History, "Hist", "Revision History · H", false),
+                (
+                    View::Diagnostics,
+                    if diag_count > 0 { "Diag!" } else { "Diag" },
+                    "Project Diagnostics",
+                    has_errors,
+                ),
+                (
+                    View::Source,
+                    "Src",
+                    "Authoritative .crump Source · 0",
+                    false,
+                ),
+            ] {
+                let active = app.view == v;
+                let color = if alert {
+                    theme::SIG_CLIP
+                } else {
+                    theme::ACCENT_CYAN
+                };
+                if widgets::led_button(
+                    ui,
+                    label,
+                    active || alert,
+                    color,
+                    Vec2::new(if label == "?" { 22.0 } else { 34.0 }, 22.0),
+                    tip,
+                )
+                .clicked()
+                {
+                    cx.send(Action::ShowView(v));
+                }
+            }
+
+            ui.separator();
+
+            // Master Calibrated Logarithmic dBFS Meter (rendered left-to-right internally)
+            widgets::dbfs_meter_horizontal(
+                ui,
+                app.telemetry.engine.current_peak,
+                app.telemetry.engine.current_peak * 0.72,
+                114.0,
+                true,
+            )
+            .on_hover_text("Master Output Peak & RMS (dBFS)");
+
+            // DSP CPU load indicator
+            let dsp_pct = (app.telemetry.callback_utilization * 100.0).clamp(0.0, 99.9);
+            let dsp_color = if dsp_pct >= 75.0 {
+                theme::SIG_CLIP
+            } else if dsp_pct >= 45.0 {
+                theme::SIG_HOT
+            } else {
+                theme::TEXT_SECONDARY
+            };
+            ui.label(
+                RichText::new(format!("DSP {dsp_pct:.0}%"))
+                    .monospace()
+                    .size(10.0)
+                    .color(dsp_color),
+            )
+            .on_hover_text("Audio callback DSP load");
+
+            ui.separator();
+
+            // Publish & Undo CTAs
+            let needs_publish = !app.candidate_is_active() && !has_errors && !loading(app);
+            if ui
+                .add(
+                    egui::Button::new(RichText::new("Publish").size(10.5).strong().color(
+                        if needs_publish {
+                            theme::BG_WELL
+                        } else {
+                            theme::TEXT_PRIMARY
+                        },
+                    ))
+                    .fill(if needs_publish {
+                        theme::ACCENT_AMBER
+                    } else {
+                        theme::BG_CARD
+                    }),
+                )
+                .on_hover_text("Publish Candidate as Active Revision · P")
+                .clicked()
+            {
+                cx.send(Action::OpenPublish);
+            }
+
+            let can_undo = app.history.len() > 1;
+            if ui
+                .add_enabled(
+                    can_undo,
+                    egui::Button::new(RichText::new("Undo").size(10.5).color(if can_undo {
+                        theme::TEXT_PRIMARY
+                    } else {
+                        theme::TEXT_MUTED
+                    }))
+                    .fill(theme::BG_CARD),
+                )
+                .on_hover_text("Restore previous Revision History entry")
+                .clicked()
+            {
+                cx.send(Action::UndoHistory);
+            }
+
+            // Compact Project Name (truncated cleanly) + Live Revision Dot
+            let project_name = match app.bundle.project.as_ref() {
+                Some(project) => project.name.as_str(),
+                None if loading(app) => "Loading…",
+                None => "Broken",
+            };
+            let (dot_color, rev_tip) = if loading(app) {
+                (theme::TEXT_MUTED, "Loading Project…".to_owned())
+            } else if has_errors {
+                (
+                    theme::SIG_CLIP,
+                    "Invalid Candidate (has diagnostics)".to_owned(),
+                )
+            } else if app.candidate_is_active() {
+                (
+                    theme::SIG_NOMINAL,
+                    format!(
+                        "Active Revision {} (in sync)",
+                        short_revision(&app.bundle.revision)
+                    ),
+                )
+            } else {
+                (
+                    theme::SIG_HOT,
+                    format!(
+                        "Unpublished Candidate {} (Active: {})",
+                        short_revision(&app.bundle.revision),
+                        short_optional(app.active_revision.as_ref())
+                    ),
+                )
+            };
+            ui.add_sized(
+                Vec2::new(112.0, 20.0),
+                egui::Label::new(
+                    RichText::new(project_name)
+                        .strong()
+                        .size(11.0)
+                        .color(theme::TEXT_PRIMARY),
+                )
+                .truncate(),
+            )
+            .on_hover_text(rev_tip.clone());
+
+            let (dot, dot_resp) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
+            ui.painter().circle_filled(dot.center(), 3.8, dot_color);
+            dot_resp.on_hover_text(rev_tip);
         });
     });
-    ui.horizontal(|ui| {
-        let play = if app.player.is_none() {
-            "▶ Play"
-        } else if app.playback_paused {
-            "▶ Resume"
-        } else {
-            "⏸ Pause"
-        };
-        if ui.button(play).on_hover_text("Space").clicked() {
-            cx.send(Action::TogglePlayback);
-        }
-        if ui.button("⏹ Stop").on_hover_text("S").clicked() {
-            cx.send(Action::StopPlayback);
-        }
-        ui.separator();
-        if ui
-            .button("Publish…")
-            .on_hover_text("Publish the Candidate as the Active Revision · P")
-            .clicked()
-        {
-            cx.send(Action::OpenPublish);
-        }
-        if ui
-            .button("Reload")
-            .on_hover_text("Reload source and History from disk · r")
-            .clicked()
-        {
-            cx.send(Action::Reload);
-        }
-        ui.separator();
-        ui.label(RichText::new(transport_summary(app)).monospace());
-    });
-    ui.add_space(2.0);
+}
+
+fn compact_audition_target(app: &Workspace) -> String {
+    let raw = app
+        .audition_status
+        .as_ref()
+        .map(|s| audition_target_spec(&s.target))
+        .unwrap_or_else(|| audition_target_spec(&app.audition_plan.target));
+    if raw.len() > 16 {
+        format!("{}…", &raw[..15])
+    } else {
+        raw
+    }
 }
 
 /// Whether the session is still reading the Project for the first time.
@@ -323,78 +875,61 @@ fn loading(app: &Workspace) -> bool {
     app.bundle.project.is_none() && app.bundle.revision.0.is_empty() && app.has_pending_work()
 }
 
-/// Transport, audition, and stream facts, matching the terminal header.
-fn transport_summary(app: &Workspace) -> String {
-    if app.player.is_none() {
-        return format!(
-            "stopped · armed {} via {:?}",
-            audition_target_spec(&app.audition_plan.target),
-            app.audition_plan.path
-        );
-    }
-    let audition = app
-        .audition_status
-        .as_ref()
-        .map_or_else(String::new, |status| {
-            format!(
-                " · {} via {:?}{}",
-                audition_target_spec(&status.target),
-                status.path,
-                if status.looping { " LOOP" } else { "" }
-            )
-        });
-    format!(
-        "{}{}{audition} · {:?}{} · voices {} · MIDI {}",
-        transport_label(app),
-        if app.playback_paused { " PAUSED" } else { "" },
-        app.telemetry.stream_state,
-        if app.telemetry.transition_active {
-            " XFADE/RESTART"
-        } else {
-            ""
-        },
-        app.telemetry.engine.active_voices,
-        if app.telemetry.midi_connected {
-            "connected"
-        } else {
-            "off"
-        }
-    )
-}
-
-fn view_tabs(ui: &mut Ui, cx: &mut Cx<'_>) {
-    ui.horizontal_wrapped(|ui| {
-        for (index, view) in VIEWS.iter().enumerate() {
-            let key = match index {
-                0..=8 => (index + 1).to_string(),
-                9 => "0".to_owned(),
-                10 => "—".to_owned(),
-                11 => "H".to_owned(),
-                _ => "?".to_owned(),
-            };
-            let mut label = RichText::new(view.title());
-            if *view == View::Diagnostics && cx.app.bundle.diagnostics.has_errors() {
-                label = label.color(palette::BAD);
-            }
-            if ui
-                .selectable_label(cx.app.view == *view, label)
-                .on_hover_text(format!("Key {key}"))
-                .clicked()
-            {
-                cx.send(Action::ShowView(*view));
-            }
-        }
-    });
-}
-
 fn footer(ui: &mut Ui, cx: &Cx<'_>) {
-    ui.horizontal(|ui| {
-        ui.label(RichText::new("■").color(palette::ACCENT));
-        ui.label(widgets::legible(&cx.app.status));
+    let app = cx.app;
+    ui.horizontal_centered(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        let (dot, _) = ui.allocate_exact_size(Vec2::splat(6.0), Sense::hover());
+        ui.painter()
+            .circle_filled(dot.center(), 2.8, theme::ACCENT_CYAN);
+        ui.label(
+            RichText::new(widgets::legible(&app.status))
+                .size(10.5)
+                .color(theme::TEXT_SECONDARY),
+        );
+
+        if app.note_mode {
+            ui.label(
+                RichText::new("NOTE MODE")
+                    .strong()
+                    .size(10.0)
+                    .color(theme::SIG_HOT),
+            );
+        } else if app.timeline_state.visual() && app.view == View::Timeline {
+            ui.label(
+                RichText::new("RANGE SELECT")
+                    .strong()
+                    .size(10.0)
+                    .color(theme::SIG_NOMINAL),
+            );
+        }
+
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if let Some(performance) = app.performance.footer() {
+                ui.label(
+                    RichText::new(performance)
+                        .monospace()
+                        .size(9.5)
+                        .color(theme::TEXT_MUTED),
+                );
+            } else {
+                ui.label(
+                    RichText::new(format!(
+                        "Rev {} · MIDI {}",
+                        short_revision(&app.bundle.revision),
+                        if app.telemetry.midi_connected {
+                            "ON"
+                        } else {
+                            "OFF"
+                        }
+                    ))
+                    .monospace()
+                    .size(9.5)
+                    .color(theme::TEXT_MUTED),
+                );
+            }
+        });
     });
-    if let Some(performance) = cx.app.performance.footer() {
-        ui.label(RichText::new(performance).small().color(palette::MUTED));
-    }
 }
 
 fn modal(ctx: &egui::Context, cx: &mut Cx<'_>) {
@@ -404,7 +939,7 @@ fn modal(ctx: &egui::Context, cx: &mut Cx<'_>) {
         return;
     };
     let response = egui::Modal::new(egui::Id::new("crump-modal")).show(ctx, |ui| {
-        ui.set_width((ctx.content_rect().width() * 0.7).clamp(360.0, 900.0));
+        ui.set_width((ctx.content_rect().width() * 0.65).clamp(360.0, 860.0));
         match modal {
             Modal::Input {
                 title,
@@ -414,14 +949,35 @@ fn modal(ctx: &egui::Context, cx: &mut Cx<'_>) {
                 ..
             } => input_modal(ui, cx, title, prompt, value, *replace_on_type),
             Modal::ConfirmRestore { entry_id } => {
-                ui.heading("Confirm History Restore");
+                ui.label(
+                    RichText::new("CONFIRM HISTORY RESTORE")
+                        .strong()
+                        .size(13.0)
+                        .color(theme::ACCENT_AMBER),
+                );
+                ui.add_space(6.0);
                 ui.label(format!("Restore exact state from {entry_id}?"));
                 ui.label(
-                    "Current source will be replaced atomically and the restored state appended as a new History Entry.",
+                    RichText::new(
+                        "Current source will be replaced atomically and appended as a new History Entry.",
+                    )
+                    .size(11.5)
+                    .color(theme::TEXT_SECONDARY),
                 );
-                ui.add_space(8.0);
+                ui.add_space(10.0);
                 ui.horizontal(|ui| {
-                    if ui.button("Restore").on_hover_text("y / Enter").clicked() {
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                RichText::new("Restore")
+                                    .strong()
+                                    .color(theme::BG_WELL),
+                            )
+                            .fill(theme::ACCENT_AMBER),
+                        )
+                        .on_hover_text("y / Enter")
+                        .clicked()
+                    {
                         cx.send(Action::ModalSubmit);
                     }
                     if ui.button("Cancel").on_hover_text("n / Esc").clicked() {
@@ -449,9 +1005,18 @@ fn input_modal(
     value: &str,
     select_all: bool,
 ) {
-    ui.heading(widgets::legible(title));
-    ui.label(widgets::legible(prompt));
-    ui.add_space(6.0);
+    ui.label(
+        RichText::new(widgets::legible(title))
+            .strong()
+            .size(14.0)
+            .color(theme::ACCENT_AMBER),
+    );
+    ui.label(
+        RichText::new(widgets::legible(prompt))
+            .size(11.5)
+            .color(theme::TEXT_SECONDARY),
+    );
+    ui.add_space(8.0);
     let identity = format!("{title}\n{prompt}");
     let opening = cx
         .state
@@ -486,9 +1051,17 @@ fn input_modal(
     if output.response.changed() || (submit && buffer != value) {
         cx.send(Action::ModalSetInput(buffer.clone()));
     }
-    ui.add_space(8.0);
+    ui.add_space(10.0);
     ui.horizontal(|ui| {
-        if ui.button("Apply").on_hover_text("Enter").clicked() || submit {
+        if ui
+            .add(
+                egui::Button::new(RichText::new("Apply").strong().color(theme::BG_WELL))
+                    .fill(theme::ACCENT_AMBER),
+            )
+            .on_hover_text("Enter")
+            .clicked()
+            || submit
+        {
             cx.send(Action::ModalSubmit);
         }
         if ui.button("Cancel").on_hover_text("Esc").clicked() {
@@ -499,7 +1072,13 @@ fn input_modal(
 }
 
 fn text_modal(ui: &mut Ui, cx: &mut Cx<'_>, title: &str, body: &str, scroll: u16) {
-    ui.heading(widgets::legible(title));
+    ui.label(
+        RichText::new(widgets::legible(title))
+            .strong()
+            .size(14.0)
+            .color(theme::ACCENT_CYAN),
+    );
+    ui.add_space(6.0);
     let lines = body.lines().collect::<Vec<_>>();
     let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
     let mut area = egui::ScrollArea::both()
@@ -508,21 +1087,27 @@ fn text_modal(ui: &mut Ui, cx: &mut Cx<'_>, title: &str, body: &str, scroll: u16
     if std::mem::replace(&mut cx.state.modal_scroll, scroll) != scroll {
         area = area.vertical_scroll_offset(f32::from(scroll) * row_height);
     }
-    area.show_rows(ui, row_height, lines.len(), |ui, rows| {
-        for line in &lines[rows] {
-            let color = match line.as_bytes().first() {
-                Some(b'+') => palette::GOOD,
-                Some(b'-') => palette::BAD,
-                Some(b'@') => palette::ACCENT,
-                _ => ui.visuals().text_color(),
-            };
-            ui.label(
-                RichText::new(widgets::legible(line))
-                    .monospace()
-                    .color(color),
-            );
-        }
-    });
+    egui::Frame::new()
+        .fill(theme::BG_WELL)
+        .corner_radius(4.0)
+        .inner_margin(egui::Margin::same(8))
+        .show(ui, |ui| {
+            area.show_rows(ui, row_height, lines.len(), |ui, rows| {
+                for line in &lines[rows] {
+                    let color = match line.as_bytes().first() {
+                        Some(b'+') => theme::SIG_NOMINAL,
+                        Some(b'-') => theme::SIG_CLIP,
+                        Some(b'@') => theme::ACCENT_CYAN,
+                        _ => theme::TEXT_PRIMARY,
+                    };
+                    ui.label(
+                        RichText::new(widgets::legible(line))
+                            .monospace()
+                            .color(color),
+                    );
+                }
+            });
+        });
     ui.add_space(8.0);
     if ui.button("Close").on_hover_text("Esc").clicked() {
         cx.send(Action::ModalDismiss);

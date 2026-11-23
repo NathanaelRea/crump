@@ -2,7 +2,7 @@ crump-module 2
 instrument dh-lead "Deep House Wavetable Lead" graph {
   polyphony 8
   parameter position "Table Position" ratio 0 1 0.2 0.3 automatable modulatable
-  parameter level "Level" ratio 0 1 0.32 0.32 modulatable
+  parameter level "Level" ratio 0 1 0.32 0.3197421729564667 modulatable
   faceplate {
     control position "Color" "Scans the exact four-frame wavetable" maps position
     control level "Level" "Sets the source layer level" maps level
@@ -18,9 +18,9 @@ instrument dh-lead "Deep House Wavetable Lead" graph {
   modulation {
     source velocity note_velocity per_voice unipolar
     source motion lfo instrument bipolar sine sync 2bar phase 0.25
-    route velocity-position source velocity target position depth 18% map unipolar curve smoothstep order 0 bypass false
-    route motion-position source motion target position depth 12% map bipolar curve linear order 10 bypass false
-    route velocity-level source velocity target level depth 18% map unipolar curve linear order 20 bypass false
+    route velocity-position source velocity target position depth 0.29846590909090914 map unipolar curve smoothstep order 0 bypass false
+    route motion-position source motion target position depth 0.2697869318181818 map bipolar curve linear order 10 bypass false
+    route velocity-level source velocity target level depth 1 map unipolar curve linear order 20 bypass false
   }
   graph voice 7 {
     node source wavetable {

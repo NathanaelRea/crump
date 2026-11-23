@@ -8,19 +8,22 @@ use std::path::Path;
 use crate::{
     diagnostic::Diagnostic,
     edit::{
-        CheckedReplacement, EditError, ProcessorMove, apply_structured_edit,
-        clear_sample_occurrence_loop, create_locator, fade_sample_occurrence, move_processor,
-        set_automation_point_at, set_automation_point_interpolation, set_automation_point_value,
-        set_event_at, set_event_velocity, set_hit_voice, set_instrument_route_bypass,
-        set_instrument_route_depth, set_note_duration, set_note_pitch, set_parameter,
-        set_parameter_target, set_processor_setting, set_sample_occurrence_direction,
-        set_sample_occurrence_gain, set_sample_occurrence_loop, set_sample_occurrence_pan,
-        set_track_level, set_track_pan, trim_sample_occurrence,
+        CheckedReplacement, ClipPlacement, EditError, ProcessorMove, apply_structured_edit,
+        clear_sample_occurrence_loop, create_automation_lane, create_automation_point, create_clip,
+        create_locator, create_pattern_hit, create_pattern_note, delete_automation_point,
+        delete_clip, delete_pattern_event, duplicate_clip, fade_sample_occurrence, move_clip,
+        move_processor, resize_clip, set_automation_point_at, set_automation_point_interpolation,
+        set_automation_point_value, set_event_at, set_event_velocity, set_hit_voice,
+        set_instrument_route_bypass, set_instrument_route_depth, set_note_duration, set_note_pitch,
+        set_parameter, set_parameter_target, set_processor_setting,
+        set_sample_occurrence_direction, set_sample_occurrence_gain, set_sample_occurrence_loop,
+        set_sample_occurrence_pan, set_song_tempo, set_track_level, set_track_pan, split_clip,
+        trim_sample_occurrence,
     },
     history::{ChangeOrigin, HistoryEntry, HistoryError, HistoryStore, Publication},
     model::{
-        AutomationInterpolation, DrumVoice, ParameterTarget, SampleDirection, SampleLoopRegion,
-        Unit, parse_pitch,
+        AutomationInterpolation, ClipMode, DrumVoice, ParameterTarget, SampleDirection,
+        SampleLoopRegion, Unit, parse_pitch,
     },
     project::{ProjectBundle, ProjectIoError, RevisionId, load_project},
 };
@@ -132,6 +135,67 @@ pub enum Operation {
         point: String,
         curve: String,
     },
+    /// Create one durable Automation lane with an initial point.
+    CreateAutomationLane {
+        lane: String,
+        target: String,
+        initial_value: String,
+    },
+    /// Create one durable Automation point in a lane.
+    CreateAutomationPoint {
+        lane: String,
+        point: String,
+        at: String,
+        value: String,
+        curve: String,
+    },
+    /// Delete one durable Automation point from a lane.
+    DeleteAutomationPoint { lane: String, point: String },
+    /// Create one arranged Clip on a Track.
+    CreateClip {
+        track: String,
+        clip: String,
+        pattern: String,
+        start: String,
+        duration: String,
+    },
+    /// Move one arranged Clip to a new start time.
+    MoveClip { clip: String, start: String },
+    /// Resize one arranged Clip's duration.
+    ResizeClip { clip: String, duration: String },
+    /// Duplicate one arranged Clip at a new start time.
+    DuplicateClip {
+        clip: String,
+        new_id: String,
+        start: String,
+    },
+    /// Split one arranged Clip at a Song time.
+    SplitClip {
+        clip: String,
+        new_id: String,
+        at: String,
+    },
+    /// Delete one arranged Clip.
+    DeleteClip { clip: String },
+    /// Create one pitched Note in a Pattern.
+    CreatePatternNote {
+        pattern: String,
+        at: String,
+        pitch: String,
+        duration: String,
+        velocity: f64,
+    },
+    /// Create one percussion Hit in a Pattern.
+    CreatePatternHit {
+        pattern: String,
+        at: String,
+        voice: String,
+        velocity: f64,
+    },
+    /// Delete one concrete Event from a Pattern.
+    DeletePatternEvent { pattern: String, event: usize },
+    /// Update Song tempo in BPM.
+    SetSongTempo { bpm: f64 },
     /// Set a pitched Event's pitch.
     SetNotePitch {
         pattern: String,
@@ -542,6 +606,88 @@ fn plan(
                 bundle, lane, point, curve,
             )?]
         }
+        Operation::CreateAutomationLane {
+            lane,
+            target,
+            initial_value,
+        } => {
+            let target = target
+                .parse::<ParameterTarget>()
+                .map_err(|error| invalid(ValueKind::ParameterTarget, error))?;
+            vec![create_automation_lane(
+                bundle,
+                lane,
+                &target,
+                initial_value,
+            )?]
+        }
+        Operation::CreateAutomationPoint {
+            lane,
+            point,
+            at,
+            value,
+            curve,
+        } => {
+            let curve = curve
+                .parse::<AutomationInterpolation>()
+                .map_err(|error| invalid(ValueKind::AutomationCurve, error))?;
+            vec![create_automation_point(
+                bundle, lane, point, at, value, curve,
+            )?]
+        }
+        Operation::DeleteAutomationPoint { lane, point } => {
+            vec![delete_automation_point(bundle, lane, point)?]
+        }
+        Operation::CreateClip {
+            track,
+            clip,
+            pattern,
+            start,
+            duration,
+        } => {
+            let placement = ClipPlacement {
+                id: clip.clone(),
+                pattern: pattern.clone(),
+                start: start.clone(),
+                duration: duration.clone(),
+                mode: ClipMode::Loop,
+                source_offset: "0beat".to_owned(),
+                transpose_semitones: 0,
+                gain_db: 0.0,
+                fade_in: "0beat".to_owned(),
+                fade_out: "0beat".to_owned(),
+                groove: None,
+            };
+            vec![create_clip(bundle, track, &placement)?]
+        }
+        Operation::MoveClip { clip, start } => vec![move_clip(bundle, clip, start)?],
+        Operation::ResizeClip { clip, duration } => vec![resize_clip(bundle, clip, duration)?],
+        Operation::DuplicateClip {
+            clip,
+            new_id,
+            start,
+        } => vec![duplicate_clip(bundle, clip, new_id, start)?],
+        Operation::SplitClip { clip, new_id, at } => split_clip(bundle, clip, new_id, at)?,
+        Operation::DeleteClip { clip } => vec![delete_clip(bundle, clip)?],
+        Operation::CreatePatternNote {
+            pattern,
+            at,
+            pitch,
+            duration,
+            velocity,
+        } => vec![create_pattern_note(
+            bundle, pattern, at, pitch, duration, *velocity,
+        )?],
+        Operation::CreatePatternHit {
+            pattern,
+            at,
+            voice,
+            velocity,
+        } => vec![create_pattern_hit(bundle, pattern, at, voice, *velocity)?],
+        Operation::DeletePatternEvent { pattern, event } => {
+            vec![delete_pattern_event(bundle, pattern, *event)?]
+        }
+        Operation::SetSongTempo { bpm } => vec![set_song_tempo(bundle, *bpm)?],
         Operation::SetNotePitch {
             pattern,
             event,

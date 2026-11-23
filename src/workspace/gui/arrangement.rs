@@ -1,289 +1,304 @@
-//! The Timeline view: Tracks and Clips painted along the Song, with pointer navigation.
+//! Pro Timeline & Arrangement view: color-coded tracks with inline M/S/A + fader + pan + meter,
+//! translucent colored clips with real MIDI note/drum previews, loop seams & fades, two-band
+//! locator/ruler header, clamped loop brace, and direct clip manipulation with live drag ghosts.
 
-use super::widgets::{toolbar, unavailable};
+use super::theme::{self, with_alpha};
+use super::widgets::{
+    dbfs_meter_horizontal, horizontal_mini_slider, led_button, paint_dbfs_meter_vertical,
+    pill_toggle, unavailable,
+};
 use super::*;
+use crate::model::{Clip, DrumVoice, Pattern, PatternEvent, Track, Unit};
 use crate::time::MusicalTime;
 
-const HEADER_WIDTH: f32 = 200.0;
-pub(super) const RULER_HEIGHT: f32 = 34.0;
-const LANE_HEIGHT: f32 = 44.0;
-/// Width of one projected activity column. The session bins Events and waveforms per column.
+const HEADER_WIDTH: f32 = 236.0;
+/// Two-band ruler: top 18px Locator flags + Loop Brace, bottom 24px Bar numbers + beat ticks.
+pub(super) const RULER_HEIGHT: f32 = 42.0;
+const LOCATOR_BAND_H: f32 = 18.0;
+const BASE_LANE_HEIGHT: f32 = 64.0;
+/// Width of one projected activity column.
 const COLUMN_WIDTH: f32 = 2.0;
 const MAX_COLUMNS: usize = 4096;
-/// Scroll distance that pans the viewport one step.
 const PAN_SCROLL_STEP: f32 = 48.0;
-/// Pinch or Ctrl-scroll factor, as a natural logarithm, that changes zoom one level.
 const ZOOM_SCROLL_STEP: f32 = 0.25;
-
-const CURSOR: Color32 = palette::GOOD;
-const PLAYHEAD: Color32 = palette::BAD;
 
 pub(super) fn timeline(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
     let Some(project) = app.bundle.project.as_ref() else {
         unavailable(
             ui,
-            "Timeline unavailable while Project source is unparseable",
+            "Timeline unavailable while Project source has syntax errors",
         );
         return;
     };
-    controls(ui, cx, project);
-    egui::TopBottomPanel::bottom("crump-timeline-details")
-        .frame(egui::Frame::NONE)
+
+    compact_toolbar(ui, cx, project);
+
+    // Compact 1-line contextual selection bar at bottom
+    egui::TopBottomPanel::bottom("crump-timeline-inspector")
+        .frame(
+            egui::Frame::new()
+                .fill(theme::BG_SURFACE)
+                .inner_margin(egui::Margin::symmetric(10, 4))
+                .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK)),
+        )
         .show_inside(ui, |ui| {
-            ui.separator();
-            details(ui, app, project);
+            contextual_bar(ui, cx, project);
         });
+
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| lanes(ui, cx, project));
 }
 
-fn controls(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
+/// Slim 30px single-row arrangement toolbar.
+fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
     let app = cx.app;
-    let timeline = |action: TimelineAction| Action::Timeline(action);
-    ui.horizontal_wrapped(|ui| {
-        toolbar(
-            ui,
-            cx,
-            &[
-                (
-                    "⏮",
-                    timeline(TimelineAction::MoveSongEdge { end: false }),
-                    "Song start · g0",
-                ),
-                (
-                    "◀ Clip",
-                    timeline(TimelineAction::MoveBoundary(-1)),
-                    "Previous Clip boundary · b",
-                ),
-                (
-                    "◀",
-                    timeline(TimelineAction::MoveGrid(-1)),
-                    "One grid step back · h",
-                ),
-                (
-                    "▶",
-                    timeline(TimelineAction::MoveGrid(1)),
-                    "One grid step forward · l",
-                ),
-                (
-                    "Clip ▶",
-                    timeline(TimelineAction::MoveBoundary(1)),
-                    "Next Clip boundary · w",
-                ),
-                (
-                    "⏭",
-                    timeline(TimelineAction::MoveSongEdge { end: true }),
-                    "Song end · g$",
-                ),
-            ],
-        );
-        ui.separator();
-        ui.label("Grid");
-        toolbar(
-            ui,
-            cx,
-            &[(
-                "−",
-                timeline(TimelineAction::ChangeGrid(-1)),
-                "Finer grid · [",
-            )],
-        );
-        ui.label(RichText::new(app.timeline_state.grid_label()).monospace());
-        toolbar(
-            ui,
-            cx,
-            &[(
-                "+",
-                timeline(TimelineAction::ChangeGrid(1)),
-                "Coarser grid · ]",
-            )],
-        );
-        ui.separator();
-        ui.label("Zoom");
-        toolbar(
-            ui,
-            cx,
-            &[("−", timeline(TimelineAction::Zoom(-1)), "Zoom out · -")],
-        );
-        ui.label(
-            RichText::new(if app.timeline_viewport.is_fit() {
-                "fit".to_owned()
-            } else {
-                format!("{}×", app.timeline_viewport.zoom_factor())
-            })
-            .monospace(),
-        );
-        toolbar(
-            ui,
-            cx,
-            &[
-                ("+", timeline(TimelineAction::Zoom(1)), "Zoom in · +"),
-                (
+    egui::Frame::new()
+        .fill(theme::BG_SURFACE)
+        .inner_margin(egui::Margin::symmetric(10, 4))
+        .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 6.0;
+
+                // Grid stepper pill
+                ui.label(
+                    RichText::new("GRID")
+                        .size(9.5)
+                        .strong()
+                        .color(theme::TEXT_MUTED),
+                );
+                if led_button(
+                    ui,
+                    "−",
+                    false,
+                    theme::ACCENT_CYAN,
+                    Vec2::new(20.0, 20.0),
+                    "Finer grid · [",
+                )
+                .clicked()
+                {
+                    cx.send(TimelineAction::ChangeGrid(-1));
+                }
+                ui.label(
+                    RichText::new(app.timeline_state.grid_label())
+                        .monospace()
+                        .size(11.5)
+                        .color(theme::TEXT_PRIMARY),
+                );
+                if led_button(
+                    ui,
+                    "+",
+                    false,
+                    theme::ACCENT_CYAN,
+                    Vec2::new(20.0, 20.0),
+                    "Coarser grid · ]",
+                )
+                .clicked()
+                {
+                    cx.send(TimelineAction::ChangeGrid(1));
+                }
+
+                ui.separator();
+
+                // Zoom cluster
+                ui.label(
+                    RichText::new("ZOOM")
+                        .size(9.5)
+                        .strong()
+                        .color(theme::TEXT_MUTED),
+                );
+                if led_button(
+                    ui,
+                    "−",
+                    false,
+                    theme::ACCENT_CYAN,
+                    Vec2::new(20.0, 20.0),
+                    "Zoom out · -",
+                )
+                .clicked()
+                {
+                    cx.send(TimelineAction::Zoom(-1));
+                }
+                ui.label(
+                    RichText::new(if app.timeline_viewport.is_fit() {
+                        "FIT".to_owned()
+                    } else {
+                        format!("{}×", app.timeline_viewport.zoom_factor())
+                    })
+                    .monospace()
+                    .size(11.0)
+                    .color(theme::TEXT_SECONDARY),
+                );
+                if led_button(
+                    ui,
+                    "+",
+                    false,
+                    theme::ACCENT_CYAN,
+                    Vec2::new(20.0, 20.0),
+                    "Zoom in · +",
+                )
+                .clicked()
+                {
+                    cx.send(TimelineAction::Zoom(1));
+                }
+                if pill_toggle(
+                    ui,
                     "Fit",
-                    timeline(TimelineAction::Fit),
-                    "Fit the whole Song · Home",
-                ),
-            ],
-        );
-        if ui
-            .selectable_label(app.timeline_state.follow_playhead(), "Follow")
-            .on_hover_text("Keep the playhead in view · f")
-            .clicked()
-        {
-            cx.send(TimelineAction::ToggleFollow);
-        }
-        ui.separator();
-        toolbar(
-            ui,
-            cx,
-            &[
-                (
-                    "Go to…",
-                    timeline(TimelineAction::OpenGoto),
-                    "Exact cursor position · :",
-                ),
-                (
-                    "Search…",
-                    timeline(TimelineAction::OpenSearch),
-                    "Search Tracks, Clips, Patterns, and Locators · /",
-                ),
-                (
-                    "Locator…",
-                    timeline(TimelineAction::OpenLocator),
-                    "Create a durable Locator at the cursor · M",
-                ),
-            ],
-        );
-    });
-    ui.horizontal_wrapped(|ui| {
-        if app.timeline_state.visual() {
-            toolbar(
-                ui,
-                cx,
-                &[
-                    (
-                        "Play range",
-                        timeline(TimelineAction::ApplyRange { looping: false }),
-                        "Audition the range once · Enter",
-                    ),
-                    (
-                        "Loop range",
-                        timeline(TimelineAction::ApplyRange { looping: true }),
-                        "Audition the range as a loop · L",
-                    ),
-                    (
-                        "Fit range",
-                        timeline(TimelineAction::FitRange),
-                        "Fit the range in the viewport · zf",
-                    ),
-                    (
-                        "Swap edge",
-                        timeline(TimelineAction::SwapRangeEdge),
-                        "Move the other edge of the range · o",
-                    ),
-                    ("Cancel range", Action::CancelMode, "Leave RANGE mode · Esc"),
-                ],
-            );
-        } else {
-            toolbar(
-                ui,
-                cx,
-                &[
-                    (
-                        "Select range",
-                        timeline(TimelineAction::BeginRange),
-                        "Start a range at the cursor, or drag across the lanes · V",
-                    ),
-                    (
-                        "Loop",
-                        Action::ToggleAuditionRangeLoop,
-                        "Toggle looping of the armed range · L",
-                    ),
-                ],
-            );
-        }
-        ui.separator();
-        toolbar(
-            ui,
-            cx,
-            &[
-                (
-                    "Arm Track",
-                    Action::ArmSelectedAudition,
-                    "Audition only the selected Track · A",
-                ),
-                (
-                    "−dB",
-                    Action::AdjustSelected(-1),
-                    "Track level one step down · ←",
-                ),
-                (
-                    "+dB",
-                    Action::AdjustSelected(1),
-                    "Track level one step up · →",
-                ),
-                ("Level…", Action::OpenExactEdit, "Exact Track level · Enter"),
-                ("Pan…", Action::OpenTrackPan, "Exact Track pan · p"),
-            ],
-        );
-        ui.separator();
-        ui.label("Open");
-        toolbar(
-            ui,
-            cx,
-            &[
-                (
-                    "Pattern",
-                    timeline(TimelineAction::GoDefinition),
-                    "Event Grid of the Clip under the cursor · gd",
-                ),
-                (
-                    "Source",
-                    timeline(TimelineAction::GoSource),
-                    "Source of the item under the cursor · gf",
-                ),
-                (
-                    "Instrument",
-                    timeline(TimelineAction::GoInstrument),
-                    "Instrument of the selected Track · gi",
-                ),
-                (
-                    "Mixer",
-                    timeline(TimelineAction::GoMixer),
-                    "Mixer channel of the selected Track · gm",
-                ),
-                (
-                    "Processing",
-                    timeline(TimelineAction::GoProcessing),
-                    "Processing chain of the selected Track · gp",
-                ),
-            ],
-        );
-    });
-    let window = app.timeline_viewport.window(project.song.end);
-    ui.label(
-        RichText::new(format!(
-            "cursor {} · {}–{} · playhead {} · {} BPM · {}{}",
-            timeline_time_label(app.timeline_position().at, project.song.meter),
-            timeline_time_label(window.start, project.song.meter),
-            timeline_time_label(window.end, project.song.meter),
-            transport_label(app),
-            project.song.tempo_bpm,
-            project.song.meter,
-            app.timeline_cache
-                .warning()
-                .map_or_else(String::new, |warning| format!(" · {warning}"))
-        ))
-        .monospace()
-        .color(palette::MUTED),
-    );
+                    app.timeline_viewport.is_fit(),
+                    theme::ACCENT_CYAN,
+                    "Fit whole Song · Home",
+                )
+                .clicked()
+                {
+                    cx.send(TimelineAction::Fit);
+                }
+
+                if pill_toggle(
+                    ui,
+                    "Follow",
+                    app.timeline_state.follow_playhead(),
+                    theme::ACCENT_AMBER,
+                    "Follow playhead · f",
+                )
+                .clicked()
+                {
+                    cx.send(TimelineAction::ToggleFollow);
+                }
+
+                ui.separator();
+
+                // Range / Loop tools (contextual when RANGE mode active)
+                if app.timeline_state.visual() {
+                    if pill_toggle(
+                        ui,
+                        "Loop Range",
+                        true,
+                        theme::ACCENT_AMBER,
+                        "Loop selected range · L",
+                    )
+                    .clicked()
+                    {
+                        cx.send(TimelineAction::ApplyRange { looping: true });
+                    }
+                    if pill_toggle(
+                        ui,
+                        "Play Range",
+                        false,
+                        theme::SIG_NOMINAL,
+                        "Play selected range once · Enter",
+                    )
+                    .clicked()
+                    {
+                        cx.send(TimelineAction::ApplyRange { looping: false });
+                    }
+                    if pill_toggle(
+                        ui,
+                        "Fit Range",
+                        false,
+                        theme::ACCENT_CYAN,
+                        "Zoom to range · zf",
+                    )
+                    .clicked()
+                    {
+                        cx.send(TimelineAction::FitRange);
+                    }
+                    if pill_toggle(
+                        ui,
+                        "Cancel",
+                        false,
+                        theme::SIG_CLIP,
+                        "Exit RANGE mode · Esc",
+                    )
+                    .clicked()
+                    {
+                        cx.send(Action::CancelMode);
+                    }
+                } else {
+                    if pill_toggle(
+                        ui,
+                        "Range",
+                        false,
+                        theme::SIG_NOMINAL,
+                        "Select a range on the Timeline · V",
+                    )
+                    .clicked()
+                    {
+                        cx.send(TimelineAction::BeginRange);
+                    }
+                    if pill_toggle(
+                        ui,
+                        "+ Locator",
+                        false,
+                        theme::SIG_HOT,
+                        "Create a Locator at cursor · M",
+                    )
+                    .clicked()
+                    {
+                        cx.send(TimelineAction::OpenLocator);
+                    }
+                    if pill_toggle(
+                        ui,
+                        "Search",
+                        false,
+                        theme::ACCENT_CYAN,
+                        "Search Tracks, Clips, Patterns, Locators · /",
+                    )
+                    .clicked()
+                    {
+                        cx.send(TimelineAction::OpenSearch);
+                    }
+                }
+
+                // Right-aligned cursor readout & working locator jump pills
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    let cursor_str =
+                        timeline_time_label(app.timeline_position().at, project.song.meter);
+                    ui.label(
+                        RichText::new(format!("CUR {cursor_str}"))
+                            .monospace()
+                            .size(11.0)
+                            .color(theme::SIG_NOMINAL),
+                    )
+                    .on_hover_text("Cursor position · click to go to exact bar (:)")
+                    .interact(Sense::click())
+                    .clicked()
+                    .then(|| cx.send(TimelineAction::OpenGoto));
+
+                    if !project.song.locators.is_empty() {
+                        ui.separator();
+                        let cur_at = app.timeline_position().at;
+                        for (idx, locator) in project.song.locators.iter().enumerate().take(5).rev()
+                        {
+                            let at_here = locator.at == cur_at;
+                            if led_button(
+                                ui,
+                                &locator.name,
+                                at_here,
+                                theme::SIG_HOT,
+                                Vec2::new(
+                                    (locator.name.len() as f32 * 6.5 + 14.0).clamp(42.0, 92.0),
+                                    20.0,
+                                ),
+                                &format!("Jump to locator {} ({})", locator.name, locator.at),
+                            )
+                            .clicked()
+                            {
+                                cx.send(TimelineAction::JumpToLocator(idx));
+                            }
+                        }
+                    }
+                });
+            });
+        });
 }
 
 /// Where the lanes sit on screen and how Musical Time maps onto them.
 struct Geometry {
     lanes: Rect,
+    full_canvas: Rect,
+    lane_height: f32,
     columns: usize,
     start: f64,
     span: f64,
@@ -294,12 +309,17 @@ impl Geometry {
         self.lanes.left() + ((quarters - self.start) / self.span) as f32 * self.lanes.width()
     }
 
+    fn quarters_of(&self, x: f32) -> f64 {
+        let frac = f64::from(((x - self.lanes.left()) / self.lanes.width()).clamp(0.0, 1.0));
+        self.start + frac * self.span
+    }
+
     fn visible(&self, quarters: f64) -> bool {
         quarters >= self.start && quarters <= self.start + self.span
     }
 
     fn lane_top(&self, track: usize) -> f32 {
-        self.lanes.top() + LANE_HEIGHT * track as f32
+        self.lanes.top() + self.lane_height * track as f32
     }
 
     fn column_at(&self, x: f32) -> usize {
@@ -307,24 +327,37 @@ impl Geometry {
         ((fraction * self.columns as f32) as usize).min(self.columns - 1)
     }
 
-    /// The Track under a pointer height, or `None` above the first lane, in the ruler.
     fn track_at(&self, y: f32, tracks: usize) -> Option<usize> {
-        (y >= self.lanes.top() && tracks > 0)
-            .then(|| (((y - self.lanes.top()) / LANE_HEIGHT) as usize).min(tracks - 1))
+        if y < self.lanes.top() || tracks == 0 {
+            return None;
+        }
+        let idx = ((y - self.lanes.top()) / self.lane_height) as usize;
+        (idx < tracks).then_some(idx)
     }
 }
 
 fn lanes(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
     let app = cx.app;
     let tracks = &project.song.tracks;
-    let size = Vec2::new(
-        ui.available_width().max(HEADER_WIDTH + 80.0),
-        RULER_HEIGHT + LANE_HEIGHT * tracks.len().max(1) as f32,
-    );
+    let avail_h = ui.available_height().max(320.0);
+    // Give small arrangements generous track lane height so the workspace feels rich and balanced
+    let lane_height = if tracks.len() <= 5 {
+        ((avail_h - RULER_HEIGHT - 8.0) / tracks.len().max(1) as f32).clamp(BASE_LANE_HEIGHT, 92.0)
+    } else {
+        BASE_LANE_HEIGHT
+    };
+    let tracks_h = lane_height * tracks.len().max(1) as f32;
+    let total_h = (RULER_HEIGHT + tracks_h).max(avail_h);
+    let size = Vec2::new(ui.available_width().max(HEADER_WIDTH + 120.0), total_h);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+
     let lanes = Rect::from_min_max(
         Pos2::new(rect.left() + HEADER_WIDTH, rect.top() + RULER_HEIGHT),
-        rect.max,
+        Pos2::new(rect.right(), rect.top() + RULER_HEIGHT + tracks_h),
+    );
+    let full_canvas = Rect::from_min_max(
+        Pos2::new(rect.left() + HEADER_WIDTH, rect.top() + RULER_HEIGHT),
+        Pos2::new(rect.right(), rect.bottom()),
     );
     let columns = ((lanes.width() / COLUMN_WIDTH) as usize).clamp(1, MAX_COLUMNS);
     let projection = app.timeline_cache.project(
@@ -335,6 +368,8 @@ fn lanes(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
     let start = projection.window.start.as_f64();
     let geometry = Geometry {
         lanes,
+        full_canvas,
+        lane_height,
         columns,
         start,
         span: (projection.window.end.as_f64() - start).max(f64::EPSILON),
@@ -345,227 +380,922 @@ fn lanes(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
         rect.max,
     ));
 
+    // Top-left corner header cell above track headers
+    let corner = Rect::from_min_max(rect.left_top(), Pos2::new(lanes.left(), lanes.top()));
+    painter.rect_filled(corner, 0.0, theme::BG_SURFACE);
+    painter.hline(
+        corner.x_range(),
+        corner.bottom(),
+        Stroke::new(1.0_f32, theme::SEAM_DARK),
+    );
+    painter.vline(
+        corner.right(),
+        rect.top()..=rect.bottom(),
+        Stroke::new(1.0_f32, theme::SEAM_DARK),
+    );
+    painter.text(
+        Pos2::new(corner.left() + 10.0, corner.top() + 11.0),
+        Align2::LEFT_CENTER,
+        format!("ARRANGEMENT · {} TRACKS", tracks.len()),
+        FontId::proportional(9.5),
+        theme::TEXT_MUTED,
+    );
+    painter.text(
+        Pos2::new(corner.left() + 10.0, corner.bottom() - 10.0),
+        Align2::LEFT_CENTER,
+        format!(
+            "{:.0} BPM · {} · END {}",
+            project.song.tempo_bpm,
+            project.song.meter,
+            timeline_time_label(project.song.end, project.song.meter)
+        ),
+        FontId::monospace(10.0),
+        theme::TEXT_SECONDARY,
+    );
+
+    // Render active track lanes + headers
     for (index, track) in tracks.iter().enumerate() {
         let top = geometry.lane_top(index);
         let lane = Rect::from_min_max(
             Pos2::new(lanes.left(), top),
-            Pos2::new(lanes.right(), top + LANE_HEIGHT),
+            Pos2::new(lanes.right(), top + lane_height),
         );
-        timed.rect_filled(
-            lane,
-            0.0,
-            if index % 2 == 0 {
-                palette::LANE
-            } else {
-                palette::LANE_ALTERNATE
-            },
+        let lane_bg = if index == app.selected_track {
+            Color32::from_rgb(26, 32, 42)
+        } else if index % 2 == 0 {
+            theme::BG_CANVAS
+        } else {
+            theme::BG_LANE_ALT
+        };
+        timed.rect_filled(lane, 0.0, lane_bg);
+        timed.hline(
+            lane.x_range(),
+            lane.bottom(),
+            Stroke::new(1.0_f32, theme::BORDER_SUBTLE),
         );
+
         let header = Rect::from_min_max(
             Pos2::new(rect.left(), top),
-            Pos2::new(lanes.left(), top + LANE_HEIGHT),
+            Pos2::new(lanes.left() - 1.0, top + lane_height),
         );
         track_header(ui, cx, &painter, header, index, track);
     }
-    grid(&timed, &geometry, rect, project);
+
+    // Continue faint studio arrangement grid rails below the last track so there's never an empty void
+    if lanes.bottom() < rect.bottom() {
+        let empty_hdr = Rect::from_min_max(
+            Pos2::new(rect.left(), lanes.bottom()),
+            Pos2::new(lanes.left() - 1.0, rect.bottom()),
+        );
+        painter.rect_filled(empty_hdr, 0.0, theme::BG_WELL);
+        let mut y = lanes.bottom();
+        let mut row_i = tracks.len();
+        while y < rect.bottom() {
+            let next_y = (y + lane_height).min(rect.bottom());
+            let bg = if row_i.is_multiple_of(2) {
+                with_alpha(theme::BG_CANVAS, 0.85)
+            } else {
+                with_alpha(theme::BG_LANE_ALT, 0.7)
+            };
+            timed.rect_filled(
+                Rect::from_min_max(Pos2::new(lanes.left(), y), Pos2::new(lanes.right(), next_y)),
+                0.0,
+                bg,
+            );
+            timed.hline(
+                lanes.x_range(),
+                next_y,
+                Stroke::new(1.0_f32, with_alpha(theme::BORDER_SUBTLE, 0.45)),
+            );
+            y = next_y;
+            row_i += 1;
+        }
+        // Subtle studio hint in empty lower header bay
+        painter.text(
+            Pos2::new(
+                empty_hdr.center().x,
+                (empty_hdr.top() + 26.0).min(empty_hdr.center().y),
+            ),
+            Align2::CENTER_CENTER,
+            "Double-click lane to add Clip",
+            FontId::proportional(10.5),
+            with_alpha(theme::TEXT_MUTED, 0.65),
+        );
+    }
+
+    grid(&timed, &geometry, rect, app, project);
     for (index, track) in tracks.iter().enumerate() {
-        clips(&timed, &geometry, index, track);
-        if let Some(lane) = projection
-            .lanes
-            .iter()
-            .find(|lane| lane.track_id == track.id)
+        let color = theme::track_color(index);
+        let drew_midi = clips(&timed, &geometry, index, track, project, color);
+        if !drew_midi
+            && let Some(lane) = projection
+                .lanes
+                .iter()
+                .find(|lane| lane.track_id == track.id)
         {
-            activity(&timed, &geometry, index, &lane.cells);
+            activity(&timed, &geometry, index, &lane.cells, color);
         }
     }
+    paint_clip_drag_ghost(&timed, &geometry, cx.state, project);
     markers(&timed, &geometry, rect, app, project);
-    pointer(ui, cx, &geometry, rect, tracks.len());
+    pointer(ui, cx, &geometry, rect, project);
 }
 
+/// Rich 236px studio track header with color stripe, M/S/A LEDs, inline level & pan sliders, and live meter.
 fn track_header(
-    ui: &Ui,
+    ui: &mut Ui,
     cx: &mut Cx<'_>,
     painter: &egui::Painter,
     header: Rect,
     index: usize,
-    track: &crate::model::Track,
+    track: &Track,
 ) {
-    let selected = cx.app.selected_track;
-    let painter = painter.with_clip_rect(header);
-    painter.rect_filled(
-        header,
-        0.0,
-        if index == selected {
-            ui.visuals().selection.bg_fill
-        } else {
-            ui.visuals().faint_bg_color
-        },
+    let app = cx.app;
+    let selected = app.selected_track;
+    let is_selected = index == selected;
+    let color = theme::track_color(index);
+    let identity = format!("track/{}", track.id);
+    let is_solo = app.audition_plan.soloed_channels.contains(&identity);
+    let is_armed = matches!(
+        &app.audition_plan.target,
+        AuditionTarget::Track { track: t } if *t == track.id
     );
-    painter.text(
-        header.left_top() + Vec2::new(8.0, 6.0),
-        Align2::LEFT_TOP,
-        &track.name,
-        FontId::proportional(14.0),
-        ui.visuals().strong_text_color(),
-    );
-    painter.text(
-        header.left_bottom() + Vec2::new(8.0, -6.0),
-        Align2::LEFT_BOTTOM,
-        format!(
-            "{:+.1} dB · pan {:+.2}",
-            track.channel.level_db,
-            track.channel.panner.primary_position()
+
+    let meter_info = app
+        .mix_channel_indexes
+        .get(&identity)
+        .copied()
+        .filter(|&i| i < app.telemetry.engine.channel_count)
+        .map(|i| app.telemetry.engine.channel_activity[i]);
+
+    let p = painter.with_clip_rect(header);
+    let bg = if is_selected {
+        Color32::from_rgb(36, 43, 56)
+    } else {
+        theme::BG_SURFACE
+    };
+    p.rect_filled(header, 0.0, bg);
+    if is_selected {
+        p.rect_filled(header, 0.0, with_alpha(color, 0.08));
+    }
+    // 4px left track color stripe
+    p.rect_filled(
+        Rect::from_min_max(
+            header.left_top(),
+            Pos2::new(header.left() + 4.0, header.bottom()),
         ),
-        FontId::proportional(11.0),
-        palette::MUTED,
+        0.0,
+        color,
     );
-    let response = ui
-        .interact(
-            header,
-            ui.id().with(("track-header", index)),
-            Sense::click(),
-        )
-        .on_hover_text("Click to select · double-click for an exact level");
-    if response.clicked() || response.double_clicked() {
+    // Bottom hairline
+    p.hline(
+        header.x_range(),
+        header.bottom(),
+        Stroke::new(1.0_f32, theme::SEAM_DARK),
+    );
+
+    // Live 9px vertical dBFS meter on the far right edge of the header
+    let meter_rect = Rect::from_min_max(
+        Pos2::new(header.right() - 11.0, header.top() + 5.0),
+        Pos2::new(header.right() - 2.0, header.bottom() - 5.0),
+    );
+    let (peak, avg) = meter_info.map_or((0.0, 0.0), |m| (m.current_peak, m.average));
+    paint_dbfs_meter_vertical(&p, meter_rect, peak, avg);
+
+    let inner_rect = Rect::from_min_max(
+        Pos2::new(header.left() + 9.0, header.top() + 5.0),
+        Pos2::new(header.right() - 15.0, header.bottom() - 4.0),
+    );
+
+    // Background click selects track
+    let bg_resp = ui.interact(
+        header,
+        ui.id().with(("track-header-bg", index)),
+        Sense::click(),
+    );
+    if bg_resp.clicked() {
         cx.select(selected, index);
     }
-    if response.double_clicked() {
-        cx.send(Action::OpenExactEdit);
+    if bg_resp.double_clicked() {
+        cx.select(selected, index);
+        cx.send(TimelineAction::GoInstrument);
+    }
+
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(inner_rect)
+            .layout(Layout::top_down(Align::LEFT)),
+    );
+    child.spacing_mut().item_spacing = Vec2::new(4.0, 4.0);
+
+    // Row 1: Track index + Name + M / S / A micro-LEDs
+    child.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 3.0;
+        let name_w = (inner_rect.width() - 68.0).max(60.0);
+        ui.allocate_ui_with_layout(
+            Vec2::new(name_w, 18.0),
+            Layout::left_to_right(Align::Center),
+            |ui| {
+                ui.label(
+                    RichText::new(format!("{:02}", index + 1))
+                        .monospace()
+                        .size(9.5)
+                        .color(theme::TEXT_MUTED),
+                );
+                ui.add(
+                    egui::Label::new(RichText::new(&track.name).strong().size(12.5).color(
+                        if track.channel.mute {
+                            theme::TEXT_MUTED
+                        } else {
+                            theme::TEXT_PRIMARY
+                        },
+                    ))
+                    .truncate(),
+                );
+            },
+        );
+
+        if led_button(
+            ui,
+            "M",
+            track.channel.mute,
+            theme::SIG_CLIP,
+            Vec2::new(19.0, 17.0),
+            "Mute Track (authored)",
+        )
+        .clicked()
+        {
+            cx.select(selected, index);
+            cx.send(Action::ToggleChannelMute {
+                identity: identity.clone(),
+            });
+        }
+        if led_button(
+            ui,
+            "S",
+            is_solo,
+            theme::SIG_HOT,
+            Vec2::new(19.0, 17.0),
+            "Solo Track (transient)",
+        )
+        .clicked()
+        {
+            cx.select(selected, index);
+            cx.send(Action::ToggleChannelSolo {
+                identity: identity.clone(),
+            });
+        }
+        if led_button(
+            ui,
+            "A",
+            is_armed,
+            theme::SIG_NOMINAL,
+            Vec2::new(19.0, 17.0),
+            "Arm Track audition target · A",
+        )
+        .clicked()
+        {
+            cx.select(selected, index);
+            cx.send(Action::ArmSelectedAudition);
+        }
+    });
+
+    // Row 2: Inline draggable mini level fader + inline draggable Pan slider
+    child.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        let pan_w = 56.0;
+        let slider_w = (inner_rect.width() - pan_w - 4.0).max(70.0);
+        let drag_key = format!("tl-lvl-{}", track.id);
+        let out = horizontal_mini_slider(
+            ui,
+            cx.state,
+            &drag_key,
+            &track.instrument,
+            track.channel.level_db,
+            -48.0,
+            6.0,
+            0.0,
+            Unit::Decibels,
+            color,
+            slider_w,
+            18.0,
+        );
+        if out.clicked {
+            cx.select(selected, index);
+        }
+        if let Some(db) = out.committed {
+            cx.send(Action::SetParameterTargetValue {
+                target: format!("track/{}/level", track.id),
+                value: (db * 10.0).round() / 10.0,
+            });
+        }
+
+        let pan_key = format!("tl-pan-{}", track.id);
+        let pan_out = horizontal_mini_slider(
+            ui,
+            cx.state,
+            &pan_key,
+            "P",
+            track.channel.panner.primary_position(),
+            -1.0,
+            1.0,
+            0.0,
+            Unit::Pan,
+            theme::ACCENT_CYAN,
+            pan_w,
+            18.0,
+        );
+        if pan_out.clicked {
+            cx.select(selected, index);
+        }
+        if pan_out.right_clicked {
+            cx.select(selected, index);
+            cx.send(Action::OpenTrackPan);
+        }
+        if let Some(pan) = pan_out.committed {
+            cx.send(Action::SetParameterTargetValue {
+                target: format!("track/{}/pan", track.id),
+                value: (pan * 100.0).round() / 100.0,
+            });
+        }
+    });
+
+    // Row 3 (when tall lane): subtle routing/clip count metadata
+    if header.height() >= 70.0 {
+        child.horizontal(|ui| {
+            let route = match &track.channel.output {
+                crate::model::OutputTarget::Master => "Master".to_owned(),
+                crate::model::OutputTarget::Group(g) => format!("Grp {g}"),
+                crate::model::OutputTarget::Return(r) => format!("Ret {r}"),
+            };
+            ui.label(
+                RichText::new(format!(
+                    "{route} · {} clips · {} FX",
+                    track.clips.len(),
+                    track.channel.inserts.len()
+                ))
+                .size(9.5)
+                .color(theme::TEXT_MUTED),
+            );
+        });
     }
 }
 
-/// Bar and beat lines with bar numbers in the ruler.
-fn grid(painter: &egui::Painter, geometry: &Geometry, rect: Rect, project: &Project) {
+/// Resolves an audition range endpoint string (locator ID/name or musical time literal) into quarters.
+fn resolve_range_quarters(spec: Option<&str>, project: &Project, fallback: f64) -> f64 {
+    let Some(text) = spec else {
+        return fallback;
+    };
+    if let Some(loc) = project
+        .song
+        .locators
+        .iter()
+        .find(|loc| loc.id == text || loc.name == text)
+    {
+        return loc.at.as_f64();
+    }
+    crate::time::parse_musical_time(text, project.song.meter)
+        .map(MusicalTime::as_f64)
+        .unwrap_or(fallback)
+}
+
+/// Two-band studio ruler (Locator + Loop Brace band above Bar/Beat numbers) & full-height gridlines.
+fn grid(
+    painter: &egui::Painter,
+    geometry: &Geometry,
+    rect: Rect,
+    app: &Workspace,
+    project: &Project,
+) {
     let meter = project.song.meter;
     let bar = meter.bar_length().map_or(4.0, MusicalTime::as_f64);
     let beat = 4.0 / f64::from(meter.denominator.max(1));
     let pixels_per_quarter = f64::from(geometry.lanes.width()) / geometry.span;
     let end = geometry.start + geometry.span;
-    painter.rect_filled(
-        Rect::from_min_max(
-            Pos2::new(geometry.lanes.left(), rect.top()),
-            Pos2::new(rect.right(), geometry.lanes.top()),
-        ),
-        0.0,
-        palette::LANE_ALTERNATE,
+
+    let ruler_rect = Rect::from_min_max(
+        Pos2::new(geometry.lanes.left(), rect.top()),
+        Pos2::new(rect.right(), geometry.lanes.top()),
     );
-    if beat * pixels_per_quarter >= 7.0 {
+    let locator_band = Rect::from_min_max(
+        ruler_rect.left_top(),
+        Pos2::new(ruler_rect.right(), ruler_rect.top() + LOCATOR_BAND_H),
+    );
+    let time_band = Rect::from_min_max(
+        Pos2::new(ruler_rect.left(), ruler_rect.top() + LOCATOR_BAND_H),
+        ruler_rect.max,
+    );
+
+    // Two distinct subtle surfaces for locator band vs bar-number band
+    painter.rect_filled(locator_band, 0.0, Color32::from_rgb(20, 24, 31));
+    painter.rect_filled(time_band, 0.0, theme::BG_SURFACE);
+    painter.hline(
+        ruler_rect.x_range(),
+        locator_band.bottom(),
+        Stroke::new(1.0_f32, with_alpha(theme::BORDER_SUBTLE, 0.65)),
+    );
+    painter.hline(
+        ruler_rect.x_range(),
+        ruler_rect.bottom(),
+        Stroke::new(1.0_f32, theme::SEAM_DARK),
+    );
+
+    // Clamped Loop Brace in top band (never overflows actual loop range or song end)
+    let loop_bounds: Option<(f64, f64, bool)> =
+        if let Some(range) = app.timeline_state.visual_range() {
+            Some((range.start.as_f64(), range.end.as_f64(), true))
+        } else if app.audition_plan.range.looping {
+            let s = resolve_range_quarters(app.audition_plan.range.from.as_deref(), project, 0.0);
+            let e = resolve_range_quarters(
+                app.audition_plan.range.to.as_deref(),
+                project,
+                project.song.end.as_f64(),
+            );
+            (e > s).then_some((s, e, false))
+        } else {
+            None
+        };
+    if let Some((ls, le, is_selection)) = loop_bounds {
+        let x0 = geometry
+            .x_of(ls)
+            .clamp(ruler_rect.left(), ruler_rect.right());
+        let x1 = geometry
+            .x_of(le)
+            .clamp(ruler_rect.left(), ruler_rect.right());
+        if x1 > x0 + 2.0 {
+            let brace = Rect::from_min_max(
+                Pos2::new(x0, locator_band.top() + 2.0),
+                Pos2::new(x1, locator_band.top() + 7.0),
+            );
+            painter.rect_filled(
+                brace,
+                2.0,
+                if is_selection {
+                    theme::ACCENT_AMBER
+                } else {
+                    with_alpha(theme::ACCENT_AMBER, 0.72)
+                },
+            );
+            // Left and right loop-brace end hooks
+            painter.rect_filled(
+                Rect::from_min_size(Pos2::new(x0, brace.top()), Vec2::new(3.0, 9.0)),
+                1.0,
+                theme::ACCENT_AMBER,
+            );
+            painter.rect_filled(
+                Rect::from_min_size(
+                    Pos2::new((x1 - 3.0).max(x0), brace.top()),
+                    Vec2::new(3.0, 9.0),
+                ),
+                1.0,
+                theme::ACCENT_AMBER,
+            );
+        }
+    }
+
+    // Beat lines extending down full canvas height
+    if beat * pixels_per_quarter >= 10.0 {
         let mut index = (geometry.start / beat).ceil();
         while index * beat < end {
+            let x = geometry.x_of(index * beat);
             painter.vline(
-                geometry.x_of(index * beat),
-                geometry.lanes.y_range(),
-                Stroke::new(1.0_f32, palette::GRID_BEAT),
+                x,
+                geometry.full_canvas.y_range(),
+                Stroke::new(1.0_f32, theme::GRID_BEAT),
+            );
+            painter.vline(
+                x,
+                (time_band.bottom() - 4.0)..=time_band.bottom(),
+                Stroke::new(1.0_f32, theme::BORDER_SUBTLE),
             );
             index += 1.0;
         }
     }
+
+    // Bar lines & clean unobstructed ruler numerals inside bottom band
     let bar_pixels = (bar * pixels_per_quarter).max(f64::EPSILON);
-    let label_every = (56.0 / bar_pixels).ceil().max(1.0) as u64;
-    let line_every = (4.0 / bar_pixels).ceil().max(1.0) as u64;
+    let label_every = (48.0 / bar_pixels).ceil().max(1.0) as u64;
+    let line_every = (5.0 / bar_pixels).ceil().max(1.0) as u64;
     let mut index = (geometry.start / bar).ceil() as u64;
     while (index as f64) * bar < end {
         let x = geometry.x_of(index as f64 * bar);
         if index.is_multiple_of(line_every) {
             painter.vline(
                 x,
-                geometry.lanes.y_range(),
-                Stroke::new(1.0_f32, palette::GRID_BAR),
+                geometry.full_canvas.y_range(),
+                Stroke::new(1.0_f32, theme::GRID_BAR),
             );
         }
         if index.is_multiple_of(label_every) {
             painter.vline(
                 x,
-                (geometry.lanes.top() - 8.0)..=geometry.lanes.top(),
-                Stroke::new(1.0_f32, palette::MUTED),
+                (time_band.top() + 3.0)..=time_band.bottom(),
+                Stroke::new(1.0_f32, theme::BORDER_STRONG),
             );
             painter.text(
-                Pos2::new(x + 3.0, rect.top() + 3.0),
-                Align2::LEFT_TOP,
-                index + 1,
-                FontId::proportional(11.0),
-                palette::MUTED,
+                Pos2::new(x + 4.0, time_band.center().y),
+                Align2::LEFT_CENTER,
+                format!("{}", index + 1),
+                FontId::monospace(10.5),
+                theme::TEXT_SECONDARY,
             );
         }
         index += 1;
     }
 }
 
-fn clips(painter: &egui::Painter, geometry: &Geometry, index: usize, track: &crate::model::Track) {
+/// Paints color-coded rounded studio clips with solid header bands, real mini-MIDI note previews,
+/// loop-repeat seam dividers, and fade wedges. Returns `true` if MIDI previews were drawn.
+fn clips(
+    painter: &egui::Painter,
+    geometry: &Geometry,
+    index: usize,
+    track: &Track,
+    project: &Project,
+    color: Color32,
+) -> bool {
     let top = geometry.lane_top(index);
     let end = geometry.start + geometry.span;
+    let mut drew_any_midi = false;
+
     for clip in &track.clips {
         let clip_start = clip.start.as_f64();
         let clip_end = clip_start + clip.duration.as_f64();
         if clip_end <= geometry.start || clip_start >= end {
             continue;
         }
+        let x0 = geometry.x_of(clip_start);
+        let x1 = geometry.x_of(clip_end).max(x0 + 4.0);
         let body = Rect::from_min_max(
-            Pos2::new(geometry.x_of(clip_start), top + 2.0),
-            Pos2::new(
-                geometry.x_of(clip_end).max(geometry.x_of(clip_start) + 2.0),
-                top + LANE_HEIGHT - 2.0,
-            ),
+            Pos2::new(x0, top + 3.0),
+            Pos2::new(x1, top + geometry.lane_height - 3.0),
         );
-        // Translucent, so overlapping Clips read as a darker band.
-        painter.rect_filled(body, 3.0, palette::CLIP.gamma_multiply(0.8));
+        let header_h = 15.0;
+        let header_rect = Rect::from_min_max(
+            body.left_top(),
+            Pos2::new(body.right(), (body.top() + header_h).min(body.bottom())),
+        );
+
+        // Translucent track-colored clip body wash
+        painter.rect_filled(body, 4.0, with_alpha(color, 0.18));
+        // Solid clip header bar
+        painter.rect_filled(
+            header_rect,
+            CornerRadius {
+                nw: 4,
+                ne: 4,
+                sw: 0,
+                se: 0,
+            },
+            with_alpha(color, 0.86),
+        );
+
+        // Real MIDI mini-note / drum-hit preview inside clip body
+        let content_rect = Rect::from_min_max(
+            Pos2::new(body.left() + 2.0, header_rect.bottom() + 3.0),
+            Pos2::new(body.right() - 2.0, body.bottom() - 3.0),
+        );
+        if content_rect.height() >= 8.0
+            && content_rect.width() >= 6.0
+            && let Some(pattern) = project.song.patterns.iter().find(|p| p.id == clip.pattern)
+            && !pattern.events.is_empty()
+        {
+            paint_clip_midi_preview(painter, geometry, content_rect, clip, pattern, color);
+            drew_any_midi = true;
+        }
+
+        // Visual fade-in / fade-out wedges when authored
+        let fade_in_q = clip.fade_in.as_f64();
+        if fade_in_q > 0.0 {
+            let fx = geometry.x_of(clip_start + fade_in_q).min(body.right());
+            painter.add(egui::Shape::convex_polygon(
+                vec![
+                    Pos2::new(body.left(), header_rect.bottom()),
+                    Pos2::new(fx, header_rect.bottom()),
+                    Pos2::new(body.left(), body.bottom()),
+                ],
+                with_alpha(theme::BG_WELL, 0.45),
+                Stroke::NONE,
+            ));
+            painter.line_segment(
+                [
+                    Pos2::new(body.left(), body.bottom()),
+                    Pos2::new(fx, header_rect.bottom()),
+                ],
+                Stroke::new(1.4_f32, theme::TEXT_PRIMARY),
+            );
+        }
+        let fade_out_q = clip.fade_out.as_f64();
+        if fade_out_q > 0.0 {
+            let fx = geometry.x_of(clip_end - fade_out_q).max(body.left());
+            painter.add(egui::Shape::convex_polygon(
+                vec![
+                    Pos2::new(fx, header_rect.bottom()),
+                    Pos2::new(body.right(), header_rect.bottom()),
+                    Pos2::new(body.right(), body.bottom()),
+                ],
+                with_alpha(theme::BG_WELL, 0.45),
+                Stroke::NONE,
+            ));
+            painter.line_segment(
+                [
+                    Pos2::new(fx, header_rect.bottom()),
+                    Pos2::new(body.right(), body.bottom()),
+                ],
+                Stroke::new(1.4_f32, theme::TEXT_PRIMARY),
+            );
+        }
+
+        // Subtle crisp outline + right-edge resize handle accent
         painter.rect_stroke(
             body,
-            3.0,
-            Stroke::new(1.0_f32, palette::CLIP_EDGE),
+            4.0,
+            Stroke::new(1.0_f32, with_alpha(color, 0.78)),
             StrokeKind::Inside,
         );
-        if body.width() >= 28.0 {
-            painter.with_clip_rect(body.shrink(2.0)).text(
-                body.left_top() + Vec2::new(5.0, 2.0),
-                Align2::LEFT_TOP,
-                &clip.pattern,
-                FontId::proportional(10.0),
-                Color32::from_gray(210),
+        if body.width() >= 18.0 {
+            painter.vline(
+                body.right() - 2.0,
+                (header_rect.bottom() + 4.0)..=(body.bottom() - 4.0),
+                Stroke::new(1.2_f32, with_alpha(color, 0.42)),
             );
+        }
+
+        // Crisp dark label inside header band
+        if body.width() >= 26.0 {
+            painter
+                .with_clip_rect(header_rect.shrink2(Vec2::new(3.0, 0.0)))
+                .text(
+                    Pos2::new(header_rect.left() + 5.0, header_rect.center().y),
+                    Align2::LEFT_CENTER,
+                    &clip.pattern,
+                    FontId::proportional(10.0),
+                    theme::BG_WELL,
+                );
+        }
+    }
+    drew_any_midi
+}
+
+/// Renders true pitch-mapped horizontal MIDI note bars or drum-lane hits tiled across loop repeats.
+fn paint_clip_midi_preview(
+    painter: &egui::Painter,
+    geometry: &Geometry,
+    content_rect: Rect,
+    clip: &Clip,
+    pattern: &Pattern,
+    color: Color32,
+) {
+    let p = painter.with_clip_rect(content_rect);
+    let clip_start = clip.start.as_f64();
+    let clip_dur = clip.duration.as_f64();
+    let pat_len = pattern.span.as_f64().max(0.25);
+    let repeats = (clip_dur / pat_len).ceil().max(1.0) as usize;
+
+    let bright = Color32::from_rgb(
+        color.r().saturating_add(55),
+        color.g().saturating_add(55),
+        color.b().saturating_add(55),
+    );
+
+    // Loop repeat seam dividers inside long looped clips
+    for rep in 1..repeats.min(32) {
+        let seam_q = clip_start + rep as f64 * pat_len;
+        if seam_q < clip_start + clip_dur - 0.01 {
+            let sx = geometry.x_of(seam_q);
+            p.vline(
+                sx,
+                content_rect.y_range(),
+                Stroke::new(1.0_f32, with_alpha(theme::TEXT_PRIMARY, 0.22)),
+            );
+        }
+    }
+
+    // Determine melodic pitch range if pattern has notes
+    let mut min_pitch = 127u8;
+    let mut max_pitch = 0u8;
+    for ev in &pattern.events {
+        if let PatternEvent::Note { pitch, .. } = ev {
+            min_pitch = min_pitch.min(*pitch);
+            max_pitch = max_pitch.max(*pitch);
+        }
+    }
+    let pitch_span = (max_pitch.saturating_sub(min_pitch)).max(6) as f32;
+
+    for rep in 0..repeats.min(32) {
+        let offset = clip_start + rep as f64 * pat_len;
+        if offset >= clip_start + clip_dur {
+            break;
+        }
+        for ev in &pattern.events {
+            match ev {
+                PatternEvent::Note {
+                    at,
+                    pitch,
+                    duration,
+                    velocity,
+                    ..
+                } => {
+                    let s = offset + at.as_f64();
+                    let e = (s + duration.as_f64()).min(clip_start + clip_dur);
+                    if s >= clip_start + clip_dur || e <= s {
+                        continue;
+                    }
+                    let nx0 = geometry.x_of(s);
+                    let nx1 = geometry.x_of(e).max(nx0 + 2.5);
+                    let frac = ((*pitch - min_pitch) as f32 / pitch_span).clamp(0.0, 1.0);
+                    let note_h = (content_rect.height() / (pitch_span + 2.0)).clamp(3.0, 7.0);
+                    let ny = content_rect.bottom()
+                        - note_h
+                        - frac * (content_rect.height() - note_h).max(0.0);
+                    let alpha = (0.55 + (*velocity as f32) * 0.42).clamp(0.55, 0.96);
+                    p.rect_filled(
+                        Rect::from_min_max(
+                            Pos2::new(nx0, ny),
+                            Pos2::new((nx1 - 1.0).max(nx0 + 2.0), ny + note_h),
+                        ),
+                        1.5,
+                        with_alpha(bright, alpha),
+                    );
+                }
+                PatternEvent::Hit {
+                    at,
+                    voice,
+                    velocity,
+                    ..
+                } => {
+                    let s = offset + at.as_f64();
+                    if s >= clip_start + clip_dur {
+                        continue;
+                    }
+                    let lane_idx = match voice {
+                        DrumVoice::Hat => 0,
+                        DrumVoice::Clap => 1,
+                        DrumVoice::Snare => 2,
+                        DrumVoice::Kick => 3,
+                    };
+                    let row_h = (content_rect.height() / 4.0).max(3.5);
+                    let ny = content_rect.top() + lane_idx as f32 * row_h + 1.0;
+                    let nx0 = geometry.x_of(s);
+                    let nx1 = geometry
+                        .x_of((s + 0.22).min(clip_start + clip_dur))
+                        .max(nx0 + 3.5);
+                    let alpha = (0.52 + (*velocity as f32) * 0.45).clamp(0.52, 0.96);
+                    p.rect_filled(
+                        Rect::from_min_max(
+                            Pos2::new(nx0, ny),
+                            Pos2::new(nx1, (ny + row_h - 2.0).max(ny + 2.5)),
+                        ),
+                        1.5,
+                        with_alpha(bright, alpha),
+                    );
+                }
+                PatternEvent::Sample {
+                    at,
+                    duration,
+                    velocity,
+                    ..
+                } => {
+                    let s = offset + at.as_f64();
+                    let e = (s + duration.as_f64()).min(clip_start + clip_dur);
+                    if s >= clip_start + clip_dur || e <= s {
+                        continue;
+                    }
+                    let nx0 = geometry.x_of(s);
+                    let nx1 = geometry.x_of(e).max(nx0 + 3.0);
+                    let mid = content_rect.center().y;
+                    let half = (content_rect.height() * 0.28 * (*velocity as f32)).max(2.5);
+                    p.rect_filled(
+                        Rect::from_min_max(Pos2::new(nx0, mid - half), Pos2::new(nx1, mid + half)),
+                        1.5,
+                        with_alpha(bright, 0.78),
+                    );
+                }
+            }
         }
     }
 }
 
-/// Event onsets, sustained notes, and sample waveforms, one bar per projected column.
+/// Paints audio waveform previews inside sample/fallback clips.
 fn activity(
     painter: &egui::Painter,
     geometry: &Geometry,
     index: usize,
     cells: &[timeline::TimelineCell],
+    color: Color32,
 ) {
-    let top = geometry.lane_top(index) + 14.0;
-    let bottom = geometry.lane_top(index) + LANE_HEIGHT - 4.0;
-    let height = bottom - top;
+    let top = geometry.lane_top(index) + 21.0;
+    let bottom = geometry.lane_top(index) + geometry.lane_height - 6.0;
+    let height = (bottom - top).max(2.0);
     let width = geometry.lanes.width() / geometry.columns as f32;
+    let bright = Color32::from_rgb(
+        color.r().saturating_add(45),
+        color.g().saturating_add(45),
+        color.b().saturating_add(45),
+    );
     for (column, cell) in cells.iter().enumerate() {
         let left = geometry.lanes.left() + width * column as f32;
-        let x = left..=(left + width.max(1.0));
+        let x = left..=(left + width.max(1.2));
         if cell.sample_active {
-            let half = cell.sample_peak.clamp(0.0, 1.0) * height / 2.0;
-            let middle = (top + bottom) / 2.0;
+            let half = cell.sample_peak.clamp(0.0, 1.0) * height * 0.48;
+            let middle = (top + bottom) * 0.5;
             painter.rect_filled(
-                Rect::from_x_y_ranges(x, (middle - half.max(0.5))..=(middle + half.max(0.5))),
+                Rect::from_x_y_ranges(x, (middle - half.max(0.8))..=(middle + half.max(0.8))),
                 0.0,
-                palette::WARN,
+                with_alpha(bright, 0.88),
             );
         } else if cell.activity > 0.0 {
             let level = (cell.activity / (1.0 + cell.activity)).sqrt();
+            let h = (level * height).max(3.0);
             painter.rect_filled(
-                Rect::from_x_y_ranges(x, (bottom - level * height)..=bottom),
-                0.0,
-                palette::ACCENT,
-            );
-        } else if cell.sustained > 0.0 {
-            painter.rect_filled(
-                Rect::from_x_y_ranges(x, (bottom - 2.0)..=bottom),
-                0.0,
-                palette::ACCENT.gamma_multiply(0.6),
+                Rect::from_x_y_ranges(x, (bottom - h)..=bottom),
+                0.5,
+                with_alpha(bright, 0.82),
             );
         }
     }
 }
 
-/// Range selection, Locators, cursor, and playhead.
+/// Paints a live translucent clip ghost, vertical cyan snap guide, and floating Bar:Beat HUD while dragging.
+fn paint_clip_drag_ghost(
+    painter: &egui::Painter,
+    geometry: &Geometry,
+    state: &UiState,
+    project: &Project,
+) {
+    let Some((clip_id, is_resize, is_duplicate, orig_start, orig_dur, live_q)) = &state.clip_drag
+    else {
+        return;
+    };
+    let Some((track_idx, clip)) = project
+        .song
+        .tracks
+        .iter()
+        .enumerate()
+        .find_map(|(i, t)| t.clips.iter().find(|c| c.id == *clip_id).map(|c| (i, c)))
+    else {
+        return;
+    };
+    let (ghost_start, ghost_dur, guide_q, hud_text) = if *is_resize {
+        let dur = (*live_q).max(0.25);
+        let mt = theme::quarters_to_musical_time(dur);
+        (*orig_start, dur, *orig_start + dur, format!("LEN {mt}"))
+    } else {
+        let st = (*live_q).max(0.0);
+        let label = timeline_time_label(theme::quarters_to_musical_time(st), project.song.meter);
+        let prefix = if *is_duplicate { "COPY" } else { "MOVE" };
+        (st, *orig_dur, st, format!("{prefix} {label}"))
+    };
+
+    let top = geometry.lane_top(track_idx);
+    let x0 = geometry.x_of(ghost_start);
+    let x1 = geometry.x_of(ghost_start + ghost_dur).max(x0 + 6.0);
+    let ghost_rect = Rect::from_min_max(
+        Pos2::new(x0, top + 3.0),
+        Pos2::new(x1, top + geometry.lane_height - 3.0),
+    );
+    let ghost_color = if *is_duplicate {
+        theme::SIG_NOMINAL
+    } else {
+        theme::ACCENT_CYAN
+    };
+    painter.rect_filled(ghost_rect, 4.0, with_alpha(ghost_color, 0.28));
+    painter.rect_stroke(
+        ghost_rect,
+        4.0,
+        Stroke::new(1.8_f32, ghost_color),
+        StrokeKind::Inside,
+    );
+    let guide_x = geometry.x_of(guide_q);
+    painter.vline(
+        guide_x,
+        geometry.full_canvas.y_range(),
+        Stroke::new(1.2_f32, with_alpha(ghost_color, 0.8)),
+    );
+    let badge = Rect::from_min_size(
+        Pos2::new(
+            (guide_x + 6.0).min(geometry.lanes.right() - 88.0),
+            (top - 16.0).max(geometry.lanes.top() + 2.0),
+        ),
+        Vec2::new(84.0, 17.0),
+    );
+    painter.rect_filled(badge, 3.0, theme::BG_WELL);
+    painter.rect_stroke(
+        badge,
+        3.0,
+        Stroke::new(1.0_f32, ghost_color),
+        StrokeKind::Inside,
+    );
+    painter.text(
+        badge.center(),
+        Align2::CENTER_CENTER,
+        format!("{hud_text} · {}", clip.pattern),
+        FontId::monospace(9.5),
+        ghost_color,
+    );
+}
+
+/// Range selection wash, colored Locator flags in upper band, cursor, and playhead.
 fn markers(
     painter: &egui::Painter,
     geometry: &Geometry,
@@ -573,17 +1303,19 @@ fn markers(
     app: &Workspace,
     project: &Project,
 ) {
-    let full_height = rect.top()..=rect.bottom();
+    let full_height = rect.top()..=geometry.full_canvas.bottom();
     if let Some(range) = app.timeline_state.visual_range() {
         painter.rect_filled(
             Rect::from_x_y_ranges(
                 geometry.x_of(range.start.as_f64())..=geometry.x_of(range.end.as_f64()),
-                full_height.clone(),
+                geometry.full_canvas.y_range(),
             ),
             0.0,
-            CURSOR.gamma_multiply(0.18),
+            with_alpha(theme::ACCENT_AMBER, 0.16),
         );
     }
+
+    // Colored locator flag tags cleanly inside the dedicated top locator band (zero overlap with bar numbers!)
     for locator in &project.song.locators {
         let at = locator.at.as_f64();
         if !geometry.visible(at) {
@@ -592,53 +1324,84 @@ fn markers(
         let x = geometry.x_of(at);
         painter.vline(
             x,
-            full_height.clone(),
-            Stroke::new(1.0_f32, palette::WARN.gamma_multiply(0.7)),
+            geometry.full_canvas.y_range(),
+            Stroke::new(1.0_f32, with_alpha(theme::SIG_HOT, 0.28)),
         );
+        let flag_w = (locator.name.len() as f32 * 5.8 + 10.0).clamp(32.0, 88.0);
+        let flag = Rect::from_min_size(
+            Pos2::new(x, rect.top() + 2.0),
+            Vec2::new(flag_w, LOCATOR_BAND_H - 4.0),
+        );
+        painter.rect_filled(flag, 2.5, with_alpha(theme::SIG_HOT, 0.92));
         painter.text(
-            Pos2::new(x + 3.0, geometry.lanes.top() - 2.0),
-            Align2::LEFT_BOTTOM,
+            Pos2::new(flag.left() + 4.0, flag.center().y),
+            Align2::LEFT_CENTER,
             &locator.name,
-            FontId::proportional(10.0),
-            palette::WARN,
+            FontId::proportional(9.5),
+            theme::BG_WELL,
         );
     }
+
+    // Active edit cursor
     let position = app.timeline_position();
     let cursor = position.at.as_f64();
     if geometry.visible(cursor) {
         let x = geometry.x_of(cursor);
-        painter.vline(x, full_height.clone(), Stroke::new(1.0_f32, CURSOR));
-        // The cursor is thicker on the Track it belongs to.
+        painter.vline(
+            x,
+            full_height.clone(),
+            Stroke::new(1.2_f32, with_alpha(theme::SIG_NOMINAL, 0.78)),
+        );
         let top = geometry.lane_top(position.track);
-        painter.vline(x, top..=(top + LANE_HEIGHT), Stroke::new(3.0_f32, CURSOR));
+        painter.vline(
+            x,
+            top..=(top + geometry.lane_height),
+            Stroke::new(2.5_f32, theme::SIG_NOMINAL),
+        );
         painter.add(egui::Shape::convex_polygon(
             vec![
-                Pos2::new(x - 5.0, rect.top()),
-                Pos2::new(x + 5.0, rect.top()),
-                Pos2::new(x, rect.top() + 8.0),
+                Pos2::new(x - 5.0, rect.top() + LOCATOR_BAND_H),
+                Pos2::new(x + 5.0, rect.top() + LOCATOR_BAND_H),
+                Pos2::new(x, rect.top() + LOCATOR_BAND_H + 8.0),
             ],
-            CURSOR,
+            theme::SIG_NOMINAL,
             Stroke::NONE,
         ));
     }
+
+    // Audible playhead
     if let Some(playhead) = playhead_quarters(app)
         && geometry.visible(playhead)
     {
-        painter.vline(
-            geometry.x_of(playhead),
-            full_height,
-            Stroke::new(2.0_f32, PLAYHEAD),
-        );
+        let x = geometry.x_of(playhead);
+        painter.vline(x, full_height, Stroke::new(2.0_f32, theme::ACCENT_AMBER));
+        painter.add(egui::Shape::convex_polygon(
+            vec![
+                Pos2::new(x - 5.0, rect.top() + LOCATOR_BAND_H),
+                Pos2::new(x + 5.0, rect.top() + LOCATOR_BAND_H),
+                Pos2::new(x, rect.top() + LOCATOR_BAND_H + 8.0),
+            ],
+            theme::ACCENT_AMBER,
+            Stroke::NONE,
+        ));
     }
 }
 
-/// The audible transport position in quarter notes, when it describes the Candidate on screen.
 fn playhead_quarters(app: &Workspace) -> Option<f64> {
     (app.player.is_some() && app.candidate_is_audible()).then(|| transport_quarter_notes(app))
 }
 
-fn pointer(ui: &mut Ui, cx: &mut Cx<'_>, geometry: &Geometry, rect: Rect, tracks: usize) {
+fn clip_under(project: &Project, track_index: usize, quarters: f64) -> Option<&Clip> {
+    let track = project.song.tracks.get(track_index)?;
+    track.clips.iter().find(|clip| {
+        let s = clip.start.as_f64();
+        quarters >= s && quarters <= s + clip.duration.as_f64()
+    })
+}
+
+fn pointer(ui: &mut Ui, cx: &mut Cx<'_>, geometry: &Geometry, rect: Rect, project: &Project) {
     let app = cx.app;
+    let tracks = project.song.tracks.len();
     let area = Rect::from_min_max(Pos2::new(geometry.lanes.left(), rect.top()), rect.max);
     let response = ui.interact(
         area,
@@ -652,41 +1415,226 @@ fn pointer(ui: &mut Ui, cx: &mut Cx<'_>, geometry: &Geometry, rect: Rect, tracks
         column: geometry.column_at(position.x),
         columns: geometry.columns,
     };
+
+    // Smart-Tool cursor feedback on hover
+    if let Some(hover_pos) = response.hover_pos()
+        && let Some(track_idx) = geometry.track_at(hover_pos.y, tracks)
+    {
+        let q = geometry.quarters_of(hover_pos.x);
+        if let Some(clip) = clip_under(project, track_idx, q) {
+            let right_x = geometry.x_of(clip.start.as_f64() + clip.duration.as_f64());
+            let lane_y = hover_pos.y - geometry.lane_top(track_idx);
+            if (hover_pos.x - right_x).abs() <= 8.0 {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+            } else if lane_y >= 18.0 {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+            }
+        }
+    }
+
+    // Pro Tools Smart-Tool direct manipulation:
+    // - Drag right edge of clip = Resize with live ghost
+    // - Plain drag on clip body (y >= lane_top + 18px) = Move clip with live ghost
+    // - Alt+drag on clip = Duplicate clip with live ghost
+    // - Drag on top range strip (y < lane_top + 18px) or empty lane or ruler = Range selection
+    let alt_held = ui.input(|input| input.modifiers.alt);
     if response.drag_started()
         && let Some(origin) = ui.input(|input| input.pointer.press_origin())
     {
-        if app.timeline_state.visual() {
-            cx.send(Action::CancelMode);
+        let mut started_clip_drag = false;
+        if let Some(track_idx) = geometry.track_at(origin.y, tracks) {
+            let q = geometry.quarters_of(origin.x);
+            let lane_y = origin.y - geometry.lane_top(track_idx);
+            if let Some(clip) = clip_under(project, track_idx, q) {
+                let right_x = geometry.x_of(clip.start.as_f64() + clip.duration.as_f64());
+                if (origin.x - right_x).abs() <= 8.0 {
+                    cx.state.clip_drag = Some((
+                        clip.id.clone(),
+                        true,
+                        false,
+                        clip.start.as_f64(),
+                        clip.duration.as_f64(),
+                        clip.duration.as_f64(),
+                    ));
+                    started_clip_drag = true;
+                } else if lane_y >= 18.0 || alt_held {
+                    cx.state.clip_drag = Some((
+                        clip.id.clone(),
+                        false,
+                        alt_held,
+                        clip.start.as_f64(),
+                        clip.duration.as_f64(),
+                        clip.start.as_f64(),
+                    ));
+                    started_clip_drag = true;
+                }
+            }
         }
-        cx.send(place(origin));
-        cx.send(TimelineAction::BeginRange);
+        if !started_clip_drag {
+            if app.timeline_state.visual() {
+                cx.send(Action::CancelMode);
+            }
+            cx.send(place(origin));
+            cx.send(TimelineAction::BeginRange);
+        }
     }
-    if let Some(position) = response.interact_pointer_pos() {
+
+    // Update live clip ghost position while dragging
+    if response.dragged()
+        && let Some((_, is_resize, _, orig_start, _, ref mut live_q)) = cx.state.clip_drag
+        && let Some(pos) = response.interact_pointer_pos()
+    {
+        let q = geometry.quarters_of(pos.x);
+        let grid_q = app.timeline_state.grid(project).as_f64().max(0.25);
+        if is_resize {
+            *live_q = (((q - orig_start) / grid_q).round() * grid_q).max(grid_q);
+        } else {
+            let origin_x = ui
+                .input(|input| input.pointer.press_origin())
+                .map_or(pos.x, |p| p.x);
+            let delta_q = geometry.quarters_of(pos.x) - geometry.quarters_of(origin_x);
+            *live_q = (((orig_start + delta_q) / grid_q).round() * grid_q).max(0.0);
+        }
+    }
+
+    if response.drag_stopped()
+        && let Some((clip_id, is_resize, is_duplicate, orig_start, orig_dur, live_q)) =
+            cx.state.clip_drag.take()
+    {
+        if is_resize {
+            if (live_q - orig_dur).abs() > 1e-4 {
+                let dur_mt = theme::quarters_to_musical_time(live_q.max(0.25));
+                cx.send(Action::ResizeClip {
+                    clip: clip_id,
+                    duration: dur_mt.to_string(),
+                });
+            }
+        } else if is_duplicate {
+            let start_mt = theme::quarters_to_musical_time(live_q.max(0.0));
+            cx.send(Action::DuplicateClip {
+                new_id: format!("{clip_id}_copy"),
+                clip: clip_id,
+                start: start_mt.to_string(),
+            });
+        } else if (live_q - orig_start).abs() > 1e-4 {
+            let start_mt = theme::quarters_to_musical_time(live_q.max(0.0));
+            cx.send(Action::MoveClip {
+                clip: clip_id,
+                start: start_mt.to_string(),
+            });
+        }
+    } else if cx.state.clip_drag.is_none()
+        && let Some(position) = response.interact_pointer_pos()
+    {
         if response.dragged() || response.clicked() || response.secondary_clicked() {
             cx.send(place(position));
         }
-        if response.double_clicked() {
-            cx.send(TimelineAction::GoDefinition);
+        if response.double_clicked()
+            && let Some(track_idx) = geometry.track_at(position.y, tracks)
+        {
+            let q = geometry.quarters_of(position.x);
+            if clip_under(project, track_idx, q).is_some() {
+                cx.send(TimelineAction::GoDefinition);
+            } else if let Some(track) = project.song.tracks.get(track_idx)
+                && let Some(pattern) = track
+                    .clips
+                    .first()
+                    .and_then(|c| project.song.patterns.iter().find(|p| p.id == c.pattern))
+                    .or_else(|| project.song.patterns.first())
+            {
+                let grid_q = app.timeline_state.grid(project).as_f64().max(1.0);
+                let snapped = ((q / grid_q).floor() * grid_q).max(0.0);
+                let next_num = track.clips.len() + 1;
+                cx.send(Action::CreateClip {
+                    track: track.id.clone(),
+                    clip: format!("{}_clip_{}", track.id, next_num),
+                    pattern: pattern.id.clone(),
+                    start: theme::quarters_to_musical_time(snapped).to_string(),
+                    duration: pattern.span.to_string(),
+                });
+            }
         }
     }
+
+    // Rich studio context menu with direct clip create/split/duplicate/delete + view jumps
+    let cursor_pos = app.timeline_position();
+    let hovered_clip = clip_under(project, cursor_pos.track, cursor_pos.at.as_f64())
+        .map(|clip| (clip.id.clone(), clip.start, clip.duration));
+
     response.context_menu(|ui| {
+        if ui.button("Play / Pause from here").clicked() {
+            cx.send(Action::TogglePlayback);
+            ui.close();
+        }
+        if ui.button("Add Locator here…").clicked() {
+            cx.send(TimelineAction::OpenLocator);
+            ui.close();
+        }
+        ui.separator();
+        if let Some((clip_id, clip_start, clip_dur)) = &hovered_clip {
+            if ui.button("Open Pattern in Piano Roll").clicked() {
+                cx.send(TimelineAction::GoDefinition);
+                ui.close();
+            }
+            if ui.button("Duplicate Clip after end").clicked() {
+                let new_start = clip_start.checked_add(*clip_dur).unwrap_or(*clip_start);
+                cx.send(Action::DuplicateClip {
+                    clip: clip_id.clone(),
+                    new_id: format!("{clip_id}_copy"),
+                    start: new_start.to_string(),
+                });
+                ui.close();
+            }
+            if ui.button("Split Clip at cursor").clicked() {
+                cx.send(Action::SplitClip {
+                    clip: clip_id.clone(),
+                    new_id: format!("{clip_id}_part2"),
+                    at: cursor_pos.at.to_string(),
+                });
+                ui.close();
+            }
+            if ui
+                .button(RichText::new("Delete Clip").color(theme::SIG_CLIP))
+                .clicked()
+            {
+                cx.send(Action::DeleteClip {
+                    clip: clip_id.clone(),
+                });
+                ui.close();
+            }
+            ui.separator();
+        } else if let Some(track) = project.song.tracks.get(cursor_pos.track)
+            && let Some(pattern) = project.song.patterns.first()
+        {
+            if ui
+                .button(format!("Create Clip ({}) here", pattern.id))
+                .clicked()
+            {
+                cx.send(Action::CreateClip {
+                    track: track.id.clone(),
+                    clip: format!("{}_clip_{}", track.id, track.clips.len() + 1),
+                    pattern: pattern.id.clone(),
+                    start: cursor_pos.at.to_string(),
+                    duration: pattern.span.to_string(),
+                });
+                ui.close();
+            }
+            ui.separator();
+        }
         for (label, action) in [
-            ("Play from here", Action::TogglePlayback),
             (
-                "Add Locator here…",
-                Action::Timeline(TimelineAction::OpenLocator),
-            ),
-            (
-                "Open Pattern",
-                Action::Timeline(TimelineAction::GoDefinition),
-            ),
-            ("Open Source", Action::Timeline(TimelineAction::GoSource)),
-            (
-                "Open Instrument",
+                "Open Track Instrument",
                 Action::Timeline(TimelineAction::GoInstrument),
             ),
-            ("Open Mixer", Action::Timeline(TimelineAction::GoMixer)),
-            ("Arm this Track", Action::ArmSelectedAudition),
+            (
+                "Open Track Processing Chain",
+                Action::Timeline(TimelineAction::GoProcessing),
+            ),
+            (
+                "Open Track in Mixer",
+                Action::Timeline(TimelineAction::GoMixer),
+            ),
+            ("Inspect Source", Action::Timeline(TimelineAction::GoSource)),
         ] {
             if ui.button(label).clicked() {
                 cx.send(action);
@@ -710,7 +1658,6 @@ fn pointer(ui: &mut Ui, cx: &mut Cx<'_>, geometry: &Geometry, rect: Rect, tracks
     }
     cx.state.pan_scroll += scroll;
     if cx.state.pan_scroll.abs() >= PAN_SCROLL_STEP {
-        // Scrolling content to the right reveals earlier Song time.
         cx.send(TimelineAction::Pan(if cx.state.pan_scroll > 0.0 {
             -1
         } else {
@@ -720,83 +1667,102 @@ fn pointer(ui: &mut Ui, cx: &mut Cx<'_>, geometry: &Geometry, rect: Rect, tracks
     }
 }
 
-fn details(ui: &mut Ui, app: &Workspace, project: &Project) {
+/// Clean single-row contextual bar at the bottom of the Timeline.
+fn contextual_bar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
+    let app = cx.app;
     let Some(track) = project.song.tracks.get(app.selected_track) else {
-        ui.label(RichText::new("No Tracks").color(palette::MUTED));
+        ui.label(RichText::new("No Tracks in Song").color(theme::TEXT_MUTED));
         return;
     };
-    ui.label(
-        RichText::new(format!(
-            "{} · Instrument {} · {:.1} dB · pan {:+.2} · {} Clip{}",
-            track.name,
-            track.instrument,
-            track.channel.level_db,
-            track.channel.panner.primary_position(),
-            track.clips.len(),
-            if track.clips.len() == 1 { "" } else { "s" }
-        ))
-        .strong(),
-    );
-    let clip_details = track
-        .clips
-        .iter()
-        .map(|clip| {
-            format!(
-                "{} {}+{} {:?} off={} tr={:+}st gain={:+.1}db fade={}/{}{}",
-                clip.id,
-                clip.start,
-                clip.duration,
-                clip.mode,
-                clip.source_offset,
-                clip.transpose_semitones,
-                clip.gain_db,
-                clip.fade_in,
-                clip.fade_out,
-                clip.groove
-                    .as_deref()
-                    .map_or_else(String::new, |groove| format!(" groove={groove}"))
+    let color = theme::track_color(app.selected_track);
+    let cursor = app.timeline_position().at;
+    let active_clip = clip_under(project, app.selected_track, cursor.as_f64());
+
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        let (dot_rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
+        ui.painter().circle_filled(dot_rect.center(), 4.0, color);
+        ui.label(RichText::new(&track.name).strong().size(12.0));
+        ui.label(
+            RichText::new(format!(
+                "{} · {} clips",
+                track.instrument,
+                track.clips.len()
+            ))
+            .size(11.0)
+            .color(theme::TEXT_SECONDARY),
+        );
+
+        if let Some(clip) = active_clip {
+            ui.separator();
+            ui.label(
+                RichText::new(format!("CLIP {}", clip.pattern))
+                    .size(11.0)
+                    .strong()
+                    .color(color),
+            );
+            ui.label(
+                RichText::new(format!(
+                    "@ {} · len {} · {:+.1} dB",
+                    clip.start, clip.duration, clip.gain_db
+                ))
+                .monospace()
+                .size(10.5)
+                .color(theme::TEXT_SECONDARY),
+            );
+        }
+
+        // Right-aligned quick studio view jumps for the selected track
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if pill_toggle(
+                ui,
+                "FX Chain",
+                false,
+                theme::ACCENT_CYAN,
+                "Open Processing · gp",
             )
-        })
-        .collect::<Vec<_>>();
-    egui::ScrollArea::vertical()
-        .max_height(54.0)
-        .auto_shrink([false, true])
-        .show(ui, |ui| {
-            if clip_details.is_empty() {
-                ui.label(RichText::new("No arranged Clips").color(palette::MUTED));
+            .clicked()
+            {
+                cx.send(TimelineAction::GoProcessing);
             }
-            for clip in clip_details {
-                ui.label(RichText::new(clip).monospace().small());
+            if pill_toggle(
+                ui,
+                "Instrument",
+                false,
+                theme::ACCENT_AMBER,
+                "Open Instrument · gi",
+            )
+            .clicked()
+            {
+                cx.send(TimelineAction::GoInstrument);
+            }
+            if pill_toggle(ui, "Mixer", false, theme::SIG_NOMINAL, "Open Mixer · gm").clicked() {
+                cx.send(TimelineAction::GoMixer);
+            }
+            if active_clip.is_some()
+                && pill_toggle(
+                    ui,
+                    "Piano Roll",
+                    false,
+                    theme::ACCENT_VIOLET,
+                    "Open Pattern · gd",
+                )
+                .clicked()
+            {
+                cx.send(TimelineAction::GoDefinition);
+            }
+
+            let identity = format!("track/{}", track.id);
+            if let Some(meter) = app
+                .mix_channel_indexes
+                .get(&identity)
+                .copied()
+                .filter(|&i| i < app.telemetry.engine.channel_count)
+                .map(|i| app.telemetry.engine.channel_activity[i])
+            {
+                ui.separator();
+                dbfs_meter_horizontal(ui, meter.current_peak, meter.average, 118.0, true);
             }
         });
-    let joined = |items: Vec<String>| {
-        if items.is_empty() {
-            "—".to_owned()
-        } else {
-            items.join(", ")
-        }
-    };
-    ui.label(
-        RichText::new(format!(
-            "Locators: {} · Grooves: {}",
-            joined(
-                project
-                    .song
-                    .locators
-                    .iter()
-                    .map(|locator| format!("{}={} ({})", locator.id, locator.at, locator.name))
-                    .collect()
-            ),
-            joined(
-                project
-                    .song
-                    .grooves
-                    .iter()
-                    .map(|groove| groove.id.clone())
-                    .collect()
-            )
-        ))
-        .small()
-        .color(palette::MUTED),
-    );
+    });
 }

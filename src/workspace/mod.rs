@@ -15,7 +15,7 @@
 
 use std::{
     cell::RefCell,
-    collections::BTreeMap,
+    collections::{BTreeMap, VecDeque},
     io,
     path::{Path, PathBuf},
     sync::Arc,
@@ -282,6 +282,9 @@ pub struct Workspace {
     history_verification: Option<Box<HistoryUpdate>>,
     work_in_flight: Option<WorkspaceWorkKind>,
     pending_mutation: Option<PendingMutation>,
+    /// Edits made while another mutation was in flight. Each is promoted only after the previous
+    /// mutation's reload lands, so its expected revision is the one the edit will apply to.
+    queued_mutations: VecDeque<PendingMutation>,
     mutation_in_flight: bool,
     active_prepare_requested: bool,
     active_prepare_explicit_seek: bool,
@@ -528,6 +531,7 @@ impl Workspace {
             history_verification: None,
             work_in_flight: None,
             pending_mutation: None,
+            queued_mutations: VecDeque::new(),
             mutation_in_flight: false,
             active_prepare_requested: false,
             active_prepare_explicit_seek: false,
@@ -689,6 +693,17 @@ impl Workspace {
         }
         if self.try_dispatch_active() {
             return;
+        }
+        if self.pending_mutation.is_none()
+            && !self.mutation_in_flight
+            && !self.candidate_reload_requested
+            && !self.history_reload_requested
+            && let Some(mut next) = self.queued_mutations.pop_front()
+        {
+            if next.request.expected_revision.is_some() {
+                next.request.expected_revision = Some(self.bundle.revision.clone());
+            }
+            self.pending_mutation = Some(next);
         }
         if let Some(mutation) = self.pending_mutation.take() {
             let root = self.root.clone();
@@ -941,10 +956,16 @@ impl Workspace {
     }
 
     fn finish_durable_mutation_before_shutdown(&mut self) {
-        while self.pending_mutation.is_some() || self.mutation_in_flight {
+        while self.pending_mutation.is_some()
+            || self.mutation_in_flight
+            || !self.queued_mutations.is_empty()
+        {
             self.watch_probe_requested = false;
-            self.candidate_reload_requested = false;
-            self.history_reload_requested = false;
+            if self.queued_mutations.is_empty() {
+                // Queued edits need the reload after each mutation to know their base revision.
+                self.candidate_reload_requested = false;
+                self.history_reload_requested = false;
+            }
             self.active_prepare_requested = false;
             if let Some(update) = self.candidate_verification.take() {
                 self.retire_queue.retire(update);
@@ -963,18 +984,47 @@ impl Workspace {
         success: impl Into<String>,
         failure: &'static str,
     ) {
-        if self.pending_mutation.is_some() || self.mutation_in_flight {
-            self.status =
-                "A Project mutation is already in flight; wait for its exact reload".to_owned();
-            return;
-        }
-        self.pending_mutation = Some(PendingMutation {
+        let mutation = PendingMutation {
             request,
             success: success.into(),
             failure,
-        });
+        };
+        if self.pending_mutation.is_some()
+            || self.mutation_in_flight
+            || !self.queued_mutations.is_empty()
+        {
+            // A later edit of the same value replaces the queued one instead of replaying it.
+            if let Some(last) = self.queued_mutations.back_mut()
+                && same_edit_slot(&last.request.operation, &mutation.request.operation)
+            {
+                *last = mutation;
+            } else {
+                self.queued_mutations.push_back(mutation);
+            }
+            self.dispatch_work();
+            self.status = format!("Edit queued · {} pending", self.queued_mutations.len());
+            return;
+        }
+        self.pending_mutation = Some(mutation);
         self.dispatch_work();
         self.status = "Project mutation queued".to_owned();
+    }
+
+    /// Whether an edit is queued, running, or waiting for its reload, so a client can keep
+    /// showing the value it committed instead of the stale one.
+    pub fn edits_pending(&self) -> bool {
+        self.pending_mutation.is_some()
+            || self.mutation_in_flight
+            || !self.queued_mutations.is_empty()
+            || self.candidate_reload_requested
+            || self.candidate_verification.is_some()
+            || matches!(
+                self.work_in_flight,
+                Some(WorkspaceWorkKind::Reload {
+                    candidate: true,
+                    ..
+                }) | Some(WorkspaceWorkKind::CandidateVerification)
+            )
     }
 
     fn finish_mutation(&mut self, result: MutationResult) -> bool {
@@ -1265,6 +1315,7 @@ impl Workspace {
             || self.history_verification.is_some()
             || self.active_prepare_requested
             || self.pending_mutation.is_some()
+            || !self.queued_mutations.is_empty()
             || self.mutation_in_flight
             || self.retire_queue.pending()
     }
@@ -1833,7 +1884,10 @@ impl Workspace {
     }
 
     fn request_quit(&mut self) {
-        if self.pending_mutation.is_some() || self.mutation_in_flight {
+        if self.pending_mutation.is_some()
+            || self.mutation_in_flight
+            || !self.queued_mutations.is_empty()
+        {
             self.status = "Finishing the durable Project mutation before shutdown".to_owned();
         }
         self.quit = true;
@@ -2102,6 +2156,25 @@ impl Workspace {
             true,
             true,
             "Moved to Locator",
+        );
+    }
+
+    fn jump_timeline_locator(&mut self, index: usize) {
+        let position = self.timeline_position();
+        let Some((at, name)) = self
+            .bundle
+            .project
+            .as_ref()
+            .and_then(|project| project.song.locators.get(index))
+            .map(|loc| (loc.at, loc.name.clone()))
+        else {
+            return;
+        };
+        self.set_timeline_position(
+            TimelinePosition { at, ..position },
+            true,
+            true,
+            &format!("Jumped to Locator `{name}`"),
         );
     }
 
@@ -4797,6 +4870,41 @@ pub enum WorkspaceError {
     #[cfg(feature = "gui")]
     #[error("desktop client failed: {0}")]
     Gui(String),
+}
+
+/// Whether two edits write the same value, so the later one can replace the earlier in the queue.
+fn same_edit_slot(a: &ProductionViewOperation, b: &ProductionViewOperation) -> bool {
+    use ProductionViewOperation as Op;
+    match (a, b) {
+        (Op::SetParameterTarget { target: x, .. }, Op::SetParameterTarget { target: y, .. }) => {
+            x == y
+        }
+        (
+            Op::SetInstrumentParameter {
+                instrument: i1,
+                parameter: p1,
+                ..
+            },
+            Op::SetInstrumentParameter {
+                instrument: i2,
+                parameter: p2,
+                ..
+            },
+        ) => i1 == i2 && p1 == p2,
+        (
+            Op::SetProcessorSetting {
+                processor: p1,
+                setting: s1,
+                ..
+            },
+            Op::SetProcessorSetting {
+                processor: p2,
+                setting: s2,
+                ..
+            },
+        ) => p1 == p2 && s1 == s2,
+        _ => false,
+    }
 }
 
 #[cfg(test)]

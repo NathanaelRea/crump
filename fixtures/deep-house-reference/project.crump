@@ -271,8 +271,8 @@ project "Portable Deep House Synthesis Reference" {
       clip kick-out pattern kick-fill start 104bar duration 8bar mode loop
     }
     track percussion "Swing Percussion" instrument dh-percussion level -14db pan 0 {
-      panner stereo_pan -0.65 0.65
-      send percussion-room target return/room tap post level -17db
+      panner stereo_pan 0.44 0.65
+      send percussion-room target return/room tap post level 3.9db
       output group/drums
       clip perc-groove pattern perc-pocket start 12bar duration 36bar mode loop {
         groove deep-swing
@@ -281,7 +281,7 @@ project "Portable Deep House Synthesis Reference" {
         groove deep-swing
       }
     }
-    track bass "Sub and Analog Bass" instrument dh-bass level -11db pan 0 {
+    track bass "Sub and Analog Bass" instrument dh-bass level -11db pan -0.49 {
       processor bass-duck compressor {
         setting detector peak
         setting threshold -25db
@@ -299,7 +299,7 @@ project "Portable Deep House Synthesis Reference" {
         setting output 0db
         setting mode soft_clip
       }
-      send bass-room target return/room tap post level -28db
+      send bass-room target return/room tap post level -16.4db
       output group/music
       clip bass-groove pattern bass-line start 16bar duration 32bar mode loop {
         groove deep-swing
@@ -309,15 +309,15 @@ project "Portable Deep House Synthesis Reference" {
       }
     }
     track keys "Hybrid Sample and Multisample Keys" instrument dh-keys level -16db pan -0.08 {
-      panner stereo_pan -0.72 0.72
+      panner stereo_pan -0.1 0.72
       processor keys-eq eq {
         setting high_pass 150hz
         setting mid1_frequency 900hz
         setting mid1_gain -1db
         setting mid1_q 1
       }
-      send keys-room target return/room tap post level -15db
-      send keys-echo target return/echo tap post level -22db
+      send keys-room target return/room tap post level 4.4db
+      send keys-echo target return/echo tap post level -18.6db
       output group/music
       clip keys-groove pattern keys-chords start 16bar duration 32bar mode loop {
         groove deep-swing
@@ -327,8 +327,8 @@ project "Portable Deep House Synthesis Reference" {
       }
     }
     track lead "Wavetable Hook" instrument dh-lead level -18db pan 0.12 {
-      panner stereo_pan -0.72 0.72
-      send lead-room target return/room tap post level -18db
+      panner stereo_pan -0.43 0.72
+      send lead-room target return/room tap post level 0db
       send lead-echo target return/echo tap post level -30db
       output group/music
       clip lead-theme pattern lead-hook start 32bar duration 16bar mode loop {
@@ -345,8 +345,8 @@ project "Portable Deep House Synthesis Reference" {
       }
     }
     track pad "Analog Pad" instrument dh-pad level -18db pan 0 {
-      panner stereo_pan -0.85 0.85
-      send pad-room target return/room tap post level -14db
+      panner stereo_pan -0.03 0.85
+      send pad-room target return/room tap post level -17.3db
       output group/music
       clip pad-song pattern pad-chords start 0bar duration 112bar mode loop {
         fade 4bar 4bar
@@ -394,7 +394,7 @@ project "Portable Deep House Synthesis Reference" {
       clip rise-outro pattern transition-rise start 92bar duration 4bar mode once
     }
 
-    group music "Music" level -1db {
+    group music "Music" level -3.3db {
       processor music-eq eq {
         setting high_pass 28hz
         setting mid1_frequency 280hz
@@ -409,7 +409,7 @@ project "Portable Deep House Synthesis Reference" {
       }
       output master
     }
-    group drums "Drums" level -1db {
+    group drums "Drums" level 5.1db {
       processor drum-color saturation {
         setting drive 1.06
         setting mix 0.1
@@ -446,21 +446,21 @@ project "Portable Deep House Synthesis Reference" {
     follower kick-motion from track/kick-drums tap post detector peak attack 3ms release 110ms floor -54db ceiling -8db target instrument/dh-bass/cutoff depth 120hz {
       clamp 0 1
     }
-    master level -2db {
+    master level 4.5db {
       processor master-glue compressor {
         setting detector rms
-        setting threshold -18db
-        setting ratio 1.5
-        setting attack 20ms
-        setting release 120ms
-        setting knee 3db
-        setting makeup 0db
-        setting mix 0.7
+        setting threshold -16.440204620361328db
+        setting ratio 78.07749140262604
+        setting attack 1.446897686866014s
+        setting release 0.46477985420682044s
+        setting knee 4.383845329284668db
+        setting makeup 7.0119858384132385db
+        setting mix 0.6140331625938416
       }
       processor ceiling limiter {
-        setting ceiling -1db
-        setting release 80ms
-        setting lookahead 5ms
+        setting ceiling -6.444271087646484db
+        setting release 0.2946051743566777s
+        setting lookahead 0.00939699113368988s
       }
     }
 
