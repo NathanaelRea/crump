@@ -381,8 +381,17 @@ fn render_gui_snapshots() {
         .and_then(|value| value.parse().ok())
         .filter(|value: &f32| (1.0..=4.0).contains(value))
         .unwrap_or(1.0);
-    let width = (SCREEN.x * scale) as usize;
-    let height = (SCREEN.y * scale) as usize;
+    // CRUMP_GUI_SNAPSHOT_WIDTH renders a narrower window, to check the layout holds up.
+    let screen = Vec2::new(
+        std::env::var("CRUMP_GUI_SNAPSHOT_WIDTH")
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .filter(|value: &f32| (480.0..=SCREEN.x).contains(value))
+            .unwrap_or(SCREEN.x),
+        SCREEN.y,
+    );
+    let width = (screen.x * scale) as usize;
+    let height = (screen.y * scale) as usize;
 
     for (name, view) in views_to_render {
         app.dispatch(Action::ShowView(view));
@@ -390,7 +399,7 @@ fn render_gui_snapshots() {
         for _ in 0..3 {
             window.time += 0.1;
             let mut input = RawInput {
-                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, screen)),
                 time: Some(window.time),
                 ..Default::default()
             };

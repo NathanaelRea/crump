@@ -1056,6 +1056,12 @@ pub(super) fn fixed_label(ui: &mut Ui, width: f32, text: RichText) -> egui::Resp
     .inner
 }
 
+/// Whether `width` more points fit in the row. Right-aligned toolbar groups skip what does not
+/// fit, so a narrow window drops low-priority items instead of drawing them over others.
+pub(super) fn room(ui: &Ui, width: f32) -> bool {
+    ui.available_width() >= width + ui.spacing().item_spacing.x
+}
+
 /// The one Publish control style: neutral, with an amber outline and text only while a valid
 /// Candidate waits to be published. Filled amber is kept for the publish dialog itself.
 pub(super) fn publish_button(ui: &mut Ui, label: &str, needs_publish: bool) -> egui::Response {

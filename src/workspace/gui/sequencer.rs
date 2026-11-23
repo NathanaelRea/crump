@@ -197,22 +197,26 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if pill_toggle(
-                        ui,
-                        "Event List",
-                        cx.state.event_table_open,
-                        "Toggle tabular event inspector",
-                    )
-                    .clicked()
+                    if widgets::room(ui, 86.0)
+                        && pill_toggle(
+                            ui,
+                            "Event List",
+                            cx.state.event_table_open,
+                            "Toggle tabular event inspector",
+                        )
+                        .clicked()
                     {
                         cx.state.event_table_open = !cx.state.event_table_open;
                     }
                     if let Some(ev) = pattern.events.get(selected) {
-                        ui.label(
-                            RichText::new(event_compact_summary(ev, project.song.meter))
-                                .monospace()
-                                .size(10.5)
-                                .color(theme::TEXT_SECONDARY),
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(event_compact_summary(ev, project.song.meter))
+                                    .monospace()
+                                    .size(10.5)
+                                    .color(theme::TEXT_SECONDARY),
+                            )
+                            .truncate(),
                         );
                     }
                 });
@@ -1687,17 +1691,19 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if pill_toggle(
-                        ui,
-                        "Point List",
-                        cx.state.automation_table_open,
-                        "Toggle automation point table",
-                    )
-                    .clicked()
+                    if widgets::room(ui, 86.0)
+                        && pill_toggle(
+                            ui,
+                            "Point List",
+                            cx.state.automation_table_open,
+                            "Toggle automation point table",
+                        )
+                        .clicked()
                     {
                         cx.state.automation_table_open = !cx.state.automation_table_open;
                     }
-                    if let Some(val) = &snapshot {
+                    let readout_fits = widgets::room(ui, 100.0);
+                    if let Some(val) = snapshot.as_ref().filter(|_| readout_fits) {
                         widgets::fixed_label(
                             ui,
                             96.0,
@@ -1710,7 +1716,7 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                             .strong()
                             .color(theme::TEXT_SECONDARY),
                         );
-                    } else if let Some(s) = spec {
+                    } else if let Some(s) = spec.filter(|_| readout_fits) {
                         ui.label(
                             RichText::new(format!(
                                 "BASE {}",

@@ -1250,3 +1250,45 @@ fn changes_only_the_selected_literal_and_publishes() {
     assert_eq!(changed, SOURCE.replacen("0.5\n", "0.75\n", 1));
     assert_eq!(entry.changes.len(), 1);
 }
+
+#[test]
+fn a_master_level_edit_authors_the_missing_master() {
+    let directory = tempdir().unwrap();
+    fs::write(
+        directory.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .unwrap();
+    let bundle = load_project(directory.path()).unwrap();
+    assert!(bundle.project.as_ref().unwrap().song.master.is_none());
+    let edit = set_parameter_target(
+        &bundle,
+        &"master/level".parse::<ParameterTarget>().unwrap(),
+        -3.0,
+    )
+    .expect("a Project without a Master still takes a Master level edit");
+    apply_structured_edit(
+        directory.path(),
+        &bundle.revision,
+        vec![edit],
+        Publication::new(
+            ChangeOrigin::human("tester"),
+            "Set master level",
+            "Author the missing Master",
+        ),
+    )
+    .unwrap();
+    let changed = load_project(directory.path()).unwrap();
+    assert!(
+        !changed.diagnostics.has_errors(),
+        "{:?}",
+        changed.diagnostics
+    );
+    let master = changed
+        .project
+        .unwrap()
+        .song
+        .master
+        .expect("authored Master");
+    assert_eq!(master.level_db, -3.0);
+}

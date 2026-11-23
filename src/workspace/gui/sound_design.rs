@@ -57,35 +57,41 @@ fn sound_subbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, instrument: &In
                     Action::CycleContext,
                 );
 
-                badge_chip(ui, &format!("{}", instrument.kind), theme::ACCENT_CYAN);
-                badge_chip(
-                    ui,
-                    &if instrument.polyphony == 1 {
-                        "Mono".to_owned()
-                    } else {
-                        format!("{} Voices", instrument.polyphony)
-                    },
-                    theme::TEXT_SECONDARY,
-                );
+                // Descriptive chips only where they leave room for the toggles on the right.
+                let show_chips = widgets::room(ui, 330.0);
+                if show_chips {
+                    badge_chip(ui, &format!("{}", instrument.kind), theme::ACCENT_CYAN);
+                    badge_chip(
+                        ui,
+                        &if instrument.polyphony == 1 {
+                            "Mono".to_owned()
+                        } else {
+                            format!("{} Voices", instrument.polyphony)
+                        },
+                        theme::TEXT_SECONDARY,
+                    );
+                }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if pill_toggle(
-                        ui,
-                        "Keys",
-                        cx.state.show_keyboard,
-                        "Toggle on-screen studio keyboard",
-                    )
-                    .clicked()
+                    if widgets::room(ui, 60.0)
+                        && pill_toggle(
+                            ui,
+                            "Keys",
+                            cx.state.show_keyboard,
+                            "Toggle on-screen studio keyboard",
+                        )
+                        .clicked()
                     {
                         cx.state.show_keyboard = !cx.state.show_keyboard;
                     }
-                    if pill_toggle(
-                        ui,
-                        "Audition",
-                        false,
-                        "Arm this Instrument for audition · A",
-                    )
-                    .clicked()
+                    if widgets::room(ui, 84.0)
+                        && pill_toggle(
+                            ui,
+                            "Audition",
+                            false,
+                            "Arm this Instrument for audition · A",
+                        )
+                        .clicked()
                     {
                         cx.send(Action::ArmSelectedAudition);
                     }
@@ -3106,13 +3112,16 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.label(
-                        RichText::new(format!(
-                            "{} params · Click A to automate · Double-click resets",
-                            instrument.parameters.len()
-                        ))
-                        .size(10.5)
-                        .color(theme::TEXT_MUTED),
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(format!(
+                                "{} params · Click A to automate · Double-click resets",
+                                instrument.parameters.len()
+                            ))
+                            .size(10.5)
+                            .color(theme::TEXT_MUTED),
+                        )
+                        .truncate(),
                     );
                 });
             });
