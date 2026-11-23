@@ -720,8 +720,9 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                     false,
                 ),
             ] {
-                // The utility sub-tab bar already marks the open view, so these shortcuts
-                // only light up to raise an alert.
+                // These buttons are the utility views' navigation: the open one lights in the
+                // selection color, and an alert overrides it.
+                let active = app.view == v;
                 let color = if alert {
                     theme::SIG_CLIP
                 } else {
@@ -730,8 +731,8 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                 if widgets::led_button(
                     ui,
                     label,
-                    alert,
-                    color,
+                    active || alert,
+                    if alert { color } else { theme::SELECTION },
                     Vec2::new(
                         if label == "?" {
                             22.0

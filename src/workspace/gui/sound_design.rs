@@ -65,7 +65,11 @@ fn sound_subbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, instrument: &In
                 badge_chip(ui, &format!("{}", instrument.kind), theme::ACCENT_CYAN);
                 badge_chip(
                     ui,
-                    &format!("{} Voices", instrument.polyphony),
+                    &if instrument.polyphony == 1 {
+                        "Mono".to_owned()
+                    } else {
+                        format!("{} Voices", instrument.polyphony)
+                    },
                     theme::TEXT_SECONDARY,
                 );
 
@@ -2215,9 +2219,9 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
     );
 
     // Base geometry at zoom = 1.0 to decide stacking + auto-fit
-    let base_node_w = 166.0_f32;
+    let base_node_w = 178.0_f32;
     let base_node_h = 92.0_f32;
-    let base_col_gap = 64.0_f32;
+    let base_col_gap = 40.0_f32;
     let base_row_gap = 26.0_f32;
 
     let probe_voice = layout_graph_nodes(
@@ -2286,7 +2290,7 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
         let pad_y = 36.0_f32;
         let fit_x = (canvas_rect.width() - pad_x).max(100.0) / total_w.max(1.0);
         let fit_y = (canvas_rect.height() - pad_y).max(100.0) / total_h.max(1.0);
-        let fit_zoom = fit_x.min(fit_y).clamp(0.50, 1.08);
+        let fit_zoom = fit_x.min(fit_y).clamp(0.50, 1.25);
         cx.state.graph_zoom = fit_zoom;
 
         let scaled_w = total_w * fit_zoom;
@@ -2426,7 +2430,11 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
     painter.text(
         Pos2::new(voice_box.left() + 12.0, voice_box.top() + 7.0),
         Align2::LEFT_TOP,
-        format!("POLYPHONIC VOICE DOMAIN · {} VOICES", instrument.polyphony),
+        if instrument.polyphony == 1 {
+            "MONO VOICE DOMAIN".to_owned()
+        } else {
+            format!("POLYPHONIC VOICE DOMAIN · {} VOICES", instrument.polyphony)
+        },
         FontId::monospace((10.0 * zoom).clamp(8.5, 11.0)),
         theme::ACCENT_AMBER,
     );

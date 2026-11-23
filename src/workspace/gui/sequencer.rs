@@ -216,10 +216,17 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
                     }
                     if let Some(ev) = pattern.events.get(selected) {
                         ui.label(
-                            RichText::new(event_compact_summary(ev))
-                                .monospace()
-                                .size(10.5)
-                                .color(theme::ACCENT_AMBER),
+                            RichText::new(event_compact_summary(
+                                ev,
+                                project
+                                    .song
+                                    .meter
+                                    .bar_length()
+                                    .map_or(4.0, MusicalTime::as_f64),
+                            ))
+                            .monospace()
+                            .size(10.5)
+                            .color(theme::ACCENT_AMBER),
                         );
                     }
                 });
@@ -251,8 +258,23 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
         )
         .show_inside(ui, |ui| {
             let total_h = ui.available_height().max(260.0);
-            let vel_h = (total_h * 0.27).clamp(90.0, 148.0);
-            let roll_h = (total_h - vel_h - 8.0).max(160.0);
+            // A drum pattern has a fixed kit of lanes: size the grid to them (plus ruler and a
+            // slim hint strip) and give the slack to the velocity lane instead of an empty well.
+            let drum_only = pattern
+                .events
+                .iter()
+                .any(|e| matches!(e, PatternEvent::Hit { .. }))
+                && !pattern
+                    .events
+                    .iter()
+                    .any(|e| matches!(e, PatternEvent::Note { .. }));
+            let (roll_h, vel_h) = if drum_only {
+                let roll_h = 24.0 + 4.0 * 64.0 + 40.0;
+                (roll_h, (total_h - roll_h - 8.0).max(90.0))
+            } else {
+                let vel_h = (total_h * 0.27).clamp(90.0, 148.0);
+                ((total_h - vel_h - 8.0).max(160.0), vel_h)
+            };
             let zoom = cx.state.roll_zoom.clamp(1.0, 4.0);
             let canvas_w = (ui.available_width().max(320.0) * zoom).max(320.0);
 
@@ -271,7 +293,7 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
         });
 }
 
-fn event_compact_summary(ev: &PatternEvent) -> String {
+fn event_compact_summary(ev: &PatternEvent, bar_q: f64) -> String {
     match ev {
         PatternEvent::Note {
             at,
@@ -282,7 +304,7 @@ fn event_compact_summary(ev: &PatternEvent) -> String {
         } => format!(
             "{} @ {} len {} vel {:.0}%",
             crate::model::format_pitch(*pitch),
-            at,
+            theme::format_bar_beat(at.as_f64(), bar_q),
             duration,
             velocity * 100.0
         ),
@@ -294,7 +316,7 @@ fn event_compact_summary(ev: &PatternEvent) -> String {
         } => format!(
             "{} @ {} vel {:.0}%",
             drum_voice_label(*voice),
-            at,
+            theme::format_bar_beat(at.as_f64(), bar_q),
             velocity * 100.0
         ),
         PatternEvent::Sample {
@@ -305,7 +327,7 @@ fn event_compact_summary(ev: &PatternEvent) -> String {
             ..
         } => format!(
             "{mapping} @ {} len {} vel {:.0}%",
-            at,
+            theme::format_bar_beat(at.as_f64(), bar_q),
             duration,
             velocity * 100.0
         ),
@@ -480,7 +502,7 @@ fn piano_roll_canvas(
 
     // Crisp clamped row heights: drum lanes are compact 44px step rows (never 90px pillars!)
     let row_h = if is_drum_grid {
-        (grid_rect.height() / rows.len().max(4) as f32).clamp(36.0, 76.0)
+        (grid_rect.height() / rows.len().max(4) as f32).clamp(36.0, 64.0)
     } else {
         (grid_rect.height() / rows.len().max(1) as f32).clamp(15.0, 34.0)
     };
@@ -644,7 +666,7 @@ fn piano_roll_canvas(
         );
         painter.rect_filled(lower_grid, 0.0, theme::BG_WELL);
         // Subtle step-matrix legend / author hint
-        if lower_grid.height() > 40.0 {
+        if lower_grid.height() >= 24.0 {
             let hint = painter.layout_no_wrap(
                 "Double-click any step cell to add a Hit or Note · Drag to move · Right-click for options"
                     .to_owned(),
@@ -776,11 +798,7 @@ fn piano_roll_canvas(
                         Pos2::new(c.x, c.y + r),
                         Pos2::new(c.x - r, c.y),
                     ],
-                    if idx == selected {
-                        theme::TEXT_PRIMARY
-                    } else {
-                        theme::BG_WELL
-                    },
+                    theme::BG_WELL,
                     Stroke::NONE,
                 ));
                 painter.rect_stroke(
@@ -789,7 +807,7 @@ fn piano_roll_canvas(
                     Stroke::new(
                         if idx == selected { 1.8_f32 } else { 1.0_f32 },
                         if idx == selected {
-                            theme::TEXT_PRIMARY
+                            theme::SELECTION
                         } else {
                             with_alpha(theme::SEAM_DARK, 0.7)
                         },
@@ -1193,10 +1211,17 @@ fn piano_roll_canvas(
     response.context_menu(|ui| {
         if let Some(ev) = pattern.events.get(selected) {
             ui.label(
-                RichText::new(event_compact_summary(ev))
-                    .monospace()
-                    .size(10.0)
-                    .color(theme::ACCENT_AMBER),
+                RichText::new(event_compact_summary(
+                    ev,
+                    project
+                        .song
+                        .meter
+                        .bar_length()
+                        .map_or(4.0, MusicalTime::as_f64),
+                ))
+                .monospace()
+                .size(10.0)
+                .color(theme::ACCENT_AMBER),
             );
             ui.separator();
             if ui.button("Edit Exact Value…").clicked() {
@@ -1407,7 +1432,7 @@ fn velocity_and_locks_lane(
         let y_bot = lane.bottom() - pad_bot;
         let y_top = y_bot - vel.clamp(0.0, 1.0) * stem_h;
         let color = if idx == selected {
-            theme::TEXT_PRIMARY
+            theme::SELECTION
         } else {
             match ev {
                 PatternEvent::Hit { voice, .. } => theme::drum_voice_color(*voice),
@@ -1740,7 +1765,10 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui.label(
                         RichText::new(format!(
                             "@ {}  ·  {}",
-                            pt.at,
+                            theme::format_bar_beat(
+                                pt.at.as_f64(),
+                                project.song.meter.bar_length().map_or(4.0, MusicalTime::as_f64)
+                            ),
                             unit.parse_value(&pt.value)
                                 .map_or_else(|_| pt.value.clone(), |v| theme::format_compact_value(v, unit))
                         ))
@@ -2110,9 +2138,18 @@ fn automation_curve_canvas(
                 (bar_band.top() + 4.0)..=bar_band.bottom(),
                 Stroke::new(1.0_f32, theme::BORDER_STRONG),
             );
+            // A label that would run off the right edge hangs left of its tick instead.
+            let fits_right = x + 30.0 <= bar_band.right();
             painter.text(
-                Pos2::new(x + 4.0, bar_band.center().y),
-                Align2::LEFT_CENTER,
+                Pos2::new(
+                    if fits_right { x + 4.0 } else { x - 4.0 },
+                    bar_band.center().y,
+                ),
+                if fits_right {
+                    Align2::LEFT_CENTER
+                } else {
+                    Align2::RIGHT_CENTER
+                },
                 format!("{}", bar + 1),
                 FontId::monospace(10.0),
                 theme::TEXT_SECONDARY,
@@ -2124,7 +2161,7 @@ fn automation_curve_canvas(
         painter.vline(
             x,
             plot.y_range(),
-            Stroke::new(1.0_f32, with_alpha(theme::SIG_HOT, 0.30)),
+            Stroke::new(1.0_f32, with_alpha(theme::SIG_HOT, 0.16)),
         );
         let fw = (loc.name.len() as f32 * 5.6 + 10.0).clamp(28.0, 82.0);
         // A flag that would run off the right edge hangs left of its line instead.
@@ -2137,13 +2174,19 @@ fn automation_curve_canvas(
             Pos2::new(flag_x, locator_band.top() + 1.5),
             Vec2::new(fw, LOC_BAND_H - 3.0),
         );
-        painter.rect_filled(flag, 2.0, with_alpha(theme::SIG_HOT, 0.90));
+        // Neutral chip with an amber tick: amber stays reserved for selection and primary action.
+        painter.rect_filled(flag, 2.5, theme::BG_CARD);
+        painter.rect_filled(
+            Rect::from_min_size(flag.left_top(), Vec2::new(2.5, flag.height())),
+            1.0,
+            theme::SIG_HOT,
+        );
         painter.text(
-            Pos2::new(flag.left() + 4.0, flag.center().y),
+            Pos2::new(flag.left() + 6.0, flag.center().y),
             Align2::LEFT_CENTER,
             &loc.name,
             FontId::proportional(9.0),
-            theme::BG_WELL,
+            theme::TEXT_SECONDARY,
         );
     }
 

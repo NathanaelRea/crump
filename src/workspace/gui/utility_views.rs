@@ -4,60 +4,15 @@
 use egui::text::{LayoutJob, TextFormat};
 
 use super::theme::{self, with_alpha};
-use super::widgets::{legible, pill_toggle, section_header, unavailable};
+use super::widgets::{legible, section_header, unavailable};
 use super::*;
 use crate::diagnostic::Severity;
 use crate::history::SourceChangeKind;
-
-fn utility_subbar(ui: &mut Ui, cx: &mut Cx<'_>) {
-    let app = cx.app;
-    let diag_count = app.bundle.diagnostics.as_slice().len();
-    egui::Frame::new()
-        .fill(theme::BG_SURFACE)
-        .inner_margin(egui::Margin::symmetric(10, 5))
-        .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
-        .show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 5.0;
-                for (view, label, key) in [
-                    (View::Source, "Source", "0"),
-                    (View::Diagnostics, "Diagnostics", "—"),
-                    (View::History, "History", "H"),
-                    (View::Help, "Shortcuts", "?"),
-                ] {
-                    let accent = if view == View::Diagnostics && app.bundle.diagnostics.has_errors()
-                    {
-                        theme::SIG_CLIP
-                    } else {
-                        theme::ACCENT_AMBER
-                    };
-                    let title = if view == View::Diagnostics && diag_count > 0 {
-                        format!("{label} ({diag_count})")
-                    } else {
-                        label.to_owned()
-                    };
-                    if pill_toggle(
-                        ui,
-                        &title,
-                        app.view == view,
-                        accent,
-                        &format!("{label} · Key {key}"),
-                    )
-                    .clicked()
-                    {
-                        cx.send(Action::ShowView(view));
-                    }
-                }
-            });
-        });
-}
 
 // ── 1. Two-Pane Token-Highlighted Source Viewer ──────────────────────────────────
 
 pub(super) fn source(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
-    utility_subbar(ui, cx);
 
     if app.bundle.sources.is_empty() {
         unavailable(ui, "No source files loaded");
@@ -430,7 +385,6 @@ fn is_crump_numeric_literal(tok: &str) -> bool {
 
 pub(super) fn diagnostics(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
-    utility_subbar(ui, cx);
 
     let diagnostics = app.bundle.diagnostics.as_slice();
     if diagnostics.is_empty() {
@@ -517,9 +471,7 @@ pub(super) fn diagnostics(ui: &mut Ui, cx: &mut Cx<'_>) {
                                         if ui
                                             .add(
                                                 egui::Button::new(
-                                                    RichText::new(
-                                                        "Publish Candidate as Active Revision",
-                                                    )
+                                                    RichText::new("Publish Revision")
                                                     .strong()
                                                     .color(theme::BG_WELL),
                                                 )
@@ -796,7 +748,6 @@ fn stat_strip(ui: &mut Ui, stats: &[(&str, usize)]) {
 
 pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
-    utility_subbar(ui, cx);
 
     egui::Frame::new()
         .fill(theme::BG_CANVAS)
@@ -857,10 +808,51 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
         });
 
     if app.history.is_empty() {
-        unavailable(
-            ui,
-            "No published History entries yet — press Publish Revision to checkpoint",
-        );
+        // A centred empty state with an icon and the one action that fills this view.
+        ui.add_space((ui.available_height() * 0.28).max(24.0));
+        ui.vertical_centered(|ui| {
+            let (icon, _) = ui.allocate_exact_size(Vec2::splat(48.0), Sense::hover());
+            let p = ui.painter();
+            let c = icon.center();
+            p.circle_stroke(c, 20.0, Stroke::new(1.8_f32, theme::BORDER_STRONG));
+            p.line_segment(
+                [c, Pos2::new(c.x, c.y - 11.0)],
+                Stroke::new(2.0_f32, theme::TEXT_SECONDARY),
+            );
+            p.line_segment(
+                [c, Pos2::new(c.x + 8.0, c.y + 4.0)],
+                Stroke::new(2.0_f32, theme::TEXT_SECONDARY),
+            );
+            ui.add_space(12.0);
+            ui.label(
+                RichText::new("No revisions yet")
+                    .size(16.0)
+                    .color(theme::TEXT_PRIMARY),
+            );
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new(
+                    "Publishing checkpoints the Candidate as an Active Revision you can diff and restore.",
+                )
+                .size(11.5)
+                .color(theme::TEXT_SECONDARY),
+            );
+            ui.add_space(14.0);
+            if ui
+                .add(
+                    egui::Button::new(
+                        RichText::new("Publish Revision")
+                            .strong()
+                            .size(11.5)
+                            .color(theme::BG_WELL),
+                    )
+                    .fill(theme::ACCENT_AMBER),
+                )
+                .clicked()
+            {
+                cx.send(Action::OpenPublish);
+            }
+        });
         return;
     }
 
@@ -1235,8 +1227,6 @@ const DIRECT_MANIPULATION_HELP: &[(&str, &str)] = &[
 ];
 
 pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
-    utility_subbar(ui, cx);
-
     // Search Filter Bar
     egui::Frame::new()
         .fill(theme::BG_CANVAS)
@@ -1367,12 +1357,7 @@ fn help_card_lines(ui: &mut Ui, title: &str, accent: Color32, lines: &[&str], qu
                 if let Some((keys, desc)) = text.split_once("  ") {
                     help_aligned_row(ui, keys.trim(), desc.trim());
                 } else {
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new(text).size(11.5).color(theme::TEXT_SECONDARY),
-                        )
-                        .wrap(),
-                    );
+                    help_binding_flow(ui, text);
                 }
                 ui.add_space(4.0);
             }
@@ -1398,6 +1383,61 @@ fn help_aligned_row(ui: &mut Ui, key: &str, desc: &str) {
             egui::Label::new(RichText::new(desc).size(11.5).color(theme::TEXT_SECONDARY)).wrap(),
         );
     });
+}
+
+/// One help line of `keys action · keys action` segments as keycap chips followed by their
+/// actions, wrapping as a flow. `Context:` prefixes are shown as labels and prose stays prose.
+fn help_binding_flow(ui: &mut Ui, line: &str) {
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = Vec2::new(5.0, 6.0);
+        for (index, segment) in line.split(" · ").enumerate() {
+            if index > 0 {
+                ui.add_space(8.0);
+            }
+            let mut segment = segment.trim();
+            if let Some((context, rest)) = segment.split_once(": ")
+                && context.len() <= 24
+                && context.chars().next().is_some_and(char::is_uppercase)
+            {
+                ui.label(
+                    RichText::new(context)
+                        .size(11.5)
+                        .strong()
+                        .color(theme::TEXT_PRIMARY),
+                );
+                segment = rest;
+            }
+            match segment.split_once(' ') {
+                Some((keys, action)) if is_key_token(keys) => {
+                    keycap_pill(ui, keys);
+                    ui.label(
+                        RichText::new(action)
+                            .size(11.5)
+                            .color(theme::TEXT_SECONDARY),
+                    );
+                }
+                None if is_key_token(segment) => keycap_pill(ui, segment),
+                _ => {
+                    ui.label(
+                        RichText::new(segment)
+                            .size(11.5)
+                            .color(theme::TEXT_SECONDARY),
+                    );
+                }
+            }
+        }
+    });
+}
+
+/// Whether a help token names a key or chord rather than an ordinary word.
+fn is_key_token(token: &str) -> bool {
+    const NAMED: [&str; 6] = ["Space", "Enter", "Esc", "Tab", "Home", "Shift-Tab"];
+    if token.ends_with(',') || token.ends_with('.') {
+        return false;
+    }
+    NAMED.contains(&token)
+        || token.chars().count() <= 2
+        || token.chars().any(|c| !c.is_alphabetic())
 }
 
 fn keycap_pill(ui: &mut Ui, text: &str) {

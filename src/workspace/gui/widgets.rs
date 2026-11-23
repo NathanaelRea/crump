@@ -205,7 +205,7 @@ pub(super) fn dbfs_meter_horizontal(
                 );
             }
             if show_readout {
-                let db_text = theme::format_dbfs(peak);
+                let db_text = format!("{} dB", theme::format_dbfs(peak));
                 let color = if peak >= 0.99 {
                     theme::SIG_CLIP
                 } else if peak_db >= -6.0 {

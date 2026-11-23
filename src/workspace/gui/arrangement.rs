@@ -16,6 +16,8 @@ const HEADER_WIDTH: f32 = 236.0;
 pub(super) const RULER_HEIGHT: f32 = 42.0;
 const LOCATOR_BAND_H: f32 = 18.0;
 const BASE_LANE_HEIGHT: f32 = 64.0;
+/// Smallest lane height the arrangement shrinks to so all tracks fit the view.
+const MIN_FIT_LANE_HEIGHT: f32 = 52.0;
 /// Width of one projected activity column.
 const COLUMN_WIDTH: f32 = 2.0;
 const MAX_COLUMNS: usize = 4096;
@@ -340,9 +342,11 @@ fn lanes(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
     let app = cx.app;
     let tracks = &project.song.tracks;
     let avail_h = ui.available_height().max(320.0);
-    // Give small arrangements generous track lane height so the workspace feels rich and balanced
-    let lane_height = if tracks.len() <= 5 {
-        ((avail_h - RULER_HEIGHT - 8.0) / tracks.len().max(1) as f32).clamp(BASE_LANE_HEIGHT, 92.0)
+    // Lanes share the view: small arrangements get generous lanes, and larger ones shrink (to a
+    // readable minimum) so every track is visible on load before scrolling is needed.
+    let fit = (avail_h - RULER_HEIGHT - 8.0) / tracks.len().max(1) as f32;
+    let lane_height = if fit >= MIN_FIT_LANE_HEIGHT {
+        fit.min(92.0)
     } else {
         BASE_LANE_HEIGHT
     };
@@ -470,17 +474,19 @@ fn lanes(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
             y = next_y;
             row_i += 1;
         }
-        // Subtle studio hint in empty lower header bay
-        painter.text(
-            Pos2::new(
-                empty_hdr.center().x,
-                (empty_hdr.top() + 26.0).min(empty_hdr.center().y),
-            ),
-            Align2::CENTER_CENTER,
-            "Double-click lane to add Clip",
-            FontId::proportional(10.5),
-            with_alpha(theme::TEXT_MUTED, 0.65),
-        );
+        // Subtle studio hint in the empty lower header bay, only when there is room for it
+        if empty_hdr.height() >= 28.0 {
+            painter.text(
+                Pos2::new(
+                    empty_hdr.center().x,
+                    (empty_hdr.top() + 26.0).min(empty_hdr.center().y),
+                ),
+                Align2::CENTER_CENTER,
+                "Double-click lane to add Clip",
+                FontId::proportional(10.5),
+                with_alpha(theme::TEXT_MUTED, 0.65),
+            );
+        }
     }
 
     grid(&timed, &geometry, rect, app, project);
@@ -1371,7 +1377,7 @@ fn markers(
         painter.vline(
             x,
             geometry.full_canvas.y_range(),
-            Stroke::new(1.0_f32, with_alpha(theme::SIG_HOT, 0.28)),
+            Stroke::new(1.0_f32, with_alpha(theme::SIG_HOT, 0.16)),
         );
         let flag_w = (locator.name.len() as f32 * 5.8 + 10.0).clamp(32.0, 88.0);
         // A flag that would run off the right edge hangs left of its line instead.
@@ -1384,13 +1390,19 @@ fn markers(
             Pos2::new(flag_x, rect.top() + 2.0),
             Vec2::new(flag_w, LOCATOR_BAND_H - 4.0),
         );
-        painter.rect_filled(flag, 2.5, with_alpha(theme::SIG_HOT, 0.92));
+        // Neutral chip with an amber tick: amber stays reserved for selection and primary action.
+        painter.rect_filled(flag, 2.5, theme::BG_CARD);
+        painter.rect_filled(
+            Rect::from_min_size(flag.left_top(), Vec2::new(2.5, flag.height())),
+            1.0,
+            theme::SIG_HOT,
+        );
         painter.text(
-            Pos2::new(flag.left() + 4.0, flag.center().y),
+            Pos2::new(flag.left() + 6.0, flag.center().y),
             Align2::LEFT_CENTER,
             &locator.name,
             FontId::proportional(9.5),
-            theme::BG_WELL,
+            theme::TEXT_SECONDARY,
         );
     }
 

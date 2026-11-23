@@ -15,6 +15,10 @@ use crate::engine::mix_graph::CompiledProcessorInspection;
 use crate::model::{ProcessorKind, Unit};
 
 const CARD_WIDTH: f32 = 278.0;
+/// Width of one knob column inside a device card.
+const KNOB_COLUMN_W: f32 = 84.0;
+/// Most knobs a device card lays out on one row before wrapping.
+const MAX_KNOBS_PER_ROW: usize = 8;
 
 pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
@@ -158,9 +162,16 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
 
     // ── Lower Split: Focused Device Deep Inspector (FabFilter-style Analyzer + Primary Controls) ──
     if let Some(proc) = focused_proc {
+        // The rack needs only its tallest card; the inspector takes the rest of the view.
+        let rack_need = visible
+            .iter()
+            .map(|(_, proc)| device_content_height(proc))
+            .fold(250.0_f32, f32::max)
+            + 44.0;
+        let inspector_h = (ui.available_height() - rack_need).clamp(228.0, 420.0);
         egui::TopBottomPanel::bottom("crump-fx-deep-inspector")
             .resizable(false)
-            .exact_height(228.0)
+            .exact_height(inspector_h)
             .frame(
                 egui::Frame::new()
                     .fill(theme::BG_SURFACE)
@@ -216,23 +227,48 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
         });
 }
 
-/// Four knobs share one row (an EQ band set) rather than orphaning the fourth, and dense devices
-/// use rows of four so no card needs a third row; otherwise three.
+/// Knob columns per row: at least three, and up to `MAX_KNOBS_PER_ROW` so dense devices widen
+/// rather than wrap.
 fn knobs_per_row(knobs: usize) -> usize {
-    if knobs == 4 || knobs >= 7 { 4 } else { 3 }
+    knobs.clamp(3, MAX_KNOBS_PER_ROW)
+}
+
+/// Devices with more controls get wider cards so every control sits on one row (up to
+/// `MAX_KNOBS_PER_ROW`), which keeps all cards in the rack one short, shared height.
+fn card_width(proc: &CompiledProcessorInspection) -> f32 {
+    let per_row = knobs_per_row(knob_count(proc));
+    CARD_WIDTH.max(per_row as f32 * KNOB_COLUMN_W + 24.0)
+}
+
+fn knob_count(proc: &CompiledProcessorInspection) -> usize {
+    proc.settings
+        .iter()
+        .filter(|s| s.unit.is_some() && s.value.is_some())
+        .count()
 }
 
 /// The height a device card needs for its header, scope, choice pills, knob rows and footer, so
 /// cards hug their controls instead of stretching to fill the rack.
 fn device_content_height(proc: &CompiledProcessorInspection) -> f32 {
-    let knobs = proc
-        .settings
-        .iter()
-        .filter(|s| s.unit.is_some() && s.value.is_some())
-        .count();
+    let knobs = knob_count(proc);
     let has_choices = proc.settings.iter().any(|s| s.choice.is_some());
     let rows = knobs.div_ceil(knobs_per_row(knobs)).max(1) as f32;
-    126.0 + if has_choices { 34.0 } else { 0.0 } + rows * 92.0 + 40.0
+    120.0 + if has_choices { 34.0 } else { 0.0 } + rows * 88.0 + 36.0
+}
+
+/// A choice token shown as words: `soft_clip` → `Soft Clip`.
+fn humanize_choice(token: &str) -> String {
+    token
+        .split(['_', '-'])
+        .filter(|w| !w.is_empty())
+        .map(|w| {
+            let mut chars = w.chars();
+            chars.next().map_or_else(String::new, |c| {
+                c.to_uppercase().collect::<String>() + chars.as_str()
+            })
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn short_owner_label(owner: &str) -> &str {
@@ -370,15 +406,15 @@ fn device_card(
 
     let resp = frame
         .show(ui, |ui| {
-            ui.set_width(CARD_WIDTH);
+            let card_w = card_width(proc);
+            ui.set_width(card_w);
             ui.set_min_height(card_h);
             ui.set_max_height(card_h);
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
 
                 // 1. Top color accent strip
-                let (top_bar, _) =
-                    ui.allocate_exact_size(Vec2::new(CARD_WIDTH, 3.0), Sense::hover());
+                let (top_bar, _) = ui.allocate_exact_size(Vec2::new(card_w, 3.0), Sense::hover());
                 ui.painter().rect_filled(
                     top_bar,
                     CornerRadius {
@@ -553,7 +589,7 @@ fn device_card(
                                                         .color(theme::TEXT_MUTED),
                                                 );
                                                 ui.label(
-                                                    RichText::new(val)
+                                                    RichText::new(humanize_choice(val))
                                                         .monospace()
                                                         .size(9.5)
                                                         .color(accent),
@@ -604,7 +640,7 @@ fn device_card(
                             .max_height(scroll_h)
                             .show(ui, |ui| {
                                 let per_row = knobs_per_row(continuous.len());
-                                let col_w = ((CARD_WIDTH - 24.0) / per_row as f32).floor();
+                                let col_w = ((card_width(proc) - 24.0) / per_row as f32).floor();
                                 for chunk in continuous.chunks(per_row) {
                                     ui.horizontal_top(|ui| {
                                         ui.spacing_mut().item_spacing.x = 0.0;

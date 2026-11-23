@@ -808,7 +808,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
             if is_selected {
                 theme::ACCENT_AMBER
             } else {
-                with_alpha(theme::ACCENT_AMBER, 0.55)
+                theme::BORDER_STRONG
             },
         ))
         .corner_radius(5.0)
@@ -877,7 +877,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                                             theme::TEXT_SECONDARY,
                                         ),
                                         (
-                                            "HEADRM",
+                                            "HEADROOM",
                                             if peak > 0.001 {
                                                 format!("+{headroom:.1} dB")
                                             } else {

@@ -223,6 +223,23 @@ pub(super) fn format_db(db: f64) -> String {
     format!("{:.1} dB", if rounded == 0.0 { 0.0 } else { rounded })
 }
 
+/// A musical position as `bar.beat.sixteenth`, 1-based (`0qn` → `1.1.1`), given the bar
+/// length in quarter notes.
+pub(super) fn format_bar_beat(quarters: f64, bar_quarters: f64) -> String {
+    let bar_q = bar_quarters.max(0.25);
+    let q = quarters.max(0.0);
+    let bar = (q / bar_q).floor();
+    let in_bar = q - bar * bar_q;
+    let beat = in_bar.floor();
+    let sixteenth = ((in_bar - beat) * 4.0 + 1e-6).floor();
+    format!(
+        "{}.{}.{}",
+        bar as u64 + 1,
+        beat as u64 + 1,
+        sixteenth as u64 + 1
+    )
+}
+
 /// The bar-label stride for rulers: the smallest musical power of two (1, 2, 4, 8, 16, …) that is
 /// at least `min_bars`, so labels land on phrase boundaries (1, 5, 9, 17 …) in every view.
 pub(super) fn bar_label_interval(min_bars: f32) -> u32 {
