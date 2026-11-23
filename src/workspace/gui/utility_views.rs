@@ -1,5 +1,5 @@
 //! Studio utility views: token-highlighted Source IDE, Diagnostics list,
-//! Revision History Timeline with Inline Inspector, and Searchable Two-Column Shortcut Reference.
+//! History (see `history_view`), and Searchable Two-Column Shortcut Reference.
 
 use egui::text::{LayoutJob, TextFormat};
 
@@ -7,7 +7,6 @@ use super::theme::{self, with_alpha};
 use super::widgets::{self, legible, section_header, unavailable};
 use super::*;
 use crate::diagnostic::Severity;
-use crate::history::SourceChangeKind;
 
 // ── 1. Two-Pane Token-Highlighted Source Viewer ──────────────────────────────────
 
@@ -508,30 +507,16 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new(format!(
-                        "APPEND-ONLY REVISION HISTORY · {} ENTRIES",
-                        app.history.len()
+                        "HISTORY · {} VERSION{}",
+                        app.history.len(),
+                        if app.history.len() == 1 { "" } else { "S" }
                     ))
                     .strong()
                     .size(10.5)
                     .color(theme::TEXT_SECONDARY),
                 );
+                // Compare and Restore live in the inspector, next to the version they act on.
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if !app.history.is_empty() {
-                        if ui
-                            .add(egui::Button::new("Restore…").fill(theme::BG_CARD))
-                            .on_hover_text("Restore the selected revision as a new entry · R")
-                            .clicked()
-                        {
-                            cx.send(Action::OpenRestore);
-                        }
-                        if ui
-                            .add(egui::Button::new("View Diff").fill(theme::BG_CARD))
-                            .on_hover_text("Inspect source diff · d")
-                            .clicked()
-                        {
-                            cx.send(Action::OpenHistoryDiff);
-                        }
-                    }
                     if app.history.len() >= 2
                         && ui
                             .add(egui::Button::new("Undo Last").fill(theme::BG_CARD))
@@ -589,320 +574,7 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
         return;
     }
 
-    let selected = clamp_index(app.selected_history, app.history.len());
-    let mut select_idx: Option<usize> = None;
-    let mut open_diff = false;
-    let mut open_restore = false;
-
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            ui.add_space(10.0);
-            egui::Frame::new()
-                .inner_margin(egui::Margin::symmetric(14, 2))
-                .show(ui, |ui| {
-                    // Revision Timeline List with vertical spine
-                    for (index, entry) in app.history.iter().enumerate() {
-                        let is_sel = index == selected;
-                        let is_active = app.active_entry.as_ref() == Some(&entry.id);
-                        let is_last = index + 1 == app.history.len();
-
-                        ui.horizontal(|ui| {
-                            // Vertical timeline connector rail + node dot
-                            let (rail_rect, _) =
-                                ui.allocate_exact_size(Vec2::new(20.0, 42.0), Sense::hover());
-                            let rp = ui.painter();
-                            let cx_x = rail_rect.center().x;
-                            if index > 0 {
-                                rp.vline(
-                                    cx_x,
-                                    rail_rect.top()..=rail_rect.center().y,
-                                    Stroke::new(1.5_f32, theme::BORDER_STRONG),
-                                );
-                            }
-                            if !is_last {
-                                rp.vline(
-                                    cx_x,
-                                    rail_rect.center().y..=rail_rect.bottom(),
-                                    Stroke::new(1.5_f32, theme::BORDER_STRONG),
-                                );
-                            }
-                            rp.circle_filled(
-                                rail_rect.center(),
-                                if is_active { 5.0 } else { 4.0 },
-                                if is_active {
-                                    theme::SIG_NOMINAL
-                                } else if is_sel {
-                                    theme::ACCENT_CYAN
-                                } else {
-                                    theme::BORDER_STRONG
-                                },
-                            );
-
-                            let card = egui::Frame::new()
-                                .fill(if is_sel {
-                                    theme::BG_CARD
-                                } else {
-                                    theme::BG_SURFACE
-                                })
-                                .stroke(Stroke::new(
-                                    1.0_f32,
-                                    if is_active {
-                                        with_alpha(theme::SIG_NOMINAL, 0.70)
-                                    } else if is_sel {
-                                        theme::ACCENT_CYAN
-                                    } else {
-                                        theme::BORDER_SUBTLE
-                                    },
-                                ))
-                                .corner_radius(6.0)
-                                .inner_margin(egui::Margin::symmetric(12, 9))
-                                .show(ui, |ui| {
-                                    ui.set_width((ui.available_width() - 26.0).max(260.0));
-                                    ui.horizontal(|ui| {
-                                        ui.label(
-                                            RichText::new(&entry.id)
-                                                .monospace()
-                                                .strong()
-                                                .size(11.5)
-                                                .color(if is_active {
-                                                    theme::SIG_NOMINAL
-                                                } else {
-                                                    theme::ACCENT_CYAN
-                                                }),
-                                        );
-                                        if is_active {
-                                            ui.label(
-                                                RichText::new("ACTIVE")
-                                                    .strong()
-                                                    .size(9.5)
-                                                    .color(theme::SIG_NOMINAL),
-                                            );
-                                        }
-                                        ui.label(
-                                            RichText::new(&entry.summary)
-                                                .size(12.0)
-                                                .color(theme::TEXT_PRIMARY),
-                                        );
-
-                                        ui.with_layout(
-                                            Layout::right_to_left(Align::Center),
-                                            |ui| {
-                                                ui.label(
-                                                    RichText::new(&entry.created_at)
-                                                        .monospace()
-                                                        .size(10.0)
-                                                        .color(theme::TEXT_MUTED),
-                                                );
-                                                ui.label(
-                                                    RichText::new(format!(
-                                                        "{} files · {}",
-                                                        entry.changes.len(),
-                                                        entry.origin.name
-                                                    ))
-                                                    .size(10.5)
-                                                    .color(theme::TEXT_SECONDARY),
-                                                );
-                                            },
-                                        );
-                                    });
-                                });
-                            let resp = card.response.interact(Sense::click());
-                            if resp.clicked() {
-                                select_idx = Some(index);
-                            }
-                            if resp.double_clicked() {
-                                select_idx = Some(index);
-                                open_diff = true;
-                            }
-                        });
-                        ui.add_space(4.0);
-                    }
-
-                    // Inline Selected Revision Inspector (fills lower space productively!)
-                    if let Some(entry) = app.history.get(selected) {
-                        ui.add_space(12.0);
-                        egui::Frame::new()
-                            .fill(theme::BG_SURFACE)
-                            .stroke(Stroke::new(1.0_f32, theme::BORDER_STRONG))
-                            .corner_radius(8.0)
-                            .inner_margin(egui::Margin::same(16))
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new(format!("REVISION INSPECTOR · {}", entry.id))
-                                            .strong()
-                                            .size(11.0)
-                                            .color(theme::ACCENT_AMBER),
-                                    );
-                                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                        if ui
-                                            .add(
-                                                egui::Button::new("Restore Revision…")
-                                                    .fill(theme::BG_CARD),
-                                            )
-                                            .clicked()
-                                        {
-                                            open_restore = true;
-                                        }
-                                        if ui
-                                            .add(
-                                                egui::Button::new(
-                                                    RichText::new("Open Full Source Diff")
-                                                        .color(theme::ACCENT_CYAN),
-                                                )
-                                                .fill(theme::BG_CARD),
-                                            )
-                                            .clicked()
-                                        {
-                                            open_diff = true;
-                                        }
-                                    });
-                                });
-                                ui.add_space(8.0);
-                                ui.label(
-                                    RichText::new(&entry.summary)
-                                        .strong()
-                                        .size(14.0)
-                                        .color(theme::TEXT_PRIMARY),
-                                );
-                                if !entry.explanation.is_empty() {
-                                    ui.add_space(3.0);
-                                    ui.add(
-                                        egui::Label::new(
-                                            RichText::new(&entry.explanation)
-                                                .size(11.5)
-                                                .color(theme::TEXT_SECONDARY),
-                                        )
-                                        .wrap(),
-                                    );
-                                }
-                                ui.add_space(10.0);
-
-                                // Metadata Strip
-                                egui::Frame::new()
-                                    .fill(theme::BG_WELL)
-                                    .corner_radius(5.0)
-                                    .inner_margin(egui::Margin::symmetric(12, 8))
-                                    .show(ui, |ui| {
-                                        ui.horizontal_wrapped(|ui| {
-                                            ui.spacing_mut().item_spacing.x = 18.0;
-                                            meta_kv(ui, "ORIGIN", &entry.origin.name);
-                                            meta_kv(ui, "CREATED", &entry.created_at);
-                                            meta_kv(
-                                                ui,
-                                                "PARENT",
-                                                entry.parent.as_deref().unwrap_or("root"),
-                                            );
-                                            if let Some(restored) = &entry.restored_from {
-                                                meta_kv(ui, "RESTORED FROM", restored);
-                                            }
-                                        });
-                                    });
-
-                                ui.add_space(12.0);
-                                ui.label(
-                                    RichText::new(format!(
-                                        "CHANGED FILES ({})",
-                                        entry.changes.len()
-                                    ))
-                                    .strong()
-                                    .size(10.0)
-                                    .color(theme::TEXT_SECONDARY),
-                                );
-                                ui.add_space(6.0);
-
-                                if entry.changes.is_empty() {
-                                    ui.label(
-                                        RichText::new("No file delta recorded.")
-                                            .size(11.0)
-                                            .color(theme::TEXT_MUTED),
-                                    );
-                                } else {
-                                    for ch in &entry.changes {
-                                        let (tag, color) = match ch.kind {
-                                            SourceChangeKind::Added => {
-                                                ("ADDED", theme::SIG_NOMINAL)
-                                            }
-                                            SourceChangeKind::Modified => {
-                                                ("MOD", theme::ACCENT_CYAN)
-                                            }
-                                            SourceChangeKind::Removed => ("DEL", theme::SIG_CLIP),
-                                        };
-                                        egui::Frame::new()
-                                            .fill(theme::BG_CANVAS)
-                                            .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
-                                            .corner_radius(4.0)
-                                            .inner_margin(egui::Margin::symmetric(10, 6))
-                                            .show(ui, |ui| {
-                                                ui.horizontal(|ui| {
-                                                    ui.label(
-                                                        RichText::new(tag)
-                                                            .monospace()
-                                                            .strong()
-                                                            .size(10.0)
-                                                            .color(color),
-                                                    );
-                                                    ui.label(
-                                                        RichText::new(
-                                                            ch.path.display().to_string(),
-                                                        )
-                                                        .monospace()
-                                                        .size(11.5)
-                                                        .color(theme::TEXT_PRIMARY),
-                                                    );
-                                                    ui.with_layout(
-                                                        Layout::right_to_left(Align::Center),
-                                                        |ui| {
-                                                            ui.label(
-                                                                RichText::new(format!(
-                                                                    "{} lines changed",
-                                                                    ch.changed_lines
-                                                                ))
-                                                                .monospace()
-                                                                .size(10.0)
-                                                                .color(theme::TEXT_MUTED),
-                                                            );
-                                                        },
-                                                    );
-                                                });
-                                            });
-                                        ui.add_space(4.0);
-                                    }
-                                }
-                            });
-                    }
-                });
-            ui.add_space(12.0);
-        });
-
-    if let Some(idx) = select_idx {
-        cx.select(selected, idx);
-    }
-    if open_diff {
-        cx.send(Action::OpenHistoryDiff);
-    }
-    if open_restore {
-        cx.send(Action::OpenRestore);
-    }
-}
-
-fn meta_kv(ui: &mut Ui, key: &str, value: &str) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 5.0;
-        ui.label(
-            RichText::new(key)
-                .strong()
-                .size(9.5)
-                .color(theme::TEXT_MUTED),
-        );
-        ui.label(
-            RichText::new(value)
-                .monospace()
-                .size(10.5)
-                .color(theme::TEXT_PRIMARY),
-        );
-    });
+    super::history_view::history(ui, cx);
 }
 
 // ── 4. Searchable Two-Column Studio Shortcut Reference ───────────────────────────

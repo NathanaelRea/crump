@@ -21,6 +21,7 @@ use super::*;
 use widgets::TabPress;
 
 mod arrangement;
+mod history_view;
 mod input;
 mod mixer;
 mod processing;
@@ -159,6 +160,10 @@ struct UiState {
     before_diagnostics: View,
     /// The view the last frame drew, to spot a page switch.
     drawn_view: Option<View>,
+    /// History sessions folded or opened by hand, keyed by their oldest entry.
+    history_sessions: BTreeMap<String, bool>,
+    /// History runs opened to show each edit, keyed by their oldest entry.
+    history_runs: std::collections::BTreeSet<String>,
 }
 
 impl Default for UiState {
@@ -208,6 +213,8 @@ impl Default for UiState {
             last_view: View::Timeline,
             before_diagnostics: View::Timeline,
             drawn_view: None,
+            history_sessions: BTreeMap::new(),
+            history_runs: std::collections::BTreeSet::new(),
         }
     }
 }

@@ -360,6 +360,12 @@ fn render_gui_snapshots() {
     let mut window = Window::new();
     let mut textures: HashMap<egui::TextureId, (usize, usize, Vec<Color32>)> = HashMap::new();
 
+    // CRUMP_GUI_SEED_HISTORY renders History over a realistic three-session History.
+    if std::env::var_os("CRUMP_GUI_SEED_HISTORY").is_some() {
+        seed_history(&mut app);
+        // Open the afternoon's bass run, as a user drilling in would.
+        window.state.history_runs.insert("000000000014".to_owned());
+    }
     let views_to_render = [
         ("01_timeline", View::Timeline),
         ("02_mixer", View::Mixer),
@@ -804,6 +810,209 @@ fn history_lists_the_newest_entry_first() {
         app.active_entry.as_ref(),
         Some(&app.history[0].id),
         "the latest published entry leads the list"
+    );
+    app.shutdown();
+}
+
+/// A realistic three-session History, newest first, for rendering the History view.
+fn seed_history(app: &mut Workspace) {
+    use crate::history::{ChangeOrigin, HistoryEntry, OriginKind, SourceChange, SourceChangeKind};
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let stamp = |secs: i64| {
+        let t = time::OffsetDateTime::from_unix_timestamp(secs).unwrap();
+        t.format(&time::format_description::well_known::Rfc3339)
+            .unwrap()
+    };
+    // (minutes ago, origin, summary, explanation, file)
+    let agent = "Claude";
+    let script: Vec<(i64, &str, &str, &str, &str)> = vec![
+        // Yesterday evening: arranging the hook.
+        (1150, "", "Set tempo 122.0 BPM", "", "project.crump"),
+        (
+            1146,
+            "",
+            "Add Clip lead-hook-3 on lead",
+            "",
+            "project.crump",
+        ),
+        (
+            1144,
+            "",
+            "Move Clip lead-hook-3 to 49bar",
+            "",
+            "project.crump",
+        ),
+        (1141, "", "Set lead level", "", "project.crump"),
+        (1140, "", "Set lead pan", "", "project.crump"),
+        (
+            1132,
+            "",
+            "Set dh-lead.position",
+            "",
+            "instruments/dh-lead.crump",
+        ),
+        (
+            1131,
+            "",
+            "Set dh-lead.position",
+            "",
+            "instruments/dh-lead.crump",
+        ),
+        (
+            1129,
+            "",
+            "Set dh-lead.level",
+            "",
+            "instruments/dh-lead.crump",
+        ),
+        (1110, "", "Create Locator drop-2", "", "project.crump"),
+        // This morning: an agent shapes the bass filter sweep.
+        (
+            290,
+            agent,
+            "Create Automation lane bass-cutoff",
+            "Open the bass filter into the drop so the low end blooms on bar 65.",
+            "project.crump",
+        ),
+        (
+            289,
+            agent,
+            "Add point p1 in bass-cutoff",
+            "",
+            "project.crump",
+        ),
+        (
+            289,
+            agent,
+            "Add point p2 in bass-cutoff",
+            "",
+            "project.crump",
+        ),
+        (
+            288,
+            agent,
+            "Set bass-cutoff.p2 curve = power(2)",
+            "",
+            "project.crump",
+        ),
+        // This afternoon: sound design and drums.
+        (
+            48,
+            "",
+            "Set dh-bass.cutoff",
+            "",
+            "instruments/dh-bass.crump",
+        ),
+        (
+            47,
+            "",
+            "Set dh-bass.cutoff",
+            "",
+            "instruments/dh-bass.crump",
+        ),
+        (46, "", "Set dh-bass.drive", "", "instruments/dh-bass.crump"),
+        (
+            45,
+            "",
+            "Set dh-bass.cutoff",
+            "",
+            "instruments/dh-bass.crump",
+        ),
+        (40, "", "Add hit snare in kick-four", "", "project.crump"),
+        (39, "", "Add hit snare in kick-four", "", "project.crump"),
+        (38, "", "Set kick-four[3] velocity", "", "project.crump"),
+        (
+            30,
+            "",
+            "Set Processor music-color durable bypass to true",
+            "",
+            "project.crump",
+        ),
+        (29, "", "Set music-color.drive = 1.2", "", "project.crump"),
+        (
+            27,
+            "",
+            "Set Processor music-color durable bypass to false",
+            "",
+            "project.crump",
+        ),
+        (
+            20,
+            "",
+            "Restored 000000000016 as new entry",
+            "",
+            "instruments/dh-bass.crump",
+        ),
+        (12, "", "Set bass level", "", "project.crump"),
+        (6, "", "Set dh-bass.cutoff", "", "instruments/dh-bass.crump"),
+    ];
+    let mut entries: Vec<HistoryEntry> = script
+        .iter()
+        .enumerate()
+        .map(|(i, (ago, who, summary, why, file))| HistoryEntry {
+            schema_version: 1,
+            id: format!("{:012}", i + 1),
+            sequence: i as u64 + 1,
+            revision: crate::project::RevisionId(format!("{:064x}", i + 1)),
+            created_at: stamp(now - ago * 60),
+            origin: ChangeOrigin {
+                kind: if who.is_empty() {
+                    OriginKind::Human
+                } else {
+                    OriginKind::Agent
+                },
+                name: if who.is_empty() { "workspace" } else { who }.to_owned(),
+            },
+            summary: (*summary).to_owned(),
+            explanation: (*why).to_owned(),
+            parent: (i > 0).then(|| format!("{i:012}")),
+            restored_from: summary
+                .starts_with("Restored")
+                .then(|| "000000000016".to_owned()),
+            changes: vec![SourceChange {
+                path: std::path::PathBuf::from(file),
+                kind: SourceChangeKind::Modified,
+                before_sha256: None,
+                after_sha256: None,
+                changed_lines: 1,
+            }],
+        })
+        .collect();
+    entries.reverse();
+    app.active_entry = Some(entries[0].id.clone());
+    app.history = entries;
+    // Select a change inside the bass run of the afternoon session.
+    app.selected_history = 10;
+}
+
+#[test]
+fn history_groups_sessions_and_folds_back_to_back_edits() {
+    let root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/deep-house-reference");
+    let mut app = Workspace::load(&root).expect("load");
+    seed_history(&mut app);
+    let (sessions, runs) = super::history_view::tests::shape(&app);
+    assert_eq!(
+        sessions, 3,
+        "an evening, an agent's morning and this afternoon"
+    );
+    let runs = runs
+        .iter()
+        .map(|(subject, edits)| format!("{subject} ×{edits}"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        runs,
+        [
+            "Deep House Bass ×1",
+            "Sub and Analog Bass ×1",
+            "Restore ×1",
+            "music-color ×3",
+            "kick-four ×3",
+            "Deep House Bass ×4",
+        ]
     );
     app.shutdown();
 }
