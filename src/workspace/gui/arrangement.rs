@@ -84,11 +84,15 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                 {
                     cx.send(TimelineAction::ChangeGrid(-1));
                 }
-                ui.label(
-                    RichText::new(app.timeline_state.grid_label())
-                        .monospace()
-                        .size(11.5)
-                        .color(theme::TEXT_PRIMARY),
+                // Grid and zoom readouts sit in fixed slots, so changing either never moves
+                // the tools to their right.
+                let (grid_rect, _) = ui.allocate_exact_size(Vec2::new(52.0, 14.0), Sense::hover());
+                ui.painter().text(
+                    grid_rect.center(),
+                    Align2::CENTER_CENTER,
+                    app.timeline_state.grid_label(),
+                    FontId::monospace(11.5),
+                    theme::TEXT_PRIMARY,
                 );
                 if led_button(
                     ui,
@@ -124,15 +128,17 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                 {
                     cx.send(TimelineAction::Zoom(-1));
                 }
-                ui.label(
-                    RichText::new(if app.timeline_viewport.is_fit() {
+                let (zoom_rect, _) = ui.allocate_exact_size(Vec2::new(44.0, 14.0), Sense::hover());
+                ui.painter().text(
+                    zoom_rect.center(),
+                    Align2::CENTER_CENTER,
+                    if app.timeline_viewport.is_fit() {
                         "FIT".to_owned()
                     } else {
                         format!("{}×", app.timeline_viewport.zoom_factor())
-                    })
-                    .monospace()
-                    .size(11.0)
-                    .color(theme::TEXT_SECONDARY),
+                    },
+                    FontId::monospace(11.0),
+                    theme::TEXT_SECONDARY,
                 );
                 if led_button(
                     ui,
@@ -754,7 +760,7 @@ fn track_header(
             ui,
             cx.state,
             &pan_key,
-            "P",
+            "Pan",
             track.channel.panner.primary_position(),
             -1.0,
             1.0,
@@ -1852,12 +1858,13 @@ fn contextual_bar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
 
         // Right-aligned quick studio view jumps for the selected track
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            // Named as the window's tabs are.
             if pill_toggle(
                 ui,
-                "FX Chain",
+                "FX Rack",
                 false,
                 theme::ACCENT_CYAN,
-                "Open Processing · gp",
+                "Open the FX Rack · gp",
             )
             .clicked()
             {
@@ -1865,26 +1872,38 @@ fn contextual_bar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
             }
             if pill_toggle(
                 ui,
-                "Instrument",
+                "Synth",
                 false,
                 theme::ACCENT_AMBER,
-                "Open Instrument · gi",
+                "Open the Synth · gi",
             )
             .clicked()
             {
                 cx.send(TimelineAction::GoInstrument);
             }
-            if pill_toggle(ui, "Mixer", false, theme::SIG_NOMINAL, "Open Mixer · gm").clicked() {
+            if pill_toggle(
+                ui,
+                "Console",
+                false,
+                theme::SIG_NOMINAL,
+                "Open the Console · gm",
+            )
+            .clicked()
+            {
                 cx.send(TimelineAction::GoMixer);
             }
-            if active_clip.is_some()
-                && pill_toggle(
-                    ui,
-                    "Piano Roll",
-                    false,
-                    theme::ACCENT_VIOLET,
-                    "Open Pattern · gd",
-                )
+            // Always in place, disabled off a clip, so the meter beside it never jumps.
+            if ui
+                .add_enabled_ui(active_clip.is_some(), |ui| {
+                    pill_toggle(
+                        ui,
+                        "Piano Roll",
+                        false,
+                        theme::ACCENT_VIOLET,
+                        "Open Pattern · gd",
+                    )
+                })
+                .inner
                 .clicked()
             {
                 cx.send(TimelineAction::GoDefinition);

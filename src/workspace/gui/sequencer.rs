@@ -115,7 +115,9 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
                     app.selected_pattern,
                     Action::CycleContext,
                 );
-                ui.label(
+                widgets::fixed_label(
+                    ui,
+                    96.0,
                     RichText::new(format!("{} · {} ev", pattern.span, pattern.events.len()))
                         .monospace()
                         .size(10.5)
@@ -169,11 +171,13 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
                 {
                     cx.state.roll_zoom = (cx.state.roll_zoom / 1.35).clamp(1.0, 4.0);
                 }
-                ui.label(
-                    RichText::new(format!("{:.0}%", cx.state.roll_zoom * 100.0))
-                        .monospace()
-                        .size(10.0)
-                        .color(theme::TEXT_SECONDARY),
+                let (zoom_rect, _) = ui.allocate_exact_size(Vec2::new(36.0, 14.0), Sense::hover());
+                ui.painter().text(
+                    zoom_rect.center(),
+                    Align2::CENTER_CENTER,
+                    format!("{:.0}%", cx.state.roll_zoom * 100.0),
+                    FontId::monospace(10.0),
+                    theme::TEXT_SECONDARY,
                 );
                 if led_button(
                     ui,
@@ -1706,7 +1710,9 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                         cx.state.automation_table_open = !cx.state.automation_table_open;
                     }
                     if let Some(val) = &snapshot {
-                        ui.label(
+                        widgets::fixed_label(
+                            ui,
+                            96.0,
                             RichText::new(format!(
                                 "EFF {}",
                                 theme::format_compact_value(val.effective, val.unit)
@@ -1714,7 +1720,7 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                             .monospace()
                             .size(10.5)
                             .strong()
-                            .color(theme::ACCENT_CYAN),
+                            .color(theme::TEXT_SECONDARY),
                         );
                     } else if let Some(s) = spec {
                         ui.label(

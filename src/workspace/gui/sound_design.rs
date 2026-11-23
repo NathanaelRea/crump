@@ -3541,7 +3541,7 @@ fn draw_parameter_matrix_card(
                         RichText::new(live)
                             .monospace()
                             .size(9.5)
-                            .color(theme::ACCENT_CYAN),
+                            .color(theme::TEXT_SECONDARY),
                     );
                 });
             });

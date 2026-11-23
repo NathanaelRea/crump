@@ -1103,7 +1103,15 @@ fn footer(ui: &mut Ui, cx: &mut Cx<'_>) {
             } else {
                 ui.label(
                     RichText::new(format!(
-                        "Candidate {} · MIDI {}",
+                        "{} {} · MIDI {}",
+                        // Named by its role: never published, published, or awaiting publish.
+                        if app.active_revision.is_none() {
+                            "Unpublished"
+                        } else if app.candidate_is_active() {
+                            "Rev"
+                        } else {
+                            "Candidate"
+                        },
                         short_revision(&app.bundle.revision),
                         if app.telemetry.midi_connected {
                             "ON"

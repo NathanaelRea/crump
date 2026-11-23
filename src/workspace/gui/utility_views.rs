@@ -1049,7 +1049,22 @@ pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
                             cols[0].add_space(10.0);
                         }
 
-                        let mid = keymap::HELP.len().div_ceil(2);
+                        // Balance the columns by rows, counting the Direct Manipulation card
+                        // that already heads the first column.
+                        let rows = |lines: &[&str]| lines.len() + 2;
+                        let total = DIRECT_MANIPULATION_HELP.len()
+                            + 2
+                            + keymap::HELP.iter().map(|(_, l)| rows(l)).sum::<usize>();
+                        let mut left = DIRECT_MANIPULATION_HELP.len() + 2;
+                        let mut mid = 0;
+                        for (_, lines) in keymap::HELP {
+                            let next = left + rows(lines);
+                            if next.abs_diff(total - next) >= left.abs_diff(total - left) {
+                                break;
+                            }
+                            left = next;
+                            mid += 1;
+                        }
                         for (heading, lines) in &keymap::HELP[..mid] {
                             help_card_lines(
                                 &mut cols[0],

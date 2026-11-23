@@ -907,7 +907,26 @@ pub(super) fn horizontal_mini_slider(
     painter.rect_filled(rect, 3.0, theme::BG_WELL);
     let norm = theme::value_to_norm(current, min, max, unit);
     let fill_w = (rail.width() * norm).clamp(0.0, rail.width());
-    if fill_w > 1.0 {
+    // A range straddling zero (pan, bipolar amounts) fills out from its centre, so centred
+    // reads calm and left and right read symmetrically.
+    let bipolar = min < 0.0 && max > 0.0;
+    if bipolar {
+        let zero_x = rail.left() + rail.width() * theme::value_to_norm(0.0, min, max, unit);
+        let value_x = rail.left() + fill_w;
+        let (left, right) = (zero_x.min(value_x), zero_x.max(value_x));
+        if right - left > 0.5 {
+            painter.rect_filled(
+                Rect::from_min_max(Pos2::new(left, rail.top()), Pos2::new(right, rail.bottom())),
+                0.0,
+                with_alpha(accent, 0.36),
+            );
+        }
+        painter.vline(
+            zero_x,
+            (rail.top() + 2.0)..=(rail.bottom() - 2.0),
+            Stroke::new(1.0_f32, theme::BORDER_STRONG),
+        );
+    } else if fill_w > 1.0 {
         painter.rect_filled(
             Rect::from_min_max(rail.min, Pos2::new(rail.left() + fill_w, rail.bottom())),
             CornerRadius {
@@ -944,7 +963,9 @@ pub(super) fn horizontal_mini_slider(
         value_font,
         theme::TEXT_PRIMARY,
     );
-    if !label.is_empty() {
+    // A narrow bipolar rail (a pan control) keeps its label in the tooltip: a letter over a
+    // centre-out fill reads badly.
+    if !label.is_empty() && !(bipolar && rail.width() < 48.0) {
         let label_clip = rail.shrink2(Vec2::new(4.0, 0.0));
         if label_clip.width() > 8.0 {
             let fitted = ellipsize(
@@ -1075,7 +1096,9 @@ pub(super) fn led_button(
 ) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     let painter = ui.painter();
-    let (bg, border, text_color) = if active {
+    let (bg, border, text_color) = if !ui.is_enabled() {
+        (theme::BG_CARD, theme::BORDER_SUBTLE, theme::TEXT_MUTED)
+    } else if active {
         (
             with_alpha(lit_color, 0.28),
             lit_color,
@@ -1166,7 +1189,13 @@ pub(super) fn pill_toggle(
     let painter = ui.painter();
     // Active reads as a raised neutral tab with a slim accent underline, not a coloured box,
     // so the accent stays a small cue instead of competing with real attention states.
-    let (bg, border, fg) = if active {
+    let (bg, border, fg) = if !ui.is_enabled() {
+        (
+            Color32::TRANSPARENT,
+            Color32::TRANSPARENT,
+            theme::TEXT_MUTED,
+        )
+    } else if active {
         (theme::BG_ACTIVE, theme::BORDER_STRONG, theme::TEXT_PRIMARY)
     } else if response.hovered() {
         (theme::BG_HOVER, theme::BORDER_STRONG, theme::TEXT_PRIMARY)
@@ -1369,7 +1398,10 @@ pub(super) fn context_combo(
                 .color(theme::TEXT_MUTED),
         );
     }
+    // A fixed, truncating width: a long name never pushes the controls after the picker.
     egui::ComboBox::from_id_salt(format!("ctx-combo-{label}"))
+        .width(156.0)
+        .truncate()
         .selected_text(
             RichText::new(names.get(current).map_or("—", String::as_str))
                 .color(theme::TEXT_PRIMARY),
@@ -1441,7 +1473,7 @@ pub(super) fn note_strip(ui: &mut Ui, cx: &mut Cx<'_>) {
                             RichText::new(if drums { "DRUM PADS" } else { "KEYS" })
                                 .size(9.5)
                                 .strong()
-                                .color(theme::ACCENT_AMBER),
+                                .color(theme::TEXT_MUTED),
                         );
                         if !drums {
                             if led_button(

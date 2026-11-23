@@ -273,13 +273,13 @@ pub(super) fn apply_theme(ctx: &egui::Context) {
             // Floating bars overlay the content instead of taking width from it, so content
             // never reflows as a bar appears; a slim handle stays visible and widens on hover.
             floating: true,
-            floating_width: 4.0,
+            floating_width: 5.0,
             floating_allocated_width: 0.0,
             dormant_background_opacity: 0.0,
-            dormant_handle_opacity: 0.6,
-            // Slate handle from the widget fill (brightening on hover/drag) instead of the
-            // near-white text color, so scrollbars never outshine the content they scroll.
-            foreground_color: false,
+            // A faint text-coloured handle: quiet at rest, but always visible enough to say the
+            // content scrolls (the widget-fill handle all but vanished on the dark canvas).
+            dormant_handle_opacity: 0.30,
+            foreground_color: true,
             ..ScrollStyle::floating()
         };
 

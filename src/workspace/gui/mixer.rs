@@ -586,13 +586,8 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                                     ))
                                     .monospace()
                                     .size(10.5)
-                                    .color(
-                                        if live_db > 0.05 {
-                                            theme::SIG_HOT
-                                        } else {
-                                            theme::TEXT_PRIMARY
-                                        },
-                                    ),
+                                    // Gain above unity is a choice, not a fault.
+                                    .color(theme::TEXT_PRIMARY),
                                 );
                             });
                         })
@@ -863,7 +858,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                                             },
                                         ),
                                         (
-                                            "Avg",
+                                            "AVG",
                                             format!("{} dB", theme::format_dbfs(avg)),
                                             theme::TEXT_SECONDARY,
                                         ),
@@ -874,7 +869,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                                             } else {
                                                 "—".to_owned()
                                             },
-                                            theme::ACCENT_CYAN,
+                                            theme::TEXT_SECONDARY,
                                         ),
                                         (
                                             "RATE",
