@@ -3561,6 +3561,32 @@ impl Workspace {
         });
     }
 
+    fn compare_history_with_active(&mut self) {
+        let Some(entry) = self.history.get(self.selected_history) else {
+            return;
+        };
+        let Some(active) = self.active_entry.clone() else {
+            self.status = "Nothing is published yet to compare against".to_owned();
+            return;
+        };
+        let title = format!("What restoring {} would change", entry.summary);
+        let body = HistoryStore::open(&self.root)
+            .and_then(|store| store.diff_between(&active, &entry.id))
+            .map(|diff| {
+                if diff.trim().is_empty() {
+                    "No differences: this version matches the current one.".to_owned()
+                } else {
+                    diff
+                }
+            })
+            .unwrap_or_else(|error| format!("Unable to read diff: {error}"));
+        self.modal = Some(Modal::Text {
+            title,
+            body,
+            scroll: 0,
+        });
+    }
+
     fn commit_input(&mut self, value: String, action: InputAction) {
         match action {
             InputAction::Target { target } => self.apply_operation(

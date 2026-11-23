@@ -164,6 +164,9 @@ struct UiState {
     history_sessions: BTreeMap<String, bool>,
     /// History runs opened to show each edit, keyed by their oldest entry.
     history_runs: std::collections::BTreeSet<String>,
+    /// A History entry to reveal next frame, and the row to scroll to once it is drawn.
+    history_reveal: Option<String>,
+    history_scroll: Option<String>,
 }
 
 impl Default for UiState {
@@ -215,6 +218,8 @@ impl Default for UiState {
             drawn_view: None,
             history_sessions: BTreeMap::new(),
             history_runs: std::collections::BTreeSet::new(),
+            history_reveal: None,
+            history_scroll: None,
         }
     }
 }
@@ -1251,17 +1256,28 @@ fn modal(ctx: &egui::Context, cx: &mut Cx<'_>) {
                 ..
             } => input_modal(ui, cx, title, prompt, value, *replace_on_type),
             Modal::ConfirmRestore { entry_id } => {
+                // Plain words: which version, and that nothing is lost.
+                let version = cx
+                    .app
+                    .history
+                    .iter()
+                    .find(|entry| entry.id == *entry_id)
+                    .map_or_else(
+                        || entry_id.clone(),
+                        |entry| history_view::plain_label(cx.app, entry),
+                    );
                 ui.label(
-                    RichText::new("CONFIRM HISTORY RESTORE")
+                    RichText::new("Restore this version?")
                         .strong()
                         .size(13.0)
-                        .color(theme::ACCENT_AMBER),
+                        .color(theme::TEXT_PRIMARY),
                 );
                 ui.add_space(6.0);
-                ui.label(format!("Restore exact state from {entry_id}?"));
+                ui.label(RichText::new(version).size(12.5).color(theme::TEXT_PRIMARY));
                 ui.label(
                     RichText::new(
-                        "Current source will be replaced atomically and appended as a new History Entry.",
+                        "The whole project goes back to how it was after this change. The restore \
+                         is added as a new change, so everything since stays in History.",
                     )
                     .size(11.5)
                     .color(theme::TEXT_SECONDARY),
@@ -1271,9 +1287,7 @@ fn modal(ctx: &egui::Context, cx: &mut Cx<'_>) {
                     if ui
                         .add(
                             egui::Button::new(
-                                RichText::new("Restore")
-                                    .strong()
-                                    .color(theme::BG_WELL),
+                                RichText::new("Restore").strong().color(theme::BG_WELL),
                             )
                             .fill(theme::ACCENT_AMBER),
                         )

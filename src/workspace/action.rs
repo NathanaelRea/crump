@@ -64,6 +64,9 @@ pub enum Action {
     OpenRestore,
     /// Show the source diff of the selected History entry.
     OpenHistoryDiff,
+    /// Show what restoring the selected History entry would change: the Active Revision's
+    /// source against the selected entry's.
+    CompareHistoryWithActive,
     /// Show or hide workspace performance diagnostics.
     TogglePerformanceDiagnostics,
 
@@ -681,6 +684,7 @@ impl Workspace {
             Action::OpenPublish => self.open_publish(),
             Action::OpenRestore => self.open_restore(),
             Action::OpenHistoryDiff => self.open_history_diff(),
+            Action::CompareHistoryWithActive => self.compare_history_with_active(),
             Action::TogglePerformanceDiagnostics => {
                 let visible = self.performance.toggle();
                 self.status = format!(

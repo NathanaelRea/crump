@@ -942,7 +942,7 @@ fn seed_history(app: &mut Workspace) {
         (
             20,
             "",
-            "Restored 000000000016 as new entry",
+            "Restore history entry 000000000016",
             "",
             "instruments/dh-bass.crump",
         ),
@@ -970,7 +970,7 @@ fn seed_history(app: &mut Workspace) {
             explanation: (*why).to_owned(),
             parent: (i > 0).then(|| format!("{i:012}")),
             restored_from: summary
-                .starts_with("Restored")
+                .starts_with("Restore history entry")
                 .then(|| "000000000016".to_owned()),
             changes: vec![SourceChange {
                 path: std::path::PathBuf::from(file),
@@ -1014,5 +1014,24 @@ fn history_groups_sessions_and_folds_back_to_back_edits() {
             "Deep House Bass ×4",
         ]
     );
+    app.shutdown();
+}
+
+#[test]
+fn compare_with_now_diffs_the_current_version_against_the_selected_one() {
+    let (_root, mut app) = workspace(include_str!("../../../tests/fixtures/minimal.crump"));
+    crate::workspace::tests::settle_background(&mut app);
+    for bpm in [124.0, 131.0] {
+        app.dispatch(Action::SetSongTempo { bpm });
+        crate::workspace::tests::settle_background(&mut app);
+    }
+    // Newest first: the older 124 BPM version is second.
+    app.selected_history = 1;
+    app.dispatch(Action::CompareHistoryWithActive);
+    let Some(Modal::Text { body, .. }) = &app.modal else {
+        panic!("compare opens a diff");
+    };
+    assert!(body.contains("-    tempo 131bpm"), "{body}");
+    assert!(body.contains("+    tempo 124bpm"), "{body}");
     app.shutdown();
 }

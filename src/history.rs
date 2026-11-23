@@ -396,6 +396,15 @@ impl HistoryStore {
         Ok(diff_snapshots(before.as_ref(), &after))
     }
 
+    /// Produces an exact unified source diff from one entry's state to another's.
+    pub fn diff_between(&self, from_id: &str, to_id: &str) -> Result<String, HistoryError> {
+        let from = self.entry_metadata(from_id)?;
+        let to = self.entry_metadata(to_id)?;
+        let before = self.snapshot_metadata(&from.revision)?;
+        let after = self.snapshot_metadata(&to.revision)?;
+        Ok(diff_snapshots(Some(&before), &after))
+    }
+
     /// Restores an earlier exact state as a new append-only entry.
     pub fn restore(
         &self,

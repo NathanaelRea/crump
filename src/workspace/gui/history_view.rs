@@ -68,8 +68,9 @@ struct Item<'a> {
 }
 
 impl Item<'_> {
+    /// Back-to-back changes to one thing fold into a run; restores always stand alone.
     fn same_subject(&self, other: &Item<'_>) -> bool {
-        self.kind == other.kind && self.subject == other.subject
+        self.kind != Kind::Restore && self.kind == other.kind && self.subject == other.subject
     }
 }
 
@@ -79,7 +80,16 @@ fn items(app: &Workspace) -> Vec<Item<'_>> {
         .iter()
         .enumerate()
         .map(|(index, entry)| {
-            let (kind, subject, action) = describe(app, &entry.summary);
+            // A restore is known by its link, whatever its summary says.
+            let (kind, subject, action) = if entry.restored_from.is_some() {
+                (
+                    Kind::Restore,
+                    "Restore".to_owned(),
+                    "Went back to an earlier version".to_owned(),
+                )
+            } else {
+                describe(app, &entry.summary)
+            };
             Item {
                 index,
                 entry,
@@ -169,7 +179,7 @@ pub(super) fn describe(app: &Workspace, summary: &str) -> (Kind, String, String)
     let words = summary.split_whitespace().collect::<Vec<_>>();
     let rest = |from: usize| words.get(from..).map(|w| w.join(" ")).unwrap_or_default();
 
-    if summary.starts_with("Restored") {
+    if summary.starts_with("Restore history entry") || summary.starts_with("Restored") {
         return (
             Kind::Restore,
             "Restore".into(),
@@ -489,6 +499,14 @@ fn plural(count: usize, noun: &str) -> String {
     format!("{count} {noun}{}", if count == 1 { "" } else { "s" })
 }
 
+/// One History entry in plain words with its local time: "Deep House Bass — Drive · Today at
+/// 14:19", for confirmations outside the History view.
+pub(super) fn plain_label(app: &Workspace, entry: &HistoryEntry) -> String {
+    let (_, subject, action) = describe(app, &entry.summary);
+    let at = unix_seconds(&entry.created_at) + local_offset_secs();
+    format!("{subject} — {action} · {} at {}", day_label(at), clock(at))
+}
+
 fn is_current(app: &Workspace, entry: &HistoryEntry) -> bool {
     app.active_entry.as_ref() == Some(&entry.id)
 }
@@ -557,6 +575,29 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
     let mut pick: Option<usize> = None;
     let mut restore = false;
     let mut compare = false;
+    let mut show_change = false;
+    let mut jump: Option<usize> = None;
+
+    // A jump from the inspector lands on a row that may be folded away: open its session and
+    // run, and scroll it into view once.
+    if let Some(id) = cx.state.history_reveal.take()
+        && let Some(target) = items.iter().find(|item| item.entry.id == id)
+    {
+        for session in sessions(&items) {
+            if session.iter().any(|item| item.index == target.index) {
+                let key = session[session.len() - 1].entry.id.clone();
+                cx.state.history_sessions.insert(key, true);
+                for run in runs(session) {
+                    if run.len() > 1 && run.iter().any(|item| item.index == target.index) {
+                        cx.state
+                            .history_runs
+                            .insert(run[run.len() - 1].entry.id.clone());
+                    }
+                }
+            }
+        }
+        cx.state.history_scroll = Some(id);
+    }
 
     egui::SidePanel::right("crump-history-inspector")
         .exact_width(INSPECTOR_WIDTH)
@@ -568,9 +609,19 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
                 .inner_margin(egui::Margin::same(18)),
         )
         .show_inside(ui, |ui| {
-            if let Some(item) = items.get(selected) {
-                inspector(ui, app, &items, item, &mut pick, &mut restore, &mut compare);
-            }
+            egui::ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    if let Some(item) = items.get(selected) {
+                        let mut actions = InspectorActions {
+                            jump: &mut jump,
+                            restore: &mut restore,
+                            compare: &mut compare,
+                            show_change: &mut show_change,
+                        };
+                        inspector(ui, app, &items, item, &mut actions);
+                    }
+                });
         });
 
     egui::ScrollArea::vertical()
@@ -585,10 +636,17 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
                 });
         });
 
+    if let Some(index) = jump {
+        cx.state.history_reveal = Some(items[index].entry.id.clone());
+        pick = Some(index);
+    }
     if let Some(index) = pick {
         cx.select(selected, index);
     }
     if compare {
+        cx.send(Action::CompareHistoryWithActive);
+    }
+    if show_change {
         cx.send(Action::OpenHistoryDiff);
     }
     if restore {
@@ -712,6 +770,7 @@ fn run_rows(
         head.action.clone()
     };
     let mut triangle = Rect::NOTHING;
+    let hover_bg = ui.painter().add(egui::Shape::Noop);
     let row = egui::Frame::new()
         .fill(if highlight {
             theme::BG_CARD
@@ -779,6 +838,22 @@ fn run_rows(
         });
     // The row selects the run's latest change and opens a run; only the triangle folds it.
     let response = row.response.interact(Sense::click());
+    if response.hovered() && !highlight {
+        ui.painter().set(
+            hover_bg,
+            egui::Shape::rect_filled(response.rect, 5.0, theme::BG_HOVER),
+        );
+    }
+    let folded_target = !expanded
+        && cx
+            .state
+            .history_scroll
+            .as_ref()
+            .is_some_and(|id| run.iter().any(|item| item.entry.id == *id));
+    if folded_target {
+        response.scroll_to_me(Some(Align::Center));
+        cx.state.history_scroll = None;
+    }
     let response = if folds {
         response.on_hover_text("Click to open · the triangle folds it again")
     } else {
@@ -803,7 +878,7 @@ fn run_rows(
     }
     if expanded {
         for item in run {
-            child_row(ui, app, item, selected, pick);
+            child_row(ui, app, item, selected, &mut cx.state.history_scroll, pick);
         }
     }
     ui.add_space(2.0);
@@ -814,9 +889,11 @@ fn child_row(
     app: &Workspace,
     item: &Item<'_>,
     selected: usize,
+    scroll: &mut Option<String>,
     pick: &mut Option<usize>,
 ) {
     let is_selected = item.index == selected;
+    let hover_bg = ui.painter().add(egui::Shape::Noop);
     let row = egui::Frame::new()
         .fill(if is_selected {
             theme::BG_CARD
@@ -862,9 +939,29 @@ fn child_row(
                 });
             });
         });
-    if row.response.interact(Sense::click()).clicked() {
+    let response = row.response.interact(Sense::click());
+    if response.hovered() && !is_selected {
+        ui.painter().set(
+            hover_bg,
+            egui::Shape::rect_filled(response.rect, 4.0, theme::BG_HOVER),
+        );
+    }
+    if scroll.as_ref() == Some(&item.entry.id) {
+        response.scroll_to_me(Some(Align::Center));
+        *scroll = None;
+    }
+    if response.clicked() {
         *pick = Some(item.index);
     }
+}
+
+/// What the inspector asked for this frame.
+struct InspectorActions<'a> {
+    /// Select another entry and reveal it in the list.
+    jump: &'a mut Option<usize>,
+    restore: &'a mut bool,
+    compare: &'a mut bool,
+    show_change: &'a mut bool,
 }
 
 fn inspector(
@@ -872,9 +969,7 @@ fn inspector(
     app: &Workspace,
     items: &[Item<'_>],
     item: &Item<'_>,
-    pick: &mut Option<usize>,
-    restore: &mut bool,
-    compare: &mut bool,
+    actions: &mut InspectorActions<'_>,
 ) {
     ui.horizontal(|ui| {
         kind_chip(ui, item.kind);
@@ -937,7 +1032,7 @@ fn inspector(
             .add(egui::Button::new("Show that version").fill(theme::BG_CARD))
             .clicked()
         {
-            *pick = Some(target.index);
+            *actions.jump = Some(target.index);
         }
     }
     // The other direction: this version was brought back later.
@@ -951,14 +1046,16 @@ fn inspector(
             .on_hover_text("Show the restore")
             .clicked()
         {
-            *pick = Some(later.index);
+            *actions.jump = Some(later.index);
         }
     }
 
     // What a restore would undo: every later change (History is newest first).
     ui.add_space(16.0);
     let later = &items[..item.index];
-    let impact = if later.is_empty() {
+    let impact = if is_current(app, item.entry) {
+        "This is the version you are hearing now.".to_owned()
+    } else if later.is_empty() {
         "This is the latest change.".to_owned()
     } else {
         format!(
@@ -978,14 +1075,17 @@ fn inspector(
     );
     ui.add_space(8.0);
     ui.horizontal(|ui| {
+        let can_restore = !is_current(app, item.entry);
         if ui
-            .add(egui::Button::new("Compare with now").fill(theme::BG_CARD))
-            .on_hover_text("Show what differs between this version and the current one · d")
+            .add_enabled(
+                can_restore,
+                egui::Button::new("Compare with now").fill(theme::BG_CARD),
+            )
+            .on_hover_text("Show what restoring this version would change")
             .clicked()
         {
-            *compare = true;
+            *actions.compare = true;
         }
-        let can_restore = !is_current(app, item.entry);
         if ui
             .add_enabled(
                 can_restore,
@@ -994,9 +1094,16 @@ fn inspector(
             .on_hover_text("Bring back the whole project as it was after this change · R")
             .clicked()
         {
-            *restore = true;
+            *actions.restore = true;
         }
     });
+    if ui
+        .add(egui::Button::new(RichText::new("Show this change").size(10.5)).frame(false))
+        .on_hover_text("What this change itself edited, against the version before it · d")
+        .clicked()
+    {
+        *actions.show_change = true;
+    }
 
     // Every change to the same thing, newest first, to jump between versions of it.
     let others = items
@@ -1026,6 +1133,7 @@ fn inspector(
                     .size()
                     .x
                     + 16.0;
+                let width = width.min(ui.available_width());
                 if led_button(
                     ui,
                     &text,
@@ -1036,7 +1144,7 @@ fn inspector(
                 )
                 .clicked()
                 {
-                    *pick = Some(other.index);
+                    *actions.jump = Some(other.index);
                 }
             }
         });
