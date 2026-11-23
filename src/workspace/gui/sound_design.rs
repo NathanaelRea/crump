@@ -2760,49 +2760,68 @@ fn paint_graph_node_card(
 
     // Header text: truncated node ID (left) + kind tag (right) with zero collision
     let kind_label = theme::node_kind_label(node.kind);
-    let id_max_chars = ((rect.width() / (8.5 * zoom.max(0.6))) as usize)
-        .saturating_sub(kind_label.len() + 2)
-        .max(5);
+    let id_font_size = (11.0 * zoom).clamp(9.0, 12.5);
+    let kind_font_size = (8.5 * zoom).clamp(7.5, 10.0);
+    let kind_w = kind_label.chars().count() as f32 * kind_font_size * 0.62;
+    let id_room = rect.width() - 13.0 - kind_w - 10.0;
+    let id_max_chars = ((id_room / (id_font_size * 0.56)) as usize).max(4);
     let clip = painter.with_clip_rect(rect.shrink(3.0));
     clip.text(
         Pos2::new(rect.left() + 7.0, header.center().y),
         Align2::LEFT_CENTER,
         truncate_text(&node.id, id_max_chars),
-        FontId::proportional((11.0 * zoom).clamp(9.0, 12.5)),
+        FontId::proportional(id_font_size),
         theme::TEXT_PRIMARY,
     );
     clip.text(
         Pos2::new(rect.right() - 6.0, header.center().y),
         Align2::RIGHT_CENTER,
         kind_label,
-        FontId::monospace((8.5 * zoom).clamp(7.5, 10.0)),
+        FontId::monospace(kind_font_size),
         accent,
     );
 
-    // Center body: compact top 2 settings (inset so they never touch port labels)
+    // Center body: compact top 2 settings, inset past the widest port label on each side so
+    // jack names and settings never overlap.
+    let port_font = FontId::monospace((8.0 * zoom).clamp(7.0, 9.5));
+    let port_char_w = port_font.size * 0.62;
+    let label_span = |ports: &[String], max: usize| {
+        let longest = ports.iter().map(|p| p.chars().count().min(max)).max();
+        longest.map_or(8.0, |len| 6.0 + len as f32 * port_char_w + 8.0)
+    };
+    let body_left = rect.left() + label_span(&ln.in_ports, 8);
+    let body_right = rect.right() - label_span(&ln.out_ports, 8);
+    let setting_font = FontId::monospace((9.0 * zoom).clamp(7.5, 10.5));
+    let setting_chars = ((body_right - body_left) / (setting_font.size * 0.62)).max(4.0) as usize;
     let body_clip = painter.with_clip_rect(Rect::from_min_max(
-        Pos2::new(rect.left() + 28.0 * zoom, header.bottom() + 2.0),
-        Pos2::new(rect.right() - 24.0 * zoom, rect.bottom() - 3.0),
+        Pos2::new(body_left, header.bottom() + 2.0),
+        Pos2::new(body_right, rect.bottom() - 3.0),
     ));
     let mut y = header.bottom() + 7.0 * zoom;
     for setting in node.settings.iter().take(2) {
-        let line = format!("{}: {}", setting.key, format_setting_value(&setting.value));
         body_clip.text(
-            Pos2::new(rect.left() + 30.0 * zoom, y),
+            Pos2::new(body_left, y),
             Align2::LEFT_TOP,
-            truncate_text(&line, 18),
-            FontId::monospace((9.0 * zoom).clamp(7.5, 10.5)),
+            truncate_text(&setting.key, setting_chars),
+            setting_font.clone(),
+            theme::TEXT_MUTED,
+        );
+        y += 11.0 * zoom;
+        body_clip.text(
+            Pos2::new(body_left, y),
+            Align2::LEFT_TOP,
+            truncate_text(&format_setting_value(&setting.value), setting_chars),
+            setting_font.clone(),
             if matches!(setting.value, SettingValue::Parameter(_)) {
                 theme::ACCENT_CYAN
             } else {
-                theme::TEXT_SECONDARY
+                theme::TEXT_PRIMARY
             },
         );
         y += 14.0 * zoom;
     }
 
     // Named per-port Input Jacks (left edge)
-    let port_font = FontId::monospace((8.0 * zoom).clamp(7.0, 9.5));
     for port in &ln.in_ports {
         let p = ln.in_port_pos(port, header_h);
         painter.circle_filled(p, 3.2, theme::BG_WELL);
@@ -2810,7 +2829,7 @@ fn paint_graph_node_card(
         clip.text(
             Pos2::new(rect.left() + 6.0, p.y),
             Align2::LEFT_CENTER,
-            truncate_text(port, 5),
+            truncate_text(port, 8),
             port_font.clone(),
             theme::TEXT_MUTED,
         );
@@ -2824,7 +2843,7 @@ fn paint_graph_node_card(
         clip.text(
             Pos2::new(rect.right() - 6.0, p.y),
             Align2::RIGHT_CENTER,
-            truncate_text(port, 4),
+            truncate_text(port, 8),
             port_font.clone(),
             theme::TEXT_MUTED,
         );

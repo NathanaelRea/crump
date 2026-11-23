@@ -480,38 +480,14 @@ pub(super) fn diagnostics(ui: &mut Ui, cx: &mut Cx<'_>) {
                                             .corner_radius(6.0)
                                             .inner_margin(egui::Margin::symmetric(16, 10))
                                             .show(ui, |ui| {
-                                                ui.horizontal(|ui| {
-                                                    ui.spacing_mut().item_spacing.x = 18.0;
-                                                    stat_pill(
-                                                        ui,
-                                                        "TRACKS",
-                                                        &project.song.tracks.len().to_string(),
-                                                    );
-                                                    ui.separator();
-                                                    stat_pill(
-                                                        ui,
-                                                        "INSTRUMENTS",
-                                                        &project.song.instruments.len().to_string(),
-                                                    );
-                                                    ui.separator();
-                                                    stat_pill(
-                                                        ui,
-                                                        "PATTERNS",
-                                                        &project.song.patterns.len().to_string(),
-                                                    );
-                                                    ui.separator();
-                                                    stat_pill(
-                                                        ui,
-                                                        "AUTOMATIONS",
-                                                        &project.song.automations.len().to_string(),
-                                                    );
-                                                    ui.separator();
-                                                    stat_pill(
-                                                        ui,
-                                                        "FILES",
-                                                        &app.bundle.sources.len().to_string(),
-                                                    );
-                                                });
+                                                let stats = [
+                                                    ("TRACKS", project.song.tracks.len()),
+                                                    ("INSTRUMENTS", project.song.instruments.len()),
+                                                    ("PATTERNS", project.song.patterns.len()),
+                                                    ("AUTOMATIONS", project.song.automations.len()),
+                                                    ("FILES", app.bundle.sources.len()),
+                                                ];
+                                                stat_strip(ui, &stats);
                                             });
                                     }
 
@@ -777,6 +753,7 @@ fn preflight_check_row(ui: &mut Ui, ok: bool, title: &str, detail: &str) {
         .corner_radius(5.0)
         .inner_margin(egui::Margin::symmetric(10, 8))
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
                 let (dot, _) = ui.allocate_exact_size(Vec2::splat(10.0), Sense::hover());
                 ui.painter().circle_filled(dot.center(), 4.0, color);
@@ -797,17 +774,39 @@ fn preflight_check_row(ui: &mut Ui, ok: bool, title: &str, detail: &str) {
         });
 }
 
-fn stat_pill(ui: &mut Ui, label: &str, value: &str) {
-    ui.vertical_centered(|ui| {
-        ui.label(
-            RichText::new(value)
-                .monospace()
-                .strong()
-                .size(15.0)
-                .color(theme::ACCENT_CYAN),
+/// Evenly spaced headline counts with hairline dividers between cells.
+fn stat_strip(ui: &mut Ui, stats: &[(&str, usize)]) {
+    let height = 46.0;
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
+    let cell = rect.width() / stats.len().max(1) as f32;
+    let painter = ui.painter();
+    for (index, (label, value)) in stats.iter().enumerate() {
+        let x = rect.left() + cell * index as f32;
+        if index > 0 {
+            painter.line_segment(
+                [
+                    Pos2::new(x, rect.top() + 6.0),
+                    Pos2::new(x, rect.bottom() - 6.0),
+                ],
+                Stroke::new(1.0_f32, theme::SEAM_DARK),
+            );
+        }
+        let center = x + cell * 0.5;
+        painter.text(
+            Pos2::new(center, rect.top() + 16.0),
+            Align2::CENTER_CENTER,
+            value.to_string(),
+            FontId::monospace(18.0),
+            theme::ACCENT_CYAN,
         );
-        ui.label(RichText::new(label).size(9.0).color(theme::TEXT_MUTED));
-    });
+        painter.text(
+            Pos2::new(center, rect.top() + 36.0),
+            Align2::CENTER_CENTER,
+            *label,
+            FontId::proportional(9.5),
+            theme::TEXT_MUTED,
+        );
+    }
 }
 
 // ── 3. Studio Revision History Timeline + Inline Inspector ───────────────────────
