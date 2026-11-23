@@ -216,17 +216,10 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
                     }
                     if let Some(ev) = pattern.events.get(selected) {
                         ui.label(
-                            RichText::new(event_compact_summary(
-                                ev,
-                                project
-                                    .song
-                                    .meter
-                                    .bar_length()
-                                    .map_or(4.0, MusicalTime::as_f64),
-                            ))
-                            .monospace()
-                            .size(10.5)
-                            .color(theme::ACCENT_AMBER),
+                            RichText::new(event_compact_summary(ev, project.song.meter))
+                                .monospace()
+                                .size(10.5)
+                                .color(theme::TEXT_SECONDARY),
                         );
                     }
                 });
@@ -268,17 +261,23 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
                     .events
                     .iter()
                     .any(|e| matches!(e, PatternEvent::Note { .. }));
+            // Every row keeps a readable minimum height; when they outgrow the pane it scrolls
+            // vertically instead of clipping the lowest notes or lanes.
+            let row_count = build_roll_rows(pattern).0.len();
             let (roll_h, vel_h) = if drum_only {
-                let roll_h = 24.0 + 4.0 * 64.0 + 40.0;
-                (roll_h, (total_h - roll_h - 8.0).max(90.0))
+                let lanes = row_count.max(4);
+                let lane_h = if lanes <= 4 { 64.0 } else { 44.0 };
+                let roll_h = 24.0 + lanes as f32 * lane_h + 40.0;
+                (roll_h, (total_h - roll_h - 8.0).clamp(90.0, 180.0))
             } else {
                 let vel_h = (total_h * 0.27).clamp(90.0, 148.0);
-                ((total_h - vel_h - 8.0).max(160.0), vel_h)
+                let min_roll = 24.0 + row_count as f32 * 15.0 + 40.0;
+                ((total_h - vel_h - 8.0).max(160.0).max(min_roll), vel_h)
             };
             let zoom = cx.state.roll_zoom.clamp(1.0, 4.0);
             let canvas_w = (ui.available_width().max(320.0) * zoom).max(320.0);
 
-            egui::ScrollArea::horizontal()
+            egui::ScrollArea::both()
                 .id_salt("piano-roll-hscroll")
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
@@ -293,7 +292,7 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
         });
 }
 
-fn event_compact_summary(ev: &PatternEvent, bar_q: f64) -> String {
+fn event_compact_summary(ev: &PatternEvent, meter: crate::time::Meter) -> String {
     match ev {
         PatternEvent::Note {
             at,
@@ -304,7 +303,7 @@ fn event_compact_summary(ev: &PatternEvent, bar_q: f64) -> String {
         } => format!(
             "{} @ {} len {} vel {:.0}%",
             crate::model::format_pitch(*pitch),
-            theme::format_bar_beat(at.as_f64(), bar_q),
+            theme::format_bar_beat(at.as_f64(), meter),
             duration,
             velocity * 100.0
         ),
@@ -316,7 +315,7 @@ fn event_compact_summary(ev: &PatternEvent, bar_q: f64) -> String {
         } => format!(
             "{} @ {} vel {:.0}%",
             drum_voice_label(*voice),
-            theme::format_bar_beat(at.as_f64(), bar_q),
+            theme::format_bar_beat(at.as_f64(), meter),
             velocity * 100.0
         ),
         PatternEvent::Sample {
@@ -327,7 +326,7 @@ fn event_compact_summary(ev: &PatternEvent, bar_q: f64) -> String {
             ..
         } => format!(
             "{mapping} @ {} len {} vel {:.0}%",
-            theme::format_bar_beat(at.as_f64(), bar_q),
+            theme::format_bar_beat(at.as_f64(), meter),
             duration,
             velocity * 100.0
         ),
@@ -1211,17 +1210,10 @@ fn piano_roll_canvas(
     response.context_menu(|ui| {
         if let Some(ev) = pattern.events.get(selected) {
             ui.label(
-                RichText::new(event_compact_summary(
-                    ev,
-                    project
-                        .song
-                        .meter
-                        .bar_length()
-                        .map_or(4.0, MusicalTime::as_f64),
-                ))
-                .monospace()
-                .size(10.0)
-                .color(theme::ACCENT_AMBER),
+                RichText::new(event_compact_summary(ev, project.song.meter))
+                    .monospace()
+                    .size(10.0)
+                    .color(theme::ACCENT_AMBER),
             );
             ui.separator();
             if ui.button("Edit Exact Value…").clicked() {
@@ -1756,18 +1748,22 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 6.0;
                 if let Some(pt) = lane.points.get(selected) {
-                    ui.label(
+                    widgets::fixed_label(
+                        ui,
+                        110.0,
                         RichText::new(format!("POINT {}", pt.id))
                             .size(10.5)
                             .strong()
-                            .color(theme::ACCENT_AMBER),
+                            .color(theme::TEXT_SECONDARY),
                     );
-                    ui.label(
+                    widgets::fixed_label(
+                        ui,
+                        170.0,
                         RichText::new(format!(
                             "@ {}  ·  {}",
                             theme::format_bar_beat(
                                 pt.at.as_f64(),
-                                project.song.meter.bar_length().map_or(4.0, MusicalTime::as_f64)
+                                project.song.meter
                             ),
                             unit.parse_value(&pt.value)
                                 .map_or_else(|_| pt.value.clone(), |v| theme::format_compact_value(v, unit))
@@ -1822,16 +1818,20 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                         }
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if lane.points.len() > 1
-                            && pt.at != MusicalTime::ZERO
-                            && led_button(
-                                ui,
-                                "Delete",
-                                false,
-                                theme::SIG_CLIP,
-                                Vec2::new(54.0, 22.0),
-                                "Delete selected automation point",
-                            )
+                        // Always in place, disabled when the point cannot go, so Exact… never moves.
+                        let deletable = lane.points.len() > 1 && pt.at != MusicalTime::ZERO;
+                        if ui
+                            .add_enabled_ui(deletable, |ui| {
+                                led_button(
+                                    ui,
+                                    "Delete",
+                                    false,
+                                    theme::SIG_CLIP,
+                                    Vec2::new(54.0, 22.0),
+                                    "Delete selected automation point",
+                                )
+                            })
+                            .inner
                             .clicked()
                         {
                             cx.send(Action::DeleteAutomationPoint {

@@ -4,7 +4,7 @@
 use egui::text::{LayoutJob, TextFormat};
 
 use super::theme::{self, with_alpha};
-use super::widgets::{legible, section_header, unavailable};
+use super::widgets::{self, legible, section_header, unavailable};
 use super::*;
 use crate::diagnostic::Severity;
 use crate::history::SourceChangeKind;
@@ -542,16 +542,7 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
                     }
                     // The empty state carries its own Publish action; don't repeat it here.
                     if !app.history.is_empty()
-                        && ui
-                            .add(
-                                egui::Button::new(
-                                    RichText::new("Publish Revision")
-                                        .strong()
-                                        .size(11.0)
-                                        .color(theme::BG_WELL),
-                                )
-                                .fill(theme::ACCENT_AMBER),
-                            )
+                        && widgets::publish_button(ui, "Publish Revision", needs_publish(app))
                             .clicked()
                     {
                         cx.send(Action::OpenPublish);
@@ -591,17 +582,7 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
                 .color(theme::TEXT_SECONDARY),
             );
             ui.add_space(14.0);
-            if ui
-                .add(
-                    egui::Button::new(
-                        RichText::new("Publish Revision")
-                            .strong()
-                            .size(11.5)
-                            .color(theme::BG_WELL),
-                    )
-                    .fill(theme::ACCENT_AMBER),
-                )
-                .clicked()
+            if widgets::publish_button(ui, "Publish Revision", needs_publish(app)).clicked()
             {
                 cx.send(Action::OpenPublish);
             }
@@ -1195,6 +1176,13 @@ fn desktop_help_text(line: &str) -> String {
         .replace("↑/↓", "Up/Down")
         .replace("Ctrl-C is the only exit", "Ctrl-C quits")
         .replace("plays C4–C5", "plays one octave from the keyboard's C")
+        // The shared help names views as the terminal does; use the window's tab labels.
+        .replace("Event Grid", "Piano Roll")
+        .replace("Processing", "FX Rack")
+        .replace("Graph:", "Patch Graph:")
+        .replace("Instrument:", "Synth:")
+        .replace("gi Instrument", "gi Synth")
+        .replace("Instrument views", "Sound views")
 }
 
 /// Whether a help token names a key or chord rather than an ordinary word.

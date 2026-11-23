@@ -973,7 +973,7 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                             }
                             let is_sel = idx == selected_row;
                             let kind_color = match row.kind {
-                                Some(PresentationItemKind::Node) => theme::ACCENT_AMBER,
+                                Some(PresentationItemKind::Node) => theme::TEXT_SECONDARY,
                                 Some(PresentationItemKind::Parameter) => theme::ACCENT_CYAN,
                                 Some(PresentationItemKind::Route)
                                 | Some(PresentationItemKind::Source) => theme::ACCENT_VIOLET,
@@ -2424,7 +2424,8 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
     painter.rect_stroke(
         voice_box,
         8.0,
-        Stroke::new(1.0_f32, with_alpha(theme::ACCENT_AMBER, 0.38)),
+        // Neutral container: amber is kept for selection, and this frame wraps everything.
+        Stroke::new(1.0_f32, theme::BORDER_STRONG),
         StrokeKind::Inside,
     );
     painter.text(
@@ -2436,7 +2437,7 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
             format!("POLYPHONIC VOICE DOMAIN · {} VOICES", instrument.polyphony)
         },
         FontId::monospace((10.0 * zoom).clamp(8.5, 11.0)),
-        theme::ACCENT_AMBER,
+        theme::TEXT_MUTED,
     );
 
     // Paint Shared Domain container + bridge cable
@@ -2445,7 +2446,7 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
         painter.rect_stroke(
             sbox,
             8.0,
-            Stroke::new(1.0_f32, with_alpha(theme::ACCENT_CYAN, 0.42)),
+            Stroke::new(1.0_f32, theme::BORDER_STRONG),
             StrokeKind::Inside,
         );
         painter.text(
@@ -2453,7 +2454,7 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
             Align2::LEFT_TOP,
             "SHARED POST-VOICE FX DOMAIN",
             FontId::monospace((10.0 * zoom).clamp(8.5, 11.0)),
-            theme::ACCENT_CYAN,
+            theme::TEXT_MUTED,
         );
 
         let (p0, p1) = if stack_shared_below {
@@ -3528,19 +3529,20 @@ fn draw_parameter_matrix_card(
                         .size(9.5)
                         .color(theme::TEXT_MUTED),
                     );
-                    if let Some(eff) = mod_eff
-                        && (eff - param.value).abs() > 1e-3
-                    {
-                        ui.label(
-                            RichText::new(format!(
-                                "Live {}",
-                                theme::format_compact_value(eff, param.unit)
-                            ))
+                    // The Live row always takes its line, so cards keep their height as
+                    // modulation moves the effective value on and off the authored one.
+                    let live = mod_eff
+                        .filter(|eff| (eff - param.value).abs() > 1e-3)
+                        .map_or_else(
+                            || " ".to_owned(),
+                            |eff| format!("Live {}", theme::format_compact_value(eff, param.unit)),
+                        );
+                    ui.label(
+                        RichText::new(live)
                             .monospace()
                             .size(9.5)
                             .color(theme::ACCENT_CYAN),
-                        );
-                    }
+                    );
                 });
             });
         });

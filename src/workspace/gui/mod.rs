@@ -618,33 +618,27 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                     // One position format everywhere: bar.beat.sixteenth, 1-based.
                     let pos_text = match (&app.bundle.project, app.player.is_some()) {
                         (Some(project), playing) => {
-                            let bar_q = project
-                                .song
-                                .meter
-                                .bar_length()
-                                .map_or(4.0, crate::time::MusicalTime::as_f64);
                             let q = if playing {
                                 transport_quarter_notes(app)
                             } else {
                                 app.timeline_position().at.as_f64()
                             };
-                            theme::format_bar_beat(q, bar_q)
+                            theme::format_bar_beat(q, project.song.meter)
                         }
                         (None, true) => transport_label(app),
                         (None, false) => "1.1.1".to_owned(),
                     };
-                    ui.label(
-                        RichText::new(pos_text)
-                            .monospace()
-                            .strong()
-                            .size(13.5)
-                            .color(if playing {
-                                theme::SIG_NOMINAL
-                            } else {
-                                theme::TEXT_PRIMARY
-                            }),
-                    )
-                    .on_hover_text("Transport position (Bar:Beat)");
+                    // Fixed slot sized for `999.4.4`, so the deck never shifts as bars count up.
+                    let (pos_rect, pos_resp) =
+                        ui.allocate_exact_size(Vec2::new(70.0, 20.0), Sense::hover());
+                    ui.painter().text(
+                        pos_rect.center(),
+                        Align2::CENTER_CENTER,
+                        pos_text,
+                        FontId::monospace(13.5),
+                        theme::TEXT_PRIMARY,
+                    );
+                    pos_resp.on_hover_text("Transport position (bar.beat.sixteenth)");
 
                     // Draggable Tempo & Meter from Project
                     if let Some(project) = &app.bundle.project {
@@ -706,17 +700,23 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                         );
                     }
 
-                    // Active Voices badge when > 0
-                    if app.telemetry.engine.active_voices > 0 {
-                        ui.separator();
-                        ui.label(
-                            RichText::new(format!("{}v", app.telemetry.engine.active_voices))
-                                .monospace()
-                                .size(10.5)
-                                .color(theme::ACCENT_CYAN),
-                        )
-                        .on_hover_text("Active polyphonic synth voices");
-                    }
+                    // Active voices in a fixed slot that stays put when nothing sounds.
+                    ui.separator();
+                    let voices = app.telemetry.engine.active_voices;
+                    let (voice_rect, voice_resp) =
+                        ui.allocate_exact_size(Vec2::new(28.0, 20.0), Sense::hover());
+                    ui.painter().text(
+                        voice_rect.center(),
+                        Align2::CENTER_CENTER,
+                        format!("{voices}v"),
+                        FontId::monospace(10.5),
+                        if voices > 0 {
+                            theme::TEXT_SECONDARY
+                        } else {
+                            theme::TEXT_MUTED
+                        },
+                    );
+                    voice_resp.on_hover_text("Active polyphonic synth voices");
 
                     // Clean clickable Audition Target indicator
                     ui.separator();
@@ -729,7 +729,8 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                                     .size(10.5)
                                     .color(theme::ACCENT_CYAN),
                             )
-                            .fill(theme::BG_SURFACE),
+                            .fill(theme::BG_SURFACE)
+                            .min_size(Vec2::new(124.0, 20.0)),
                         )
                         .on_hover_text("Click to choose Audition target · A")
                         .clicked()
@@ -770,33 +771,13 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
                     cx.send(Action::ShowView(v));
                 }
             }
-            if let Some((label, color)) = issue_chip(app) {
-                let width = 14.0 + label.chars().count() as f32 * 6.4;
-                if widgets::led_button(
-                    ui,
-                    &label,
-                    true,
-                    color,
-                    Vec2::new(width, 22.0),
-                    "Problems in the Candidate source · click to inspect",
-                )
-                .tab_pressed()
-                {
-                    cx.send(Action::ShowView(View::Diagnostics));
-                }
-            }
 
             ui.separator();
 
             // Master Calibrated Logarithmic dBFS Meter (rendered left-to-right internally)
-            widgets::dbfs_meter_horizontal(
-                ui,
-                app.telemetry.engine.current_peak,
-                app.telemetry.engine.current_peak * 0.72,
-                78.0,
-                true,
-            )
-            .on_hover_text("Master Output Peak & RMS (dBFS)");
+            let (master_peak, master_avg) = master_levels(app);
+            widgets::dbfs_meter_horizontal(ui, master_peak, master_avg, 96.0, true)
+                .on_hover_text("Master peak and average (dBFS), as on the Master strip");
 
             // DSP CPU load indicator
             let dsp_pct = (app.telemetry.callback_utilization * 100.0).clamp(0.0, 99.9);
@@ -807,37 +788,23 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
             } else {
                 theme::TEXT_SECONDARY
             };
-            ui.label(
-                RichText::new(format!("DSP {dsp_pct:.0}%"))
-                    .monospace()
-                    .size(10.0)
-                    .color(dsp_color),
-            )
-            .on_hover_text("Audio callback DSP load");
+            let (dsp_rect, dsp_resp) =
+                ui.allocate_exact_size(Vec2::new(54.0, 20.0), Sense::hover());
+            ui.painter().text(
+                dsp_rect.right_center(),
+                Align2::RIGHT_CENTER,
+                format!("DSP {dsp_pct:.0}%"),
+                FontId::monospace(10.0),
+                dsp_color,
+            );
+            dsp_resp.on_hover_text("Audio callback DSP load");
 
             ui.separator();
 
             // Publish & Undo CTAs
-            // Amber only once the session has settled on a valid, unpublished Candidate: an edit
-            // publishes itself, and its reload must not flash the button on the way through.
             let settling = app.publication_settling();
-            let needs_publish =
-                !app.candidate_is_active() && !has_errors && !loading(app) && !settling;
-            if ui
-                .add(
-                    egui::Button::new(RichText::new("Publish").size(10.5).strong().color(
-                        if needs_publish {
-                            theme::BG_WELL
-                        } else {
-                            theme::TEXT_PRIMARY
-                        },
-                    ))
-                    .fill(if needs_publish {
-                        theme::ACCENT_AMBER
-                    } else {
-                        theme::BG_CARD
-                    }),
-                )
+            let needs_publish = needs_publish(app);
+            if widgets::publish_button(ui, "Publish", needs_publish)
                 .on_hover_text("Publish Candidate as Active Revision · P")
                 .clicked()
             {
@@ -870,8 +837,9 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
             let (dot_color, rev_tip) = if loading(app) {
                 (theme::TEXT_MUTED, "Loading Project…".to_owned())
             } else if has_errors {
+                // The error chip carries the colour; the dot only steps back.
                 (
-                    theme::SIG_CLIP,
+                    theme::TEXT_MUTED,
                     "Invalid Candidate (has diagnostics)".to_owned(),
                 )
             } else if app.candidate_is_active() || settling {
@@ -920,6 +888,23 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
             let (dot, dot_resp) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
             ui.painter().circle_filled(dot.center(), 3.8, dot_color);
             dot_resp.on_hover_text(rev_tip);
+
+            // Problems sit beside the project they belong to, left of everything that stays put.
+            if let Some((label, color)) = issue_chip(app) {
+                let width = 14.0 + label.chars().count() as f32 * 6.4;
+                if widgets::led_button(
+                    ui,
+                    &label,
+                    true,
+                    color,
+                    Vec2::new(width, 22.0),
+                    "Problems in the Candidate source · click to inspect",
+                )
+                .tab_pressed()
+                {
+                    cx.send(Action::ShowView(View::Diagnostics));
+                }
+            }
         });
     });
 }
@@ -935,6 +920,29 @@ fn compact_audition_target(app: &Workspace) -> String {
     } else {
         raw
     }
+}
+
+/// The Master bus peak and average, from its own meter when the engine reports one, so the top
+/// bar and the Master strip always agree.
+fn master_levels(app: &Workspace) -> (f32, f32) {
+    let engine = &app.telemetry.engine;
+    app.mix_channel_indexes
+        .get("master")
+        .copied()
+        .filter(|&index| index < engine.channel_count)
+        .map_or((engine.current_peak, engine.current_peak * 0.65), |index| {
+            let meter = engine.channel_activity[index];
+            (meter.current_peak, meter.average)
+        })
+}
+
+/// Whether a valid Candidate waits to be published. Only once the session has settled: an edit
+/// publishes itself, and its reload must not flash the Publish button on the way through.
+fn needs_publish(app: &Workspace) -> bool {
+    !app.candidate_is_active()
+        && !app.bundle.diagnostics.has_errors()
+        && !loading(app)
+        && !app.publication_settling()
 }
 
 /// The top-bar problem chip: only while the Candidate has diagnostics, red for errors.
@@ -1043,7 +1051,7 @@ fn footer(ui: &mut Ui, cx: &mut Cx<'_>) {
             let (dot, _) = ui.allocate_exact_size(Vec2::splat(6.0), Sense::hover());
             ui.painter().circle_filled(dot.center(), 2.8, color);
             // Leave room for the mode badge and the revision readout on the right.
-            let width = (ui.available_width() - 300.0).max(120.0);
+            let width = (ui.available_width() - 320.0).max(120.0);
             ui.allocate_ui(Vec2::new(width, 16.0), |ui| {
                 ui.add(
                     egui::Label::new(
@@ -1055,22 +1063,6 @@ fn footer(ui: &mut Ui, cx: &mut Cx<'_>) {
                 )
                 .on_hover_text(widgets::legible(&app.status));
             });
-        }
-
-        if app.note_mode {
-            ui.label(
-                RichText::new("NOTE MODE")
-                    .strong()
-                    .size(10.0)
-                    .color(theme::SIG_HOT),
-            );
-        } else if app.timeline_state.visual() && app.view == View::Timeline {
-            ui.label(
-                RichText::new("RANGE SELECT")
-                    .strong()
-                    .size(10.0)
-                    .color(theme::SIG_NOMINAL),
-            );
         }
 
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -1095,6 +1087,22 @@ fn footer(ui: &mut Ui, cx: &mut Cx<'_>) {
                     .monospace()
                     .size(9.5)
                     .color(theme::TEXT_MUTED),
+                );
+            }
+            // Mode badges sit on the fixed right side, so a status message never moves them.
+            if app.note_mode {
+                ui.label(
+                    RichText::new("NOTE MODE")
+                        .strong()
+                        .size(10.0)
+                        .color(theme::SIG_HOT),
+                );
+            } else if app.timeline_state.visual() && app.view == View::Timeline {
+                ui.label(
+                    RichText::new("RANGE SELECT")
+                        .strong()
+                        .size(10.0)
+                        .color(theme::SIG_NOMINAL),
                 );
             }
         });

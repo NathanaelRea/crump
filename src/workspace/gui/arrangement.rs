@@ -257,22 +257,26 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let cursor_str = theme::format_bar_beat(
                         app.timeline_position().at.as_f64(),
-                        project
-                            .song
-                            .meter
-                            .bar_length()
-                            .map_or(4.0, crate::time::MusicalTime::as_f64),
+                        project.song.meter,
                     );
-                    ui.label(
-                        RichText::new(format!("CUR {cursor_str}"))
-                            .monospace()
-                            .size(11.0)
-                            .color(theme::SIG_NOMINAL),
-                    )
-                    .on_hover_text("Cursor position · click to go to exact bar (:)")
-                    .interact(Sense::click())
-                    .clicked()
-                    .then(|| cx.send(TimelineAction::OpenGoto));
+                    // Fixed slot, so the locator pills hold still as the cursor crosses bar 10.
+                    let (cur_rect, cur_resp) =
+                        ui.allocate_exact_size(Vec2::new(92.0, 14.0), Sense::click());
+                    ui.painter().text(
+                        cur_rect.right_center(),
+                        Align2::RIGHT_CENTER,
+                        format!("CUR {cursor_str}"),
+                        FontId::monospace(11.0),
+                        if cur_resp.hovered() {
+                            theme::TEXT_PRIMARY
+                        } else {
+                            theme::TEXT_SECONDARY
+                        },
+                    );
+                    cur_resp
+                        .on_hover_text("Cursor position · click to go to exact bar (:)")
+                        .clicked()
+                        .then(|| cx.send(TimelineAction::OpenGoto));
 
                     if !project.song.locators.is_empty() {
                         ui.separator();
@@ -284,7 +288,7 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                                 ui,
                                 &locator.name,
                                 at_here,
-                                theme::SIG_HOT,
+                                theme::TEXT_SECONDARY,
                                 Vec2::new(
                                     (locator.name.len() as f32 * 6.5 + 14.0).clamp(42.0, 92.0),
                                     20.0,
@@ -417,14 +421,7 @@ fn lanes(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
             "{:.0} BPM · {} · END {}",
             project.song.tempo_bpm,
             project.song.meter,
-            theme::format_bar_beat(
-                project.song.end.as_f64(),
-                project
-                    .song
-                    .meter
-                    .bar_length()
-                    .map_or(4.0, crate::time::MusicalTime::as_f64),
-            )
+            theme::format_bar_beat(project.song.end.as_f64(), project.song.meter,)
         ),
         FontId::monospace(10.0),
         theme::TEXT_SECONDARY,
@@ -638,7 +635,7 @@ fn track_header(
             ui,
             "M",
             track.channel.mute,
-            theme::SIG_CLIP,
+            theme::MUTE_LIT,
             Vec2::new(19.0, 17.0),
             "Mute Track (authored)",
         )

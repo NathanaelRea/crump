@@ -732,3 +732,14 @@ fn an_edit_never_shows_its_candidate_as_unpublished_on_the_way_through() {
     }
     app.shutdown();
 }
+
+#[test]
+fn positions_count_beats_in_the_meter_denominator() {
+    let common = crate::time::Meter::new(4, 4).expect("4/4");
+    assert_eq!(theme::format_bar_beat(0.0, common), "1.1.1");
+    assert_eq!(theme::format_bar_beat(5.75, common), "2.2.4");
+    let compound = crate::time::Meter::new(6, 8).expect("6/8");
+    // Six eighth-note beats of two sixteenths each, three quarter notes to the bar.
+    assert_eq!(theme::format_bar_beat(2.5, compound), "1.6.1");
+    assert_eq!(theme::format_bar_beat(3.25, compound), "2.1.2");
+}

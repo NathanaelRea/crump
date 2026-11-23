@@ -96,7 +96,7 @@ pub(super) fn paint_dbfs_meter_vertical(painter: &egui::Painter, rect: Rect, pea
     painter.hline(
         inner.x_range(),
         zero_y.clamp(bar_top, inner.bottom()),
-        Stroke::new(0.8_f32, with_alpha(theme::ACCENT_AMBER, 0.35)),
+        Stroke::new(0.8_f32, with_alpha(theme::TEXT_SECONDARY, 0.35)),
     );
 
     for s in 0..segments {
@@ -147,7 +147,7 @@ pub(super) fn dbfs_meter_horizontal(
     width: f32,
     show_readout: bool,
 ) -> egui::Response {
-    let readout_w = if show_readout { 44.0 } else { 0.0 };
+    let readout_w = if show_readout { 52.0 } else { 0.0 };
     let bar_w = (width - readout_w - if show_readout { 5.0 } else { 0.0 }).max(24.0);
     ui.allocate_ui_with_layout(
         Vec2::new(width, 14.0),
@@ -178,9 +178,11 @@ pub(super) fn dbfs_meter_horizontal(
                 let frac_high = (s + 1) as f32 / segments as f32;
                 let x0 = inner.left() + s as f32 * (seg_w + gap);
                 let x1 = (x0 + seg_w).min(inner.right());
-                let base_color = if frac_high >= 0.88 {
+                // Same dBFS zones as the vertical meter: red above 0 dBFS, amber above -6.
+                let frac_mid = (frac_low + frac_high) * 0.5;
+                let base_color = if frac_mid >= theme::dbfs_to_norm(0.0) {
                     theme::SIG_CLIP
-                } else if frac_high >= 0.65 {
+                } else if frac_mid >= theme::dbfs_to_norm(-6.0) {
                     theme::SIG_HOT
                 } else {
                     theme::SIG_NOMINAL
@@ -207,15 +209,24 @@ pub(super) fn dbfs_meter_horizontal(
                 );
             }
             if show_readout {
+                // A fixed, right-aligned slot so `-4.2 dB` and `-inf dB` never move neighbours.
+                // Healthy levels read neutral; colour is kept for near-clip and clip.
                 let db_text = format!("{} dB", theme::format_dbfs(peak));
                 let color = if peak >= 0.99 {
                     theme::SIG_CLIP
-                } else if peak_db >= -6.0 {
+                } else if peak_db >= -1.0 {
                     theme::SIG_HOT
                 } else {
                     theme::TEXT_SECONDARY
                 };
-                ui.label(RichText::new(db_text).monospace().size(10.5).color(color));
+                let (slot, _) = ui.allocate_exact_size(Vec2::new(readout_w, 14.0), Sense::hover());
+                ui.painter().text(
+                    slot.right_center(),
+                    Align2::RIGHT_CENTER,
+                    db_text,
+                    FontId::monospace(10.5),
+                    color,
+                );
             }
             response
         },
@@ -691,8 +702,9 @@ pub(super) fn vertical_fader(
         let n = fader_db_to_norm(tick_db, min_db, max_db);
         let y = track_bot - n * track_span;
         let is_unity = tick_db.abs() < 0.01;
+        // Unity stands out by weight and brightness, not by a warning colour.
         let tick_color = if is_unity {
-            theme::ACCENT_AMBER
+            theme::TEXT_SECONDARY
         } else {
             theme::BORDER_STRONG
         };
@@ -714,7 +726,7 @@ pub(super) fn vertical_fader(
                 },
                 FontId::monospace(8.5),
                 if is_unity {
-                    theme::ACCENT_AMBER
+                    theme::TEXT_SECONDARY
                 } else {
                     theme::TEXT_MUTED
                 },
@@ -870,12 +882,15 @@ pub(super) fn horizontal_mini_slider(
     // show so it never jitters while dragging. The fill lives only in the rail to its left, so no
     // fill boundary can ever split the digits.
     let value_font = FontId::monospace(10.0);
-    let gutter_w = [min, max, current]
-        .iter()
+    // Sampled across the whole range rather than including the live value, so an intermediate
+    // value wider than either end (`-59.4 dB`) cannot widen the gutter mid-drag.
+    let gutter_w = (0..=16)
+        .map(|step: u8| theme::norm_to_value(f32::from(step) / 16.0, min, max, unit))
+        .chain([min, max, default])
         .map(|v| {
             painter
                 .layout_no_wrap(
-                    theme::format_compact_value(*v, unit),
+                    theme::format_compact_value(v, unit),
                     value_font.clone(),
                     theme::TEXT_PRIMARY,
                 )
@@ -965,6 +980,41 @@ pub(super) fn horizontal_mini_slider(
 // ── Hardware LED Switches & Segmented Pills ─────────────────────────────────
 
 /// Crisp studio hardware LED toggle switch (`M`, `S`, `C`, `A`, etc.).
+/// A left-aligned label in a slot of exactly `width`, truncated with a tooltip when it overflows,
+/// so changing text never moves the widgets after it.
+pub(super) fn fixed_label(ui: &mut Ui, width: f32, text: RichText) -> egui::Response {
+    ui.allocate_ui_with_layout(
+        Vec2::new(width, ui.spacing().interact_size.y),
+        Layout::left_to_right(Align::Center),
+        |ui| {
+            ui.set_min_width(width);
+            ui.add(egui::Label::new(text).truncate())
+        },
+    )
+    .inner
+}
+
+/// The one Publish control style: neutral, with an amber outline and text only while a valid
+/// Candidate waits to be published. Filled amber is kept for the publish dialog itself.
+pub(super) fn publish_button(ui: &mut Ui, label: &str, needs_publish: bool) -> egui::Response {
+    let (text, stroke) = if needs_publish {
+        (
+            theme::ACCENT_AMBER,
+            Stroke::new(1.0_f32, theme::ACCENT_AMBER),
+        )
+    } else {
+        (
+            theme::TEXT_SECONDARY,
+            Stroke::new(1.0_f32, theme::BORDER_SUBTLE),
+        )
+    };
+    ui.add(
+        egui::Button::new(RichText::new(label).size(10.5).strong().color(text))
+            .fill(theme::BG_CARD)
+            .stroke(stroke),
+    )
+}
+
 /// Selection of a tab-like control that should take effect on mouse-down.
 pub(super) trait TabPress {
     /// Whether the control was pressed or clicked this frame. Tabs select on press, as a

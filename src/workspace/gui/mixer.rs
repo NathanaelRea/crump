@@ -469,7 +469,7 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                                     ui,
                                     "M",
                                     desc.channel.mute,
-                                    theme::SIG_CLIP,
+                                    theme::MUTE_LIT,
                                     Vec2::new(btn_w, 20.0),
                                     "Durable source Mute · m",
                                 )
@@ -778,21 +778,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
     let selected_idx = clamp_index(app.selected_mixer_parameter, app.mixer_parameters.len());
     let is_selected = level_idx == Some(selected_idx);
 
-    let (peak, avg) = app
-        .mix_channel_indexes
-        .get("master")
-        .copied()
-        .filter(|&i| i < app.telemetry.engine.channel_count)
-        .map_or(
-            (
-                app.telemetry.engine.current_peak,
-                app.telemetry.engine.current_peak * 0.65,
-            ),
-            |i| {
-                let m = app.telemetry.engine.channel_activity[i];
-                (m.current_peak, m.average)
-            },
-        );
+    let (peak, avg) = master_levels(app);
     let peak_db = theme::amp_to_dbfs(peak);
     let headroom = (0.0 - peak_db).max(0.0);
 
@@ -863,14 +849,14 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                                             format!("{} dB", theme::format_dbfs(peak)),
                                             if peak >= 0.99 {
                                                 theme::SIG_CLIP
-                                            } else if peak_db >= -6.0 {
+                                            } else if peak_db >= -1.0 {
                                                 theme::SIG_HOT
                                             } else {
-                                                theme::SIG_NOMINAL
+                                                theme::TEXT_PRIMARY
                                             },
                                         ),
                                         (
-                                            "RMS",
+                                            "Avg",
                                             format!("{} dB", theme::format_dbfs(avg)),
                                             theme::TEXT_SECONDARY,
                                         ),
@@ -977,7 +963,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                 // Compact recessed Master dB readout (never stretches vertically!)
                 let readout_resp = egui::Frame::new()
                     .fill(theme::BG_WELL)
-                    .stroke(Stroke::new(1.0_f32, with_alpha(theme::ACCENT_AMBER, 0.45)))
+                    .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
                     .corner_radius(3.0)
                     .inner_margin(egui::Margin::symmetric(4, 3))
                     .show(ui, |ui| {
@@ -988,7 +974,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                                     .monospace()
                                     .size(11.0)
                                     .strong()
-                                    .color(theme::ACCENT_AMBER),
+                                    .color(theme::TEXT_PRIMARY),
                             );
                         });
                     })

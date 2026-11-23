@@ -205,18 +205,18 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ui.spacing_mut().item_spacing.x = 0.0;
                         let mut prev_owner: Option<&str> = None;
                         for (global_idx, proc) in visible {
-                            let is_new_owner = prev_owner.is_some_and(|p| p != proc.owner);
-                            if let Some(prev) = prev_owner {
-                                signal_connector(
+                            match prev_owner {
+                                Some(prev) if prev == proc.owner => {
+                                    signal_connector(ui, true, None, tallest, true);
+                                }
+                                // Every chain, the first included, opens with its owner badge.
+                                prev => signal_connector(
                                     ui,
-                                    prev == proc.owner,
-                                    if is_new_owner {
-                                        Some(short_owner_label(&proc.owner))
-                                    } else {
-                                        None
-                                    },
+                                    false,
+                                    Some(short_owner_label(&proc.owner)),
                                     tallest,
-                                );
+                                    prev.is_some(),
+                                ),
                             }
                             prev_owner = Some(proc.owner.as_str());
                             // Every card shares the tallest card's height so footers align.
@@ -290,8 +290,26 @@ fn short_owner_label(owner: &str) -> &str {
     owner.split('/').next_back().unwrap_or(owner)
 }
 
-fn signal_connector(ui: &mut Ui, same_chain: bool, next_owner: Option<&str>, height: f32) {
-    let w = if same_chain { 22.0 } else { 42.0 };
+fn signal_connector(
+    ui: &mut Ui,
+    same_chain: bool,
+    next_owner: Option<&str>,
+    height: f32,
+    divider: bool,
+) {
+    let badge_font = FontId::monospace(8.0);
+    let badge_w = next_owner.map_or(0.0, |owner| {
+        ui.painter()
+            .layout_no_wrap(owner.to_uppercase(), badge_font.clone(), theme::ACCENT_CYAN)
+            .size()
+            .x
+            + 10.0
+    });
+    let w = if same_chain {
+        22.0
+    } else {
+        (badge_w + 6.0).max(42.0)
+    };
     let (rect, _) = ui.allocate_exact_size(Vec2::new(w, height), Sense::hover());
     let p = ui.painter();
     let cy = rect.top() + 86.0;
@@ -313,15 +331,17 @@ fn signal_connector(ui: &mut Ui, same_chain: bool, next_owner: Option<&str>, hei
             Stroke::NONE,
         ));
     } else {
-        p.vline(
-            rect.center().x,
-            (rect.top() + 26.0)..=(rect.bottom() - 10.0),
-            Stroke::new(1.0_f32, theme::BORDER_STRONG),
-        );
+        if divider {
+            p.vline(
+                rect.center().x,
+                (rect.top() + 26.0)..=(rect.bottom() - 10.0),
+                Stroke::new(1.0_f32, theme::BORDER_STRONG),
+            );
+        }
         if let Some(owner) = next_owner {
             let badge = Rect::from_center_size(
                 Pos2::new(rect.center().x, rect.top() + 12.0),
-                Vec2::new(38.0, 16.0),
+                Vec2::new(badge_w, 16.0),
             );
             p.rect_filled(badge, 3.0, with_alpha(theme::ACCENT_CYAN, 0.2));
             p.rect_stroke(
@@ -334,7 +354,7 @@ fn signal_connector(ui: &mut Ui, same_chain: bool, next_owner: Option<&str>, hei
                 badge.center(),
                 Align2::CENTER_CENTER,
                 owner.to_uppercase(),
-                FontId::monospace(8.0),
+                badge_font,
                 theme::ACCENT_CYAN,
             );
         }
@@ -457,7 +477,7 @@ fn device_card(
                             let led_color = if transient.is_some() {
                                 theme::SIG_HOT
                             } else if active_audio {
-                                theme::SIG_NOMINAL
+                                theme::TEXT_SECONDARY
                             } else {
                                 theme::TEXT_MUTED
                             };
@@ -758,15 +778,17 @@ fn device_card(
                                 );
                             }
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                // The normal, processing state stays unlit; only a bypassed
+                                // device lights up.
                                 if led_button(
                                     ui,
                                     if proc.authored_bypass {
                                         "BYPASSED"
                                     } else {
-                                        "ACTIVE"
+                                        "Bypass"
                                     },
-                                    !proc.authored_bypass,
-                                    theme::SIG_NOMINAL,
+                                    proc.authored_bypass,
+                                    theme::SIG_HOT,
                                     Vec2::new(66.0, 18.0),
                                     "Toggle durable source bypass · B",
                                 )
@@ -852,12 +874,12 @@ fn focused_device_inspector(
             if led_button(
                 ui,
                 if proc.authored_bypass {
-                    "SOURCE OFF"
+                    "BYPASSED"
                 } else {
-                    "SOURCE ON"
+                    "Bypass"
                 },
-                !proc.authored_bypass,
-                theme::SIG_NOMINAL,
+                proc.authored_bypass,
+                theme::SIG_HOT,
                 Vec2::new(76.0, 20.0),
                 "Toggle durable source bypass · B",
             )
@@ -1536,8 +1558,9 @@ fn paint_dynamics_preview(
         Align2::LEFT_TOP,
         format!("GR {}", theme::format_db(f64::from(gr_db))),
         FontId::monospace(9.5),
+        // Gain reduction is normal compressor work, not a warning: neutral text.
         if gr_db.abs() > 0.3 {
-            theme::ACCENT_AMBER
+            theme::TEXT_SECONDARY
         } else {
             theme::TEXT_MUTED
         },
