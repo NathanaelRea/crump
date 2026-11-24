@@ -2589,3 +2589,199 @@ fn instrument_modulation_route_edits_use_checked_cli_operations() {
     assert!(source.contains("macro-tone source macro-source target tone depth 0.4"));
     assert!(source.contains("order -20 bypass true"));
 }
+
+#[test]
+fn render_wrap_tail_policy_and_cli_override_match_manifest_contract() {
+    let root = fixture_project();
+    let source_path = root.path().join("project.crump");
+    let source = fs::read_to_string(&source_path)
+        .expect("read minimal fixture")
+        .replacen("render_tail 250ms", "render_tail 250ms wrap", 1);
+    fs::write(&source_path, source).expect("write wrap fixture");
+    publish(&root);
+
+    // Plan reports wrap tail_policy and arrangement-only output_frame_count.
+    let plan_wrap = response(&invoke(
+        &root,
+        &["render", "--plan", "--output", "out/wrap"],
+    ));
+    assert_eq!(plan_wrap["ok"], true);
+    let range = &plan_wrap["data"]["render_range"];
+    assert_eq!(range["tail_policy"], "wrap");
+    assert_eq!(range["output_frame_count"], range["arrangement_end_frame"]);
+    assert!(range["render_tail_frames"].as_u64().unwrap() > 0);
+
+    // CLI override `--tail append` overrides the Project's authored `wrap` policy.
+    let plan_append = response(&invoke(
+        &root,
+        &[
+            "render",
+            "--plan",
+            "--tail",
+            "append",
+            "--output",
+            "out/append",
+        ],
+    ));
+    assert_eq!(plan_append["data"]["render_range"]["tail_policy"], "append");
+    assert_eq!(
+        plan_append["data"]["render_range"]["output_frame_count"],
+        plan_append["data"]["render_range"]["end_frame_exclusive"]
+    );
+
+    // Actual wrap render produces schema_version 3 manifest with active_rms_dbfs on master & stem.
+    let rendered = response(&invoke(
+        &root,
+        &[
+            "render",
+            "--output",
+            "out/wrap",
+            "--stem",
+            "track/lead:post_fader",
+        ],
+    ));
+    assert_eq!(rendered["ok"], true);
+    let manifest = &rendered["data"]["render"]["manifest"];
+    assert_eq!(manifest["schema_version"], 3);
+    assert_eq!(manifest["tail_policy"], "wrap");
+    assert_eq!(manifest["frame_count"], manifest["arrangement_frames"]);
+    assert!(manifest["pre_wrap_peak"].is_number());
+    assert!(manifest["wrap_peak_exceeded"].is_boolean());
+    assert_eq!(manifest["analysis"]["schema_version"], 3);
+    assert!(manifest["analysis"]["rms_dbfs"].is_number());
+    assert!(manifest["analysis"]["active_rms_dbfs"].is_number());
+    assert_eq!(manifest["analysis"]["active_rms_gate_dbfs"], -60.0);
+    assert_eq!(
+        manifest["stems"][0]["frame_count"],
+        manifest["arrangement_frames"]
+    );
+    assert!(manifest["stems"][0]["analysis"]["active_rms_dbfs"].is_number());
+}
+
+#[test]
+fn mix_level_to_writes_history_reports_peak_and_is_idempotent_within_tolerance() {
+    let root = fixture_project();
+    publish(&root);
+
+    // Dry run reports planned delta and resulting peak without creating a History entry.
+    let dry = invoke(
+        &root,
+        &[
+            "mix",
+            "level-to",
+            "--owner",
+            "track/lead",
+            "--target",
+            "-20db",
+            "--measure",
+            "active-rms",
+            "--dry-run",
+        ],
+    );
+    assert!(
+        dry.status.success(),
+        "{}",
+        String::from_utf8_lossy(&dry.stdout)
+    );
+    let dry_json = response(&dry);
+    assert_eq!(dry_json["ok"], true);
+    assert_eq!(dry_json["command"], "mix.level_to");
+    assert_eq!(dry_json["data"]["dry_run"], true);
+    assert_eq!(dry_json["data"]["changed"], false);
+    assert!(dry_json["data"]["history_entry"].is_null());
+    assert!(dry_json["data"]["resulting_sample_peak_dbfs"].is_number());
+    assert!(dry_json["data"]["resulting_true_peak_dbtp"].is_number());
+
+    // Real run edits Authoritative Source and publishes a History entry.
+    let applied = invoke(
+        &root,
+        &[
+            "mix",
+            "level-to",
+            "--owner",
+            "track/lead",
+            "--target",
+            "-20db",
+            "--measure",
+            "active-rms",
+            "--summary",
+            "Target lead active RMS to -20 dBFS",
+        ],
+    );
+    assert!(
+        applied.status.success(),
+        "{}",
+        String::from_utf8_lossy(&applied.stdout)
+    );
+    let applied_json = response(&applied);
+    assert_eq!(applied_json["ok"], true);
+    assert_eq!(applied_json["data"]["changed"], true);
+    assert_eq!(
+        applied_json["data"]["history_entry"]["summary"],
+        "Target lead active RMS to -20 dBFS"
+    );
+    let new_level = applied_json["data"]["new_level_db"].as_f64().unwrap();
+    let source =
+        fs::read_to_string(root.path().join("project.crump")).expect("read updated source");
+    assert!(
+        source.contains(&format!("level {new_level}db")),
+        "expected updated level {new_level}db in source:\n{source}"
+    );
+
+    // Second run is a no-op within tolerance and does not append another History entry.
+    let second = invoke(
+        &root,
+        &[
+            "mix",
+            "level-to",
+            "--owner",
+            "track/lead",
+            "--target",
+            "-20db",
+            "--measure",
+            "active-rms",
+        ],
+    );
+    assert!(second.status.success());
+    let second_json = response(&second);
+    assert_eq!(second_json["data"]["changed"], false);
+    assert_eq!(second_json["data"]["within_tolerance"], true);
+    assert!(second_json["data"]["history_entry"].is_null());
+
+    // Master integrated-lufs target updates Master level and is reflected in `crump render`.
+    let master = invoke(
+        &root,
+        &[
+            "mix",
+            "level-to",
+            "--owner",
+            "master",
+            "--target",
+            "-16lufs",
+            "--measure",
+            "integrated-lufs",
+        ],
+    );
+    assert!(
+        master.status.success(),
+        "{}",
+        String::from_utf8_lossy(&master.stdout)
+    );
+    let master_json = response(&master);
+    assert_eq!(master_json["data"]["changed"], true);
+    assert!(master_json["data"]["history_entry"].is_object());
+
+    let rendered = response(&invoke(&root, &["render", "--output", "out/master"]));
+    assert_eq!(rendered["ok"], true);
+    let rendered_lufs = rendered["data"]["render"]["manifest"]["analysis"]["integrated_lufs"]
+        .as_f64()
+        .expect("integrated_lufs");
+    assert!(
+        (rendered_lufs - (-16.0)).abs() <= 0.1,
+        "expected rendered integrated LUFS near -16.0, got {rendered_lufs}"
+    );
+
+    // History contains: initial publish + lead level-to + master level-to = 3 entries.
+    let history = response(&invoke(&root, &["history", "list"]));
+    assert_eq!(history["data"]["entries"].as_array().unwrap().len(), 3);
+}

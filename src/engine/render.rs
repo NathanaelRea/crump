@@ -3,7 +3,7 @@
 use std::{
     collections::BTreeSet,
     fs::{self, File},
-    io::{BufReader, BufWriter, Read, Write},
+    io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
     path::{Component, Path, PathBuf},
     str::FromStr,
     sync::atomic::{AtomicU64, Ordering},
@@ -14,23 +14,26 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    model::{ChannelRef, TapPoint},
+    model::{ChannelRef, RenderTailPolicy, TapPoint},
     project::{ProjectBundle, RevisionId},
 };
 
 use super::{
     CompiledProject, EngineError, FinalizedAudioAnalysis, ProcessingMode,
-    analysis::{ANALYSIS_SCHEMA, analyze_finalized_wav},
+    analysis::{ACTIVE_RMS_METHOD, ANALYSIS_SCHEMA, analyze_finalized_wav},
     mix_graph::{ChannelRole, MAX_MIX_CHANNELS},
 };
 
-const RENDER_SCHEMA: u32 = 2;
+const RENDER_SCHEMA: u32 = 3;
 const WAV_FILE: &str = "master.wav";
+const MASTER_SPOOL_FILE: &str = ".master-spool.raw";
 const MANIFEST_FILE: &str = "manifest.json";
 const MAX_RENDER_STEMS: usize = MAX_MIX_CHANNELS * 2;
 const MAX_RENDER_MANIFEST_BYTES: u64 = 1 << 20;
 const STEMS_PER_SPOOL: usize = 16;
 const RENDER_BLOCK_FRAMES: usize = 1_024;
+const WRAP_CHUNK_FRAMES: usize = RENDER_BLOCK_FRAMES * 8;
+const MAX_IN_MEMORY_WRAP_FRAMES: u64 = 65_536;
 static RENDER_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Offline render publication settings.
@@ -42,6 +45,8 @@ pub struct RenderOptions {
     pub replace: bool,
     /// Selected aligned Track/Group channel taps.
     pub stems: Vec<RenderStemRequest>,
+    /// Optional override for the Project's authored `render_tail` policy.
+    pub tail_policy_override: Option<RenderTailPolicy>,
     #[cfg(test)]
     fail_after_stem_spool: bool,
 }
@@ -54,6 +59,7 @@ impl RenderOptions {
             output: output.into(),
             replace: true,
             stems: Vec::new(),
+            tail_policy_override: None,
             #[cfg(test)]
             fail_after_stem_spool: false,
         }
@@ -172,12 +178,20 @@ pub struct RenderManifest {
     pub arrangement_frames: u64,
     /// Explicit authored Render Tail frames.
     pub render_tail_frames: u64,
-    /// Complete output frame count.
+    /// Policy governing how the Render Tail is combined with the arrangement (`append` or `wrap`).
+    pub tail_policy: RenderTailPolicy,
+    /// Complete output frame count (`arrangement + tail` for `append`, `arrangement` for `wrap`).
     pub frame_count: u64,
-    /// Complete Render Range in seconds.
+    /// Complete output duration in seconds.
     pub duration_seconds: f64,
     /// Maximum absolute authored output sample; retained for manifest compatibility.
     pub peak: f32,
+    /// Maximum absolute Master sample before tail wrapping (`null` / omitted for `append`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pre_wrap_peak: Option<f64>,
+    /// True when wrapping raised the finalized Master sample peak above `pre_wrap_peak`.
+    #[serde(default)]
+    pub wrap_peak_exceeded: bool,
     /// Delivery metrics computed by reopening the exact finalized WAV.
     pub analysis: FinalizedAudioAnalysis,
     /// Hash of exact WAV bytes.
@@ -427,6 +441,202 @@ fn materialize_stem_spools(
     Ok(())
 }
 
+const FRAME_BYTES: usize = 2 * size_of::<f32>();
+
+#[derive(Clone, Copy)]
+struct ShardStemLayout {
+    total_frames: u64,
+    arrangement_frames: u64,
+    stems_in_shard: usize,
+    stem_index: usize,
+    alignment_delay_frames: u32,
+}
+
+fn add_shard_stem_range(
+    file: &mut File,
+    layout: ShardStemLayout,
+    src_start: u64,
+    count: usize,
+    scratch: &mut [u8],
+    accum: &mut [[f64; 2]],
+) -> Result<(), EngineError> {
+    let mut cursor = src_start;
+    let mut written = 0_usize;
+    while written < count {
+        let block_index = cursor / RENDER_BLOCK_FRAMES as u64;
+        let block_start = block_index * RENDER_BLOCK_FRAMES as u64;
+        let block_len = (layout.total_frames - block_start).min(RENDER_BLOCK_FRAMES as u64);
+        let offset_in_block = cursor - block_start;
+        let take = ((block_len - offset_in_block) as usize).min(count - written);
+        let frame_offset = block_index * RENDER_BLOCK_FRAMES as u64 * layout.stems_in_shard as u64
+            + layout.stem_index as u64 * block_len
+            + offset_in_block;
+        file.seek(SeekFrom::Start(frame_offset * FRAME_BYTES as u64))?;
+        let byte_len = take * FRAME_BYTES;
+        file.read_exact(&mut scratch[..byte_len])?;
+        for (offset, frame) in scratch[..byte_len].as_chunks::<8>().0.iter().enumerate() {
+            let left = f32::from_le_bytes([frame[0], frame[1], frame[2], frame[3]]);
+            let right = f32::from_le_bytes([frame[4], frame[5], frame[6], frame[7]]);
+            accum[written + offset][0] += f64::from(left);
+            accum[written + offset][1] += f64::from(right);
+        }
+        cursor += take as u64;
+        written += take;
+    }
+    Ok(())
+}
+
+fn fold_shard_stem_to_wav(
+    file: &mut File,
+    wav_path: &Path,
+    specification: hound::WavSpec,
+    layout: ShardStemLayout,
+) -> Result<(), EngineError> {
+    if layout.arrangement_frames == 0 {
+        return Err(EngineError::Compile(
+            "wrap tail policy requires a positive arrangement length".to_owned(),
+        ));
+    }
+    let expected_spool_bytes = layout
+        .total_frames
+        .checked_mul(layout.stems_in_shard as u64)
+        .and_then(|frames| frames.checked_mul(FRAME_BYTES as u64))
+        .ok_or_else(|| EngineError::Compile("temporary render spool size overflowed".to_owned()))?;
+    if file.metadata()?.len() != expected_spool_bytes {
+        return Err(EngineError::Compile(
+            "temporary render spool size does not match the render range".to_owned(),
+        ));
+    }
+
+    let mut writer = hound::WavWriter::create(wav_path, specification)?;
+    let mut scratch = vec![0_u8; RENDER_BLOCK_FRAMES * FRAME_BYTES];
+    let delay = u64::from(layout.alignment_delay_frames);
+
+    if layout.arrangement_frames <= MAX_IN_MEMORY_WRAP_FRAMES {
+        let mut accum = vec![[0.0_f64; 2]; layout.arrangement_frames as usize];
+        let mut block_start = 0_u64;
+        while block_start < layout.total_frames {
+            let block_len = (layout.total_frames - block_start).min(RENDER_BLOCK_FRAMES as u64);
+            let block_index = block_start / RENDER_BLOCK_FRAMES as u64;
+            let frame_offset =
+                block_index * RENDER_BLOCK_FRAMES as u64 * layout.stems_in_shard as u64
+                    + layout.stem_index as u64 * block_len;
+            file.seek(SeekFrom::Start(frame_offset * FRAME_BYTES as u64))?;
+            let byte_len = block_len as usize * FRAME_BYTES;
+            file.read_exact(&mut scratch[..byte_len])?;
+            for (offset, frame) in scratch[..byte_len].as_chunks::<8>().0.iter().enumerate() {
+                let aligned = block_start + offset as u64 + delay;
+                if aligned >= layout.total_frames {
+                    break;
+                }
+                let dst = (aligned % layout.arrangement_frames) as usize;
+                let left = f32::from_le_bytes([frame[0], frame[1], frame[2], frame[3]]);
+                let right = f32::from_le_bytes([frame[4], frame[5], frame[6], frame[7]]);
+                accum[dst][0] += f64::from(left);
+                accum[dst][1] += f64::from(right);
+            }
+            block_start += block_len;
+        }
+        for (index, frame) in accum.iter().enumerate() {
+            let left = frame[0] as f32;
+            let right = frame[1] as f32;
+            if !left.is_finite() || !right.is_finite() {
+                return Err(EngineError::NonFinite {
+                    frame: index as u64,
+                });
+            }
+            writer.write_sample(left)?;
+            writer.write_sample(right)?;
+        }
+    } else {
+        let mut accum = vec![[0.0_f64; 2]; WRAP_CHUNK_FRAMES];
+        let mut out_start = 0_u64;
+        while out_start < layout.arrangement_frames {
+            let chunk_len =
+                (layout.arrangement_frames - out_start).min(WRAP_CHUNK_FRAMES as u64) as usize;
+            accum[..chunk_len].fill([0.0, 0.0]);
+            let mut fold_base = 0_u64;
+            while fold_base < layout.total_frames {
+                let aligned_start = fold_base + out_start;
+                let aligned_end =
+                    (fold_base + out_start + chunk_len as u64).min(layout.total_frames);
+                if aligned_start < aligned_end {
+                    let active_start = aligned_start.max(delay);
+                    if active_start < aligned_end {
+                        let dst_offset = (active_start - aligned_start) as usize;
+                        let src_start = active_start - delay;
+                        let count = (aligned_end - active_start) as usize;
+                        add_shard_stem_range(
+                            file,
+                            layout,
+                            src_start,
+                            count,
+                            &mut scratch,
+                            &mut accum[dst_offset..dst_offset + count],
+                        )?;
+                    }
+                }
+                fold_base = fold_base.saturating_add(layout.arrangement_frames);
+            }
+            for (offset, frame) in accum[..chunk_len].iter().enumerate() {
+                let left = frame[0] as f32;
+                let right = frame[1] as f32;
+                if !left.is_finite() || !right.is_finite() {
+                    return Err(EngineError::NonFinite {
+                        frame: out_start + offset as u64,
+                    });
+                }
+                writer.write_sample(left)?;
+                writer.write_sample(right)?;
+            }
+            out_start += chunk_len as u64;
+        }
+    }
+
+    writer.finalize()?;
+    File::open(wav_path)?.sync_all()?;
+    Ok(())
+}
+
+fn materialize_wrapped_stem_spools(
+    staging: &Path,
+    prepared_stems: &[PreparedStem],
+    spool_paths: &[PathBuf],
+    specification: hound::WavSpec,
+    total_frames: u64,
+    arrangement_frames: u64,
+) -> Result<(), EngineError> {
+    let expected_spools = prepared_stems.len().div_ceil(STEMS_PER_SPOOL);
+    if spool_paths.len() != expected_spools {
+        return Err(EngineError::Compile(
+            "temporary stem spool set changed during render".to_owned(),
+        ));
+    }
+    for (spool_index, spool_path) in spool_paths.iter().enumerate() {
+        let first_stem = spool_index * STEMS_PER_SPOOL;
+        let stems =
+            &prepared_stems[first_stem..(first_stem + STEMS_PER_SPOOL).min(prepared_stems.len())];
+        let mut file = File::open(spool_path)?;
+        for (stem_index, stem) in stems.iter().enumerate() {
+            fold_shard_stem_to_wav(
+                &mut file,
+                &staging.join(&stem.plan.file),
+                specification,
+                ShardStemLayout {
+                    total_frames,
+                    arrangement_frames,
+                    stems_in_shard: stems.len(),
+                    stem_index,
+                    alignment_delay_frames: stem.plan.alignment_delay_frames,
+                },
+            )?;
+        }
+        drop(file);
+        fs::remove_file(spool_path)?;
+    }
+    Ok(())
+}
+
 fn validate_finalized_analysis(
     analysis: &FinalizedAudioAnalysis,
     expected_frames: u64,
@@ -452,6 +662,9 @@ pub fn render_project(
         .publishable()
         .ok_or_else(|| EngineError::Validation(bundle.diagnostics.as_slice().to_vec()))?;
     let compiled = CompiledProject::compile_with_assets(project, &bundle.assets)?;
+    let tail_policy = options
+        .tail_policy_override
+        .unwrap_or(project.render_tail_policy);
     let destination = resolved_destination(&options.output)?;
     validate_render_destination(bundle, &destination)?;
     let parent = destination.parent().ok_or_else(|| {
@@ -496,6 +709,7 @@ pub fn render_project(
         &compiled,
         &staging,
         &options.stems,
+        tail_policy,
         fail_after_stem_spool,
     )
     .and_then(|manifest| {
@@ -526,6 +740,7 @@ fn render_staging(
     compiled: &CompiledProject,
     staging: &Path,
     requests: &[RenderStemRequest],
+    tail_policy: RenderTailPolicy,
     fail_after_stem_spool: bool,
 ) -> Result<RenderManifest, EngineError> {
     let prepared_stems = prepare_render_stems(compiled, requests)?;
@@ -536,7 +751,15 @@ fn render_staging(
         bits_per_sample: 32,
         sample_format: hound::SampleFormat::Float,
     };
-    let mut writer = hound::WavWriter::create(&wav_path, specification)?;
+    let master_spool_path = staging.join(MASTER_SPOOL_FILE);
+    let mut direct_writer = match tail_policy {
+        RenderTailPolicy::Append => Some(hound::WavWriter::create(&wav_path, specification)?),
+        RenderTailPolicy::Wrap => None,
+    };
+    let mut master_spool = match tail_policy {
+        RenderTailPolicy::Append => None,
+        RenderTailPolicy::Wrap => Some(BufWriter::new(File::create(&master_spool_path)?)),
+    };
     let stem_spool_paths = (0..prepared_stems.len().div_ceil(STEMS_PER_SPOOL))
         .map(|index| stem_spool_path(staging, index))
         .collect::<Vec<_>>();
@@ -547,11 +770,16 @@ fn render_staging(
     let mut runtime = compiled.runtime();
     let mut block = vec![[0.0_f32, 0.0_f32]; RENDER_BLOCK_FRAMES];
     let mut stem_blocks = vec![vec![[0.0_f32, 0.0_f32]; block.len()]; prepared_stems.len()];
-    let mut encoded_stem = Vec::with_capacity(RENDER_BLOCK_FRAMES * 2 * size_of::<f32>());
+    let mut encoded_frames = Vec::with_capacity(RENDER_BLOCK_FRAMES * FRAME_BYTES);
+    let mut pre_wrap_peak = 0.0_f64;
     while !runtime.finished() {
         let mut count = 0_usize;
         while count < block.len() && !runtime.finished() {
-            block[count] = runtime.process_frame(ProcessingMode::Offline)?;
+            let sample = runtime.process_frame(ProcessingMode::Offline)?;
+            pre_wrap_peak = pre_wrap_peak
+                .max(f64::from(sample[0].abs()))
+                .max(f64::from(sample[1].abs()));
+            block[count] = sample;
             for (prepared, stem_block) in prepared_stems.iter().zip(&mut stem_blocks) {
                 let sample = runtime
                     .channel_tap_sample(prepared.channel_index, prepared.plan.tap)
@@ -565,23 +793,35 @@ fn render_staging(
             }
             count += 1;
         }
-        for frame in &block[..count] {
-            writer.write_sample(frame[0])?;
-            writer.write_sample(frame[1])?;
+        if let Some(writer) = direct_writer.as_mut() {
+            for frame in &block[..count] {
+                writer.write_sample(frame[0])?;
+                writer.write_sample(frame[1])?;
+            }
+        }
+        if let Some(spool) = master_spool.as_mut() {
+            encode_stem_frames(&block[..count], &mut encoded_frames);
+            spool.write_all(&encoded_frames)?;
         }
         for (spool, stem_chunk) in stem_spools
             .iter_mut()
             .zip(stem_blocks.chunks(STEMS_PER_SPOOL))
         {
             for stem_block in stem_chunk {
-                encode_stem_frames(&stem_block[..count], &mut encoded_stem);
-                spool.write_all(&encoded_stem)?;
+                encode_stem_frames(&stem_block[..count], &mut encoded_frames);
+                spool.write_all(&encoded_frames)?;
             }
         }
     }
     let feedback_mutes = runtime.telemetry().feedback_mutes;
-    writer.finalize()?;
-    File::open(&wav_path)?.sync_all()?;
+    if let Some(writer) = direct_writer {
+        writer.finalize()?;
+        File::open(&wav_path)?.sync_all()?;
+    }
+    if let Some(mut spool) = master_spool {
+        spool.flush()?;
+        spool.get_ref().sync_all()?;
+    }
     for mut spool in stem_spools {
         spool.flush()?;
         spool.get_ref().sync_all()?;
@@ -591,37 +831,70 @@ fn render_staging(
             "injected failure after stem spool finalization".to_owned(),
         ));
     }
-    materialize_stem_spools(
-        staging,
-        &prepared_stems,
-        &stem_spool_paths,
-        specification,
-        compiled.total_frames(),
-    )?;
+    let total_frames = compiled.total_frames();
+    let arrangement_frames = compiled.arrangement_frames();
+    let output_frames = match tail_policy {
+        RenderTailPolicy::Append => {
+            materialize_stem_spools(
+                staging,
+                &prepared_stems,
+                &stem_spool_paths,
+                specification,
+                total_frames,
+            )?;
+            total_frames
+        }
+        RenderTailPolicy::Wrap => {
+            let mut master_file = File::open(&master_spool_path)?;
+            fold_shard_stem_to_wav(
+                &mut master_file,
+                &wav_path,
+                specification,
+                ShardStemLayout {
+                    total_frames,
+                    arrangement_frames,
+                    stems_in_shard: 1,
+                    stem_index: 0,
+                    alignment_delay_frames: 0,
+                },
+            )?;
+            drop(master_file);
+            fs::remove_file(&master_spool_path)?;
+            materialize_wrapped_stem_spools(
+                staging,
+                &prepared_stems,
+                &stem_spool_paths,
+                specification,
+                total_frames,
+                arrangement_frames,
+            )?;
+            arrangement_frames
+        }
+    };
     let analysis = analyze_finalized_wav(&wav_path)?;
-    validate_finalized_analysis(&analysis, compiled.total_frames())?;
+    validate_finalized_analysis(&analysis, output_frames)?;
     let peak = analysis.sample_peak as f32;
+    let pre_wrap_peak = (tail_policy == RenderTailPolicy::Wrap).then_some(pre_wrap_peak);
+    let wrap_peak_exceeded = pre_wrap_peak.is_some_and(|pre| analysis.sample_peak > pre);
     let wav_sha256 = hash_file(&wav_path)?;
     let mut stems = Vec::with_capacity(prepared_stems.len());
     for prepared in prepared_stems {
         let path = staging.join(&prepared.plan.file);
         let stem_analysis = analyze_finalized_wav(&path)?;
-        validate_finalized_analysis(&stem_analysis, compiled.total_frames())?;
+        validate_finalized_analysis(&stem_analysis, output_frames)?;
         stems.push(RenderStemManifest {
             plan: prepared.plan,
             sample_rate: compiled.sample_rate(),
             channels: 2,
             channel_layout: "stereo".to_owned(),
             sample_format: "ieee_float_32_le".to_owned(),
-            frame_count: compiled.total_frames(),
+            frame_count: output_frames,
             analysis: stem_analysis,
             wav_sha256: hash_file(&path)?,
         });
     }
     let executable_path = std::env::current_exe()?;
     let executable_sha256 = hash_file(&executable_path)?;
-    let frame_count = compiled.total_frames();
-    let arrangement_frames = compiled.arrangement_frames();
     let host_os_release = host_os_release();
     let host_kernel_release = fs::read_to_string("/proc/sys/kernel/osrelease")
         .ok()
@@ -651,10 +924,13 @@ fn render_staging(
         channels: 2,
         sample_format: "ieee_float_32_le".to_owned(),
         arrangement_frames,
-        render_tail_frames: frame_count - arrangement_frames,
-        frame_count,
-        duration_seconds: frame_count as f64 / f64::from(compiled.sample_rate()),
+        render_tail_frames: total_frames - arrangement_frames,
+        tail_policy,
+        frame_count: output_frames,
+        duration_seconds: output_frames as f64 / f64::from(compiled.sample_rate()),
         peak,
+        pre_wrap_peak,
+        wrap_peak_exceeded,
         analysis,
         wav_sha256,
         stems,
@@ -849,10 +1125,28 @@ fn validate_existing_render_bundle(destination: &Path) -> Result<(), EngineError
         )));
     }
     let manifest: RenderManifest = serde_json::from_slice(&manifest_bytes)?;
+    let expected_frame_count = match manifest.tail_policy {
+        RenderTailPolicy::Append => manifest
+            .arrangement_frames
+            .checked_add(manifest.render_tail_frames),
+        RenderTailPolicy::Wrap => Some(manifest.arrangement_frames),
+    };
+    let wrap_metadata_consistent = match manifest.tail_policy {
+        RenderTailPolicy::Append => {
+            manifest.pre_wrap_peak.is_none() && !manifest.wrap_peak_exceeded
+        }
+        RenderTailPolicy::Wrap => manifest.pre_wrap_peak.is_some_and(|pre| {
+            pre.is_finite()
+                && pre >= 0.0
+                && manifest.wrap_peak_exceeded == (manifest.analysis.sample_peak > pre)
+        }),
+    };
     if manifest.schema_version != RENDER_SCHEMA
         || manifest.channels != 2
         || manifest.sample_format != "ieee_float_32_le"
         || manifest.stems.len() > MAX_RENDER_STEMS
+        || expected_frame_count != Some(manifest.frame_count)
+        || !wrap_metadata_consistent
     {
         return Err(invalid_render_bundle(
             "existing render manifest has an unsupported format",
@@ -1001,6 +1295,10 @@ fn finalized_analysis_matches(
             actual.maximum_short_term_lufs,
         )
         && close_optional_analysis_value(expected.loudness_range_lu, actual.loudness_range_lu)
+        && close_optional_analysis_value(expected.rms_dbfs, actual.rms_dbfs)
+        && close_optional_analysis_value(expected.active_rms_dbfs, actual.active_rms_dbfs)
+        && close_analysis_value(expected.active_rms_gate_dbfs, actual.active_rms_gate_dbfs)
+        && expected.active_rms_method == actual.active_rms_method
         && expected
             .dc_offset
             .into_iter()
@@ -1032,6 +1330,8 @@ fn manifest_analysis_is_consistent(analysis: &FinalizedAudioAnalysis, frame_coun
         && analysis.sample_peak >= 0.0
         && analysis.true_peak.is_finite()
         && analysis.true_peak >= 0.0
+        && analysis.active_rms_gate_dbfs.is_finite()
+        && analysis.active_rms_method == ACTIVE_RMS_METHOD
         && analysis.dc_offset.into_iter().all(f64::is_finite)
         && analysis
             .sample_peak_dbfs
@@ -1040,6 +1340,8 @@ fn manifest_analysis_is_consistent(analysis: &FinalizedAudioAnalysis, frame_coun
             .chain(analysis.integrated_lufs)
             .chain(analysis.maximum_short_term_lufs)
             .chain(analysis.loudness_range_lu)
+            .chain(analysis.rms_dbfs)
+            .chain(analysis.active_rms_dbfs)
             .all(f64::is_finite)
         && analysis.clipped_frame_count <= frame_count
         && analysis.clipped_sample_count <= frame_count.saturating_mul(2)
@@ -1204,12 +1506,17 @@ project "Maximum Stems" {
         let first = render_project(&bundle, &RenderOptions::new(&output)).unwrap();
         let first_wav = fs::read(&first.wav).unwrap();
         let first_manifest = fs::read(&first.manifest_path).unwrap();
-        assert_eq!(first.manifest.schema_version, 2);
+        assert_eq!(first.manifest.schema_version, 3);
+        assert_eq!(first.manifest.tail_policy, RenderTailPolicy::Append);
+        assert!(first.manifest.pre_wrap_peak.is_none());
+        assert!(!first.manifest.wrap_peak_exceeded);
         let analysis = &first.manifest.analysis;
         assert_eq!(analysis.analyzed_frames, first.manifest.frame_count);
         assert_eq!(analysis.non_finite_sample_count, 0);
         assert_eq!(analysis.sample_peak as f32, first.manifest.peak);
         assert!(analysis.integrated_lufs.is_some());
+        assert!(analysis.rms_dbfs.is_some());
+        assert!(analysis.active_rms_dbfs.is_some());
 
         let mut no_replace = RenderOptions::new(&output);
         no_replace.replace = false;
@@ -1640,5 +1947,265 @@ project "Stem Alignment" {
             fs::read(first.manifest_path).unwrap(),
             fs::read(second.manifest_path).unwrap()
         );
+    }
+
+    fn read_stereo_frames(path: &Path) -> Vec<[f32; 2]> {
+        let mut reader = hound::WavReader::open(path).expect("open rendered WAV");
+        let samples = reader
+            .samples::<f32>()
+            .collect::<Result<Vec<_>, _>>()
+            .expect("decode rendered WAV");
+        samples
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|frame| [frame[0], frame[1]])
+            .collect()
+    }
+
+    #[test]
+    fn wrap_tail_folds_tail_onto_start_including_multi_wrap_and_reconstructs_stems() {
+        let directory = tempdir().expect("Project root");
+        // 1 beat at 120bpm = 0.5s (24,000 frames). render_tail 1500ms = 72,000 frames (3x arrangement)
+        // so the tail wraps multiple times onto the start of the loop.
+        let source = r#"crump 1
+project "Seamless Loop" {
+  id seamless_loop
+  seed 42
+  sample_rate 48000
+  render_tail 1500ms wrap
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1beat
+    instrument drums "Drums" stock_drums {
+      polyphony 8
+      parameter tone "Tone" ratio 0 1 0.5 0.5
+      parameter punch "Punch" ratio 0 1 0.5 0.5
+      faceplate {
+        control tone "Tone" "Brightness" maps tone
+        control punch "Punch" "Impact" maps punch
+      }
+    }
+    pattern late_hit 1beat {
+      hit 1/2beat kick 1
+    }
+    track a "A" instrument drums level -6db pan 0 {
+      processor wait latency {
+        setting frames 5
+      }
+      processor tail_delay delay {
+        setting time 500ms
+        setting feedback 0.55
+        setting mix 0.5
+      }
+      output group/bus
+      clip a pattern late_hit start 0beat duration 1beat mode once
+    }
+    track b "B" instrument drums level -9db pan 0 {
+      processor tail_verb reverb {
+        setting pre_delay 0s
+        setting diffusion 0.7
+        setting decay 0.85
+        setting damping 0.2
+        setting modulation 0.1
+        setting width 1
+        setting mix 0.5
+      }
+      output group/bus
+      clip b pattern late_hit start 0beat duration 1beat mode once
+    }
+    group bus "Bus" level 0db {
+      output master
+    }
+    master level 0db {
+    }
+  }
+}
+"#;
+        fs::write(directory.path().join("project.crump"), source).expect("write source");
+        let bundle = load_project(directory.path()).expect("load loop Project");
+        assert!(!bundle.diagnostics.has_errors(), "{:?}", bundle.diagnostics);
+
+        let stems = [
+            "track/a:post_fader",
+            "track/b:post_fader",
+            "group/bus:post_fader",
+        ]
+        .map(|value| value.parse().expect("stem request"))
+        .to_vec();
+
+        // Render with explicit append override as reference.
+        let append_out = directory.path().join("append");
+        let mut append_options = RenderOptions::new(&append_out);
+        append_options.stems = stems.clone();
+        append_options.tail_policy_override = Some(RenderTailPolicy::Append);
+        let appended = render_project(&bundle, &append_options).expect("append render");
+        assert_eq!(appended.manifest.tail_policy, RenderTailPolicy::Append);
+        assert_eq!(appended.manifest.arrangement_frames, 24_000);
+        assert_eq!(appended.manifest.render_tail_frames, 72_000);
+        assert_eq!(appended.manifest.frame_count, 96_000);
+        assert!(appended.manifest.pre_wrap_peak.is_none());
+        assert!(!appended.manifest.wrap_peak_exceeded);
+
+        // Render with Project's wrap tail policy.
+        let wrap_out = directory.path().join("wrap");
+        let mut wrap_options = RenderOptions::new(&wrap_out);
+        wrap_options.stems = stems;
+        let wrapped = render_project(&bundle, &wrap_options).expect("wrap render");
+        assert_eq!(wrapped.manifest.tail_policy, RenderTailPolicy::Wrap);
+        assert_eq!(wrapped.manifest.arrangement_frames, 24_000);
+        assert_eq!(wrapped.manifest.render_tail_frames, 72_000);
+        assert_eq!(wrapped.manifest.frame_count, 24_000);
+        assert_eq!(wrapped.manifest.analysis.analyzed_frames, 24_000);
+        assert!(wrapped.manifest.pre_wrap_peak.is_some());
+        assert!(wrapped.manifest.analysis.rms_dbfs.is_some());
+        assert!(wrapped.manifest.analysis.active_rms_dbfs.is_some());
+
+        let append_master = read_stereo_frames(&appended.wav);
+        let wrap_master = read_stereo_frames(&wrapped.wav);
+        assert_eq!(append_master.len(), 96_000);
+        assert_eq!(wrap_master.len(), 24_000);
+
+        // Tail past arrangement end must be non-silent so the fold actually adds audio onto frame 0..
+        let tail_peak = append_master[24_000..]
+            .iter()
+            .flatten()
+            .map(|sample| sample.abs())
+            .fold(0.0_f32, f32::max);
+        assert!(tail_peak > 1.0e-3, "expected audible tail, got {tail_peak}");
+
+        // Exact multi-wrap fold equivalence with append reference.
+        let mut expected_master = vec![[0.0_f64; 2]; 24_000];
+        for (index, frame) in append_master.iter().enumerate() {
+            let dst = index % 24_000;
+            expected_master[dst][0] += f64::from(frame[0]);
+            expected_master[dst][1] += f64::from(frame[1]);
+        }
+        let mut max_fold_error = 0.0_f32;
+        for (actual, expected) in wrap_master.iter().zip(&expected_master) {
+            for channel in 0..2 {
+                let error = (actual[channel] - expected[channel] as f32).abs();
+                max_fold_error = max_fold_error.max(error);
+            }
+        }
+        assert!(
+            max_fold_error < 1.0e-6,
+            "wrapped master diverged from folded append master by {max_fold_error}"
+        );
+
+        // Stems wrap identically (aligned) and still reconstruct Master.
+        assert_eq!(wrapped.manifest.stems.len(), 3);
+        for stem in &wrapped.manifest.stems {
+            assert_eq!(stem.frame_count, 24_000);
+            assert_eq!(stem.analysis.analyzed_frames, 24_000);
+            assert!(stem.analysis.active_rms_dbfs.is_some());
+        }
+        let stem_path = |owner: &ChannelRef| {
+            let entry = wrapped
+                .manifest
+                .stems
+                .iter()
+                .find(|stem| &stem.plan.owner == owner && stem.plan.tap == TapPoint::PostFader)
+                .expect("stem");
+            wrap_out.join(&entry.plan.file)
+        };
+        let a_post = read_stereo_frames(&stem_path(&ChannelRef::Track("a".to_owned())));
+        let b_post = read_stereo_frames(&stem_path(&ChannelRef::Track("b".to_owned())));
+        let bus = read_stereo_frames(&stem_path(&ChannelRef::Group("bus".to_owned())));
+        assert_eq!(a_post.len(), 24_000);
+        assert_eq!(b_post.len(), 24_000);
+        assert_eq!(bus.len(), 24_000);
+        for (((a, b), bus), master) in a_post.iter().zip(&b_post).zip(&bus).zip(&wrap_master) {
+            for channel in 0..2 {
+                assert!((a[channel] + b[channel] - bus[channel]).abs() < 1.0e-5);
+                assert!((bus[channel] - master[channel]).abs() < 1.0e-5);
+            }
+        }
+
+        // Existing wrapped bundle passes validation and can be replaced cleanly.
+        let replaced = render_project(&bundle, &wrap_options).expect("replace wrapped bundle");
+        assert_eq!(
+            fs::read(&replaced.wav).unwrap(),
+            fs::read(&wrapped.wav).unwrap()
+        );
+
+        // Tampering with wrap metadata blocks replacement.
+        let original_manifest = fs::read(&replaced.manifest_path).expect("manifest bytes");
+        let mut tampered: serde_json::Value =
+            serde_json::from_slice(&original_manifest).expect("parse manifest");
+        tampered["pre_wrap_peak"] = serde_json::Value::Null;
+        fs::write(
+            &replaced.manifest_path,
+            serde_json::to_vec_pretty(&tampered).unwrap(),
+        )
+        .unwrap();
+        let error = render_project(&bundle, &wrap_options)
+            .expect_err("tampered wrap metadata must block replacement");
+        assert!(error.to_string().contains("unsupported format"), "{error}");
+    }
+
+    #[test]
+    fn wrap_tail_flags_wrap_peak_exceeded_when_wrapped_tail_pushes_above_limiter_ceiling() {
+        let directory = tempdir().expect("Project root");
+        // Hit at beat 0 (limited at -12db ceiling) plus a 500ms delay (1 beat = exact loop length)
+        // whose repeat lands back on beat 0 after wrapping, summing two limited peaks together.
+        let source = r#"crump 1
+project "Wrapped Limiter Peak" {
+  id wrapped_limiter_peak
+  seed 42
+  sample_rate 48000
+  render_tail 600ms wrap
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1beat
+    instrument drums "Drums" stock_drums {
+      polyphony 8
+      parameter tone "Tone" ratio 0 1 0.5 0.5
+      parameter punch "Punch" ratio 0 1 0.5 0.5
+      faceplate {
+        control tone "Tone" "Brightness" maps tone
+        control punch "Punch" "Impact" maps punch
+      }
+    }
+    pattern hit_start 1beat {
+      hit 0beat kick 1
+    }
+    track drums "Drums" instrument drums level 0db pan 0 {
+      processor echo delay {
+        setting time 500ms
+        setting feedback 0.0
+        setting mix 0.5
+      }
+      output master
+      clip c pattern hit_start start 0beat duration 1beat mode once
+    }
+    master level 0db {
+      processor ceiling limiter {
+        setting ceiling -12db
+        setting release 0.05s
+        setting lookahead 0.005s
+      }
+    }
+  }
+}
+"#;
+        fs::write(directory.path().join("project.crump"), source).expect("write source");
+        let bundle = load_project(directory.path()).expect("load limiter wrap Project");
+        assert!(!bundle.diagnostics.has_errors(), "{:?}", bundle.diagnostics);
+        let output = directory.path().join("wrap_limiter");
+        let rendered = render_project(&bundle, &RenderOptions::new(&output)).expect("wrap render");
+        assert_eq!(rendered.manifest.tail_policy, RenderTailPolicy::Wrap);
+        let pre_wrap = rendered
+            .manifest
+            .pre_wrap_peak
+            .expect("wrap render records pre_wrap_peak");
+        assert!(
+            rendered.manifest.analysis.sample_peak > pre_wrap,
+            "expected wrapped peak {} to exceed pre-wrap peak {pre_wrap}",
+            rendered.manifest.analysis.sample_peak
+        );
+        assert!(rendered.manifest.wrap_peak_exceeded);
     }
 }

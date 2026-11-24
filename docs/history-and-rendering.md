@@ -77,16 +77,24 @@ The offline Render Range is explicit and finite:
 [Song zero, Song end + render_tail)
 ```
 
-`Song end` is the arrangement boundary. `render_tail` is authored Project data, converted deterministically to frames, and capped by validation. Events cannot begin at or after Song end. Release/envelope/effect state may continue through the tail; output stops exactly at the resulting frame count.
+`Song end` is the arrangement boundary. `render_tail` is authored Project data (`render_tail DURATION [append|wrap]`), converted deterministically to frames, and capped by validation. Events cannot begin at or after Song end. Release/envelope/effect state may continue through the tail; offline processing stops at `Song end + render_tail`.
+
+The tail policy governs how rendered tail frames are combined into the finalized WAV:
+
+- `append` (default): output retains every rendered frame (`frame_count = arrangement_frames + render_tail_frames`).
+- `wrap`: every frame at or after `arrangement_frames` is summed modulo `arrangement_frames` back onto frame `0` onward, repeating if `render_tail_frames > arrangement_frames`, so the output length equals `arrangement_frames` exactly and loops seamlessly without cutting off reverb or delay tails. Selected stems are latency-aligned to Master and wrapped identically so aligned stems reconstruct Master under wrap just as under append.
+
+Because Master processing (including any Master `limiter`) runs before tail folding, summing the wrapped tail back onto the start of the loop can raise the wrapped sample peak above the pre-wrap peak or limiter ceiling. Crump does not apply hidden post-wrap limiting or normalization: instead, wrap renders record `pre_wrap_peak` and `wrap_peak_exceeded` in `manifest.json`, run finalized analysis on the wrapped WAV bytes, and emit a warning from `crump render` when `wrap_peak_exceeded` is true so the producer can explicitly adjust Master headroom or limiter ceiling in source.
 
 ## Output bundle
 
 ```bash
 crump render --output render/master --plan
 crump render --output render/master
+crump render --output render/loop --tail wrap
 ```
 
-The non-mutating `--plan` form reports the exact Active start, arrangement end, tail, exclusive end, sample rate, duration, destination state, and replacement/conflict consequence without creating directories or artifacts.
+The non-mutating `--plan` form reports the exact Active start, arrangement end, tail, exclusive end, effective tail policy (`append` or `wrap`), output frame count, sample rate, duration, destination state, and replacement/conflict consequence without creating directories or artifacts. `--tail append|wrap` overrides the Project's authored `render_tail` policy for that render invocation without modifying source.
 
 A complete bundle contains:
 
@@ -102,22 +110,23 @@ The WAV is stereo 48 kHz IEEE 32-bit little-endian float. It contains authored o
 
 The manifest includes:
 
-- render schema version (currently 2) and Project ID;
+- render schema version (currently 3) and Project ID;
 - exact rendered Active Revision;
 - Crump package version and running executable SHA-256;
 - target OS/architecture and reference-environment flag;
 - sample rate, channel count, and sample format;
-- arrangement, tail, and total frame counts;
-- exact duration and backward-compatible linear sample peak;
+- arrangement frames, render tail frames, `tail_policy` (`append` or `wrap`), and finalized output `frame_count`;
+- exact duration, backward-compatible linear sample peak, and for `wrap` renders `pre_wrap_peak` plus `wrap_peak_exceeded`;
 - finalized-file sample peak/dBFS and fixed 4× reconstructed true peak/dBTP;
 - K-weighted gated integrated loudness, maximum three-second short-term loudness, and loudness range;
+- unweighted stereo `rms_dbfs` over the full artifact and `active_rms_dbfs` over sounding 400 ms blocks (100 ms steps) gated at `-60.0 dBFS` (`active_rms_gate_dbfs`, `active_rms_method`);
 - per-channel DC offset, clipped sample/frame counts, non-finite count, and analyzed frame count;
-- each selected stem's durable Track/Group owner, pre/post tap, deterministic filename, Master-alignment delay, inclusion policy, format/layout/frame count, finalized-file analysis, and exact WAV hash; and
+- each selected stem's durable Track/Group owner, pre/post tap, deterministic filename, Master-alignment delay, inclusion policy, format/layout/frame count, finalized-file analysis (including `rms_dbfs` and `active_rms_dbfs`), and exact WAV hash; and
 - SHA-256 of the complete Master WAV bytes.
 
-Silence or an artifact too short for a required loudness window is represented by `null`, not a fabricated finite LUFS value. Integrated loudness uses 400 ms windows at 100 ms steps with the BS.1770-derived absolute and relative gates. Short-term loudness uses three-second windows at 100 ms steps. Loudness Range first applies its `−70 LUFS` absolute gate, derives a separate `−20 LU` relative gate from the absolute-gated short-term mean, and reports the nearest 10th-to-95th-percentile span. The manifest names analysis schema 2 and the custom reconstruction kernel. The analysis passes the official EBU steady-tone loudness tolerance and true-peak cases 15–19. The complete official signal set and transient true-peak cases 20–23 have not been executed; see [the primary-source review](research/finalized-audio-analysis.md). These are measurements only: Crump applies no hidden normalization and does not reject creative output against a universal loudness target. Full-scale sample crossings are reported as clipping rather than silently changed; non-finite output remains a publication failure.
+Silence or an artifact too short for a required loudness window is represented by `null`, not a fabricated finite LUFS or dBFS value. Integrated loudness uses 400 ms windows at 100 ms steps with the BS.1770-derived absolute and relative gates. Short-term loudness uses three-second windows at 100 ms steps. Loudness Range first applies its `−70 LUFS` absolute gate, derives a separate `−20 LU` relative gate from the absolute-gated short-term mean, and reports the nearest 10th-to-95th-percentile span. Active RMS (`active_rms_dbfs`, method `crump-rms-400ms-100ms-gate-60dbfs-v1`) computes unweighted stereo RMS over only those 400 ms blocks (100 ms steps) whose block RMS is at or above `-60.0 dBFS`, so sparse parts are measured only while sounding rather than diluted by rests. The manifest names analysis schema 3 and the custom reconstruction kernel. The analysis passes the official EBU steady-tone loudness tolerance and true-peak cases 15–19. The complete official signal set and transient true-peak cases 20–23 have not been executed; see [the primary-source review](research/finalized-audio-analysis.md). These are measurements only: Crump applies no hidden normalization and does not reject creative output against a universal loudness target. Full-scale sample crossings are reported as clipping rather than silently changed; non-finite output remains a publication failure.
 
-A requested Stem uses `--stem track/ID:pre_fader|post_fader` or `--stem group/ID:pre_fader|post_fader`. Both taps include upstream main routing and processing through the selected owner's inserts. The post-fader tap additionally includes its gain, panner, and Mute. Outgoing Send branches and downstream Group, Return, and Master processing are excluded. Every Stem receives deterministic initial zero padding equal to Master output latency minus selected-tap latency, and every file has the exact Master frame count. Fixed-size capture blocks are written to raw staging shards containing at most 16 Stems each, then each shard is streamed into at most 16 aligned WAV writers. This bounds open Stem descriptors and avoids multiplying long latency by the selected-Stem count in memory. A maximum admitted 192-Stem fixture exercises all Track/Group taps, and an injected post-spool failure proves preservation of the prior destination plus staging cleanup. These semantics make stems sample-aligned without claiming that an arbitrary incomplete selection reconstructs the processed Master.
+A requested Stem uses `--stem track/ID:pre_fader|post_fader` or `--stem group/ID:pre_fader|post_fader`. Both taps include upstream main routing and processing through the selected owner's inserts. The post-fader tap additionally includes its gain, panner, and Mute. Outgoing Send branches and downstream Group, Return, or Master processing are excluded. Every Stem receives deterministic initial zero padding equal to Master output latency minus selected-tap latency (and wraps identically under `tail_policy: "wrap"`), and every file has the exact Master frame count. Fixed-size capture blocks are written to raw staging shards containing at most 16 Stems each, then each shard is streamed into at most 16 aligned WAV writers (or folded modulo `arrangement_frames` in bounded memory when wrapping). This bounds open Stem descriptors and avoids multiplying long latency by the selected-Stem count in memory. A maximum admitted 192-Stem fixture exercises all Track/Group taps, and an injected post-spool failure proves preservation of the prior destination plus staging cleanup. These semantics make stems sample-aligned without claiming that an arbitrary incomplete selection reconstructs the processed Master.
 
 The CLI response additionally returns SHA-256 of the exact manifest bytes and reports whether current Candidate and rendered Active identities match.
 

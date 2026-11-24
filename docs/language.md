@@ -113,8 +113,10 @@ A Project declares:
 | `id` | Stable source-safe Project ID |
 | `seed` | Deterministic unsigned random seed |
 | `sample_rate` | fixed at `48000` |
-| `render_tail` | Explicit finite effect/release tail, at most 30 seconds |
+| `render_tail` | Explicit finite effect/release tail (`render_tail DURATION [append|wrap]`), at most 30 seconds; defaults to `append` |
 | `asset` | Optional portable Project-owned WAV identity, described below; an imported module may also own assets |
+
+`render_tail` accepts an optional tail policy keyword: `append` (default) appends tail frames after Song end; `wrap` renders the full arrangement plus tail and sums every frame past Song end modulo the arrangement length back onto frame 0 onward so seamless loops preserve reverb and delay tails at exact arrangement duration.
 
 ### Portable WAV assets, sampler sources, and wavetables
 

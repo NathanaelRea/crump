@@ -14,6 +14,7 @@ pub(super) fn execute(cli: &Cli) -> Result<Success, Failure> {
         Some(Command::Qualify(args)) => command_qualify(cli, args),
         Some(Command::History(command)) => command_history(cli, command),
         Some(Command::Edit(command)) => command_edit(cli, command),
+        Some(Command::Mix(command)) => command_mix(cli, command),
         Some(Command::Asset(command)) => command_asset(cli, command),
         Some(Command::Module(command)) => command_module(cli, command),
         Some(Command::Doctor) => command_doctor(cli),
@@ -763,14 +764,22 @@ fn command_render(cli: &Cli, args: &RenderArgs) -> Result<Success, Failure> {
         let arrangement_frames = compiled.arrangement_frames();
         let total_frames = compiled.total_frames();
         let render_tail_frames = total_frames.saturating_sub(arrangement_frames);
-        let duration_seconds = total_frames as f64 / f64::from(project.sample_rate);
+        let tail_policy = args
+            .tail
+            .map(RenderTailPolicy::from)
+            .unwrap_or(project.render_tail_policy);
+        let output_frame_count = match tail_policy {
+            RenderTailPolicy::Append => total_frames,
+            RenderTailPolicy::Wrap => arrangement_frames,
+        };
+        let duration_seconds = output_frame_count as f64 / f64::from(project.sample_rate);
         let (planned_destination, destination_exists) =
             inspect_render_destination(&active, &output)
                 .map_err(|error| Failure::operational("render", "unsafe_destination", error))?;
         return Ok(Success {
             command: "render",
             human: format!(
-                "Render Range: [0, {total_frames}) frames ({duration_seconds:.6} seconds)\nDestination: {}",
+                "Render Range: [0, {total_frames}) frames -> {output_frame_count} output frames ({tail_policy}, {duration_seconds:.6} seconds)\nDestination: {}",
                 planned_destination.display()
             ),
             data: json!({
@@ -786,6 +795,8 @@ fn command_render(cli: &Cli, args: &RenderArgs) -> Result<Success, Failure> {
                     "arrangement_end_frame": arrangement_frames,
                     "render_tail_frames": render_tail_frames,
                     "end_frame_exclusive": total_frames,
+                    "tail_policy": tail_policy,
+                    "output_frame_count": output_frame_count,
                     "sample_rate": project.sample_rate,
                     "duration_seconds": duration_seconds,
                 },
@@ -803,6 +814,7 @@ fn command_render(cli: &Cli, args: &RenderArgs) -> Result<Success, Failure> {
     let mut options = RenderOptions::new(output);
     options.replace = !args.no_replace;
     options.stems.clone_from(&args.stems);
+    options.tail_policy_override = args.tail.map(RenderTailPolicy::from);
     let result = render_project(&active, &options)
         .map_err(|error| Failure::operational("render", "render_failed", error))?;
     Ok(Success {
@@ -814,6 +826,13 @@ fn command_render(cli: &Cli, args: &RenderArgs) -> Result<Success, Failure> {
                 result.wav.display(),
                 result.manifest.wav_sha256
             );
+            if result.manifest.wrap_peak_exceeded {
+                let pre_wrap = result.manifest.pre_wrap_peak.unwrap_or(0.0);
+                human.push_str(&format!(
+                    "\nwarning: wrap tail folding raised sample peak from {pre_wrap:.6} to {:.6}; adjust Master headroom or limiter ceiling",
+                    result.manifest.analysis.sample_peak
+                ));
+            }
             if result.manifest.feedback_mutes > 0 {
                 human.push_str(&format!(
                     "\nwarning: the feedback guard muted {} runaway or non-finite graph voice(s); check delay_line loop gain",
@@ -2453,6 +2472,179 @@ fn edit_transaction_failure(error: EditError) -> Failure {
         error @ (EditError::Project(_) | EditError::History(_) | EditError::Io { .. }) => {
             Failure::operational("edit", "edit_transaction_failed", error)
         }
+    }
+}
+
+fn command_mix(cli: &Cli, command: &MixCommand) -> Result<Success, Failure> {
+    match command {
+        MixCommand::LevelTo(args) => {
+            let bundle = load(cli, "mix.level_to")?;
+            if bundle.diagnostics.has_errors() {
+                return Err(Failure::blocked(
+                    "mix.level_to",
+                    "invalid_base",
+                    "mix level-to requires a valid Project",
+                    json!(bundle.diagnostics.as_slice()),
+                ));
+            }
+            let origin = match args.origin {
+                OriginArg::Human => ChangeOrigin::human(&args.actor),
+                OriginArg::Agent => ChangeOrigin::agent(&args.actor),
+                OriginArg::System => ChangeOrigin::system(&args.actor),
+            };
+            let result = level_to(
+                &bundle,
+                &LevelToRequest {
+                    owner: args.owner.clone(),
+                    target_db: args.target,
+                    measure: args.measure.into(),
+                    dry_run: args.dry_run,
+                    origin,
+                    summary: args.summary.clone(),
+                    explanation: args.explanation.clone(),
+                },
+            )
+            .map_err(|error| level_to_failure(&bundle, error))?;
+
+            let unit = result.measure.unit_label();
+            let peak_line = match (
+                result.resulting_sample_peak_dbfs,
+                result.resulting_true_peak_dbtp,
+            ) {
+                (Some(sample), Some(true_peak)) => {
+                    format!(
+                        "Resulting peak: {sample:.2} dBFS sample / {true_peak:.2} dBTP true peak"
+                    )
+                }
+                (Some(sample), None) => format!("Resulting peak: {sample:.2} dBFS sample"),
+                (None, Some(true_peak)) => format!("Resulting peak: {true_peak:.2} dBTP true peak"),
+                (None, None) => "Resulting peak: digital silence".to_owned(),
+            };
+            let mut human = if result.changed {
+                let entry_id = result
+                    .history_entry
+                    .as_ref()
+                    .map_or("<unknown>", |entry| entry.id.as_str());
+                format!(
+                    "{}: measured {:.2} {unit} ({}); set level {:.2} dB -> {:.2} dB ({:+.2} dB) as history entry {entry_id}\n{peak_line}",
+                    result.owner,
+                    result.measured_db,
+                    result.measure,
+                    result.previous_level_db,
+                    result.new_level_db,
+                    result.delta_db,
+                )
+            } else if result.within_tolerance {
+                format!(
+                    "{}: measured {:.2} {unit} ({}) is already within {:.2} dB of {:.2} {unit}; level unchanged at {:.2} dB\n{peak_line}",
+                    result.owner,
+                    result.measured_db,
+                    result.measure,
+                    result.tolerance_db,
+                    result.target_db,
+                    result.previous_level_db,
+                )
+            } else {
+                format!(
+                    "{}: measured {:.2} {unit} ({}); dry-run would set level {:.2} dB -> {:.2} dB ({:+.2} dB)\n{peak_line}",
+                    result.owner,
+                    result.measured_db,
+                    result.measure,
+                    result.previous_level_db,
+                    result.new_level_db,
+                    result.delta_db,
+                )
+            };
+            if result.resulting_would_clip {
+                human.push_str("\nwarning: resulting peak reaches or exceeds 0 dBFS / 0 dBTP");
+            }
+            let data = serde_json::to_value(&result).map_err(|error| {
+                Failure::operational("mix.level_to", "serialization_error", error)
+            })?;
+            Ok(Success {
+                command: "mix.level_to",
+                human,
+                data,
+            })
+        }
+    }
+}
+
+fn level_to_failure(bundle: &ProjectBundle, error: LevelToError) -> Failure {
+    match error {
+        LevelToError::InvalidBase => Failure::blocked(
+            "mix.level_to",
+            "invalid_base",
+            error.to_string(),
+            json!(bundle.diagnostics.as_slice()),
+        ),
+        LevelToError::InvalidTargetValue(_) => Failure::blocked(
+            "mix.level_to",
+            "invalid_target",
+            error.to_string(),
+            json!([]),
+        ),
+        LevelToError::UnknownOwner(_) => Failure::blocked(
+            "mix.level_to",
+            "unknown_owner",
+            error.to_string(),
+            json!([]),
+        ),
+        LevelToError::AutomatedTarget(_) => Failure::blocked(
+            "mix.level_to",
+            "automated_target",
+            error.to_string(),
+            json!([]),
+        ),
+        LevelToError::UnmeasurableSignal { .. } => Failure::blocked(
+            "mix.level_to",
+            "unmeasurable_signal",
+            error.to_string(),
+            json!([]),
+        ),
+        LevelToError::Engine(EngineError::Validation(diagnostics)) => Failure::blocked(
+            "mix.level_to",
+            "validation_failed",
+            "Project validation failed during offline loudness measurement",
+            json!(diagnostics),
+        ),
+        LevelToError::Engine(error) => Failure::operational("mix.level_to", "render_failed", error),
+        LevelToError::Edit(error) => match error {
+            error @ (EditError::StaleRevision { .. }
+            | EditError::CandidateNotActive { .. }
+            | EditError::StaleTarget { .. }
+            | EditError::AssetDestinationExists(_)) => {
+                Failure::conflict("mix.level_to", "edit_conflict", error)
+            }
+            EditError::OutOfRange { .. } => {
+                Failure::blocked("mix.level_to", "out_of_range", error.to_string(), json!([]))
+            }
+            EditError::InvalidResult(diagnostics) => Failure::blocked(
+                "mix.level_to",
+                "invalid_result",
+                "Structured Source Edit produced an invalid Candidate Revision",
+                json!(diagnostics),
+            ),
+            EditError::History(
+                error @ (HistoryError::AlreadyActive(_) | HistoryError::StaleCandidate { .. }),
+            ) => Failure::conflict("mix.level_to", "edit_conflict", error),
+            EditError::History(error @ HistoryError::InvalidProvenance(_)) => Failure::blocked(
+                "mix.level_to",
+                "edit_rejected",
+                error.to_string(),
+                json!([]),
+            ),
+            error @ (EditError::Project(_) | EditError::History(_) | EditError::Io { .. }) => {
+                Failure::operational("mix.level_to", "edit_transaction_failed", error)
+            }
+            error => Failure::blocked(
+                "mix.level_to",
+                "edit_rejected",
+                error.to_string(),
+                json!([]),
+            ),
+        },
+        LevelToError::Io(error) => Failure::operational("mix.level_to", "io_error", error),
     }
 }
 

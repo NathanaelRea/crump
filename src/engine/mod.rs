@@ -1,6 +1,6 @@
 //! Deterministic audio compilation and runtime shared by playback and rendering.
 
-mod analysis;
+pub(crate) mod analysis;
 pub mod audition;
 pub mod bounce;
 pub mod control;
