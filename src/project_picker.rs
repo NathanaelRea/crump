@@ -12,7 +12,14 @@ use thiserror::Error;
 
 use crate::project::PROJECT_FILE;
 
-const IGNORED_DIRECTORIES: [&str; 5] = [".crump", ".git", "node_modules", "target", "vendor"];
+const IGNORED_DIRECTORIES: [&str; 6] = [
+    ".claude",
+    ".crump",
+    ".git",
+    "node_modules",
+    "target",
+    "vendor",
+];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ProjectSelection {
@@ -264,9 +271,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn discovers_nested_projects_without_build_or_history_copies() {
+    fn discovers_nested_projects_without_build_history_or_agent_worktree_copies() {
         let directory = tempdir().expect("temporary search directory");
-        for relative in ["alpha", "nested/beta", "target/generated", ".crump/history"] {
+        for relative in [
+            "alpha",
+            "nested/beta",
+            "target/generated",
+            ".crump/history",
+            ".claude/worktrees/agent/examples/song",
+        ] {
             let root = directory.path().join(relative);
             fs::create_dir_all(&root).expect("create candidate directory");
             fs::write(root.join(PROJECT_FILE), "crump 1\n").expect("write candidate Project");
