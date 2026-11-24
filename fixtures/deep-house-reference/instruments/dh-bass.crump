@@ -2,8 +2,8 @@ crump-module 2
 instrument dh-bass "Deep House Bass" graph {
   polyphony 1
   voicing mono retrigger legato glide 55ms glide_mode legato note_priority last steal_priority release_oldest seed 7101
-  parameter cutoff "Cutoff" hz 70hz 2400hz 340hz 420hz automatable modulatable
-  parameter drive "Drive" ratio 0 1 0.16 0.2 automatable modulatable
+  parameter cutoff "Cutoff" hz 70hz 2400hz 340hz 373.77277157514067hz automatable modulatable
+  parameter drive "Drive" ratio 0 1 0.16 0.3461776673793793 automatable modulatable
   faceplate {
     control cutoff "Cutoff" "Balances the sub foundation and analog overtones" maps cutoff
     control drive "Drive" "Adds bounded ladder color" maps drive
@@ -24,8 +24,8 @@ instrument dh-bass "Deep House Bass" graph {
   modulation {
     source velocity note_velocity per_voice unipolar
     source drift lfo instrument bipolar triangle sync 2bar phase 0
-    route velocity-cutoff source velocity target cutoff depth 420hz map unipolar curve smoothstep order 0 bypass false
-    route drift-cutoff source drift target cutoff depth 55hz map bipolar curve linear order 10 bypass false
+    route velocity-cutoff source velocity target cutoff depth 1118.3698918269235hz map unipolar curve smoothstep order 0 bypass false
+    route drift-cutoff source drift target cutoff depth 321.4307391826922hz map bipolar curve linear order 10 bypass false
   }
   graph voice 10 {
     node sub analog_oscillator {
