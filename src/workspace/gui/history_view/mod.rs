@@ -1868,8 +1868,8 @@ fn transport(ui: &mut Ui, cx: &mut Cx<'_>, items: &[Item<'_>], item: &Item<'_>) 
             if playing {
                 cx.send(Action::StopPlayback);
             } else if show_now || is_current(app, item.entry) {
-                // The current version plays as itself.
-                cx.send(Action::TogglePlayback);
+                // The current version plays as itself, never an unpublished Candidate.
+                cx.send(Action::PlayActiveRevision);
             } else {
                 cx.send(Action::PlayHistoryVersion(item.entry.id.clone()));
             }

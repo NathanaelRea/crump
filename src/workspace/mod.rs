@@ -1105,9 +1105,14 @@ impl Workspace {
         if !self.play_after_publish || self.publication_settling() {
             return false;
         }
+        // A paused audition resumes only once the new runtime has been handed to the player.
+        if self.player.is_some() && (self.active_prepare_requested || self.active_build_in_flight) {
+            return false;
+        }
         self.play_after_publish = false;
         // Re-entering Play publishes whatever is still unpublished, or starts the Active Revision.
-        if self.player.is_none() && !self.playback_requested {
+        let resumes = self.player.is_some() && self.playback_paused;
+        if resumes || (self.player.is_none() && !self.playback_requested) {
             self.toggle_playback();
         }
         true
@@ -1328,6 +1333,8 @@ impl Workspace {
             .as_ref()
             .is_some_and(|(previewed, _)| *previewed == entry);
         if ready && self.player.is_none() && !self.playback_requested {
+            // An explicit version replaces a Play still waiting on publication.
+            self.play_after_publish = false;
             self.toggle_playback();
         }
     }
@@ -1367,6 +1374,7 @@ impl Workspace {
                 load_elapsed,
             } => {
                 self.performance.observe_candidate_load(load_elapsed);
+                self.play_after_publish = false;
                 self.status = format!("Reload failed: {error}");
                 return true;
             }
@@ -1448,6 +1456,8 @@ impl Workspace {
                 load_elapsed,
             } => {
                 self.performance.observe_history_load(load_elapsed);
+                // The publication cannot be confirmed, so a Play waiting on it does not start.
+                self.play_after_publish = false;
                 self.status = format!("History refresh failed: {error}");
                 return true;
             }
@@ -1976,6 +1986,27 @@ impl Workspace {
     }
 
     fn toggle_playback(&mut self) {
+        self.toggle_playback_with(true);
+    }
+
+    /// Plays the Active Revision as it stands, never publishing the Candidate first: for
+    /// controls that show the Active snapshot, such as History's current version.
+    fn play_active_revision(&mut self) {
+        self.toggle_playback_with(false);
+    }
+
+    fn toggle_playback_with(&mut self, publish_first: bool) {
+        if self.play_after_publish {
+            self.play_after_publish = false;
+            self.status = "Pending playback start cancelled".to_owned();
+            return;
+        }
+        let publish_first = publish_first && self.play_needs_publication();
+        // Resuming a paused audition waits for the publication, staying paused until then.
+        if publish_first && self.player.is_some() && self.playback_paused {
+            self.defer_play_until_published();
+            return;
+        }
         if let Some(player) = self.player.as_mut() {
             let paused = !self.playback_paused;
             match player.set_paused(paused) {
@@ -2000,35 +2031,8 @@ impl Workspace {
             self.status = "Pending playback start cancelled".to_owned();
             return;
         }
-        if self.play_after_publish {
-            self.play_after_publish = false;
-            self.status = "Pending playback start cancelled".to_owned();
-            return;
-        }
-        // Play hears what is on screen: a valid Candidate that is not yet Active publishes first.
-        if self.history_preview.is_none()
-            && !self.candidate_is_active()
-            && self.bundle.project.is_some()
-            && !self.bundle.diagnostics.has_errors()
-        {
-            self.play_after_publish = true;
-            // An in-flight edit publishes itself; only an unpublished Candidate needs one here.
-            if !self.publication_settling() {
-                self.queue_mutation(
-                    ProductionViewRequest {
-                        expected_revision: Some(self.bundle.revision.clone()),
-                        operation: ProductionViewOperation::PublishCandidate,
-                        provenance: ProductionViewProvenance::human(
-                            "workspace",
-                            "Publish on play",
-                            "Candidate published by pressing Play in the Production Workspace",
-                        ),
-                    },
-                    "Published as history entry",
-                    "Publication failed",
-                );
-            }
-            self.status = "Publishing Candidate before playback · Space cancels".to_owned();
+        if publish_first {
+            self.defer_play_until_published();
             return;
         }
         if self.runtime_bundle().is_none() {
@@ -2050,6 +2054,38 @@ impl Workspace {
         self.playback_epoch = self.playback_epoch.saturating_add(1);
         self.queue_active_preparation_with_frame(true, initial_frame);
         self.status = "Preparing Active audition in the background · Space cancels".to_owned();
+    }
+
+    /// Whether Play must wait for a publication so it hears what is on screen: an edit is still
+    /// publishing itself, or a valid Candidate is not yet Active. A History preview plays its own
+    /// version and never waits.
+    fn play_needs_publication(&self) -> bool {
+        self.history_preview.is_none()
+            && (self.publication_settling()
+                || (!self.candidate_is_active()
+                    && self.bundle.project.is_some()
+                    && !self.bundle.diagnostics.has_errors()))
+    }
+
+    fn defer_play_until_published(&mut self) {
+        self.play_after_publish = true;
+        // An in-flight edit publishes itself; only an unpublished Candidate needs one here.
+        if !self.publication_settling() {
+            self.queue_mutation(
+                ProductionViewRequest {
+                    expected_revision: Some(self.bundle.revision.clone()),
+                    operation: ProductionViewOperation::PublishCandidate,
+                    provenance: ProductionViewProvenance::human(
+                        "workspace",
+                        "Publish on play",
+                        "Candidate published by pressing Play in the Production Workspace",
+                    ),
+                },
+                "Published as history entry",
+                "Publication failed",
+            );
+        }
+        self.status = "Publishing Candidate before playback · Space cancels".to_owned();
     }
 
     fn stop_playback(&mut self) {

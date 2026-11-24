@@ -987,6 +987,67 @@ fn stopping_before_publication_lands_cancels_the_deferred_play() {
 }
 
 #[test]
+fn resuming_a_paused_audition_publishes_an_external_edit_first() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    let original = include_str!("../../tests/fixtures/minimal.crump");
+    let project_path = root.path().join("project.crump");
+    fs::write(&project_path, original).expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    workspace.playback_backend = PlaybackBackend::InMemory;
+    workspace.toggle_playback();
+    settle_background(&mut workspace);
+    workspace.toggle_playback();
+    assert!(workspace.playback_paused, "{}", workspace.status);
+
+    fs::write(
+        &project_path,
+        original.replace(
+            "track lead \"Lead\" instrument lead level -9db",
+            "track lead \"Lead\" instrument lead level -12db",
+        ),
+    )
+    .expect("write level edit");
+    workspace.refresh();
+    settle_background(&mut workspace);
+    assert!(!workspace.candidate_is_active());
+
+    workspace.toggle_playback();
+    assert!(workspace.playback_paused, "stays paused until published");
+    settle_background(&mut workspace);
+    assert!(workspace.candidate_is_active(), "{}", workspace.status);
+    assert!(!workspace.playback_paused, "{}", workspace.status);
+}
+
+#[test]
+fn playing_the_active_revision_leaves_an_unpublished_candidate_alone() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    let original = include_str!("../../tests/fixtures/minimal.crump");
+    let project_path = root.path().join("project.crump");
+    fs::write(&project_path, original).expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    workspace.playback_backend = PlaybackBackend::InMemory;
+    workspace.commit_input("Initial".to_owned(), InputAction::Publish);
+    settle_background(&mut workspace);
+    fs::write(
+        &project_path,
+        original.replace(
+            "track lead \"Lead\" instrument lead level -9db",
+            "track lead \"Lead\" instrument lead level -12db",
+        ),
+    )
+    .expect("write level edit");
+    workspace.refresh();
+    settle_background(&mut workspace);
+    let history = workspace.history.len();
+
+    workspace.play_active_revision();
+    settle_background(&mut workspace);
+    assert!(workspace.player.is_some(), "{}", workspace.status);
+    assert!(!workspace.candidate_is_active());
+    assert_eq!(workspace.history.len(), history);
+}
+
+#[test]
 fn in_memory_playback_publishes_edits_through_the_callback_and_promotes_inspection() {
     let root = tempfile::tempdir().expect("temporary Project");
     let original = include_str!("../../tests/fixtures/minimal.crump");
