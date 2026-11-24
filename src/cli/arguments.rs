@@ -390,605 +390,128 @@ pub(super) enum HistoryCommand {
 #[derive(Debug, Subcommand)]
 pub(super) enum EditCommand {
     /// Set any continuous stable Parameter target in physical units.
-    Target {
-        target: String,
-        #[arg(allow_hyphen_values = true)]
-        value: f64,
-        #[arg(long, default_value = "Change Parameter target")]
-        summary: String,
-    },
+    Target(EditTargetArgs),
     /// Set one exact Instrument Parameter in physical units.
-    Parameter {
-        instrument: String,
-        parameter: String,
-        #[arg(allow_hyphen_values = true)]
-        value: f64,
-        #[arg(long, default_value = "Change Instrument Parameter")]
-        summary: String,
-    },
+    Parameter(EditParameterArgs),
     /// Freeze or unfreeze a Track for live playback.
-    TrackFreeze {
-        track: String,
-        #[arg(action = clap::ArgAction::Set)]
-        frozen: bool,
-        #[arg(long, default_value = "Change Track Freeze")]
-        summary: String,
-    },
+    TrackFreeze(EditTrackFreezeArgs),
     /// Set one Track level in dB.
-    TrackLevel {
-        track: String,
-        #[arg(allow_hyphen_values = true)]
-        value: f64,
-        #[arg(long, default_value = "Change Track level")]
-        summary: String,
-    },
+    TrackLevel(EditTrackLevelArgs),
     /// Set one Track pan value from -1 to 1.
-    TrackPan {
-        track: String,
-        #[arg(allow_hyphen_values = true)]
-        value: f64,
-        #[arg(long, default_value = "Change Track pan")]
-        summary: String,
-    },
+    TrackPan(EditTrackPanArgs),
     /// Set one processor setting from an exact source literal.
-    ProcessorSetting {
-        processor: String,
-        setting: String,
-        #[arg(allow_hyphen_values = true)]
-        value: String,
-        #[arg(long, default_value = "Change processor setting")]
-        summary: String,
-    },
+    ProcessorSetting(EditProcessorSettingArgs),
     /// Edit one durable Instrument-owned Modulation route.
     ///
     /// Flattening keeps the public command names stable while bounding derive-time stack use.
     #[command(flatten)]
     InstrumentRoute(InstrumentRouteEditCommand),
     /// Set one durable source-backed processor bypass value.
-    ProcessorBypass {
-        processor: String,
-        #[arg(action = clap::ArgAction::Set)]
-        bypass: bool,
-        #[arg(long, default_value = "Change processor bypass")]
-        summary: String,
-    },
+    ProcessorBypass(EditProcessorBypassArgs),
     /// Move one processor by one position in its authored chain.
-    ProcessorMove {
-        processor: String,
-        direction: ProcessorMoveArg,
-        #[arg(long, default_value = "Reorder processor chain")]
-        summary: String,
-    },
+    ProcessorMove(EditProcessorMoveArgs),
     /// Create one absolute Song Automation lane with its required zero point.
-    AutomationCreate {
-        lane: String,
-        target: String,
-        #[arg(allow_hyphen_values = true)]
-        value: String,
-        #[arg(long, default_value = "Create Automation lane")]
-        summary: String,
-    },
+    AutomationCreate(EditAutomationCreateArgs),
     /// Delete one complete Song Automation lane.
-    AutomationDelete {
-        lane: String,
-        #[arg(long, default_value = "Delete Automation lane")]
-        summary: String,
-    },
+    AutomationDelete(EditAutomationDeleteArgs),
     /// Create one durable Automation point.
-    AutomationPointCreate {
-        lane: String,
-        point: String,
-        time: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(allow_hyphen_values = true)]
-        value: String,
-        #[arg(long, default_value = "linear")]
-        curve: String,
-        #[arg(long, default_value = "Create Automation point")]
-        summary: String,
-    },
+    AutomationPointCreate(EditAutomationPointCreateArgs),
     /// Set one Automation point's exact Song time.
-    AutomationPointTime {
-        lane: String,
-        point: String,
-        time: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Move Automation point")]
-        summary: String,
-    },
+    AutomationPointTime(EditAutomationPointTimeArgs),
     /// Set one Automation point's physical value.
-    AutomationPointValue {
-        lane: String,
-        point: String,
-        #[arg(allow_hyphen_values = true)]
-        value: String,
-        #[arg(long, default_value = "Change Automation value")]
-        summary: String,
-    },
+    AutomationPointValue(EditAutomationPointValueArgs),
     /// Set the interpolation leaving one Automation point.
-    AutomationPointCurve {
-        lane: String,
-        point: String,
-        curve: String,
-        #[arg(long, default_value = "Change Automation curve")]
-        summary: String,
-    },
+    AutomationPointCurve(EditAutomationPointCurveArgs),
     /// Delete one durable Automation point.
-    AutomationPointDelete {
-        lane: String,
-        point: String,
-        #[arg(long, default_value = "Delete Automation point")]
-        summary: String,
-    },
+    AutomationPointDelete(EditAutomationPointDeleteArgs),
     /// Create one reusable deterministic Groove Template.
-    GrooveCreate {
-        id: String,
-        grid: String,
-        #[arg(allow_hyphen_values = true)]
-        swing: f64,
-        timing: String,
-        #[arg(allow_hyphen_values = true)]
-        velocity: f64,
-        #[arg(allow_hyphen_values = true)]
-        probability: f64,
-        seed: u64,
-        #[arg(long, default_value = "Create Groove Template")]
-        summary: String,
-    },
+    GrooveCreate(EditGrooveCreateArgs),
     /// Update one reusable deterministic Groove Template.
-    GrooveUpdate {
-        id: String,
-        grid: String,
-        #[arg(allow_hyphen_values = true)]
-        swing: f64,
-        timing: String,
-        #[arg(allow_hyphen_values = true)]
-        velocity: f64,
-        #[arg(allow_hyphen_values = true)]
-        probability: f64,
-        seed: u64,
-        #[arg(long, default_value = "Update Groove Template")]
-        summary: String,
-    },
+    GrooveUpdate(EditGrooveUpdateArgs),
     /// Delete one unused Groove Template.
-    GrooveDelete {
-        id: String,
-        #[arg(long, default_value = "Delete Groove Template")]
-        summary: String,
-    },
+    GrooveDelete(EditGrooveDeleteArgs),
     /// Create one procedural Pattern Variation without flattening Events.
-    PatternVariationCreate {
-        id: String,
-        source: String,
-        rotate: String,
-        #[arg(allow_hyphen_values = true)]
-        transpose: i16,
-        #[arg(allow_hyphen_values = true)]
-        velocity: f64,
-        #[arg(action = clap::ArgAction::Set)]
-        reverse: bool,
-        #[arg(allow_hyphen_values = true)]
-        probability: f64,
-        seed: u64,
-        #[arg(long, default_value = "Create Pattern Variation")]
-        summary: String,
-    },
+    PatternVariationCreate(EditPatternVariationCreateArgs),
     /// Update one procedural Pattern Variation's checked transforms.
-    PatternVariationUpdate {
-        id: String,
-        source: String,
-        rotate: String,
-        #[arg(allow_hyphen_values = true)]
-        transpose: i16,
-        #[arg(allow_hyphen_values = true)]
-        velocity: f64,
-        #[arg(action = clap::ArgAction::Set)]
-        reverse: bool,
-        #[arg(allow_hyphen_values = true)]
-        probability: f64,
-        seed: u64,
-        #[arg(long, default_value = "Update Pattern Variation")]
-        summary: String,
-    },
+    PatternVariationUpdate(EditPatternVariationUpdateArgs),
     /// Delete one unreferenced procedural Pattern Variation.
-    PatternVariationDelete {
-        id: String,
-        #[arg(long, default_value = "Delete Pattern Variation")]
-        summary: String,
-    },
+    PatternVariationDelete(EditPatternVariationDeleteArgs),
     /// Create one durable Pattern Parameter lock.
-    ParameterLockCreate {
-        pattern: String,
-        id: String,
-        at: String,
-        parameter: String,
-        #[arg(allow_hyphen_values = true)]
-        value: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Create Parameter lock")]
-        summary: String,
-    },
+    ParameterLockCreate(EditParameterLockCreateArgs),
     /// Update one durable Pattern Parameter lock.
-    ParameterLockUpdate {
-        pattern: String,
-        id: String,
-        at: String,
-        parameter: String,
-        #[arg(allow_hyphen_values = true)]
-        value: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Update Parameter lock")]
-        summary: String,
-    },
+    ParameterLockUpdate(EditParameterLockUpdateArgs),
     /// Delete one durable Pattern Parameter lock.
-    ParameterLockDelete {
-        pattern: String,
-        id: String,
-        #[arg(long, default_value = "Delete Parameter lock")]
-        summary: String,
-    },
+    ParameterLockDelete(EditParameterLockDeleteArgs),
     /// Assign a Groove Template to a Clip, or omit GROOVE to clear it.
-    ClipGroove {
-        id: String,
-        groove: Option<String>,
-        #[arg(long, default_value = "Assign Clip Groove")]
-        summary: String,
-    },
+    ClipGroove(EditClipGrooveArgs),
     /// Insert empty arrangement time and shift later material.
-    TimeInsert {
-        at: String,
-        duration: String,
-        #[arg(long, value_enum, default_value_t = ArrangementAutomationArg::Follow)]
-        automation: ArrangementAutomationArg,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Insert arrangement time")]
-        summary: String,
-    },
+    TimeInsert(EditTimeInsertArgs),
     /// Delete arrangement time; boundary-crossing Clips must be split first.
-    TimeDelete {
-        at: String,
-        duration: String,
-        #[arg(long, value_enum, default_value_t = ArrangementAutomationArg::Follow)]
-        automation: ArrangementAutomationArg,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Delete arrangement time")]
-        summary: String,
-    },
+    TimeDelete(EditTimeDeleteArgs),
     /// Duplicate complete Clips into newly inserted arrangement time.
-    TimeDuplicate {
-        source_at: String,
-        duration: String,
-        destination: String,
-        suffix: String,
-        #[arg(long, value_enum, default_value_t = ArrangementAutomationArg::Follow)]
-        automation: ArrangementAutomationArg,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Duplicate arrangement time")]
-        summary: String,
-    },
+    TimeDuplicate(EditTimeDuplicateArgs),
     /// Create one named Song position for navigation and ranges.
-    LocatorCreate {
-        id: String,
-        name: String,
-        at: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Create Song Locator")]
-        summary: String,
-    },
+    LocatorCreate(EditLocatorCreateArgs),
     /// Move one named Song Locator.
-    LocatorMove {
-        id: String,
-        at: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Move Song Locator")]
-        summary: String,
-    },
+    LocatorMove(EditLocatorMoveArgs),
     /// Delete one named Song Locator.
-    LocatorDelete {
-        id: String,
-        #[arg(long, default_value = "Delete Song Locator")]
-        summary: String,
-    },
+    LocatorDelete(EditLocatorDeleteArgs),
     /// Create one readable Clip on a Timeline Track.
-    ClipCreate {
-        track: String,
-        id: String,
-        pattern: String,
-        start: String,
-        duration: String,
-        #[arg(long, default_value = "once")]
-        mode: String,
-        #[arg(long, default_value = "0beat")]
-        offset: String,
-        #[arg(long, allow_hyphen_values = true, default_value_t = 0)]
-        transpose: i16,
-        #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
-        gain_db: f64,
-        #[arg(long, default_value = "0beat")]
-        fade_in: String,
-        #[arg(long, default_value = "0beat")]
-        fade_out: String,
-        #[arg(long)]
-        groove: Option<String>,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Create Timeline Clip")]
-        summary: String,
-    },
+    ClipCreate(EditClipCreateArgs),
     /// Delete one complete Clip declaration.
-    ClipDelete {
-        id: String,
-        #[arg(long, default_value = "Delete Timeline Clip")]
-        summary: String,
-    },
+    ClipDelete(EditClipDeleteArgs),
     /// Move one Clip to an exact Song time.
-    ClipMove {
-        id: String,
-        start: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Move Timeline Clip")]
-        summary: String,
-    },
+    ClipMove(EditClipMoveArgs),
     /// Resize one Clip to an exact positive duration.
-    ClipResize {
-        id: String,
-        duration: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Resize Timeline Clip")]
-        summary: String,
-    },
+    ClipResize(EditClipResizeArgs),
     /// Duplicate one Clip under a fresh identity.
-    ClipDuplicate {
-        id: String,
-        new_id: String,
-        start: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Duplicate Timeline Clip")]
-        summary: String,
-    },
+    ClipDuplicate(EditClipDuplicateArgs),
     /// Split one Clip and give its right side a fresh identity.
-    ClipSplit {
-        id: String,
-        new_id: String,
-        at: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Split Timeline Clip")]
-        summary: String,
-    },
+    ClipSplit(EditClipSplitArgs),
     /// Set one Clip's Pattern-local source phase.
-    ClipOffset {
-        id: String,
-        offset: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Change Clip source offset")]
-        summary: String,
-    },
+    ClipOffset(EditClipOffsetArgs),
     /// Set one Clip's whole-semitone transposition.
-    ClipTranspose {
-        id: String,
-        #[arg(allow_hyphen_values = true)]
-        semitones: i16,
-        #[arg(long, default_value = "Transpose Timeline Clip")]
-        summary: String,
-    },
+    ClipTranspose(EditClipTransposeArgs),
     /// Set one Clip's event-excitation gain.
-    ClipGain {
-        id: String,
-        #[arg(allow_hyphen_values = true)]
-        gain_db: f64,
-        #[arg(long, default_value = "Change Clip gain")]
-        summary: String,
-    },
+    ClipGain(EditClipGainArgs),
     /// Set one Clip's left/right fade durations.
-    ClipFade {
-        id: String,
-        fade_in: String,
-        fade_out: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Change Clip fades")]
-        summary: String,
-    },
+    ClipFade(EditClipFadeArgs),
     /// Set one pitched Event by zero-based Pattern Event index.
-    NotePitch {
-        pattern: String,
-        event: usize,
-        pitch: String,
-        #[arg(long, default_value = "Change note pitch")]
-        summary: String,
-    },
+    NotePitch(EditNotePitchArgs),
     /// Set one note-or-hit onset in exact musical units.
-    EventTime {
-        pattern: String,
-        event: usize,
-        value: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Change Event onset")]
-        summary: String,
-    },
+    EventTime(EditEventTimeArgs),
     /// Set one pitched-note duration in exact musical units.
-    NoteDuration {
-        pattern: String,
-        event: usize,
-        value: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Change note duration")]
-        summary: String,
-    },
+    NoteDuration(EditNoteDurationArgs),
     /// Set one note-or-hit velocity from 0 to 1.
-    EventVelocity {
-        pattern: String,
-        event: usize,
-        #[arg(allow_hyphen_values = true)]
-        value: f64,
-        #[arg(long, default_value = "Change Event velocity")]
-        summary: String,
-    },
+    EventVelocity(EditEventVelocityArgs),
     /// Set one percussion hit voice.
-    HitVoice {
-        pattern: String,
-        event: usize,
-        voice: String,
-        #[arg(long, default_value = "Change percussion voice")]
-        summary: String,
-    },
+    HitVoice(EditHitVoiceArgs),
     /// Place one durable sample occurrence in a Pattern.
-    SamplePlace {
-        pattern: String,
-        id: String,
-        mapping: String,
-        at: String,
-        duration: String,
-        start_frame: u64,
-        end_frame: u64,
-        #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
-        gain_db: f64,
-        #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
-        pan: f64,
-        #[arg(long, default_value_t = 0)]
-        fade_in: u32,
-        #[arg(long, default_value_t = 0)]
-        fade_out: u32,
-        #[arg(long, default_value_t = 1.0)]
-        velocity: f64,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Place sample occurrence")]
-        summary: String,
-    },
+    SamplePlace(EditSamplePlaceArgs),
     /// Create adjacent one-key mappings from exact source-frame boundaries.
-    SampleSliceMap {
-        instrument: String,
-        asset: String,
-        prefix: String,
-        start_key: String,
-        #[arg(long, value_delimiter = ',', num_args = 1..)]
-        boundaries: Vec<u64>,
-        #[arg(long, value_enum, default_value_t = SampleDirectionArg::Forward)]
-        direction: SampleDirectionArg,
-        #[arg(long, default_value = "Create sample slice map")]
-        summary: String,
-    },
+    SampleSliceMap(EditSampleSliceMapArgs),
     /// Move one durable sample occurrence.
-    SampleMove {
-        pattern: String,
-        id: String,
-        at: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Move sample occurrence")]
-        summary: String,
-    },
+    SampleMove(EditSampleMoveArgs),
     /// Duplicate one durable sample occurrence.
-    SampleDuplicate {
-        pattern: String,
-        id: String,
-        new_id: String,
-        at: String,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Duplicate sample occurrence")]
-        summary: String,
-    },
+    SampleDuplicate(EditSampleDuplicateArgs),
     /// Split one sample occurrence at matching timeline/source positions.
-    SampleSplit {
-        pattern: String,
-        id: String,
-        new_id: String,
-        at: String,
-        source_frame: u64,
-        #[command(flatten)]
-        timing: TimeGridArgs,
-        #[arg(long, default_value = "Split sample occurrence")]
-        summary: String,
-    },
+    SampleSplit(EditSampleSplitArgs),
     /// Trim one sample occurrence to a half-open source region.
-    SampleTrim {
-        pattern: String,
-        id: String,
-        start_frame: u64,
-        end_frame: u64,
-        #[arg(long, default_value = "Trim sample occurrence")]
-        summary: String,
-    },
+    SampleTrim(EditSampleTrimArgs),
     /// Slip one sample occurrence by signed original-source frames.
-    SampleSlip {
-        pattern: String,
-        id: String,
-        #[arg(allow_hyphen_values = true)]
-        frames: i64,
-        #[arg(long, default_value = "Slip sample occurrence")]
-        summary: String,
-    },
+    SampleSlip(EditSampleSlipArgs),
     /// Set source-edge fades in original-source frames.
-    SampleFade {
-        pattern: String,
-        id: String,
-        fade_in: u32,
-        fade_out: u32,
-        #[arg(long, default_value = "Fade sample occurrence")]
-        summary: String,
-    },
+    SampleFade(EditSampleFadeArgs),
     /// Set one occurrence-local sample traversal direction.
-    SampleDirection {
-        pattern: String,
-        id: String,
-        direction: SampleDirectionArg,
-        #[arg(long, default_value = "Change sample direction")]
-        summary: String,
-    },
+    SampleDirection(EditSampleDirectionArgs),
     /// Set one bounded occurrence-local sample loop.
-    SampleLoop {
-        pattern: String,
-        id: String,
-        start_frame: u64,
-        end_frame: u64,
-        #[arg(long, default_value_t = 0)]
-        crossfade: u32,
-        #[arg(long, default_value = "Change sample loop")]
-        summary: String,
-    },
+    SampleLoop(EditSampleLoopArgs),
     /// Clear an occurrence-local sample loop and inherit the mapping.
-    SampleLoopClear {
-        pattern: String,
-        id: String,
-        #[arg(long, default_value = "Clear sample loop")]
-        summary: String,
-    },
+    SampleLoopClear(EditSampleLoopClearArgs),
     /// Set one durable sample occurrence gain trim.
-    SampleGain {
-        pattern: String,
-        id: String,
-        #[arg(allow_hyphen_values = true)]
-        gain_db: f64,
-        #[arg(long, default_value = "Change sample gain")]
-        summary: String,
-    },
+    SampleGain(EditSampleGainArgs),
     /// Set one durable sample occurrence pan.
-    SamplePan {
-        pattern: String,
-        id: String,
-        #[arg(allow_hyphen_values = true)]
-        pan: f64,
-        #[arg(long, default_value = "Change sample pan")]
-        summary: String,
-    },
+    SamplePan(EditSamplePanArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -1227,4 +750,658 @@ pub(super) enum ModuleCommand {
     },
     /// Materialize every `library:` import beneath the current Project.
     Collect,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditTargetArgs {
+    pub(super) target: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) value: f64,
+    #[arg(long, default_value = "Change Parameter target")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditParameterArgs {
+    pub(super) instrument: String,
+    pub(super) parameter: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) value: f64,
+    #[arg(long, default_value = "Change Instrument Parameter")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditTrackFreezeArgs {
+    pub(super) track: String,
+    #[arg(action = clap::ArgAction::Set)]
+    pub(super) frozen: bool,
+    #[arg(long, default_value = "Change Track Freeze")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditTrackLevelArgs {
+    pub(super) track: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) value: f64,
+    #[arg(long, default_value = "Change Track level")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditTrackPanArgs {
+    pub(super) track: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) value: f64,
+    #[arg(long, default_value = "Change Track pan")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditProcessorSettingArgs {
+    pub(super) processor: String,
+    pub(super) setting: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) value: String,
+    #[arg(long, default_value = "Change processor setting")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditProcessorBypassArgs {
+    pub(super) processor: String,
+    #[arg(action = clap::ArgAction::Set)]
+    pub(super) bypass: bool,
+    #[arg(long, default_value = "Change processor bypass")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditProcessorMoveArgs {
+    pub(super) processor: String,
+    pub(super) direction: ProcessorMoveArg,
+    #[arg(long, default_value = "Reorder processor chain")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditAutomationCreateArgs {
+    pub(super) lane: String,
+    pub(super) target: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) value: String,
+    #[arg(long, default_value = "Create Automation lane")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditAutomationDeleteArgs {
+    pub(super) lane: String,
+    #[arg(long, default_value = "Delete Automation lane")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditAutomationPointCreateArgs {
+    pub(super) lane: String,
+    pub(super) point: String,
+    pub(super) time: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) value: String,
+    #[arg(long, default_value = "linear")]
+    pub(super) curve: String,
+    #[arg(long, default_value = "Create Automation point")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditAutomationPointTimeArgs {
+    pub(super) lane: String,
+    pub(super) point: String,
+    pub(super) time: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Move Automation point")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditAutomationPointValueArgs {
+    pub(super) lane: String,
+    pub(super) point: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) value: String,
+    #[arg(long, default_value = "Change Automation value")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditAutomationPointCurveArgs {
+    pub(super) lane: String,
+    pub(super) point: String,
+    pub(super) curve: String,
+    #[arg(long, default_value = "Change Automation curve")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditAutomationPointDeleteArgs {
+    pub(super) lane: String,
+    pub(super) point: String,
+    #[arg(long, default_value = "Delete Automation point")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditGrooveCreateArgs {
+    pub(super) id: String,
+    pub(super) grid: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) swing: f64,
+    pub(super) timing: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) velocity: f64,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) probability: f64,
+    pub(super) seed: u64,
+    #[arg(long, default_value = "Create Groove Template")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditGrooveUpdateArgs {
+    pub(super) id: String,
+    pub(super) grid: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) swing: f64,
+    pub(super) timing: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) velocity: f64,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) probability: f64,
+    pub(super) seed: u64,
+    #[arg(long, default_value = "Update Groove Template")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditGrooveDeleteArgs {
+    pub(super) id: String,
+    #[arg(long, default_value = "Delete Groove Template")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditPatternVariationCreateArgs {
+    pub(super) id: String,
+    pub(super) source: String,
+    pub(super) rotate: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) transpose: i16,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) velocity: f64,
+    #[arg(action = clap::ArgAction::Set)]
+    pub(super) reverse: bool,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) probability: f64,
+    pub(super) seed: u64,
+    #[arg(long, default_value = "Create Pattern Variation")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditPatternVariationUpdateArgs {
+    pub(super) id: String,
+    pub(super) source: String,
+    pub(super) rotate: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) transpose: i16,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) velocity: f64,
+    #[arg(action = clap::ArgAction::Set)]
+    pub(super) reverse: bool,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) probability: f64,
+    pub(super) seed: u64,
+    #[arg(long, default_value = "Update Pattern Variation")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditPatternVariationDeleteArgs {
+    pub(super) id: String,
+    #[arg(long, default_value = "Delete Pattern Variation")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditParameterLockCreateArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    pub(super) at: String,
+    pub(super) parameter: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) value: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Create Parameter lock")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditParameterLockUpdateArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    pub(super) at: String,
+    pub(super) parameter: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) value: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Update Parameter lock")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditParameterLockDeleteArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    #[arg(long, default_value = "Delete Parameter lock")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditClipGrooveArgs {
+    pub(super) id: String,
+    pub(super) groove: Option<String>,
+    #[arg(long, default_value = "Assign Clip Groove")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditTimeInsertArgs {
+    pub(super) at: String,
+    pub(super) duration: String,
+    #[arg(long, value_enum, default_value_t = ArrangementAutomationArg::Follow)]
+    pub(super) automation: ArrangementAutomationArg,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Insert arrangement time")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditTimeDeleteArgs {
+    pub(super) at: String,
+    pub(super) duration: String,
+    #[arg(long, value_enum, default_value_t = ArrangementAutomationArg::Follow)]
+    pub(super) automation: ArrangementAutomationArg,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Delete arrangement time")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditTimeDuplicateArgs {
+    pub(super) source_at: String,
+    pub(super) duration: String,
+    pub(super) destination: String,
+    pub(super) suffix: String,
+    #[arg(long, value_enum, default_value_t = ArrangementAutomationArg::Follow)]
+    pub(super) automation: ArrangementAutomationArg,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Duplicate arrangement time")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditLocatorCreateArgs {
+    pub(super) id: String,
+    pub(super) name: String,
+    pub(super) at: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Create Song Locator")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditLocatorMoveArgs {
+    pub(super) id: String,
+    pub(super) at: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Move Song Locator")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditLocatorDeleteArgs {
+    pub(super) id: String,
+    #[arg(long, default_value = "Delete Song Locator")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditClipCreateArgs {
+    pub(super) track: String,
+    pub(super) id: String,
+    pub(super) pattern: String,
+    pub(super) start: String,
+    pub(super) duration: String,
+    #[arg(long, default_value = "once")]
+    pub(super) mode: String,
+    #[arg(long, default_value = "0beat")]
+    pub(super) offset: String,
+    #[arg(long, allow_hyphen_values = true, default_value_t = 0)]
+    pub(super) transpose: i16,
+    #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+    pub(super) gain_db: f64,
+    #[arg(long, default_value = "0beat")]
+    pub(super) fade_in: String,
+    #[arg(long, default_value = "0beat")]
+    pub(super) fade_out: String,
+    #[arg(long)]
+    pub(super) groove: Option<String>,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Create Timeline Clip")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditClipDeleteArgs {
+    pub(super) id: String,
+    #[arg(long, default_value = "Delete Timeline Clip")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditClipMoveArgs {
+    pub(super) id: String,
+    pub(super) start: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Move Timeline Clip")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditClipResizeArgs {
+    pub(super) id: String,
+    pub(super) duration: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Resize Timeline Clip")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditClipDuplicateArgs {
+    pub(super) id: String,
+    pub(super) new_id: String,
+    pub(super) start: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Duplicate Timeline Clip")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditClipSplitArgs {
+    pub(super) id: String,
+    pub(super) new_id: String,
+    pub(super) at: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Split Timeline Clip")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditClipOffsetArgs {
+    pub(super) id: String,
+    pub(super) offset: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Change Clip source offset")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditClipTransposeArgs {
+    pub(super) id: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) semitones: i16,
+    #[arg(long, default_value = "Transpose Timeline Clip")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditClipGainArgs {
+    pub(super) id: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) gain_db: f64,
+    #[arg(long, default_value = "Change Clip gain")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditClipFadeArgs {
+    pub(super) id: String,
+    pub(super) fade_in: String,
+    pub(super) fade_out: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Change Clip fades")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditNotePitchArgs {
+    pub(super) pattern: String,
+    pub(super) event: usize,
+    pub(super) pitch: String,
+    #[arg(long, default_value = "Change note pitch")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditEventTimeArgs {
+    pub(super) pattern: String,
+    pub(super) event: usize,
+    pub(super) value: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Change Event onset")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditNoteDurationArgs {
+    pub(super) pattern: String,
+    pub(super) event: usize,
+    pub(super) value: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Change note duration")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditEventVelocityArgs {
+    pub(super) pattern: String,
+    pub(super) event: usize,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) value: f64,
+    #[arg(long, default_value = "Change Event velocity")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditHitVoiceArgs {
+    pub(super) pattern: String,
+    pub(super) event: usize,
+    pub(super) voice: String,
+    #[arg(long, default_value = "Change percussion voice")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditSamplePlaceArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    pub(super) mapping: String,
+    pub(super) at: String,
+    pub(super) duration: String,
+    pub(super) start_frame: u64,
+    pub(super) end_frame: u64,
+    #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+    pub(super) gain_db: f64,
+    #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+    pub(super) pan: f64,
+    #[arg(long, default_value_t = 0)]
+    pub(super) fade_in: u32,
+    #[arg(long, default_value_t = 0)]
+    pub(super) fade_out: u32,
+    #[arg(long, default_value_t = 1.0)]
+    pub(super) velocity: f64,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Place sample occurrence")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditSampleSliceMapArgs {
+    pub(super) instrument: String,
+    pub(super) asset: String,
+    pub(super) prefix: String,
+    pub(super) start_key: String,
+    #[arg(long, value_delimiter = ',', num_args = 1..)]
+    pub(super) boundaries: Vec<u64>,
+    #[arg(long, value_enum, default_value_t = SampleDirectionArg::Forward)]
+    pub(super) direction: SampleDirectionArg,
+    #[arg(long, default_value = "Create sample slice map")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditSampleMoveArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    pub(super) at: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Move sample occurrence")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditSampleDuplicateArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    pub(super) new_id: String,
+    pub(super) at: String,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Duplicate sample occurrence")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditSampleSplitArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    pub(super) new_id: String,
+    pub(super) at: String,
+    pub(super) source_frame: u64,
+    #[command(flatten)]
+    pub(super) timing: TimeGridArgs,
+    #[arg(long, default_value = "Split sample occurrence")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditSampleTrimArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    pub(super) start_frame: u64,
+    pub(super) end_frame: u64,
+    #[arg(long, default_value = "Trim sample occurrence")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditSampleSlipArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) frames: i64,
+    #[arg(long, default_value = "Slip sample occurrence")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditSampleFadeArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    pub(super) fade_in: u32,
+    pub(super) fade_out: u32,
+    #[arg(long, default_value = "Fade sample occurrence")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditSampleDirectionArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    pub(super) direction: SampleDirectionArg,
+    #[arg(long, default_value = "Change sample direction")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditSampleLoopArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    pub(super) start_frame: u64,
+    pub(super) end_frame: u64,
+    #[arg(long, default_value_t = 0)]
+    pub(super) crossfade: u32,
+    #[arg(long, default_value = "Change sample loop")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditSampleLoopClearArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    #[arg(long, default_value = "Clear sample loop")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditSampleGainArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) gain_db: f64,
+    #[arg(long, default_value = "Change sample gain")]
+    pub(super) summary: String,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct EditSamplePanArgs {
+    pub(super) pattern: String,
+    pub(super) id: String,
+    #[arg(allow_hyphen_values = true)]
+    pub(super) pan: f64,
+    #[arg(long, default_value = "Change sample pan")]
+    pub(super) summary: String,
 }

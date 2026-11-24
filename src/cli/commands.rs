@@ -1217,7 +1217,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
         ));
     }
     let multi_replacement_edit = match command {
-        EditCommand::GrooveCreate {
+        EditCommand::GrooveCreate(EditGrooveCreateArgs {
             id,
             grid,
             swing,
@@ -1226,7 +1226,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             probability,
             seed,
             summary,
-        } => Some((
+        }) => Some((
             vec![
                 create_groove(
                     &bundle,
@@ -1244,7 +1244,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             ],
             summary.as_str(),
         )),
-        EditCommand::GrooveUpdate {
+        EditCommand::GrooveUpdate(EditGrooveUpdateArgs {
             id,
             grid,
             swing,
@@ -1253,7 +1253,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             probability,
             seed,
             summary,
-        } => Some((
+        }) => Some((
             update_groove(
                 &bundle,
                 &GroovePlacement {
@@ -1269,14 +1269,14 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             .map_err(|error| sample_edit_failure("edit.groove_update", error))?,
             summary.as_str(),
         )),
-        EditCommand::GrooveDelete { id, summary } => Some((
+        EditCommand::GrooveDelete(EditGrooveDeleteArgs { id, summary }) => Some((
             vec![
                 delete_groove(&bundle, id)
                     .map_err(|error| sample_edit_failure("edit.groove_delete", error))?,
             ],
             summary.as_str(),
         )),
-        EditCommand::PatternVariationCreate {
+        EditCommand::PatternVariationCreate(EditPatternVariationCreateArgs {
             id,
             source,
             rotate,
@@ -1286,7 +1286,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             probability,
             seed,
             summary,
-        } => Some((
+        }) => Some((
             vec![
                 create_pattern_variation(
                     &bundle,
@@ -1305,7 +1305,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             ],
             summary.as_str(),
         )),
-        EditCommand::PatternVariationUpdate {
+        EditCommand::PatternVariationUpdate(EditPatternVariationUpdateArgs {
             id,
             source,
             rotate,
@@ -1315,7 +1315,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             probability,
             seed,
             summary,
-        } => Some((
+        }) => Some((
             update_pattern_variation(
                 &bundle,
                 &PatternVariationPlacement {
@@ -1332,14 +1332,15 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             .map_err(|error| sample_edit_failure("edit.pattern_variation_update", error))?,
             summary.as_str(),
         )),
-        EditCommand::PatternVariationDelete { id, summary } => Some((
-            vec![
-                delete_pattern_variation(&bundle, id)
-                    .map_err(|error| sample_edit_failure("edit.pattern_variation_delete", error))?,
-            ],
-            summary.as_str(),
-        )),
-        EditCommand::ParameterLockCreate {
+        EditCommand::PatternVariationDelete(EditPatternVariationDeleteArgs { id, summary }) => {
+            Some((
+                vec![delete_pattern_variation(&bundle, id).map_err(|error| {
+                    sample_edit_failure("edit.pattern_variation_delete", error)
+                })?],
+                summary.as_str(),
+            ))
+        }
+        EditCommand::ParameterLockCreate(EditParameterLockCreateArgs {
             pattern,
             id,
             at,
@@ -1347,7 +1348,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             value,
             timing,
             summary,
-        } => {
+        }) => {
             let at = resolve_edit_time(&bundle, at, timing, "edit.parameter_lock_create")?;
             Some((
                 vec![
@@ -1366,7 +1367,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::ParameterLockUpdate {
+        EditCommand::ParameterLockUpdate(EditParameterLockUpdateArgs {
             pattern,
             id,
             at,
@@ -1374,7 +1375,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             value,
             timing,
             summary,
-        } => {
+        }) => {
             let at = resolve_edit_time(&bundle, at, timing, "edit.parameter_lock_update")?;
             Some((
                 update_parameter_lock(
@@ -1391,35 +1392,35 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::ParameterLockDelete {
+        EditCommand::ParameterLockDelete(EditParameterLockDeleteArgs {
             pattern,
             id,
             summary,
-        } => Some((
+        }) => Some((
             vec![
                 delete_parameter_lock(&bundle, pattern, id)
                     .map_err(|error| sample_edit_failure("edit.parameter_lock_delete", error))?,
             ],
             summary.as_str(),
         )),
-        EditCommand::ClipGroove {
+        EditCommand::ClipGroove(EditClipGrooveArgs {
             id,
             groove,
             summary,
-        } => Some((
+        }) => Some((
             vec![
                 set_clip_groove(&bundle, id, groove.as_deref())
                     .map_err(|error| sample_edit_failure("edit.clip_groove", error))?,
             ],
             summary.as_str(),
         )),
-        EditCommand::TimeInsert {
+        EditCommand::TimeInsert(EditTimeInsertArgs {
             at,
             duration,
             automation,
             timing,
             summary,
-        } => {
+        }) => {
             let at = resolve_edit_time(&bundle, at, timing, "edit.time_insert")?;
             let duration = resolve_edit_time(&bundle, duration, timing, "edit.time_insert")?;
             Some((
@@ -1428,13 +1429,13 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::TimeDelete {
+        EditCommand::TimeDelete(EditTimeDeleteArgs {
             at,
             duration,
             automation,
             timing,
             summary,
-        } => {
+        }) => {
             let at = resolve_edit_time(&bundle, at, timing, "edit.time_delete")?;
             let duration = resolve_edit_time(&bundle, duration, timing, "edit.time_delete")?;
             Some((
@@ -1443,7 +1444,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::TimeDuplicate {
+        EditCommand::TimeDuplicate(EditTimeDuplicateArgs {
             source_at,
             duration,
             destination,
@@ -1451,7 +1452,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             automation,
             timing,
             summary,
-        } => {
+        }) => {
             let source_at = resolve_edit_time(&bundle, source_at, timing, "edit.time_duplicate")?;
             let duration = resolve_edit_time(&bundle, duration, timing, "edit.time_duplicate")?;
             let destination =
@@ -1469,13 +1470,13 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::LocatorCreate {
+        EditCommand::LocatorCreate(EditLocatorCreateArgs {
             id,
             name,
             at,
             timing,
             summary,
-        } => {
+        }) => {
             let at = resolve_edit_time(&bundle, at, timing, "edit.locator_create")?;
             Some((
                 vec![
@@ -1485,12 +1486,12 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::LocatorMove {
+        EditCommand::LocatorMove(EditLocatorMoveArgs {
             id,
             at,
             timing,
             summary,
-        } => {
+        }) => {
             let at = resolve_edit_time(&bundle, at, timing, "edit.locator_move")?;
             Some((
                 vec![
@@ -1500,14 +1501,14 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::LocatorDelete { id, summary } => Some((
+        EditCommand::LocatorDelete(EditLocatorDeleteArgs { id, summary }) => Some((
             vec![
                 delete_locator(&bundle, id)
                     .map_err(|error| sample_edit_failure("edit.locator_delete", error))?,
             ],
             summary.as_str(),
         )),
-        EditCommand::ClipCreate {
+        EditCommand::ClipCreate(EditClipCreateArgs {
             track,
             id,
             pattern,
@@ -1522,7 +1523,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             groove,
             timing,
             summary,
-        } => {
+        }) => {
             let mode = mode.parse::<ClipMode>().map_err(|error| {
                 Failure::blocked(
                     "edit.clip_create",
@@ -1558,19 +1559,19 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::ClipDelete { id, summary } => Some((
+        EditCommand::ClipDelete(EditClipDeleteArgs { id, summary }) => Some((
             vec![
                 delete_clip(&bundle, id)
                     .map_err(|error| sample_edit_failure("edit.clip_delete", error))?,
             ],
             summary.as_str(),
         )),
-        EditCommand::ClipMove {
+        EditCommand::ClipMove(EditClipMoveArgs {
             id,
             start,
             timing,
             summary,
-        } => {
+        }) => {
             let start = resolve_edit_time(&bundle, start, timing, "edit.clip_move")?;
             Some((
                 vec![
@@ -1580,12 +1581,12 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::ClipResize {
+        EditCommand::ClipResize(EditClipResizeArgs {
             id,
             duration,
             timing,
             summary,
-        } => {
+        }) => {
             let duration = resolve_edit_time(&bundle, duration, timing, "edit.clip_resize")?;
             Some((
                 vec![
@@ -1595,13 +1596,13 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::ClipDuplicate {
+        EditCommand::ClipDuplicate(EditClipDuplicateArgs {
             id,
             new_id,
             start,
             timing,
             summary,
-        } => {
+        }) => {
             let start = resolve_edit_time(&bundle, start, timing, "edit.clip_duplicate")?;
             Some((
                 vec![
@@ -1611,13 +1612,13 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::ClipSplit {
+        EditCommand::ClipSplit(EditClipSplitArgs {
             id,
             new_id,
             at,
             timing,
             summary,
-        } => {
+        }) => {
             let at = resolve_edit_time(&bundle, at, timing, "edit.clip_split")?;
             Some((
                 split_clip(&bundle, id, new_id, &at)
@@ -1625,12 +1626,12 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::ClipOffset {
+        EditCommand::ClipOffset(EditClipOffsetArgs {
             id,
             offset,
             timing,
             summary,
-        } => {
+        }) => {
             let offset = resolve_edit_time(&bundle, offset, timing, "edit.clip_offset")?;
             Some((
                 set_clip_source_offset(&bundle, id, &offset)
@@ -1638,31 +1639,31 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::ClipTranspose {
+        EditCommand::ClipTranspose(EditClipTransposeArgs {
             id,
             semitones,
             summary,
-        } => Some((
+        }) => Some((
             set_clip_transpose(&bundle, id, *semitones)
                 .map_err(|error| sample_edit_failure("edit.clip_transpose", error))?,
             summary.as_str(),
         )),
-        EditCommand::ClipGain {
+        EditCommand::ClipGain(EditClipGainArgs {
             id,
             gain_db,
             summary,
-        } => Some((
+        }) => Some((
             set_clip_gain(&bundle, id, *gain_db)
                 .map_err(|error| sample_edit_failure("edit.clip_gain", error))?,
             summary.as_str(),
         )),
-        EditCommand::ClipFade {
+        EditCommand::ClipFade(EditClipFadeArgs {
             id,
             fade_in,
             fade_out,
             timing,
             summary,
-        } => {
+        }) => {
             let fade_in = resolve_edit_time(&bundle, fade_in, timing, "edit.clip_fade")?;
             let fade_out = resolve_edit_time(&bundle, fade_out, timing, "edit.clip_fade")?;
             Some((
@@ -1671,7 +1672,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::SamplePlace {
+        EditCommand::SamplePlace(EditSamplePlaceArgs {
             pattern,
             id,
             mapping,
@@ -1686,7 +1687,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             velocity,
             timing,
             summary,
-        } => {
+        }) => {
             let at = resolve_edit_time(&bundle, at, timing, "edit.sample_place")?;
             let duration = resolve_edit_time(&bundle, duration, timing, "edit.sample_place")?;
             Some((
@@ -1715,7 +1716,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::SampleSliceMap {
+        EditCommand::SampleSliceMap(EditSampleSliceMapArgs {
             instrument,
             asset,
             prefix,
@@ -1723,7 +1724,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             boundaries,
             direction,
             summary,
-        } => {
+        }) => {
             let start_key = parse_pitch(start_key).map_err(|error| {
                 Failure::blocked(
                     "edit.sample_slice_map",
@@ -1750,13 +1751,13 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::SampleMove {
+        EditCommand::SampleMove(EditSampleMoveArgs {
             pattern,
             id,
             at,
             timing,
             summary,
-        } => {
+        }) => {
             let at = resolve_edit_time(&bundle, at, timing, "edit.sample_move")?;
             Some((
                 vec![
@@ -1766,14 +1767,14 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::SampleDuplicate {
+        EditCommand::SampleDuplicate(EditSampleDuplicateArgs {
             pattern,
             id,
             new_id,
             at,
             timing,
             summary,
-        } => {
+        }) => {
             let at = resolve_edit_time(&bundle, at, timing, "edit.sample_duplicate")?;
             Some((
                 vec![
@@ -1783,7 +1784,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::SampleSplit {
+        EditCommand::SampleSplit(EditSampleSplitArgs {
             pattern,
             id,
             new_id,
@@ -1791,7 +1792,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             source_frame,
             timing,
             summary,
-        } => {
+        }) => {
             let at = resolve_edit_time(&bundle, at, timing, "edit.sample_split")?;
             Some((
                 vec![
@@ -1801,44 +1802,50 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary.as_str(),
             ))
         }
-        EditCommand::SampleTrim { .. } => unreachable!("shared operation returned above"),
-        EditCommand::SampleSlip {
+        EditCommand::SampleTrim(EditSampleTrimArgs { .. }) => {
+            unreachable!("shared operation returned above")
+        }
+        EditCommand::SampleSlip(EditSampleSlipArgs {
             pattern,
             id,
             frames,
             summary,
-        } => Some((
+        }) => Some((
             slip_sample_occurrence(&bundle, pattern, id, *frames)
                 .map_err(|error| sample_edit_failure("edit.sample_slip", error))?,
             summary.as_str(),
         )),
-        EditCommand::SampleFade { .. }
-        | EditCommand::SampleDirection { .. }
-        | EditCommand::SampleLoop { .. }
-        | EditCommand::SampleLoopClear { .. }
-        | EditCommand::SampleGain { .. }
-        | EditCommand::SamplePan { .. } => unreachable!("shared operation returned above"),
+        EditCommand::SampleFade(EditSampleFadeArgs { .. })
+        | EditCommand::SampleDirection(EditSampleDirectionArgs { .. })
+        | EditCommand::SampleLoop(EditSampleLoopArgs { .. })
+        | EditCommand::SampleLoopClear(EditSampleLoopClearArgs { .. })
+        | EditCommand::SampleGain(EditSampleGainArgs { .. })
+        | EditCommand::SamplePan(EditSamplePanArgs { .. }) => {
+            unreachable!("shared operation returned above")
+        }
         _ => None,
     };
     if let Some((replacements, summary)) = multi_replacement_edit {
         return commit_cli_edit(&bundle, replacements, summary);
     }
     let (replacement, summary) = match command {
-        EditCommand::Target { .. }
-        | EditCommand::Parameter { .. }
-        | EditCommand::TrackFreeze { .. }
-        | EditCommand::TrackLevel { .. }
-        | EditCommand::TrackPan { .. }
-        | EditCommand::ProcessorSetting { .. }
+        EditCommand::Target(EditTargetArgs { .. })
+        | EditCommand::Parameter(EditParameterArgs { .. })
+        | EditCommand::TrackFreeze(EditTrackFreezeArgs { .. })
+        | EditCommand::TrackLevel(EditTrackLevelArgs { .. })
+        | EditCommand::TrackPan(EditTrackPanArgs { .. })
+        | EditCommand::ProcessorSetting(EditProcessorSettingArgs { .. })
         | EditCommand::InstrumentRoute(_)
-        | EditCommand::ProcessorBypass { .. }
-        | EditCommand::ProcessorMove { .. } => unreachable!("shared operation returned above"),
-        EditCommand::AutomationCreate {
+        | EditCommand::ProcessorBypass(EditProcessorBypassArgs { .. })
+        | EditCommand::ProcessorMove(EditProcessorMoveArgs { .. }) => {
+            unreachable!("shared operation returned above")
+        }
+        EditCommand::AutomationCreate(EditAutomationCreateArgs {
             lane,
             target,
             value,
             summary,
-        } => {
+        }) => {
             let target = target.parse::<ParameterTarget>().map_err(|error| {
                 Failure::blocked(
                     "edit.automation_create",
@@ -1859,7 +1866,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary,
             )
         }
-        EditCommand::AutomationDelete { lane, summary } => (
+        EditCommand::AutomationDelete(EditAutomationDeleteArgs { lane, summary }) => (
             delete_automation_lane(&bundle, lane).map_err(|error| {
                 Failure::blocked(
                     "edit.automation_delete",
@@ -1870,7 +1877,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             })?,
             summary,
         ),
-        EditCommand::AutomationPointCreate {
+        EditCommand::AutomationPointCreate(EditAutomationPointCreateArgs {
             lane,
             point,
             time,
@@ -1878,7 +1885,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             value,
             curve,
             summary,
-        } => {
+        }) => {
             let time = resolve_edit_time(&bundle, time, timing, "edit.automation_point_create")?;
             let curve = curve.parse::<AutomationInterpolation>().map_err(|error| {
                 Failure::blocked(
@@ -1902,16 +1909,16 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
                 summary,
             )
         }
-        EditCommand::AutomationPointTime { .. }
-        | EditCommand::AutomationPointValue { .. }
-        | EditCommand::AutomationPointCurve { .. } => {
+        EditCommand::AutomationPointTime(EditAutomationPointTimeArgs { .. })
+        | EditCommand::AutomationPointValue(EditAutomationPointValueArgs { .. })
+        | EditCommand::AutomationPointCurve(EditAutomationPointCurveArgs { .. }) => {
             unreachable!("shared operation returned above")
         }
-        EditCommand::AutomationPointDelete {
+        EditCommand::AutomationPointDelete(EditAutomationPointDeleteArgs {
             lane,
             point,
             summary,
-        } => (
+        }) => (
             delete_automation_point(&bundle, lane, point).map_err(|error| {
                 Failure::blocked(
                     "edit.automation_point_delete",
@@ -1922,50 +1929,54 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
             })?,
             summary,
         ),
-        EditCommand::NotePitch { .. }
-        | EditCommand::EventTime { .. }
-        | EditCommand::NoteDuration { .. }
-        | EditCommand::EventVelocity { .. }
-        | EditCommand::HitVoice { .. } => unreachable!("shared operation returned above"),
-        EditCommand::GrooveCreate { .. }
-        | EditCommand::GrooveUpdate { .. }
-        | EditCommand::GrooveDelete { .. }
-        | EditCommand::PatternVariationCreate { .. }
-        | EditCommand::PatternVariationUpdate { .. }
-        | EditCommand::PatternVariationDelete { .. }
-        | EditCommand::ParameterLockCreate { .. }
-        | EditCommand::ParameterLockUpdate { .. }
-        | EditCommand::ParameterLockDelete { .. }
-        | EditCommand::ClipGroove { .. }
-        | EditCommand::TimeInsert { .. }
-        | EditCommand::TimeDelete { .. }
-        | EditCommand::TimeDuplicate { .. }
-        | EditCommand::LocatorCreate { .. }
-        | EditCommand::LocatorMove { .. }
-        | EditCommand::LocatorDelete { .. }
-        | EditCommand::ClipCreate { .. }
-        | EditCommand::ClipDelete { .. }
-        | EditCommand::ClipMove { .. }
-        | EditCommand::ClipResize { .. }
-        | EditCommand::ClipDuplicate { .. }
-        | EditCommand::ClipSplit { .. }
-        | EditCommand::ClipOffset { .. }
-        | EditCommand::ClipTranspose { .. }
-        | EditCommand::ClipGain { .. }
-        | EditCommand::ClipFade { .. }
-        | EditCommand::SamplePlace { .. }
-        | EditCommand::SampleSliceMap { .. }
-        | EditCommand::SampleMove { .. }
-        | EditCommand::SampleDuplicate { .. }
-        | EditCommand::SampleSplit { .. }
-        | EditCommand::SampleTrim { .. }
-        | EditCommand::SampleSlip { .. }
-        | EditCommand::SampleFade { .. }
-        | EditCommand::SampleDirection { .. }
-        | EditCommand::SampleLoop { .. }
-        | EditCommand::SampleLoopClear { .. }
-        | EditCommand::SampleGain { .. }
-        | EditCommand::SamplePan { .. } => unreachable!("multi-replacement edits returned above"),
+        EditCommand::NotePitch(EditNotePitchArgs { .. })
+        | EditCommand::EventTime(EditEventTimeArgs { .. })
+        | EditCommand::NoteDuration(EditNoteDurationArgs { .. })
+        | EditCommand::EventVelocity(EditEventVelocityArgs { .. })
+        | EditCommand::HitVoice(EditHitVoiceArgs { .. }) => {
+            unreachable!("shared operation returned above")
+        }
+        EditCommand::GrooveCreate(EditGrooveCreateArgs { .. })
+        | EditCommand::GrooveUpdate(EditGrooveUpdateArgs { .. })
+        | EditCommand::GrooveDelete(EditGrooveDeleteArgs { .. })
+        | EditCommand::PatternVariationCreate(EditPatternVariationCreateArgs { .. })
+        | EditCommand::PatternVariationUpdate(EditPatternVariationUpdateArgs { .. })
+        | EditCommand::PatternVariationDelete(EditPatternVariationDeleteArgs { .. })
+        | EditCommand::ParameterLockCreate(EditParameterLockCreateArgs { .. })
+        | EditCommand::ParameterLockUpdate(EditParameterLockUpdateArgs { .. })
+        | EditCommand::ParameterLockDelete(EditParameterLockDeleteArgs { .. })
+        | EditCommand::ClipGroove(EditClipGrooveArgs { .. })
+        | EditCommand::TimeInsert(EditTimeInsertArgs { .. })
+        | EditCommand::TimeDelete(EditTimeDeleteArgs { .. })
+        | EditCommand::TimeDuplicate(EditTimeDuplicateArgs { .. })
+        | EditCommand::LocatorCreate(EditLocatorCreateArgs { .. })
+        | EditCommand::LocatorMove(EditLocatorMoveArgs { .. })
+        | EditCommand::LocatorDelete(EditLocatorDeleteArgs { .. })
+        | EditCommand::ClipCreate(EditClipCreateArgs { .. })
+        | EditCommand::ClipDelete(EditClipDeleteArgs { .. })
+        | EditCommand::ClipMove(EditClipMoveArgs { .. })
+        | EditCommand::ClipResize(EditClipResizeArgs { .. })
+        | EditCommand::ClipDuplicate(EditClipDuplicateArgs { .. })
+        | EditCommand::ClipSplit(EditClipSplitArgs { .. })
+        | EditCommand::ClipOffset(EditClipOffsetArgs { .. })
+        | EditCommand::ClipTranspose(EditClipTransposeArgs { .. })
+        | EditCommand::ClipGain(EditClipGainArgs { .. })
+        | EditCommand::ClipFade(EditClipFadeArgs { .. })
+        | EditCommand::SamplePlace(EditSamplePlaceArgs { .. })
+        | EditCommand::SampleSliceMap(EditSampleSliceMapArgs { .. })
+        | EditCommand::SampleMove(EditSampleMoveArgs { .. })
+        | EditCommand::SampleDuplicate(EditSampleDuplicateArgs { .. })
+        | EditCommand::SampleSplit(EditSampleSplitArgs { .. })
+        | EditCommand::SampleTrim(EditSampleTrimArgs { .. })
+        | EditCommand::SampleSlip(EditSampleSlipArgs { .. })
+        | EditCommand::SampleFade(EditSampleFadeArgs { .. })
+        | EditCommand::SampleDirection(EditSampleDirectionArgs { .. })
+        | EditCommand::SampleLoop(EditSampleLoopArgs { .. })
+        | EditCommand::SampleLoopClear(EditSampleLoopClearArgs { .. })
+        | EditCommand::SampleGain(EditSampleGainArgs { .. })
+        | EditCommand::SamplePan(EditSamplePanArgs { .. }) => {
+            unreachable!("multi-replacement edits returned above")
+        }
     };
     commit_cli_edit(&bundle, vec![replacement], summary)
 }
@@ -1974,11 +1985,11 @@ fn shared_edit_operation(
     command: &EditCommand,
 ) -> Option<(ProductionViewOperation, &str, &'static str)> {
     let result = match command {
-        EditCommand::Target {
+        EditCommand::Target(EditTargetArgs {
             target,
             value,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetParameterTarget {
                 target: target.clone(),
                 value: PhysicalValue::Number(*value),
@@ -1986,12 +1997,12 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.target",
         ),
-        EditCommand::Parameter {
+        EditCommand::Parameter(EditParameterArgs {
             instrument,
             parameter,
             value,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetInstrumentParameter {
                 instrument: instrument.clone(),
                 parameter: parameter.clone(),
@@ -2000,11 +2011,11 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.parameter",
         ),
-        EditCommand::TrackFreeze {
+        EditCommand::TrackFreeze(EditTrackFreezeArgs {
             track,
             frozen,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetTrackFreeze {
                 track: track.clone(),
                 frozen: *frozen,
@@ -2012,11 +2023,11 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.track_freeze",
         ),
-        EditCommand::TrackLevel {
+        EditCommand::TrackLevel(EditTrackLevelArgs {
             track,
             value,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetTrackLevel {
                 track: track.clone(),
                 value: PhysicalValue::Number(*value),
@@ -2024,11 +2035,11 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.track_level",
         ),
-        EditCommand::TrackPan {
+        EditCommand::TrackPan(EditTrackPanArgs {
             track,
             value,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetTrackPan {
                 track: track.clone(),
                 value: PhysicalValue::Number(*value),
@@ -2036,12 +2047,12 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.track_pan",
         ),
-        EditCommand::ProcessorSetting {
+        EditCommand::ProcessorSetting(EditProcessorSettingArgs {
             processor,
             setting,
             value,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetProcessorSetting {
                 processor: processor.clone(),
                 setting: setting.clone(),
@@ -2078,11 +2089,11 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.instrument_route_bypass",
         ),
-        EditCommand::ProcessorBypass {
+        EditCommand::ProcessorBypass(EditProcessorBypassArgs {
             processor,
             bypass,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetProcessorBypass {
                 processor: processor.clone(),
                 bypass: *bypass,
@@ -2090,11 +2101,11 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.processor_bypass",
         ),
-        EditCommand::ProcessorMove {
+        EditCommand::ProcessorMove(EditProcessorMoveArgs {
             processor,
             direction,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::MoveProcessor {
                 processor: processor.clone(),
                 direction: match direction {
@@ -2105,13 +2116,13 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.processor_move",
         ),
-        EditCommand::AutomationPointTime {
+        EditCommand::AutomationPointTime(EditAutomationPointTimeArgs {
             lane,
             point,
             time,
             timing,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetAutomationPointTime {
                 lane: lane.clone(),
                 point: point.clone(),
@@ -2121,12 +2132,12 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.automation_point_time",
         ),
-        EditCommand::AutomationPointValue {
+        EditCommand::AutomationPointValue(EditAutomationPointValueArgs {
             lane,
             point,
             value,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetAutomationPointValue {
                 lane: lane.clone(),
                 point: point.clone(),
@@ -2135,12 +2146,12 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.automation_point_value",
         ),
-        EditCommand::AutomationPointCurve {
+        EditCommand::AutomationPointCurve(EditAutomationPointCurveArgs {
             lane,
             point,
             curve,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetAutomationPointCurve {
                 lane: lane.clone(),
                 point: point.clone(),
@@ -2149,12 +2160,12 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.automation_point_curve",
         ),
-        EditCommand::NotePitch {
+        EditCommand::NotePitch(EditNotePitchArgs {
             pattern,
             event,
             pitch,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetNotePitch {
                 pattern: pattern.clone(),
                 event: *event,
@@ -2163,13 +2174,13 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.note_pitch",
         ),
-        EditCommand::EventTime {
+        EditCommand::EventTime(EditEventTimeArgs {
             pattern,
             event,
             value,
             timing,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetEventTime {
                 pattern: pattern.clone(),
                 event: *event,
@@ -2179,13 +2190,13 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.event_time",
         ),
-        EditCommand::NoteDuration {
+        EditCommand::NoteDuration(EditNoteDurationArgs {
             pattern,
             event,
             value,
             timing,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetNoteDuration {
                 pattern: pattern.clone(),
                 event: *event,
@@ -2195,12 +2206,12 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.note_duration",
         ),
-        EditCommand::EventVelocity {
+        EditCommand::EventVelocity(EditEventVelocityArgs {
             pattern,
             event,
             value,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetEventVelocity {
                 pattern: pattern.clone(),
                 event: *event,
@@ -2209,12 +2220,12 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.event_velocity",
         ),
-        EditCommand::HitVoice {
+        EditCommand::HitVoice(EditHitVoiceArgs {
             pattern,
             event,
             voice,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetHitVoice {
                 pattern: pattern.clone(),
                 event: *event,
@@ -2223,13 +2234,13 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.hit_voice",
         ),
-        EditCommand::SampleTrim {
+        EditCommand::SampleTrim(EditSampleTrimArgs {
             pattern,
             id,
             start_frame,
             end_frame,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::TrimSample {
                 pattern: pattern.clone(),
                 occurrence: id.clone(),
@@ -2239,13 +2250,13 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.sample_trim",
         ),
-        EditCommand::SampleFade {
+        EditCommand::SampleFade(EditSampleFadeArgs {
             pattern,
             id,
             fade_in,
             fade_out,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::FadeSample {
                 pattern: pattern.clone(),
                 occurrence: id.clone(),
@@ -2255,12 +2266,12 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.sample_fade",
         ),
-        EditCommand::SampleDirection {
+        EditCommand::SampleDirection(EditSampleDirectionArgs {
             pattern,
             id,
             direction,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetSampleDirection {
                 pattern: pattern.clone(),
                 occurrence: id.clone(),
@@ -2269,14 +2280,14 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.sample_direction",
         ),
-        EditCommand::SampleLoop {
+        EditCommand::SampleLoop(EditSampleLoopArgs {
             pattern,
             id,
             start_frame,
             end_frame,
             crossfade,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetSampleLoop {
                 pattern: pattern.clone(),
                 occurrence: id.clone(),
@@ -2287,11 +2298,11 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.sample_loop",
         ),
-        EditCommand::SampleLoopClear {
+        EditCommand::SampleLoopClear(EditSampleLoopClearArgs {
             pattern,
             id,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::ClearSampleLoop {
                 pattern: pattern.clone(),
                 occurrence: id.clone(),
@@ -2299,12 +2310,12 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.sample_loop_clear",
         ),
-        EditCommand::SampleGain {
+        EditCommand::SampleGain(EditSampleGainArgs {
             pattern,
             id,
             gain_db,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetSampleGain {
                 pattern: pattern.clone(),
                 occurrence: id.clone(),
@@ -2313,12 +2324,12 @@ fn shared_edit_operation(
             summary.as_str(),
             "edit.sample_gain",
         ),
-        EditCommand::SamplePan {
+        EditCommand::SamplePan(EditSamplePanArgs {
             pattern,
             id,
             pan,
             summary,
-        } => (
+        }) => (
             ProductionViewOperation::SetSamplePan {
                 pattern: pattern.clone(),
                 occurrence: id.clone(),
