@@ -751,6 +751,11 @@ fn is_bookkeeping(key: &str) -> bool {
     key == "location" || key == "locations" || key.ends_with("site") || key.ends_with("sites")
 }
 
+/// Whether a serialized object is a `MusicalTime` (a fraction of quarter notes).
+fn is_time(object: &serde_json::Map<String, serde_json::Value>) -> bool {
+    object.len() == 2 && object.contains_key("numerator") && object.contains_key("denominator")
+}
+
 fn element_id(value: &serde_json::Value) -> Option<&str> {
     value
         .get("id")
@@ -770,7 +775,8 @@ fn diff_json(
         return;
     }
     match (a, b) {
-        (Value::Object(x), Value::Object(y)) => {
+        // A musical time is one value, not a numerator and a denominator.
+        (Value::Object(x), Value::Object(y)) if !is_time(x) || !is_time(y) => {
             let keys = y.keys().chain(x.keys().filter(|k| !y.contains_key(*k)));
             for key in keys.cloned().collect::<Vec<_>>() {
                 if is_bookkeeping(&key) {
@@ -946,7 +952,8 @@ fn describe_change(
 /// A path inside an area as words: `channel/inserts/bass-color/settings/drive/value` reads
 /// "Saturator · Drive".
 fn control_label(project: &Project, area: &Area, path: &[String]) -> String {
-    const NOISE: [&str; 7] = [
+    const NOISE: [&str; 8] = [
+        "points",
         "channel",
         "settings",
         "value",
@@ -988,6 +995,7 @@ fn control_label(project: &Project, area: &Area, path: &[String]) -> String {
         }
         let word = match segment.as_str() {
             "level_db" => "Level".to_owned(),
+            "at" => "Position".to_owned(),
             "position" => "Pan".to_owned(),
             "left" => "Pan left".to_owned(),
             "right" => "Pan right".to_owned(),
@@ -1018,6 +1026,12 @@ fn json_text(value: &serde_json::Value) -> String {
         Value::Bool(b) => if *b { "on" } else { "off" }.to_owned(),
         Value::Null => "none".to_owned(),
         Value::Array(items) => plural(items.len(), "item"),
+        Value::Object(object) if is_time(object) => {
+            let part = |key: &str| object.get(key).and_then(Value::as_f64).unwrap_or(0.0);
+            let quarters = part("numerator") / part("denominator").max(1.0);
+            let text = format!("{quarters:.3}");
+            format!("{} qn", text.trim_end_matches('0').trim_end_matches('.'))
+        }
         Value::Object(_) => "changed".to_owned(),
     }
 }
@@ -1342,57 +1356,6 @@ fn pan_dials(panner: &crate::model::Panner) -> Vec<(&'static str, f64)> {
             vec![("Pan left", *left), ("Pan right", *right)]
         }
         other => vec![("Pan", other.primary_position())],
-    }
-}
-
-/// A pattern drawn small: notes or hits over its span.
-fn pattern_thumb(
-    painter: &egui::Painter,
-    rect: Rect,
-    pattern: &crate::model::Pattern,
-    color: Color32,
-) {
-    use crate::model::PatternEvent;
-    painter.rect_filled(rect, 4.0, theme::BG_WELL);
-    let span = pattern.span.as_f64().max(0.25);
-    let pitches = pattern
-        .events
-        .iter()
-        .filter_map(|e| match e {
-            PatternEvent::Note { pitch, .. } => Some(*pitch),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let hi = pitches.iter().max().copied().unwrap_or(60);
-    let lo = pitches.iter().min().copied().unwrap_or(48);
-    let rows = f32::from(hi.saturating_sub(lo).max(4)) + 1.0;
-    for beat in 0..(span.ceil() as usize) {
-        painter.vline(
-            rect.left() + rect.width() * (beat as f64 / span) as f32,
-            rect.y_range(),
-            Stroke::new(1.0_f32, with_alpha(theme::BORDER_SUBTLE, 0.6)),
-        );
-    }
-    let h = ((rect.height() - 8.0) / rows).max(3.0);
-    for event in &pattern.events {
-        let (at, len, row) = match event {
-            PatternEvent::Note {
-                at,
-                pitch,
-                duration,
-                ..
-            } => (at.as_f64(), duration.as_f64(), f32::from(hi - pitch)),
-            PatternEvent::Hit { at, voice, .. } => (at.as_f64(), 0.12, *voice as u8 as f32),
-            PatternEvent::Sample { at, duration, .. } => (at.as_f64(), duration.as_f64(), 0.0),
-        };
-        let x0 = rect.left() + rect.width() * (at / span) as f32;
-        let x1 = rect.left() + rect.width() * ((at + len) / span) as f32;
-        let y = rect.top() + 4.0 + row.min(rows - 1.0) * h;
-        painter.rect_filled(
-            Rect::from_min_max(Pos2::new(x0, y), Pos2::new(x1.max(x0 + 3.0), y + h)),
-            1.5,
-            color,
-        );
     }
 }
 
