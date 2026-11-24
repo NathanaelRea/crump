@@ -27,6 +27,7 @@ use patterns::validate_patterns;
 use routing::validate_mix_graph;
 use tracks::validate_tracks;
 
+use crate::engine::mix_graph::{AdmissionFailure, AdmissionProfile, describe_admission_failures};
 use crate::routing::AuthoredTopology;
 
 /// Maximum authored graph nodes in one voice.
@@ -119,34 +120,67 @@ pub(crate) fn validate_project_with_topology(project: &Project) -> (Diagnostics,
     }
     if !diagnostics.has_errors() {
         match crate::engine::mix_graph::CompiledMixGraph::resource_estimate_for_validation(
-            project,
-            &topology,
+            project, &topology,
         ) {
-            Ok(estimate) if !estimate.admitted => diagnostics.push(
+            Ok(estimate) => push_admission_diagnostics(&estimate, true, &mut diagnostics),
+            Err(error) => diagnostics.push(
                 Diagnostic::error(
                     "CRV092",
-                    format!(
-                        "compiled mix runtime exceeds a named budget: {} processors (fixed telemetry capacity {}), {} bytes at publication (budget {}), {} work units/frame (budget {})",
-                        estimate.processors,
-                        crate::engine::mix_graph::MAX_PROCESSOR_INSTANCES,
-                        estimate.publication_peak_bytes,
-                        estimate.publication_budget_bytes,
-                        estimate.work_units_per_frame,
-                        estimate.work_budget_per_frame
-                    ),
+                    format!("compiled mix graph rejected candidate: {error}"),
                 )
-                .with_help(
-                    "reduce processor state, channel count, graph voices, or callback-time work",
-                ),
+                .with_help("inspect routing, processor contracts, and runtime resource bounds"),
             ),
-            Err(error) => diagnostics.push(
-                Diagnostic::error("CRV092", format!("compiled mix graph rejected candidate: {error}"))
-                    .with_help("inspect routing, processor contracts, and runtime resource bounds"),
-            ),
-            Ok(_) => {}
         }
     }
     (diagnostics, topology)
+}
+
+/// Reports a runtime estimate against both admission profiles.
+///
+/// Exceeding the offline budget is an error: nothing can render the Project. Exceeding only the
+/// live budget is a warning: the Project publishes and renders, but live playback is unavailable.
+/// `report_live` suppresses a live warning already reported by an earlier, smaller estimate.
+fn push_admission_diagnostics(
+    estimate: &crate::engine::mix_graph::RuntimeResourceEstimate,
+    report_live: bool,
+    diagnostics: &mut Diagnostics,
+) {
+    let offline = estimate.admission_failures(AdmissionProfile::Offline);
+    if !offline.is_empty() {
+        diagnostics.push(admission_diagnostic(AdmissionProfile::Offline, &offline));
+        return;
+    }
+    let live = estimate.admission_failures(AdmissionProfile::Live);
+    if report_live && !live.is_empty() {
+        diagnostics.push(admission_diagnostic(AdmissionProfile::Live, &live));
+    }
+}
+
+/// Builds the diagnostic for a Project that exceeds `profile`, naming every failed limit.
+pub(crate) fn admission_diagnostic(
+    profile: AdmissionProfile,
+    failures: &[AdmissionFailure],
+) -> Diagnostic {
+    let detail = describe_admission_failures(failures);
+    let help = failures
+        .iter()
+        .map(|failure| failure.limit.help())
+        .collect::<Vec<_>>()
+        .join("; ");
+    match profile {
+        AdmissionProfile::Offline => Diagnostic::error(
+            "CRV092",
+            format!("Project exceeds the offline render budget: {detail}"),
+        )
+        .with_help(help),
+        AdmissionProfile::Live => Diagnostic::warning(
+            "CRV093",
+            format!(
+                "Project exceeds the live playback budget: {detail}; it publishes and renders, but cannot play live"
+            ),
+        )
+        .with_help(format!("{help}; or freeze Tracks to play it live")),
+    }
 }
 
 pub(crate) fn validate_acoustic_profiles(project: &Project, diagnostics: &mut Diagnostics) {
@@ -467,21 +501,9 @@ pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) ->
                 project, &topology,
             ),
         ) {
+            let live_admitted_without_media = estimate.admitted;
             estimate.include_additional_instrument_program_bytes(sample_bytes);
-            if !estimate.admitted {
-                diagnostics.push(
-                    Diagnostic::error(
-                        "CRV092",
-                        format!(
-                            "compiled exact-asset runtime exceeds a named budget: {} bytes at publication (budget {})",
-                            estimate.publication_peak_bytes, estimate.publication_budget_bytes
-                        ),
-                    )
-                    .with_help(
-                        "reduce referenced sample duration, graph voices, processor state, or Track count",
-                    ),
-                );
-            }
+            push_admission_diagnostics(&estimate, live_admitted_without_media, &mut diagnostics);
         }
     }
     diagnostics

@@ -5,6 +5,8 @@ use super::*;
 pub struct CompiledMixGraph {
     pub(super) program: Arc<CompiledMixProgram>,
     pub(super) inspection: MixGraphInspection,
+    /// Profile enforced while compiling, or `None` for estimate-only compilation.
+    pub(super) admission: Option<AdmissionProfile>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,14 +47,14 @@ impl CompiledMixGraph {
         controls: &CompiledControlProgram,
     ) -> Result<Self, EngineError> {
         let topology = AuthoredTopology::compile(project);
-        Self::compile_with_topology(project, controls, &topology, true)
+        Self::compile_with_topology(project, controls, &topology, Some(AdmissionProfile::Live))
     }
 
     pub(crate) fn compile_with_topology(
         project: &Project,
         controls: &CompiledControlProgram,
         topology: &AuthoredTopology,
-        enforce_admission: bool,
+        admission: Option<AdmissionProfile>,
     ) -> Result<Self, EngineError> {
         if let Some(finding) = topology.findings().first() {
             return Err(EngineError::Compile(routing_finding_message(&finding.kind)));
@@ -403,14 +405,8 @@ impl CompiledMixGraph {
         });
         let mut resources = RuntimeResourceEstimate::for_project(project, controls.target_count())?;
         resources.include_compiled_state(&program);
-        if enforce_admission && !resources.admitted {
-            return Err(EngineError::Compile(format!(
-                "runtime resource estimate exceeds a named budget: {} bytes peak (budget {}), {} work units/frame (budget {})",
-                resources.publication_peak_bytes,
-                resources.publication_budget_bytes,
-                resources.work_units_per_frame,
-                resources.work_budget_per_frame
-            )));
+        if let Some(profile) = admission {
+            enforce_admission(&resources, profile)?;
         }
         let inspection = compile_inspection(
             &program.channels,
@@ -422,6 +418,7 @@ impl CompiledMixGraph {
         Ok(Self {
             program,
             inspection,
+            admission,
         })
     }
 
@@ -431,7 +428,7 @@ impl CompiledMixGraph {
     ) -> Result<RuntimeResourceEstimate, EngineError> {
         let schedules = compile_schedules(project)?;
         let controls = CompiledControlProgram::compile(project)?;
-        let mut graph = Self::compile_with_topology(project, &controls, topology, false)?;
+        let mut graph = Self::compile_with_topology(project, &controls, topology, None)?;
         let envelope_followers = super::super::follower::CompiledEnvelopeFollowerProgram::compile(
             project,
             &controls,
@@ -519,6 +516,13 @@ impl CompiledMixGraph {
         Ok(graph.inspection.resources)
     }
 
+    fn enforce_admission(&self) -> Result<(), EngineError> {
+        match self.admission {
+            Some(profile) => enforce_admission(&self.inspection.resources, profile),
+            None => Ok(()),
+        }
+    }
+
     pub(crate) fn include_additional_callback_work(
         &mut self,
         work_units_per_frame: u64,
@@ -526,14 +530,7 @@ impl CompiledMixGraph {
         self.inspection
             .resources
             .include_additional_callback_work(work_units_per_frame);
-        if !self.inspection.resources.admitted {
-            return Err(EngineError::Compile(format!(
-                "runtime callback work exceeds the named budget: {} work units/frame (budget {})",
-                self.inspection.resources.work_units_per_frame,
-                self.inspection.resources.work_budget_per_frame
-            )));
-        }
-        Ok(())
+        self.enforce_admission()
     }
 
     pub(crate) fn include_song_runtime_state(
@@ -549,17 +546,7 @@ impl CompiledMixGraph {
             instrument_program_bytes,
             song_runtime_structure_bytes,
         );
-        let resources = &self.inspection.resources;
-        if !resources.admitted {
-            return Err(EngineError::Compile(format!(
-                "runtime resource estimate exceeds a named budget: {} bytes peak (budget {}), {} work units/frame (budget {})",
-                resources.publication_peak_bytes,
-                resources.publication_budget_bytes,
-                resources.work_units_per_frame,
-                resources.work_budget_per_frame
-            )));
-        }
-        Ok(())
+        self.enforce_admission()
     }
 
     /// Creates fully allocated mutable state for one playback/render runtime.
@@ -670,4 +657,20 @@ fn routing_finding_message(finding: &RoutingFindingKind) -> String {
         }
         RoutingFindingKind::Cycle => "compiled channel graph contains a route cycle".to_owned(),
     }
+}
+
+/// Rejects an estimate that exceeds any limit of `profile`, naming each failed limit.
+pub(super) fn enforce_admission(
+    resources: &RuntimeResourceEstimate,
+    profile: AdmissionProfile,
+) -> Result<(), EngineError> {
+    let failures = resources.admission_failures(profile);
+    if failures.is_empty() {
+        return Ok(());
+    }
+    Err(EngineError::Compile(format!(
+        "Project exceeds the {} budget: {}",
+        profile.label(),
+        describe_admission_failures(&failures)
+    )))
 }

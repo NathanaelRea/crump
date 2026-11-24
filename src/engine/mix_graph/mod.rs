@@ -49,9 +49,9 @@ use runtime::*;
 
 pub use crate::routing::ChannelRole;
 pub use admission::{
-    MAX_MIX_CHANNELS, MAX_PROCESSOR_INSTANCES, MAX_PUBLICATION_RUNTIME_BYTES,
-    MAX_RESIDENT_PUBLICATION_RUNTIMES, MAX_WORK_UNITS_PER_FRAME, RuntimeResourceEstimate,
-    SUPPORTED_QUANTA,
+    AdmissionFailure, AdmissionLimit, AdmissionProfile, MAX_MIX_CHANNELS, MAX_PROCESSOR_INSTANCES,
+    MAX_PUBLICATION_RUNTIME_BYTES, MAX_RESIDENT_PUBLICATION_RUNTIMES, MAX_WORK_UNITS_PER_FRAME,
+    RuntimeResourceEstimate, SUPPORTED_QUANTA, describe_admission_failures,
 };
 pub use compile::CompiledMixGraph;
 pub use inspection::{

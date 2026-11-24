@@ -64,6 +64,7 @@ use self::{
 
 pub use analysis::FinalizedAudioAnalysis;
 pub(crate) use generated_audio::GeneratedAudioArtifact;
+pub use mix_graph::AdmissionProfile;
 pub use qualification::{
     QualificationHost, QualificationOptions, QualificationReport, qualify_project,
 };
@@ -102,10 +103,22 @@ impl CompiledProject {
         Self::compile_with_assets(project, &AssetInventory::default())
     }
 
-    /// Validates and compiles one Project plus its verified exact-byte media.
+    /// Validates and compiles one Project plus its verified exact-byte media for live playback.
     pub fn compile_with_assets(
         project: &Project,
         inventory: &AssetInventory,
+    ) -> Result<Self, EngineError> {
+        Self::compile_for(project, inventory, AdmissionProfile::Live)
+    }
+
+    /// Validates and compiles one Project for the runtime named by `profile`.
+    ///
+    /// Offline render and bounce use [`AdmissionProfile::Offline`], which has no per-frame work
+    /// budget; live playback uses [`AdmissionProfile::Live`].
+    pub fn compile_for(
+        project: &Project,
+        inventory: &AssetInventory,
+        profile: AdmissionProfile,
     ) -> Result<Self, EngineError> {
         let (mut diagnostics, topology) = validate_project_with_topology(project);
         diagnostics.extend(validate_project_assets(project, inventory));
@@ -130,20 +143,9 @@ impl CompiledProject {
         asset_aware_estimate.include_additional_instrument_program_bytes(
             sample_program_bytes.saturating_add(spectral_program_bytes),
         );
-        if !asset_aware_estimate.admitted {
-            diagnostics.push(
-                Diagnostic::error(
-                    "CRV092",
-                    format!(
-                        "compiled exact-asset runtime exceeds a named budget: {} bytes at publication (budget {})",
-                        asset_aware_estimate.publication_peak_bytes,
-                        asset_aware_estimate.publication_budget_bytes
-                    ),
-                )
-                .with_help(
-                    "reduce referenced sample/spectral duration, spectral peaks, graph voices, processor state, or Track count",
-                ),
-            );
+        let failures = asset_aware_estimate.admission_failures(profile);
+        if !failures.is_empty() {
+            diagnostics.push(crate::validate::admission_diagnostic(profile, &failures));
             return Err(EngineError::Validation(diagnostics.into_vec()));
         }
         let schedules = compile_schedules(project)?;
@@ -227,7 +229,7 @@ impl CompiledProject {
             });
         }
         let mut mix_graph =
-            CompiledMixGraph::compile_with_topology(project, &controls, &topology, true)?;
+            CompiledMixGraph::compile_with_topology(project, &controls, &topology, Some(profile))?;
         let envelope_followers = Arc::new(CompiledEnvelopeFollowerProgram::compile(
             project,
             &controls,

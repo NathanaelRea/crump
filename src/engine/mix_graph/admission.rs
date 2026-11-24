@@ -13,6 +13,118 @@ pub const MAX_WORK_UNITS_PER_FRAME: u64 = 65_536;
 /// Maximum shared processor instances with fixed-capacity callback telemetry.
 pub const MAX_PROCESSOR_INSTANCES: usize = 512;
 
+/// Which runtime a Project is being admitted for.
+///
+/// Live playback runs inside a realtime callback and overlaps an old and a replacement runtime
+/// during publication, so it is held to the per-frame work budget and to two resident runtimes.
+/// Offline processing (render and bounce) never swaps runtimes and has no deadline: it keeps every
+/// structural capacity and the memory budget for one runtime, but no per-frame work budget.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AdmissionProfile {
+    /// Realtime playback with guarded publication transitions.
+    Live,
+    /// Offline render and bounce.
+    Offline,
+}
+
+impl AdmissionProfile {
+    /// Human-readable name used in diagnostics.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Live => "live playback",
+            Self::Offline => "offline render",
+        }
+    }
+}
+
+/// One named runtime limit.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AdmissionLimit {
+    /// Timeline Tracks.
+    Tracks,
+    /// Tracks, Groups, Returns, and Master.
+    Channels,
+    /// Shared processor instances.
+    Processors,
+    /// Graph voice-pool instances.
+    GraphVoices,
+    /// Dense effective Parameter targets.
+    ControlTargets,
+    /// Resident runtime bytes.
+    RuntimeBytes,
+    /// Abstract callback work per frame.
+    WorkUnitsPerFrame,
+}
+
+impl AdmissionLimit {
+    /// Stable diagnostic name.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Tracks => "tracks",
+            Self::Channels => "mix channels",
+            Self::Processors => "processors",
+            Self::GraphVoices => "graph voices",
+            Self::ControlTargets => "control targets",
+            Self::RuntimeBytes => "runtime bytes",
+            Self::WorkUnitsPerFrame => "work units/frame",
+        }
+    }
+
+    /// What an author can change to fit this limit.
+    #[must_use]
+    pub const fn help(self) -> &'static str {
+        match self {
+            Self::Tracks | Self::Channels => "reduce Tracks, Groups, or Returns",
+            Self::Processors => "reduce processors or Instrument post-chains used by many Tracks",
+            Self::GraphVoices => "reduce Instrument polyphony or the Tracks that use it",
+            Self::ControlTargets => "reduce exposed Parameters, Automation, or Modulation targets",
+            Self::RuntimeBytes => {
+                "reduce referenced sample duration, polyphony, delay or reverb state, or Track count"
+            }
+            Self::WorkUnitsPerFrame => {
+                "lower polyphony on lines that need few voices, simplify graphs, or render offline"
+            }
+        }
+    }
+}
+
+/// One limit a Project exceeds under an [`AdmissionProfile`].
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AdmissionFailure {
+    /// Exceeded limit.
+    pub limit: AdmissionLimit,
+    /// Estimated value compared against the budget.
+    pub actual: u64,
+    /// Named budget.
+    pub budget: u64,
+}
+
+impl std::fmt::Display for AdmissionFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "{} {} (budget {})",
+            self.actual,
+            self.limit.label(),
+            self.budget
+        )
+    }
+}
+
+/// Formats failures as one sentence fragment, for example `140000 work units/frame (budget 65536)`.
+#[must_use]
+pub fn describe_admission_failures(failures: &[AdmissionFailure]) -> String {
+    failures
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 fn publication_transition_work_units(
     steady_state: u64,
     tracks: usize,
@@ -101,8 +213,11 @@ pub struct RuntimeResourceEstimate {
     pub publication_budget_bytes: u64,
     /// Named abstract callback work budget.
     pub work_budget_per_frame: u64,
-    /// Whether every named structural, memory, and work budget admits the Project.
+    /// Whether every live-playback structural, memory, and work budget admits the Project.
     pub admitted: bool,
+    /// Whether every offline-render structural and memory budget admits the Project.
+    #[serde(default)]
+    pub offline_admitted: bool,
 }
 
 impl RuntimeResourceEstimate {
@@ -262,14 +377,7 @@ impl RuntimeResourceEstimate {
             channels,
             control_targets,
         );
-        let admitted = tracks <= MAX_RUNTIME_TRACKS
-            && channels <= MAX_MIX_CHANNELS
-            && processors <= MAX_PROCESSOR_INSTANCES
-            && graph_voices <= u64::from(MAX_GRAPH_VOICES)
-            && control_targets <= MAX_CONTROL_TARGETS
-            && publication_peak_bytes <= MAX_PUBLICATION_RUNTIME_BYTES
-            && publication_transition_work_units_per_frame <= MAX_WORK_UNITS_PER_FRAME;
-        Ok(Self {
+        let mut estimate = Self {
             sample_rate: project.sample_rate,
             supported_quanta: SUPPORTED_QUANTA,
             tracks,
@@ -305,8 +413,87 @@ impl RuntimeResourceEstimate {
             publication_peak_bytes,
             publication_budget_bytes: MAX_PUBLICATION_RUNTIME_BYTES,
             work_budget_per_frame: MAX_WORK_UNITS_PER_FRAME,
-            admitted,
-        })
+            admitted: false,
+            offline_admitted: false,
+        };
+        estimate.refresh_admission();
+        Ok(estimate)
+    }
+
+    /// Every limit this estimate exceeds under `profile`, in a stable order.
+    #[must_use]
+    pub fn admission_failures(&self, profile: AdmissionProfile) -> Vec<AdmissionFailure> {
+        let mut failures = Vec::new();
+        let mut check = |limit, actual: u64, budget: u64| {
+            if actual > budget {
+                failures.push(AdmissionFailure {
+                    limit,
+                    actual,
+                    budget,
+                });
+            }
+        };
+        check(
+            AdmissionLimit::Tracks,
+            self.tracks as u64,
+            MAX_RUNTIME_TRACKS as u64,
+        );
+        check(
+            AdmissionLimit::Channels,
+            self.channels as u64,
+            MAX_MIX_CHANNELS as u64,
+        );
+        check(
+            AdmissionLimit::Processors,
+            self.processors as u64,
+            MAX_PROCESSOR_INSTANCES as u64,
+        );
+        check(
+            AdmissionLimit::GraphVoices,
+            self.graph_voices,
+            u64::from(MAX_GRAPH_VOICES),
+        );
+        check(
+            AdmissionLimit::ControlTargets,
+            self.control_targets as u64,
+            MAX_CONTROL_TARGETS as u64,
+        );
+        match profile {
+            AdmissionProfile::Live => {
+                check(
+                    AdmissionLimit::RuntimeBytes,
+                    self.publication_peak_bytes,
+                    self.publication_budget_bytes,
+                );
+                check(
+                    AdmissionLimit::WorkUnitsPerFrame,
+                    self.publication_transition_work_units_per_frame,
+                    self.work_budget_per_frame,
+                );
+            }
+            AdmissionProfile::Offline => check(
+                AdmissionLimit::RuntimeBytes,
+                self.runtime_bytes,
+                self.publication_budget_bytes,
+            ),
+        }
+        failures
+    }
+
+    /// Whether every limit for `profile` admits the Project.
+    #[must_use]
+    pub fn admits(&self, profile: AdmissionProfile) -> bool {
+        match profile {
+            AdmissionProfile::Live => self.admitted,
+            AdmissionProfile::Offline => self.offline_admitted,
+        }
+    }
+
+    fn refresh_admission(&mut self) {
+        self.admitted = self.admission_failures(AdmissionProfile::Live).is_empty();
+        self.offline_admitted = self
+            .admission_failures(AdmissionProfile::Offline)
+            .is_empty();
     }
 
     pub(super) fn include_compiled_state(&mut self, program: &CompiledMixProgram) {
@@ -398,13 +585,7 @@ impl RuntimeResourceEstimate {
             self.channels,
             self.control_targets,
         );
-        self.admitted = self.tracks <= MAX_RUNTIME_TRACKS
-            && self.channels <= MAX_MIX_CHANNELS
-            && self.processors <= MAX_PROCESSOR_INSTANCES
-            && self.graph_voices <= u64::from(MAX_GRAPH_VOICES)
-            && self.control_targets <= MAX_CONTROL_TARGETS
-            && self.publication_peak_bytes <= self.publication_budget_bytes
-            && self.publication_transition_work_units_per_frame <= self.work_budget_per_frame;
+        self.refresh_admission();
     }
 }
 

@@ -46,8 +46,13 @@ fn runtime_program_is_a_direct_lowering_of_the_canonical_authored_topology() {
     assert!(topology.is_valid(), "{:?}", topology.findings());
 
     let controls = CompiledControlProgram::compile(&project).expect("controls");
-    let graph = CompiledMixGraph::compile_with_topology(&project, &controls, &topology, true)
-        .expect("canonical topology lowers");
+    let graph = CompiledMixGraph::compile_with_topology(
+        &project,
+        &controls,
+        &topology,
+        Some(AdmissionProfile::Live),
+    )
+    .expect("canonical topology lowers");
     let topology_channels = topology
         .order()
         .iter()
