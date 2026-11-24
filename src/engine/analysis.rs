@@ -12,7 +12,7 @@ use super::{
     oversampling::{OVERSAMPLING_FACTOR, OVERSAMPLING_FILTER_TAPS, OversamplingInterpolator},
 };
 
-pub(super) const ANALYSIS_SCHEMA: u32 = 2;
+pub(super) const ANALYSIS_SCHEMA: u32 = 3;
 const SUPPORTED_SAMPLE_RATE: u32 = 48_000;
 const LOUDNESS_STEP_FRAMES: usize = 4_800;
 const MOMENTARY_CHUNKS: usize = 4;
@@ -20,6 +20,9 @@ const SHORT_TERM_CHUNKS: usize = 30;
 const SHORT_TERM_STEP_CHUNKS: usize = 1;
 const ABSOLUTE_GATE_LUFS: f64 = -70.0;
 const LOUDNESS_OFFSET: f64 = -0.691;
+/// Absolute unweighted stereo RMS threshold in dBFS for active-block loudness.
+pub(crate) const ACTIVE_RMS_GATE_DBFS: f64 = -60.0;
+pub(super) const ACTIVE_RMS_METHOD: &str = "crump-rms-400ms-100ms-gate-60dbfs-v1";
 
 /// Delivery metrics computed from the exact finalized WAV bytes.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -48,6 +51,15 @@ pub struct FinalizedAudioAnalysis {
     pub maximum_short_term_lufs: Option<f64>,
     /// Gated 10th-to-95th-percentile short-term loudness range.
     pub loudness_range_lu: Option<f64>,
+    /// Unweighted stereo RMS across all analyzed finite samples in dBFS, or `null` for silence.
+    pub rms_dbfs: Option<f64>,
+    /// Unweighted stereo RMS in dBFS over 400 ms windows (100 ms steps) at or above
+    /// `active_rms_gate_dbfs`, ignoring rests and digital silence.
+    pub active_rms_dbfs: Option<f64>,
+    /// Absolute gate threshold in dBFS used for `active_rms_dbfs`.
+    pub active_rms_gate_dbfs: f64,
+    /// Windowing and gating method identity for `active_rms_dbfs`.
+    pub active_rms_method: String,
     /// Arithmetic mean of finite left and right samples.
     pub dc_offset: [f64; 2],
     /// Interleaved finite samples whose absolute value is at least full scale.
@@ -58,6 +70,174 @@ pub struct FinalizedAudioAnalysis {
     pub non_finite_sample_count: u64,
     /// First frame containing a non-finite sample, when present.
     pub first_non_finite_frame: Option<u64>,
+}
+
+/// Streaming stereo 48 kHz analyzer shared by finalized-WAV inspection and offline loudness tools.
+#[derive(Debug, Clone)]
+pub(crate) struct AudioAnalyzer {
+    analyzed_frames: u64,
+    sample_peak: f64,
+    true_peak: f64,
+    interpolator: OversamplingInterpolator,
+    dc_sum: [f64; 2],
+    dc_count: [u64; 2],
+    clipped_sample_count: u64,
+    clipped_frame_count: u64,
+    non_finite_sample_count: u64,
+    first_non_finite_frame: Option<u64>,
+    k_weighting: [KWeighting; 2],
+    chunk_energy: f64,
+    unweighted_square_sum: f64,
+    unweighted_chunk_energy: f64,
+    chunk_frames: usize,
+    loudness_chunks: Vec<f64>,
+    unweighted_chunks: Vec<f64>,
+}
+
+impl Default for AudioAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AudioAnalyzer {
+    /// Creates an analyzer for 48 kHz stereo frames.
+    pub(crate) fn new() -> Self {
+        Self {
+            analyzed_frames: 0,
+            sample_peak: 0.0,
+            true_peak: 0.0,
+            interpolator: OversamplingInterpolator::default(),
+            dc_sum: [0.0; 2],
+            dc_count: [0; 2],
+            clipped_sample_count: 0,
+            clipped_frame_count: 0,
+            non_finite_sample_count: 0,
+            first_non_finite_frame: None,
+            k_weighting: [KWeighting::default(), KWeighting::default()],
+            chunk_energy: 0.0,
+            unweighted_square_sum: 0.0,
+            unweighted_chunk_energy: 0.0,
+            chunk_frames: 0,
+            loudness_chunks: Vec::new(),
+            unweighted_chunks: Vec::new(),
+        }
+    }
+
+    /// Consumes one stereo 48 kHz frame.
+    pub(crate) fn push_frame(&mut self, frame_samples: [f32; 2]) {
+        let frame = self.analyzed_frames;
+        self.analyzed_frames = self.analyzed_frames.saturating_add(1);
+        let mut decoded = [0.0_f32; 2];
+        let mut clipped_frame = false;
+        for (channel, sample) in frame_samples.into_iter().enumerate() {
+            if sample.is_finite() {
+                let magnitude = f64::from(sample.abs());
+                self.sample_peak = self.sample_peak.max(magnitude);
+                self.dc_sum[channel] += f64::from(sample);
+                self.dc_count[channel] = self.dc_count[channel].saturating_add(1);
+                if magnitude >= 1.0 {
+                    self.clipped_sample_count = self.clipped_sample_count.saturating_add(1);
+                    clipped_frame = true;
+                }
+                decoded[channel] = sample;
+            } else {
+                self.non_finite_sample_count = self.non_finite_sample_count.saturating_add(1);
+                self.first_non_finite_frame.get_or_insert(frame);
+            }
+        }
+        if clipped_frame {
+            self.clipped_frame_count = self.clipped_frame_count.saturating_add(1);
+        }
+
+        for reconstructed in self.interpolator.process(decoded) {
+            self.true_peak = self
+                .true_peak
+                .max(f64::from(reconstructed[0].abs()))
+                .max(f64::from(reconstructed[1].abs()));
+        }
+        let left = f64::from(decoded[0]);
+        let right = f64::from(decoded[1]);
+        let unweighted_frame_energy = left.mul_add(left, right * right);
+        self.unweighted_square_sum += unweighted_frame_energy;
+        self.unweighted_chunk_energy += unweighted_frame_energy;
+
+        let weighted_left = self.k_weighting[0].process(left);
+        let weighted_right = self.k_weighting[1].process(right);
+        self.chunk_energy += weighted_left.mul_add(weighted_left, weighted_right * weighted_right);
+        self.chunk_frames += 1;
+        if self.chunk_frames == LOUDNESS_STEP_FRAMES {
+            self.loudness_chunks.push(self.chunk_energy);
+            self.unweighted_chunks.push(self.unweighted_chunk_energy);
+            self.chunk_energy = 0.0;
+            self.unweighted_chunk_energy = 0.0;
+            self.chunk_frames = 0;
+        }
+    }
+
+    /// Flushes true-peak reconstruction and computes all delivery metrics.
+    pub(crate) fn finish(mut self) -> FinalizedAudioAnalysis {
+        let reconstruction_flush_frames =
+            usize::from(OVERSAMPLING_FILTER_TAPS).div_ceil(usize::from(OVERSAMPLING_FACTOR));
+        for _ in 0..reconstruction_flush_frames {
+            for reconstructed in self.interpolator.process([0.0; 2]) {
+                self.true_peak = self
+                    .true_peak
+                    .max(f64::from(reconstructed[0].abs()))
+                    .max(f64::from(reconstructed[1].abs()));
+            }
+        }
+
+        let momentary_energies = window_energies(&self.loudness_chunks, MOMENTARY_CHUNKS, 1);
+        let integrated_energy = gated_integrated_energy(&momentary_energies);
+        let integrated_lufs = integrated_energy.and_then(energy_to_lufs);
+        let short_term_energies = window_energies(
+            &self.loudness_chunks,
+            SHORT_TERM_CHUNKS,
+            SHORT_TERM_STEP_CHUNKS,
+        );
+        let maximum_short_term_lufs = short_term_energies
+            .iter()
+            .filter_map(|energy| energy_to_lufs(*energy))
+            .max_by(f64::total_cmp);
+        let loudness_range_lu = loudness_range(&short_term_energies);
+
+        let finite_samples = self.dc_count[0].saturating_add(self.dc_count[1]);
+        let rms_dbfs = (finite_samples > 0)
+            .then(|| self.unweighted_square_sum / finite_samples as f64)
+            .and_then(mean_square_to_dbfs);
+        let active_rms_dbfs = active_rms_dbfs(&self.unweighted_chunks);
+
+        FinalizedAudioAnalysis {
+            schema_version: ANALYSIS_SCHEMA,
+            analyzed_frames: self.analyzed_frames,
+            sample_peak: self.sample_peak,
+            sample_peak_dbfs: amplitude_to_db(self.sample_peak),
+            true_peak: self.true_peak,
+            true_peak_dbtp: amplitude_to_db(self.true_peak),
+            true_peak_oversampling_factor: OVERSAMPLING_FACTOR,
+            true_peak_kernel: format!(
+                "crump-linear-phase-fir-{}x-{}tap-v1",
+                OVERSAMPLING_FACTOR, OVERSAMPLING_FILTER_TAPS
+            ),
+            loudness_method: "crump-k-weighted-400ms-gated-3s-100ms-lra-v2".to_owned(),
+            integrated_lufs,
+            maximum_short_term_lufs,
+            loudness_range_lu,
+            rms_dbfs,
+            active_rms_dbfs,
+            active_rms_gate_dbfs: ACTIVE_RMS_GATE_DBFS,
+            active_rms_method: ACTIVE_RMS_METHOD.to_owned(),
+            dc_offset: [
+                mean_or_zero(self.dc_sum[0], self.dc_count[0]),
+                mean_or_zero(self.dc_sum[1], self.dc_count[1]),
+            ],
+            clipped_sample_count: self.clipped_sample_count,
+            clipped_frame_count: self.clipped_frame_count,
+            non_finite_sample_count: self.non_finite_sample_count,
+            first_non_finite_frame: self.first_non_finite_frame,
+        }
+    }
 }
 
 /// Reopens and analyzes one finalized Crump delivery WAV.
@@ -76,62 +256,16 @@ pub(crate) fn analyze_finalized_wav(path: &Path) -> Result<FinalizedAudioAnalysi
 
     let analyzed_frames = u64::from(reader.duration());
     let mut samples = reader.samples::<f32>();
-    let mut sample_peak = 0.0_f64;
-    let mut true_peak = 0.0_f64;
-    let mut interpolator = OversamplingInterpolator::default();
-    let mut dc_sum = [0.0_f64; 2];
-    let mut dc_count = [0_u64; 2];
-    let mut clipped_sample_count = 0_u64;
-    let mut clipped_frame_count = 0_u64;
-    let mut non_finite_sample_count = 0_u64;
-    let mut first_non_finite_frame = None;
-    let mut k_weighting = [KWeighting::default(), KWeighting::default()];
-    let mut chunk_energy = 0.0_f64;
-    let mut chunk_frames = 0_usize;
-    let mut loudness_chunks = Vec::new();
+    let mut analyzer = AudioAnalyzer::new();
 
-    for frame in 0..analyzed_frames {
-        let mut decoded = [0.0_f32; 2];
-        let mut clipped_frame = false;
-        for channel in 0..2 {
-            let sample = samples.next().ok_or_else(|| {
-                EngineError::Compile(
-                    "finalized WAV ended before its declared frame count".to_owned(),
-                )
-            })??;
-            if sample.is_finite() {
-                let magnitude = f64::from(sample.abs());
-                sample_peak = sample_peak.max(magnitude);
-                dc_sum[channel] += f64::from(sample);
-                dc_count[channel] = dc_count[channel].saturating_add(1);
-                if magnitude >= 1.0 {
-                    clipped_sample_count = clipped_sample_count.saturating_add(1);
-                    clipped_frame = true;
-                }
-                decoded[channel] = sample;
-            } else {
-                non_finite_sample_count = non_finite_sample_count.saturating_add(1);
-                first_non_finite_frame.get_or_insert(frame);
-            }
-        }
-        if clipped_frame {
-            clipped_frame_count = clipped_frame_count.saturating_add(1);
-        }
-
-        for reconstructed in interpolator.process(decoded) {
-            true_peak = true_peak
-                .max(f64::from(reconstructed[0].abs()))
-                .max(f64::from(reconstructed[1].abs()));
-        }
-        let weighted_left = k_weighting[0].process(f64::from(decoded[0]));
-        let weighted_right = k_weighting[1].process(f64::from(decoded[1]));
-        chunk_energy += weighted_left.mul_add(weighted_left, weighted_right * weighted_right);
-        chunk_frames += 1;
-        if chunk_frames == LOUDNESS_STEP_FRAMES {
-            loudness_chunks.push(chunk_energy);
-            chunk_energy = 0.0;
-            chunk_frames = 0;
-        }
+    for _ in 0..analyzed_frames {
+        let left = samples.next().ok_or_else(|| {
+            EngineError::Compile("finalized WAV ended before its declared frame count".to_owned())
+        })??;
+        let right = samples.next().ok_or_else(|| {
+            EngineError::Compile("finalized WAV ended before its declared frame count".to_owned())
+        })??;
+        analyzer.push_frame([left, right]);
     }
 
     if let Some(extra) = samples.next() {
@@ -141,56 +275,33 @@ pub(crate) fn analyze_finalized_wav(path: &Path) -> Result<FinalizedAudioAnalysi
         ));
     }
 
-    let reconstruction_flush_frames =
-        usize::from(OVERSAMPLING_FILTER_TAPS).div_ceil(usize::from(OVERSAMPLING_FACTOR));
-    for _ in 0..reconstruction_flush_frames {
-        for reconstructed in interpolator.process([0.0; 2]) {
-            true_peak = true_peak
-                .max(f64::from(reconstructed[0].abs()))
-                .max(f64::from(reconstructed[1].abs()));
-        }
-    }
-
-    let momentary_energies = window_energies(&loudness_chunks, MOMENTARY_CHUNKS, 1);
-    let integrated_energy = gated_integrated_energy(&momentary_energies);
-    let integrated_lufs = integrated_energy.and_then(energy_to_lufs);
-    let short_term_energies =
-        window_energies(&loudness_chunks, SHORT_TERM_CHUNKS, SHORT_TERM_STEP_CHUNKS);
-    let maximum_short_term_lufs = short_term_energies
-        .iter()
-        .filter_map(|energy| energy_to_lufs(*energy))
-        .max_by(f64::total_cmp);
-    let loudness_range_lu = loudness_range(&short_term_energies);
-
-    Ok(FinalizedAudioAnalysis {
-        schema_version: ANALYSIS_SCHEMA,
-        analyzed_frames,
-        sample_peak,
-        sample_peak_dbfs: amplitude_to_db(sample_peak),
-        true_peak,
-        true_peak_dbtp: amplitude_to_db(true_peak),
-        true_peak_oversampling_factor: OVERSAMPLING_FACTOR,
-        true_peak_kernel: format!(
-            "crump-linear-phase-fir-{}x-{}tap-v1",
-            OVERSAMPLING_FACTOR, OVERSAMPLING_FILTER_TAPS
-        ),
-        loudness_method: "crump-k-weighted-400ms-gated-3s-100ms-lra-v2".to_owned(),
-        integrated_lufs,
-        maximum_short_term_lufs,
-        loudness_range_lu,
-        dc_offset: [
-            mean_or_zero(dc_sum[0], dc_count[0]),
-            mean_or_zero(dc_sum[1], dc_count[1]),
-        ],
-        clipped_sample_count,
-        clipped_frame_count,
-        non_finite_sample_count,
-        first_non_finite_frame,
-    })
+    Ok(analyzer.finish())
 }
 
 fn amplitude_to_db(amplitude: f64) -> Option<f64> {
     (amplitude > 0.0).then(|| 20.0 * amplitude.log10())
+}
+
+fn mean_square_to_dbfs(mean_square: f64) -> Option<f64> {
+    (mean_square > 0.0).then(|| 10.0 * mean_square.log10())
+}
+
+fn active_rms_dbfs(unweighted_chunks: &[f64]) -> Option<f64> {
+    if unweighted_chunks.len() < MOMENTARY_CHUNKS {
+        return None;
+    }
+    let gate_mean_square = 10.0_f64.powf(ACTIVE_RMS_GATE_DBFS / 10.0);
+    let denominator = (2 * MOMENTARY_CHUNKS * LOUDNESS_STEP_FRAMES) as f64;
+    let active_windows = (0..=unweighted_chunks.len() - MOMENTARY_CHUNKS)
+        .map(|start| {
+            unweighted_chunks[start..start + MOMENTARY_CHUNKS]
+                .iter()
+                .sum::<f64>()
+                / denominator
+        })
+        .filter(|mean_square| *mean_square >= gate_mean_square)
+        .collect::<Vec<_>>();
+    mean(&active_windows).and_then(mean_square_to_dbfs)
 }
 
 fn mean_or_zero(sum: f64, count: u64) -> f64 {
@@ -375,6 +486,10 @@ mod tests {
         assert_eq!(analysis.integrated_lufs, None);
         assert_eq!(analysis.maximum_short_term_lufs, None);
         assert_eq!(analysis.loudness_range_lu, None);
+        assert_eq!(analysis.rms_dbfs, None);
+        assert_eq!(analysis.active_rms_dbfs, None);
+        assert_eq!(analysis.active_rms_gate_dbfs, ACTIVE_RMS_GATE_DBFS);
+        assert_eq!(analysis.active_rms_method, ACTIVE_RMS_METHOD);
         assert_eq!(analysis.dc_offset, [0.0; 2]);
         assert_eq!(analysis.clipped_sample_count, 0);
         assert_eq!(analysis.non_finite_sample_count, 0);
@@ -518,5 +633,77 @@ mod tests {
         let corrupt = directory.path().join("corrupt.wav");
         fs::write(&corrupt, b"not a RIFF/WAVE file").expect("corrupt WAV");
         assert!(analyze_finalized_wav(&corrupt).is_err());
+    }
+
+    #[test]
+    fn active_rms_measures_sounding_blocks_and_ignores_silence() {
+        let directory = tempdir().expect("temporary directory");
+        let rate = SUPPORTED_SAMPLE_RATE as usize;
+        // Constant 0.1 amplitude square/DC tone has exact stereo RMS = -20.0 dBFS.
+        let level = 0.1_f32;
+        let steady_path = directory.path().join("steady.wav");
+        let steady = vec![[level, -level]; 4 * rate];
+        write_wav(&steady_path, &steady);
+        let steady_analysis = analyze_finalized_wav(&steady_path).expect("steady analysis");
+        let steady_rms = steady_analysis.rms_dbfs.expect("steady rms");
+        let steady_active = steady_analysis.active_rms_dbfs.expect("steady active rms");
+        assert!((steady_rms - (-20.0)).abs() < 1.0e-5, "{steady_rms}");
+        assert!((steady_active - (-20.0)).abs() < 1.0e-5, "{steady_active}");
+
+        // 4 seconds sounding followed by 4 seconds of silence vs 16 seconds of silence:
+        // whole-file RMS drops sharply with added silence, while active RMS is unchanged.
+        let mut short_rest = steady.clone();
+        short_rest.extend(vec![[0.0, 0.0]; 4 * rate]);
+        let short_rest_path = directory.path().join("short-rest.wav");
+        write_wav(&short_rest_path, &short_rest);
+        let short_rest_analysis =
+            analyze_finalized_wav(&short_rest_path).expect("short rest analysis");
+
+        let mut long_rest = steady;
+        long_rest.extend(vec![[0.0, 0.0]; 16 * rate]);
+        let long_rest_path = directory.path().join("long-rest.wav");
+        write_wav(&long_rest_path, &long_rest);
+        let long_rest_analysis =
+            analyze_finalized_wav(&long_rest_path).expect("long rest analysis");
+
+        assert!(
+            (short_rest_analysis.rms_dbfs.expect("short rest rms") - (-23.0103)).abs() < 1.0e-3
+        );
+        assert!((long_rest_analysis.rms_dbfs.expect("long rest rms") - (-26.9897)).abs() < 1.0e-3);
+        let short_active = short_rest_analysis
+            .active_rms_dbfs
+            .expect("short rest active rms");
+        let long_active = long_rest_analysis
+            .active_rms_dbfs
+            .expect("long rest active rms");
+        assert!(
+            (short_active - long_active).abs() < 1.0e-12,
+            "adding more silence must not change active RMS: {short_active} vs {long_active}"
+        );
+        assert!(
+            (long_active - (-20.0)).abs() < 0.25,
+            "active RMS should remain close to the sounding level: {long_active}"
+        );
+    }
+
+    #[test]
+    fn active_rms_is_null_below_gate_or_shorter_than_one_block() {
+        let directory = tempdir().expect("temporary directory");
+        let rate = SUPPORTED_SAMPLE_RATE as usize;
+
+        // -70 dBFS signal is below the -60 dBFS active gate.
+        let quiet = 10.0_f64.powf(-70.0 / 20.0) as f32;
+        let quiet_path = directory.path().join("quiet.wav");
+        write_wav(&quiet_path, &vec![[quiet, quiet]; 2 * rate]);
+        let quiet_analysis = analyze_finalized_wav(&quiet_path).expect("quiet analysis");
+        assert!(quiet_analysis.rms_dbfs.is_some());
+        assert_eq!(quiet_analysis.active_rms_dbfs, None);
+
+        // 200 ms tone is shorter than one 400 ms active-RMS window.
+        let short_path = directory.path().join("short.wav");
+        write_wav(&short_path, &vec![[0.25, 0.25]; rate / 5]);
+        let short_analysis = analyze_finalized_wav(&short_path).expect("short analysis");
+        assert!(short_analysis.rms_dbfs.is_some());
+        assert_eq!(short_analysis.active_rms_dbfs, None);
     }
 }

@@ -29,6 +29,7 @@ use crate::{
 
 mod automation;
 mod media;
+mod mix;
 mod timeline;
 
 #[cfg(test)]
@@ -59,6 +60,7 @@ fn with_injected_source_write_failure<T>(operation: impl FnOnce() -> T) -> T {
 pub use automation::*;
 pub use media::*;
 use media::{quote_source_string, valid_source_id};
+pub use mix::*;
 pub use timeline::*;
 
 /// The smallest checked replacement unit used by a Structured Source Edit.

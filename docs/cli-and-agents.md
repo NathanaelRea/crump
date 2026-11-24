@@ -272,11 +272,30 @@ crump module inspect pulse-bass --json
 
 Module install/export validates before atomically replacing the destination. Names are restricted to ASCII letters, digits, `_`, and `-`. Project-local imports remain relative and source-readable; personal-library use is explicit as `import "library:name"`. A library module is one source file, so install rejects a module that owns media assets (`CRL010`); import such a module from inside the Project with its media instead. Active snapshots contain the exact imported bytes, so later library changes do not alter playback or rendering of the committed revision.
 
+## Mix loudness targeting
+
+```bash
+crump --project ./song --json mix level-to \
+  --owner track/lead --target -20db --measure active-rms --dry-run
+crump --project ./song --json mix level-to \
+  --owner track/lead --target -20db --measure active-rms \
+  --summary "Level lead active RMS to -20 dBFS"
+crump --project ./song --json mix level-to \
+  --owner group/music --target -18db --measure rms
+crump --project ./song --json mix level-to \
+  --owner master --target -14lufs --measure integrated-lufs
+```
+
+Crump applies no hidden render-time normalization. Instead, `mix level-to` compiles the Project under the offline admission profile, renders the owner's post-fader signal (Master output for `master`, applying the Project's authored `render_tail` policy including `wrap`), measures the selected loudness metric (`integrated-lufs`, `rms`, or `active-rms`), computes the required linear fader delta, and writes that owner's `level` in Authoritative Source as a checked Structured Source Edit published through History. Both Active playback and future renders therefore hear the exact authored fader value.
+
+The JSON response (`command: "mix.level_to"`) reports `measured_db`, `previous_level_db`, `new_level_db`, `delta_db`, `within_tolerance`, `changed`, projected `resulting_sample_peak_dbfs` / `resulting_true_peak_dbtp`, `resulting_would_clip`, and `history_entry` (when written). `--dry-run` validates the resulting fader domain and reports the full measurement without editing source or History. When the measured loudness is already within `0.05 dB` of `--target`, `mix level-to` succeeds as a no-op without creating a duplicate History entry. Targets controlled by an Automation lane or producing no measurable signal above the metric's gate are rejected cleanly. Optional `--origin`, `--actor`, `--summary`, and `--explanation` flags record explicit History provenance.
+
 ## Rendering
 
 ```bash
 crump --project ./song --json render --output render/master --plan
 crump --project ./song --json render --output render/master
+crump --project ./song --json render --output render/loop --tail wrap
 crump --project ./song --json render --output render/delivery \
   --stem track/lead:post_fader \
   --stem group/music:post_fader
@@ -288,11 +307,11 @@ on success. CRV093 means the revision is available to `render` and
 require Live admission. CRV092 blocks publication when the Offline profile
 fails.
 
-`--plan` is non-mutating and reports the exact Active render range, destination state, requested stems, alignment padding, processing policy, and whether publication would replace or conflict. Repeat `--stem OWNER:TAP` with a durable `track/ID` or `group/ID` and `pre_fader`/`post_fader`; duplicate, missing, Return, or Master selections are rejected.
+`--plan` is non-mutating and reports the exact Active render range, effective `tail_policy` (`append` or `wrap`), `output_frame_count`, destination state, requested stems, alignment padding, processing policy, and whether publication would replace or conflict. `--tail append|wrap` overrides the Project's authored `render_tail` policy for that render invocation without editing source. Repeat `--stem OWNER:TAP` with a durable `track/ID` or `group/ID` and `pre_fader`/`post_fader`; duplicate, missing, Return, or Master selections are rejected.
 
-Every stem is stereo float WAV with the same start, frame count, tail, and sample rate as Master. Both taps include upstream main routing and processing through the selected owner's inserts. `post_fader` additionally includes that owner's gain, panner, and Mute. Neither tap folds in outgoing Sends or downstream Group, Return, or Master processing. Deterministic zero padding aligns the tap with compiled Master output latency, and the manifest records the exact delay and policy. Arbitrary selected stems are not claimed to reconstruct Master when omitted branches or downstream processing make that impossible.
+Every stem is stereo float WAV with the same start, frame count, tail policy, and sample rate as Master. Both taps include upstream main routing and processing through the selected owner's inserts. `post_fader` additionally includes that owner's gain, panner, and Mute. Neither tap folds in outgoing Sends or downstream Group, Return, or Master processing. Deterministic zero padding aligns the tap with compiled Master output latency, and under `tail_policy: "wrap"` Master and every stem fold rendered frames past `arrangement_frames` modulo `arrangement_frames` back onto frame `0` onward so aligned stems reconstruct Master at exact loop length. Arbitrary selected stems are not claimed to reconstruct Master when omitted branches or downstream processing make that impossible.
 
-Rendering reports Candidate identity, rendered Active identity, whether they match, and the complete manifest. Master and every stem carry independent hashes and nested finalized-WAV analysis. Each `analysis` object includes sample/true peak, integrated and maximum short-term loudness, loudness range, DC offset, clipping counts, non-finite count, analyzed frames, and algorithm identities; inapplicable loudness values are JSON `null`. If the Candidate differs or is invalid, the exact prior Active Revision is still rendered. `--no-replace` turns an existing destination into a conflict instead of replacing it.
+Rendering reports Candidate identity, rendered Active identity, whether they match, and the complete schema-3 manifest. Wrap renders additionally record `pre_wrap_peak` and `wrap_peak_exceeded`, and human output warns when tail wrapping raised the sample peak above the pre-wrap peak (such as past a Master limiter ceiling). Master and every stem carry independent hashes and nested finalized-WAV analysis (analysis schema 3). Each `analysis` object includes sample/true peak, integrated and maximum short-term loudness, loudness range, full-file `rms_dbfs`, active-block `active_rms_dbfs` (400 ms blocks at 100 ms steps gated at `-60.0 dBFS`), DC offset, clipping counts, non-finite count, analyzed frames, and algorithm identities; inapplicable loudness values are JSON `null`. If the Candidate differs or is invalid, the exact prior Active Revision is still rendered. `--no-replace` turns an existing destination into a conflict instead of replacing it.
 
 ## Offline workload qualification
 

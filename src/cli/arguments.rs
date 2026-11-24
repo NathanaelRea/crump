@@ -49,6 +49,9 @@ pub(super) enum Command {
     /// Apply one checked, source-preserving Production View edit.
     #[command(subcommand)]
     Edit(Box<EditCommand>),
+    /// Measure and adjust mix levels through checked Structured Source Edits.
+    #[command(subcommand)]
+    Mix(MixCommand),
     /// Import or inspect portable Project media.
     #[command(subcommand)]
     Asset(AssetCommand),
@@ -239,6 +242,23 @@ pub(super) struct TimeGridArgs {
     pub(super) free: bool,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub(super) enum RenderTailPolicyArg {
+    /// Keep rendered tail frames after the arrangement end.
+    Append,
+    /// Sum rendered tail frames back onto the start of the arrangement for a seamless loop.
+    Wrap,
+}
+
+impl From<RenderTailPolicyArg> for RenderTailPolicy {
+    fn from(value: RenderTailPolicyArg) -> Self {
+        match value {
+            RenderTailPolicyArg::Append => Self::Append,
+            RenderTailPolicyArg::Wrap => Self::Wrap,
+        }
+    }
+}
+
 #[derive(Debug, Args)]
 pub(super) struct RenderArgs {
     /// Destination bundle directory.
@@ -250,9 +270,66 @@ pub(super) struct RenderArgs {
     /// Export one aligned Track/Group tap (`track/ID:post_fader`). Repeat as needed.
     #[arg(long = "stem", value_name = "OWNER:TAP")]
     pub(super) stems: Vec<RenderStemRequest>,
+    /// Override the Project's authored `render_tail` policy (`append` or `wrap`) for this render.
+    #[arg(long, value_enum)]
+    pub(super) tail: Option<RenderTailPolicyArg>,
     /// Fail rather than atomically replace an existing complete bundle.
     #[arg(long)]
     pub(super) no_replace: bool,
+}
+
+#[derive(Debug, Subcommand)]
+pub(super) enum MixCommand {
+    /// Measure an owner's offline post-fader loudness and write its updated `level` through History.
+    LevelTo(MixLevelToArgs),
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub(super) enum LoudnessMeasureArg {
+    /// K-weighted ITU-R BS.1770 / EBU R128 integrated loudness (LUFS).
+    IntegratedLufs,
+    /// Unweighted stereo RMS across the entire finalized signal (dBFS).
+    Rms,
+    /// Unweighted stereo RMS across active 400 ms blocks (100 ms step) at or above -60 dBFS.
+    ActiveRms,
+}
+
+impl From<LoudnessMeasureArg> for LoudnessMeasure {
+    fn from(value: LoudnessMeasureArg) -> Self {
+        match value {
+            LoudnessMeasureArg::IntegratedLufs => Self::IntegratedLufs,
+            LoudnessMeasureArg::Rms => Self::Rms,
+            LoudnessMeasureArg::ActiveRms => Self::ActiveRms,
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+pub(super) struct MixLevelToArgs {
+    /// Owner whose `level` fader is measured and updated (`master`, `track/ID`, or `group/ID`).
+    #[arg(long, value_name = "OWNER")]
+    pub(super) owner: MixLevelOwner,
+    /// Target loudness (e.g. `-20db`, `-14lufs`, `-18dbfs`).
+    #[arg(long, allow_hyphen_values = true, value_parser = parse_level_target_db, value_name = "LEVEL")]
+    pub(super) target: f64,
+    /// Loudness metric to match.
+    #[arg(long, value_enum, default_value_t = LoudnessMeasureArg::IntegratedLufs)]
+    pub(super) measure: LoudnessMeasureArg,
+    /// Measure and compute the fader change without writing Authoritative Source or History.
+    #[arg(long)]
+    pub(super) dry_run: bool,
+    /// Publication origin class when writing History.
+    #[arg(long, value_enum, default_value_t = OriginArg::Human)]
+    pub(super) origin: OriginArg,
+    /// Human or Agent identity recorded on the published History entry.
+    #[arg(long, default_value = "cli")]
+    pub(super) actor: String,
+    /// Optional explicit History summary.
+    #[arg(long)]
+    pub(super) summary: Option<String>,
+    /// Optional explicit History explanation.
+    #[arg(long)]
+    pub(super) explanation: Option<String>,
 }
 
 #[derive(Debug, Args)]
