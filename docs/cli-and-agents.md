@@ -73,6 +73,8 @@ crump --project ./song --json edit parameter lead cutoff 3200 \
 crump --project ./song --json edit track-level lead -8 \
   --summary "Raise lead one decibel"
 
+crump --project ./song --json edit track-freeze lead true
+crump --project ./song --json edit track-freeze lead false
 crump --project ./song --json edit track-pan lead -0.15
 crump --project ./song --json edit note-pitch melody 3 F#4
 crump --project ./song --json edit event-time melody 3 3beat

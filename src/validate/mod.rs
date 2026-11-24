@@ -136,7 +136,7 @@ fn validate_admission(
     inventory: Option<&AssetInventory>,
     diagnostics: &mut Diagnostics,
 ) {
-    let estimate = (|| {
+    let estimate = |profile| {
         let processor_assets = inventory.map_or(
             crate::engine::ProcessorAssets::Unloaded,
             crate::engine::ProcessorAssets::Metadata,
@@ -146,6 +146,7 @@ fn validate_admission(
                 project,
                 topology,
                 processor_assets,
+                profile,
             )?;
         if let Some(inventory) = inventory {
             let sample_rate = project.sample_rate;
@@ -164,14 +165,28 @@ fn validate_admission(
             );
         }
         Ok::<_, crate::engine::EngineError>(estimate)
-    })();
-    match estimate {
+    };
+    let live_estimate = || {
+        estimate(AdmissionProfile::Live)
+            .map(|estimate| estimate.admission_failures(AdmissionProfile::Live))
+    };
+    match estimate(AdmissionProfile::Offline) {
         Ok(estimate) => {
             let offline = estimate.admission_failures(AdmissionProfile::Offline);
             if !offline.is_empty() {
                 diagnostics.push(admission_diagnostic(AdmissionProfile::Offline, &offline));
             } else {
-                let live = estimate.admission_failures(AdmissionProfile::Live);
+                let live = if project.song.tracks.iter().any(|track| track.frozen) {
+                    match live_estimate() {
+                        Ok(limits) => limits,
+                        Err(error) => {
+                            diagnostics.push(Diagnostic::warning("CRV093", error.to_string()));
+                            return;
+                        }
+                    }
+                } else {
+                    estimate.admission_failures(AdmissionProfile::Live)
+                };
                 if !live.is_empty() {
                     diagnostics.push(admission_diagnostic(AdmissionProfile::Live, &live));
                 }
@@ -210,7 +225,7 @@ pub(crate) fn admission_diagnostic(
                 "Project exceeds the live playback budget: {detail}; it publishes and renders, but cannot play live"
             ),
         )
-        .with_help(help),
+        .with_help(format!("{help}. Try freezing Tracks with costly Instruments or inserts.")),
     }
 }
 

@@ -652,6 +652,14 @@ track lead "Lead" instrument lead level -9db pan -0.1 {
 
 `tap pre|post` is accepted shorthand for the explicit `pre_fader|post_fader` model. A Clip references one Pattern, starts on the linear Timeline, has positive duration, and uses `once` or `loop`. `once` traverses a Pattern no more than once; `loop` repeats it until the Clip's half-open end. The optional source offset is Pattern-local and half-open. Whole-semitone transpose, event-excitation gain, left/right fades, and a Groove assignment remain placement-local, so repeated material can share one Pattern while retaining explicit local treatment. Note Offs are clipped safely to the Clip/Song boundary.
 
+Within a Track block, `freeze true` enables Track Freeze for live playback.
+Omit the directive or use `freeze false` to run the Instrument and inserts
+live. The cached tap is taken before level, panner, and Mute. Those controls
+and Sends remain live and automatable. You can still edit a frozen Track's
+Instrument, inserts, or arrangement. The next live preparation rebuilds the
+cache when its inputs change. Offline render and bounce evaluate the authored
+Project in full.
+
 Groups and Returns use the same channel directives; Master owns an ordered processor chain and final level:
 
 ```crump

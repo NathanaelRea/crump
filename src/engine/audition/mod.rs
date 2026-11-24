@@ -353,14 +353,46 @@ impl AuditionPlan {
         inventory: &AssetInventory,
         options: AuditionPrepareOptions,
     ) -> Result<PreparedAudition, EngineError> {
-        let selection = resolve_target(project, &self.target)?;
+        self.prepare_with_cache(revision, project, inventory, options, None)
+    }
+
+    /// Prepares playback with an optional Project directory for durable freeze cache reuse.
+    pub fn prepare_with_cache(
+        &self,
+        revision: &RevisionId,
+        project: &Project,
+        inventory: &AssetInventory,
+        options: AuditionPrepareOptions,
+        root: Option<&std::path::Path>,
+    ) -> Result<PreparedAudition, EngineError> {
+        let mut selection = resolve_target(project, &self.target)?;
+        if self.path == AuditionPath::Mapping || selection.mapping_trigger.is_some() {
+            for track in &mut selection.project.song.tracks {
+                if selection.tracks.contains(&track.id) {
+                    track.frozen = false;
+                }
+            }
+        }
         if matches!(self.target, AuditionTarget::Asset { .. }) && self.path != AuditionPath::Raw {
             return Err(compile_error(
                 "an Asset target supports only the raw audition path; select a Mapping or Occurrence for routed playback"
                     .to_owned(),
             ));
         }
-        let compiled = CompiledProject::compile_with_assets(&selection.project, inventory)?;
+        let cache_directory = root.map(|root| {
+            let directory = root.join(".crump/freeze");
+            if matches!(self.target, AuditionTarget::Song) {
+                directory
+            } else {
+                directory.join("audition")
+            }
+        });
+        let compiled = CompiledProject::compile_with_cache(
+            &selection.project,
+            inventory,
+            super::AdmissionProfile::Live,
+            cache_directory.as_deref(),
+        )?;
         let default_start = selection
             .default_start
             .to_frames(project.song.tempo_bpm, project.sample_rate)?;

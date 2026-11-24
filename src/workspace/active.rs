@@ -111,7 +111,7 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
             )
         })
     };
-    let prepared = match plan.prepare_with_options(
+    let prepared = match plan.prepare_with_cache(
         &active.revision,
         project,
         &active.assets,
@@ -121,6 +121,7 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
             explicit_seek,
             cleared_seek: true,
         },
+        Some(&active.root),
     ) {
         Ok(prepared) => prepared,
         Err(error) => {

@@ -866,6 +866,9 @@ impl Workspace {
         };
         let explicit_seek = self.active_prepare_explicit_seek;
         let initial_frame = self.active_prepare_initial_frame;
+        let has_frozen_tracks = active
+            .publishable()
+            .is_some_and(|project| project.song.tracks.iter().any(|track| track.frozen));
         let request = ActiveRequest {
             key: key.clone(),
             active,
@@ -899,6 +902,9 @@ impl Workspace {
                 self.active_prepare_explicit_seek = false;
                 self.active_prepare_initial_frame = None;
                 self.active_build_in_flight = true;
+                if has_frozen_tracks {
+                    self.status = "Preparing Track Freeze audio in the background".to_owned();
+                }
                 self.work_in_flight = Some(WorkspaceWorkKind::Active {
                     key,
                     explicit_seek,
