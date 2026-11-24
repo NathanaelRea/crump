@@ -1549,7 +1549,7 @@ impl Workspace {
             self.timeline_viewport
                 .center_frame(self.telemetry.engine.frame, end_frame);
         }
-        let failure = stream_failure_message(self.telemetry.stream_state);
+        let failure = playback_failure_message(&self.telemetry);
         if let Some(status) = failure
             && self.player.is_some()
         {
@@ -4960,6 +4960,19 @@ fn transport_label(app: &Workspace) -> String {
     let bar = (quarter_notes / bar_length).floor() as u64 + 1;
     let beat = quarter_notes.rem_euclid(bar_length) + 1.0;
     format!("{bar:02}:{beat:04.1}")
+}
+
+/// Status after the callback latched into silence because it could not keep up in real time.
+const OVERLOAD_MESSAGE: &str = "Playback stopped: this Project is too heavy to play in real time \
+     on this machine (CPU overload); `crump qualify` shows the cost, or render it offline";
+
+/// Why playback has ended for good, if it has: an overloaded callback or a dead stream.
+fn playback_failure_message(telemetry: &PlayerTelemetry) -> Option<&'static str> {
+    if telemetry.overloaded {
+        Some(OVERLOAD_MESSAGE)
+    } else {
+        stream_failure_message(telemetry.stream_state)
+    }
 }
 
 fn stream_failure_message(status: StreamStatus) -> Option<&'static str> {

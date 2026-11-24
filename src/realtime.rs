@@ -28,6 +28,15 @@ const RECLAIM_CAPACITY: usize = 8;
 const TELEMETRY_CAPACITY: usize = 64;
 const MIDI_CAPACITY: usize = 128;
 const FRAME_BYTES: usize = std::mem::size_of::<f32>() * 2;
+/// Longest the callback may run back-to-back, without ever finishing a buffer early enough to
+/// sleep, before playback latches into silence.
+///
+/// PipeWire raises its data thread to realtime priority with `RLIMIT_RTTIME` (200 ms by
+/// default), and the kernel SIGKILLs the whole process when a realtime thread runs that long
+/// without blocking. Half that limit leaves margin for PipeWire's own work in the same cycle.
+const OVERLOAD_RUN_LIMIT: std::time::Duration = std::time::Duration::from_millis(100);
+/// Frames processed between mid-buffer overload checks.
+const OVERLOAD_CHECK_FRAMES: usize = 32;
 
 /// Fixed-capacity channel identity carried across the callback command seam.
 #[derive(Debug, Clone, Copy)]
@@ -105,6 +114,10 @@ pub struct PlayerTelemetry {
     pub p999_callback_utilization: f32,
     /// Callback-side engine errors converted to silence.
     pub processing_errors: u64,
+    /// True once the callback could not keep up in real time and latched into silence.
+    ///
+    /// Playback cannot recover from this; the owner must stop the player.
+    pub overloaded: bool,
     /// True while old/new revisions are crossfading.
     pub transition_active: bool,
     /// True while the callback emits silence without advancing transport.
@@ -231,6 +244,49 @@ struct Transition {
     frames: u64,
 }
 
+/// Watches how long the callback has run without a chance to sleep.
+///
+/// A callback that finishes within its buffer duration lets the driver thread block until the
+/// next cycle. A late one leaves the next cycle already due, so consecutive late callbacks are
+/// one uninterrupted run of realtime CPU time. Once that run reaches the limit, the guard trips
+/// and stays tripped.
+#[derive(Debug, Clone, Copy)]
+struct OverloadGuard {
+    limit: std::time::Duration,
+    /// Time spent in consecutive late callbacks before the current one.
+    run: std::time::Duration,
+    tripped: bool,
+}
+
+impl OverloadGuard {
+    const fn new(limit: std::time::Duration) -> Self {
+        Self {
+            limit,
+            run: std::time::Duration::ZERO,
+            tripped: false,
+        }
+    }
+
+    /// Checks the current callback's elapsed time so far, tripping if the run would exceed the
+    /// limit.
+    fn check(&mut self, elapsed: std::time::Duration) -> bool {
+        if self.run.saturating_add(elapsed) >= self.limit {
+            self.tripped = true;
+        }
+        self.tripped
+    }
+
+    /// Records one completed callback against its buffer duration.
+    fn finish(&mut self, elapsed: std::time::Duration, budget: std::time::Duration) {
+        if elapsed > budget {
+            self.run = self.run.saturating_add(elapsed);
+            self.check(std::time::Duration::ZERO);
+        } else {
+            self.run = std::time::Duration::ZERO;
+        }
+    }
+}
+
 struct CallbackState {
     current: Box<SongRuntime>,
     current_generation: u64,
@@ -255,6 +311,8 @@ struct CallbackState {
     midi_connected: Arc<AtomicBool>,
     midi_dropped: Arc<AtomicU64>,
     midi_panic: Arc<AtomicBool>,
+    /// Enabled only for drivers on a realtime clock; in-memory rendering has no deadline.
+    overload_guard: Option<OverloadGuard>,
 }
 
 impl CallbackState {
@@ -265,7 +323,11 @@ impl CallbackState {
         self.consume_commands();
         let frames = output.len() / FRAME_BYTES;
         for frame in 0..frames {
-            let sample = self.process_frame();
+            let sample = if self.overloaded(frame, started) {
+                [0.0, 0.0]
+            } else {
+                self.process_frame()
+            };
             let offset = frame * FRAME_BYTES;
             output[offset..offset + 4].copy_from_slice(&sample[0].to_le_bytes());
             output[offset + 4..offset + 8].copy_from_slice(&sample[1].to_le_bytes());
@@ -275,6 +337,9 @@ impl CallbackState {
             frames as f64 / f64::from(self.current.sample_rate()),
         );
         let elapsed = started.elapsed();
+        if let Some(guard) = self.overload_guard.as_mut() {
+            guard.finish(elapsed, budget);
+        }
         if elapsed > budget {
             self.late_callbacks = self.late_callbacks.saturating_add(1);
         }
@@ -303,6 +368,7 @@ impl CallbackState {
                 1_000,
             ),
             processing_errors: self.processing_errors,
+            overloaded: self.overload_guard.is_some_and(|guard| guard.tripped),
             transition_active: self.transition.is_some(),
             paused: self.paused,
             midi_connected: self.midi_was_connected,
@@ -311,6 +377,20 @@ impl CallbackState {
             stream_state: decode_status(self.stream_status.load(Ordering::Relaxed)),
         };
         let _ = self.telemetry.push(report);
+    }
+
+    /// Whether this frame must be silence because the callback cannot keep up.
+    ///
+    /// Elapsed time is sampled every [`OVERLOAD_CHECK_FRAMES`], so one very slow buffer is cut
+    /// short rather than running past the kernel's realtime limit.
+    fn overloaded(&mut self, frame: usize, started: std::time::Instant) -> bool {
+        let Some(guard) = self.overload_guard.as_mut() else {
+            return false;
+        };
+        if guard.tripped {
+            return true;
+        }
+        frame.is_multiple_of(OVERLOAD_CHECK_FRAMES) && frame > 0 && guard.check(started.elapsed())
     }
 
     fn process_frame(&mut self) -> [f32; 2] {
@@ -559,7 +639,8 @@ impl Player {
         runtime: SongRuntime,
         generation: u64,
     ) -> Result<Self, RealtimeError> {
-        Self::connect(runtime, generation, StreamStatus::Starting, |ends| {
+        Self::connect(runtime, generation, StreamStatus::Starting, |mut ends| {
+            ends.callback.overload_guard = Some(OverloadGuard::new(OVERLOAD_RUN_LIMIT));
             let stop_requested = Arc::new(AtomicBool::new(false));
             let thread = native::spawn(native::NativeStream {
                 callback: ends.callback,
@@ -636,6 +717,7 @@ impl Player {
             midi_connected: Arc::new(AtomicBool::new(false)),
             midi_dropped: Arc::new(AtomicU64::new(0)),
             midi_panic: Arc::new(AtomicBool::new(false)),
+            overload_guard: None,
         };
         let driver = driver(CallbackEnds {
             callback,
@@ -1426,6 +1508,7 @@ mod tests {
             midi_connected: Arc::new(AtomicBool::new(false)),
             midi_dropped: Arc::new(AtomicU64::new(0)),
             midi_panic: Arc::new(AtomicBool::new(false)),
+            overload_guard: None,
         }
     }
 
@@ -1659,6 +1742,7 @@ mod tests {
             midi_connected: Arc::new(AtomicBool::new(false)),
             midi_dropped: Arc::new(AtomicU64::new(0)),
             midi_panic: Arc::new(AtomicBool::new(false)),
+            overload_guard: None,
         };
         callback.begin_transition(Box::new(compiled.runtime()), 1);
         assert!(callback.transition.is_some());
@@ -1669,6 +1753,69 @@ mod tests {
 
         assert!(!callback.paused);
         assert!(callback.transition.is_some());
+    }
+
+    #[test]
+    fn overload_guard_trips_on_one_uninterrupted_late_run_and_latches() {
+        let ms = std::time::Duration::from_millis;
+        let mut guard = OverloadGuard::new(ms(100));
+        // Late callbacks run back to back; on-time ones let the thread sleep and reset the run.
+        for _ in 0..3 {
+            guard.finish(ms(30), ms(3));
+        }
+        assert!(!guard.tripped);
+        guard.finish(ms(2), ms(3));
+        assert_eq!(guard.run, std::time::Duration::ZERO);
+        for _ in 0..3 {
+            guard.finish(ms(30), ms(3));
+        }
+        assert!(!guard.tripped);
+        // The fourth late callback in the run is cut short mid-buffer at the limit.
+        assert!(!guard.check(ms(9)));
+        assert!(guard.check(ms(10)));
+        guard.finish(ms(2), ms(3));
+        assert!(
+            guard.tripped,
+            "an overload latches until the player is replaced"
+        );
+    }
+
+    #[test]
+    fn a_tripped_overload_guard_silences_the_callback_and_freezes_transport() {
+        let compiled = maximum_compiled_project();
+        let (_commands, command_consumer) = RingBuffer::new(4);
+        let (_midi, midi_consumer) = RingBuffer::new(4);
+        let (reclaimed, _reclaim_consumer) = RingBuffer::new(1);
+        let (telemetry, mut telemetry_consumer) = RingBuffer::new(16);
+        let mut callback = callback_state(
+            compiled.runtime(),
+            command_consumer,
+            midi_consumer,
+            reclaimed,
+            telemetry,
+            Arc::new(AtomicBool::new(false)),
+        );
+        callback.overload_guard = Some(OverloadGuard::new(std::time::Duration::ZERO));
+        let mut output = [0xff_u8; 256 * FRAME_BYTES];
+
+        callback.process_buffer(&mut output);
+        let first = telemetry_consumer.pop().expect("first callback telemetry");
+        assert!(first.overloaded);
+        // Only the frames before the first mid-buffer check were processed.
+        assert_eq!(first.engine.frame, OVERLOAD_CHECK_FRAMES as u64 - 1);
+        assert!(
+            output[OVERLOAD_CHECK_FRAMES * FRAME_BYTES..]
+                .iter()
+                .all(|byte| *byte == 0),
+            "frames after the trip are silence"
+        );
+
+        output.fill(0xff);
+        callback.process_buffer(&mut output);
+        let second = telemetry_consumer.pop().expect("second callback telemetry");
+        assert!(second.overloaded);
+        assert_eq!(second.engine.frame, first.engine.frame);
+        assert!(output.iter().all(|byte| *byte == 0));
     }
 
     #[test]

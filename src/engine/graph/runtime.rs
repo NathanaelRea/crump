@@ -497,6 +497,7 @@ impl CompiledGraph {
             }
             nodes.push(CompiledNode {
                 transition_identity: stable_modulation_identity(&authored.id),
+                ports: PortSources::resolve(&inputs),
                 has_key: inputs.contains_key("key"),
                 has_velocity: inputs.contains_key("velocity"),
                 has_gain: inputs.contains_key("gain"),
@@ -663,6 +664,10 @@ impl CompiledGraph {
                                             std::mem::size_of::<SignalSource>() as u64,
                                         ))
                                 })
+                                .saturating_add(
+                                    (node.ports.summed.len() as u64)
+                                        .saturating_mul(std::mem::size_of::<SignalSource>() as u64),
+                                )
                                 .saturating_add(node.program.heap_bytes())
                         })
                         .fold(0_u64, u64::saturating_add),
@@ -1629,10 +1634,68 @@ fn compile_voice_operations(
     Ok(operations)
 }
 
+/// Single-source input ports a Node program reads, in [`PortSources::NAMES`] order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Port {
+    Pitch,
+    Key,
+    Gate,
+    Velocity,
+    Audio,
+    Gain,
+    Modulation,
+    FrequencyModulation,
+    PhaseModulation,
+    Sync,
+    AmplitudeModulation,
+    InputA,
+    InputB,
+    TimeModulation,
+    Control,
+}
+
+/// Every Node input resolved at compile time, so the per-sample path indexes fixed slots
+/// instead of searching authored port names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PortSources {
+    /// First source of each single-source port.
+    single: [Option<SignalSource>; PortSources::NAMES.len()],
+    /// Every source of a summing Node's `inputs` port.
+    summed: Box<[SignalSource]>,
+}
+
+impl PortSources {
+    const NAMES: [&'static str; 15] = [
+        "pitch", "key", "gate", "velocity", "audio", "gain", "mod", "fm", "pm", "sync", "am", "a",
+        "b", "time_mod", "control",
+    ];
+
+    fn resolve(inputs: &BTreeMap<String, Vec<SignalSource>>) -> Self {
+        Self {
+            single: Self::NAMES.map(|name| {
+                inputs
+                    .get(name)
+                    .and_then(|sources| sources.first())
+                    .copied()
+            }),
+            summed: inputs
+                .get("inputs")
+                .map_or_else(Box::default, |sources| sources.clone().into_boxed_slice()),
+        }
+    }
+
+    const fn get(&self, port: Port) -> Option<SignalSource> {
+        self.single[port as usize]
+    }
+}
+
 #[derive(Debug, Clone)]
 struct CompiledNode {
     transition_identity: u64,
+    /// Authored connections by input port; cold metadata for compatibility and accounting.
     inputs: BTreeMap<String, Vec<SignalSource>>,
+    /// The same connections resolved for the per-sample path.
+    ports: PortSources,
     program: NodeProgram,
     has_key: bool,
     has_velocity: bool,
@@ -1697,8 +1760,7 @@ fn evaluate_compiled_node(
     // a feedback-breaking Node reads them after the whole frame.
     let input = |port| {
         resolve_input_values(
-            node,
-            port,
+            node.ports.get(port),
             signals,
             context.pitch_hz,
             context.gate,
@@ -1708,21 +1770,21 @@ fn evaluate_compiled_node(
     };
     let inputs = NodeInputs {
         song_frame: context.song_frame,
-        pitch: input("pitch"),
-        key: input("key"),
-        gate: input("gate"),
-        velocity: input("velocity"),
-        audio: input("audio"),
-        gain: input("gain"),
-        modulation: input("mod"),
-        frequency_modulation: input("fm"),
-        phase_modulation: input("pm"),
-        sync: input("sync"),
-        amplitude_modulation: input("am"),
-        input_a: input("a"),
-        input_b: input("b"),
-        time_modulation: input("time_mod"),
-        control: input("control"),
+        pitch: input(Port::Pitch),
+        key: input(Port::Key),
+        gate: input(Port::Gate),
+        velocity: input(Port::Velocity),
+        audio: input(Port::Audio),
+        gain: input(Port::Gain),
+        modulation: input(Port::Modulation),
+        frequency_modulation: input(Port::FrequencyModulation),
+        phase_modulation: input(Port::PhaseModulation),
+        sync: input(Port::Sync),
+        amplitude_modulation: input(Port::AmplitudeModulation),
+        input_a: input(Port::InputA),
+        input_b: input(Port::InputB),
+        time_modulation: input(Port::TimeModulation),
+        control: input(Port::Control),
         summed_audio: resolve_summed_values(
             node,
             signals,
@@ -1746,20 +1808,16 @@ fn evaluate_compiled_node(
 }
 
 fn resolve_input_values(
-    node: &CompiledNode,
-    port: &str,
+    source: Option<SignalSource>,
     signals: &[Signal],
     pitch_hz: f32,
     gate: bool,
     velocity: f32,
     voice_sum: [f32; 2],
 ) -> Signal {
-    node.inputs
-        .get(port)
-        .and_then(|sources| sources.first())
-        .map_or(Signal::None, |source| {
-            resolve_source_values(*source, signals, pitch_hz, gate, velocity, voice_sum)
-        })
+    source.map_or(Signal::None, |source| {
+        resolve_source_values(source, signals, pitch_hz, gate, velocity, voice_sum)
+    })
 }
 
 #[cfg(test)]
@@ -1783,12 +1841,9 @@ fn resolve_summed_values(
     velocity: f32,
     voice_sum: [f32; 2],
 ) -> Signal {
-    let Some(sources) = node.inputs.get("inputs") else {
-        return Signal::None;
-    };
     let mut mono = None;
     let mut stereo = None;
-    for source in sources {
+    for source in &node.ports.summed {
         match resolve_source_values(*source, signals, pitch_hz, gate, velocity, voice_sum) {
             Signal::Mono(value) => *mono.get_or_insert(0.0) += value,
             value => {
@@ -2148,6 +2203,18 @@ project "Extended vectors" {
         assert!(filter.inputs.contains_key("key"));
         assert!(filter.inputs.contains_key("velocity"));
         assert!(filter.inputs.contains_key("mod"));
+        for (port, name) in [
+            (Port::Key, "key"),
+            (Port::Velocity, "velocity"),
+            (Port::Modulation, "mod"),
+        ] {
+            assert_eq!(
+                filter.ports.get(port),
+                filter.inputs[name].first().copied(),
+                "{name} resolves to its authored source"
+            );
+        }
+        assert_eq!(filter.ports.get(Port::Gain), None);
         assert!(filter.program.is_bandpass_filter());
 
         let mut soft = touch_graph.create_voice(11);
@@ -3512,5 +3579,30 @@ project "Extended vectors" {
             }
         }
         assert!(!first.active());
+    }
+
+    #[test]
+    fn port_slots_follow_their_authored_names() {
+        let ports = [
+            (Port::Pitch, "pitch"),
+            (Port::Key, "key"),
+            (Port::Gate, "gate"),
+            (Port::Velocity, "velocity"),
+            (Port::Audio, "audio"),
+            (Port::Gain, "gain"),
+            (Port::Modulation, "mod"),
+            (Port::FrequencyModulation, "fm"),
+            (Port::PhaseModulation, "pm"),
+            (Port::Sync, "sync"),
+            (Port::AmplitudeModulation, "am"),
+            (Port::InputA, "a"),
+            (Port::InputB, "b"),
+            (Port::TimeModulation, "time_mod"),
+            (Port::Control, "control"),
+        ];
+        assert_eq!(ports.len(), PortSources::NAMES.len());
+        for (port, name) in ports {
+            assert_eq!(PortSources::NAMES[port as usize], name);
+        }
     }
 }

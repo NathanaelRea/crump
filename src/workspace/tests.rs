@@ -808,6 +808,23 @@ fn stopped_stream_is_terminal_even_before_the_first_callback() {
 }
 
 #[test]
+fn an_overloaded_callback_ends_playback_even_while_the_stream_runs() {
+    let streaming = PlayerTelemetry {
+        stream_state: StreamStatus::Streaming,
+        ..PlayerTelemetry::default()
+    };
+    assert!(playback_failure_message(&streaming).is_none());
+    let overloaded = PlayerTelemetry {
+        overloaded: true,
+        ..streaming
+    };
+    assert_eq!(
+        playback_failure_message(&overloaded),
+        Some(OVERLOAD_MESSAGE)
+    );
+}
+
+#[test]
 fn result_changed_before_ui_acceptance_never_replaces_stable_candidate() {
     let root = tempfile::tempdir().expect("temporary Project");
     let path = root.path().join("project.crump");
