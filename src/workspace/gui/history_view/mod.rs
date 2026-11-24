@@ -10,6 +10,11 @@ use super::*;
 use crate::history::{HistoryEntry, OriginKind};
 use crate::model::Project;
 
+mod console;
+mod fx_rack;
+mod song;
+mod synth;
+
 /// Silence that starts a new working session.
 const SESSION_GAP_SECS: i64 = 30 * 60;
 
@@ -702,6 +707,8 @@ pub(super) enum Area {
     Return(String),
     Master,
     Pattern(String),
+    /// A track's clips on the timeline.
+    Arrangement(String),
     Other(String),
 }
 
@@ -902,6 +909,9 @@ fn describe_change(
                 retext(Unit::Pan);
             }
             let area = match scope {
+                "tracks" if inner.first().is_some_and(|k| k == "clips") => {
+                    Area::Arrangement(id.clone())
+                }
                 "tracks" => Area::Track(id.clone()),
                 "groups" => Area::Group(id.clone()),
                 _ => Area::Return(id.clone()),
@@ -1032,11 +1042,16 @@ fn named_areas(project: &Project, item: &Item<'_>) -> Vec<Area> {
             .iter()
             .find(|i| i.name == item.subject)
             .map(|i| Area::Instrument(i.id.clone())),
-        Kind::Mix | Kind::Arrangement => song
+        Kind::Mix => song
             .tracks
             .iter()
             .find(|t| t.name == item.subject)
             .map(|t| Area::Track(t.id.clone())),
+        Kind::Arrangement => song
+            .tracks
+            .iter()
+            .find(|t| t.name == item.subject)
+            .map(|t| Area::Arrangement(t.id.clone())),
         Kind::Pattern => Some(Area::Pattern(item.subject.clone())),
         Kind::Song => Some(Area::Tempo),
         _ => None,
@@ -1406,215 +1421,51 @@ fn section(ui: &mut Ui, kind: Kind, name: &str, body: impl FnOnce(&mut Ui)) {
         });
 }
 
-/// Every area a version changed, one card per row so nothing runs off the side: instrument
-/// dials, channel strips with their effects, patterns, and any other change as a chip, all as
-/// `view.shown` has them.
+/// Every area a version changed, as the modules that own it: the synth for an instrument, the
+/// console (with each channel's FX rack) for tracks, groups, returns and the Master, and the
+/// song modules for tempo, patterns, arrangement, automation and the rest. Each draws the
+/// version in `view.shown` and marks what this edit moved and what differs from the other side.
 fn sound_panel(ui: &mut Ui, view: &SoundView<'_>, areas: &[Area], changes: &[ValueChange]) {
-    use crate::model::Unit;
-    let song = &view.shown.song;
-    let prev_song = view.previous.map(|p| &p.song);
-    let other_song = view.other.map(|p| &p.song);
-    let word = view.other_word;
     if areas.is_empty() {
         ui.label(
             RichText::new("This change has nothing to show as controls.").color(theme::TEXT_MUTED),
         );
         return;
     }
-    for area in areas {
-        let in_area = changes
+    let in_area = |area: &Area| {
+        changes
             .iter()
             .filter(|c| c.area == *area)
-            .collect::<Vec<_>>();
+            .collect::<Vec<_>>()
+    };
+    // The console draws every channel at once, so its areas go to it together.
+    let console_areas = areas
+        .iter()
+        .filter(|a| {
+            matches!(
+                a,
+                Area::Track(_) | Area::Group(_) | Area::Return(_) | Area::Master
+            )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut console_drawn = false;
+    for area in areas {
         match area {
-            Area::Tempo => section(ui, Kind::Song, "Song", |ui| {
-                dial(
-                    ui,
-                    "Tempo",
-                    song.tempo_bpm,
-                    60.0,
-                    180.0,
-                    Unit::Ratio,
-                    &|bpm| format!("{bpm:.1} BPM"),
-                    mark(
-                        song.tempo_bpm,
-                        prev_song.map(|s| s.tempo_bpm),
-                        other_song.map(|s| s.tempo_bpm),
-                    ),
-                    word,
-                    theme::TEXT_PRIMARY,
-                );
-            }),
-            Area::Instrument(id) => {
-                let Some(inst) = song.instruments.iter().find(|i| i.id == *id) else {
+            Area::Instrument(id) => synth::draw(ui, view, id, &in_area(area)),
+            Area::Track(_) | Area::Group(_) | Area::Return(_) | Area::Master => {
+                if console_drawn {
                     continue;
-                };
-                let param_of = |s: Option<&crate::model::Song>, key: &str| {
-                    s.and_then(|s| s.instruments.iter().find(|i| i.id == inst.id))
-                        .and_then(|i| i.parameters.iter().find(|p| p.key == key))
-                        .map(|p| p.value)
-                };
-                let name = match song.tracks.iter().find(|t| t.instrument == inst.id) {
-                    Some(track) => format!("{} on {}", inst.name, track.name),
-                    None => inst.name.clone(),
-                };
-                section(ui, Kind::Instrument, &name, |ui| {
-                    ui.horizontal_wrapped(|ui| {
-                        for param in &inst.parameters {
-                            dial(
-                                ui,
-                                &param.name,
-                                param.value,
-                                param.minimum,
-                                param.maximum,
-                                param.unit,
-                                &|v| theme::format_compact_value(v, param.unit),
-                                mark(
-                                    param.value,
-                                    param_of(prev_song, &param.key),
-                                    param_of(other_song, &param.key),
-                                ),
-                                word,
-                                Kind::Instrument.color(),
-                            );
-                        }
-                    });
-                    let old_inst = |s: Option<&'_ crate::model::Song>| {
-                        s.and_then(|s| s.instruments.iter().find(|i| i.id == inst.id).cloned())
-                    };
-                    let (prev_inst, other_inst) = (old_inst(prev_song), old_inst(other_song));
-                    for processor in &inst.post_processors {
-                        effect_settings(
-                            ui,
-                            processor,
-                            prev_inst.as_ref().and_then(|i| {
-                                i.post_processors.iter().find(|p| p.id == processor.id)
-                            }),
-                            other_inst.as_ref().and_then(|i| {
-                                i.post_processors.iter().find(|p| p.id == processor.id)
-                            }),
-                            word,
-                        );
-                    }
-                    // Inside the synth: oscillator, filter and envelope settings, routes, and so on.
-                    let inner = in_area
-                        .iter()
-                        .filter(|c| {
-                            c.path
-                                .first()
-                                .is_none_or(|p| p != "parameters" && p != "post_processors")
-                        })
-                        .copied()
-                        .collect::<Vec<_>>();
-                    change_chips(ui, &inner);
-                });
+                }
+                console_drawn = true;
+                let console_changes = changes
+                    .iter()
+                    .filter(|c| console_areas.contains(&c.area))
+                    .collect::<Vec<_>>();
+                console::draw(ui, view, &console_areas, &console_changes);
             }
-            Area::Track(_) | Area::Group(_) | Area::Return(_) => {
-                let Some((name, channel)) = channel_strip(song, area) else {
-                    continue;
-                };
-                let prev = prev_song
-                    .and_then(|s| channel_strip(s, area))
-                    .map(|(_, c)| c);
-                let other = other_song
-                    .and_then(|s| channel_strip(s, area))
-                    .map(|(_, c)| c);
-                section(ui, Kind::Mix, &name, |ui| {
-                    ui.horizontal_top(|ui| {
-                        fader(
-                            ui,
-                            channel.level_db,
-                            mark(
-                                channel.level_db,
-                                prev.map(|c| c.level_db),
-                                other.map(|c| c.level_db),
-                            ),
-                            word,
-                        );
-                        // A stereo panner places each side, so it gets a dial per side.
-                        for (side, (label, pan)) in
-                            pan_dials(&channel.panner).into_iter().enumerate()
-                        {
-                            let at = |c: &crate::model::ChannelStrip| {
-                                pan_dials(&c.panner).get(side).map(|(_, v)| *v)
-                            };
-                            dial(
-                                ui,
-                                label,
-                                pan,
-                                -1.0,
-                                1.0,
-                                Unit::Pan,
-                                &|v| theme::format_compact_value(v, Unit::Pan),
-                                mark(pan, prev.and_then(at), other.and_then(at)),
-                                word,
-                                Kind::Mix.color(),
-                            );
-                        }
-                    });
-                    for processor in &channel.inserts {
-                        effect_settings(
-                            ui,
-                            processor,
-                            prev.and_then(|c| c.inserts.iter().find(|p| p.id == processor.id)),
-                            other.and_then(|c| c.inserts.iter().find(|p| p.id == processor.id)),
-                            word,
-                        );
-                    }
-                    // Sends, clips and anything else on this channel.
-                    let inner = in_area
-                        .iter()
-                        .filter(|c| {
-                            !matches!(c.label.as_str(), "Level" | "Pan" | "Pan left" | "Pan right")
-                                && c.path.get(1).is_none_or(|p| p != "inserts")
-                        })
-                        .copied()
-                        .collect::<Vec<_>>();
-                    change_chips(ui, &inner);
-                });
-            }
-            Area::Master => {
-                let Some(master) = &song.master else {
-                    continue;
-                };
-                let prev = prev_song.and_then(|s| s.master.as_ref());
-                let other = other_song.and_then(|s| s.master.as_ref());
-                section(ui, Kind::Mix, "Master", |ui| {
-                    fader(
-                        ui,
-                        master.level_db,
-                        mark(
-                            master.level_db,
-                            prev.map(|m| m.level_db),
-                            other.map(|m| m.level_db),
-                        ),
-                        word,
-                    );
-                    for processor in &master.inserts {
-                        effect_settings(
-                            ui,
-                            processor,
-                            prev.and_then(|m| m.inserts.iter().find(|p| p.id == processor.id)),
-                            other.and_then(|m| m.inserts.iter().find(|p| p.id == processor.id)),
-                            word,
-                        );
-                    }
-                });
-            }
-            Area::Pattern(id) => {
-                let Some(pattern) = song.patterns.iter().find(|p| p.id == *id) else {
-                    continue;
-                };
-                section(ui, Kind::Pattern, &pattern.id, |ui| {
-                    let width = ui.available_width().min(420.0);
-                    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, 96.0), Sense::hover());
-                    pattern_thumb(ui.painter(), rect, pattern, Kind::Pattern.color());
-                    change_chips(ui, &in_area);
-                });
-            }
-            Area::Other(_) => {
-                let owner = in_area.first().map_or("Project", |c| c.owner.as_str());
-                section(ui, Kind::Other, owner, |ui| change_chips(ui, &in_area));
+            Area::Tempo | Area::Pattern(_) | Area::Arrangement(_) | Area::Other(_) => {
+                song::draw(ui, view, area, &in_area(area));
             }
         }
         ui.add_space(12.0);
