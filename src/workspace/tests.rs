@@ -956,7 +956,11 @@ fn play_on_an_unpublished_candidate_publishes_then_starts() {
     assert!(workspace.active_revision.is_none());
 
     workspace.toggle_playback();
-    assert!(workspace.status.starts_with("Publishing Candidate before playback"));
+    assert!(
+        workspace
+            .status
+            .starts_with("Publishing Candidate before playback")
+    );
     settle_background(&mut workspace);
     assert!(workspace.candidate_is_active(), "{}", workspace.status);
     assert_eq!(workspace.history[0].summary, "Publish on play");
