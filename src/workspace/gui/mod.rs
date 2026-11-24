@@ -889,6 +889,17 @@ fn status_cluster(ui: &mut Ui, cx: &mut Cx<'_>, show_meter: bool) {
         }
     }
 
+    if let Some(diagnostic) = app.active_bundle.as_ref().and_then(|bundle| {
+        bundle
+            .diagnostics
+            .as_slice()
+            .iter()
+            .find(|diagnostic| diagnostic.code == "CRV093")
+    }) {
+        ui.label(RichText::new("Live playback unavailable").color(theme::SIG_HOT))
+            .on_hover_text(&diagnostic.message);
+    }
+
     ui.separator();
 
     if show_meter {

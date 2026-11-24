@@ -38,7 +38,7 @@ use crate::{
         DrumVoice, GlideMode, InstrumentKind, NotePriority, Project, RetriggerPolicy,
         StealPriority, TapPoint, Voicing, VoicingMode,
     },
-    validate::{MAX_CONTROL_TARGETS, validate_project_assets, validate_project_with_topology},
+    validate::{MAX_CONTROL_TARGETS, validate_project_with_topology},
 };
 
 use self::{
@@ -95,7 +95,7 @@ pub struct CompiledProject {
 }
 
 impl CompiledProject {
-    /// Validates and compiles a media-free Project for playback or rendering.
+    /// Validates and compiles a media-free Project for live playback.
     ///
     /// Projects containing sampler mappings must use [`Self::compile_with_assets`]
     /// so exact verified media bytes are available during publication.
@@ -120,33 +120,17 @@ impl CompiledProject {
         inventory: &AssetInventory,
         profile: AdmissionProfile,
     ) -> Result<Self, EngineError> {
-        let (mut diagnostics, topology) = validate_project_with_topology(project);
-        diagnostics.extend(validate_project_assets(project, inventory));
+        let (diagnostics, topology) = validate_project_with_topology(project, Some(inventory));
         if diagnostics.has_errors() {
             return Err(EngineError::Validation(diagnostics.into_vec()));
         }
-        let sample_program_bytes = CompiledSampleLibrary::estimated_allocation_bytes_for_project(
-            project,
-            inventory,
-            project.sample_rate,
-        )
-        .map_err(|error| EngineError::Compile(error.to_string()))?;
-        let spectral_program_bytes =
-            CompiledSpectralLibrary::estimated_allocation_bytes_for_project(
-                project,
-                inventory,
-                project.sample_rate,
-            )
-            .map_err(|error| EngineError::Compile(error.to_string()))?;
-        let mut asset_aware_estimate =
-            CompiledMixGraph::resource_estimate_for_validation(project, &topology)?;
-        asset_aware_estimate.include_additional_instrument_program_bytes(
-            sample_program_bytes.saturating_add(spectral_program_bytes),
-        );
-        let failures = asset_aware_estimate.admission_failures(profile);
-        if !failures.is_empty() {
-            diagnostics.push(crate::validate::admission_diagnostic(profile, &failures));
-            return Err(EngineError::Validation(diagnostics.into_vec()));
+        if profile == AdmissionProfile::Live
+            && let Some(diagnostic) = diagnostics
+                .as_slice()
+                .iter()
+                .find(|diagnostic| diagnostic.code == "CRV093")
+        {
+            return Err(EngineError::Compile(diagnostic.message.clone()));
         }
         let schedules = compile_schedules(project)?;
         let controls = CompiledControlProgram::compile(project)?;
@@ -2917,7 +2901,7 @@ mod processor_meter_array_serde {
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
     /// Project did not pass whole-project validation.
-    #[error("Project cannot compile because validation failed")]
+    #[error("Project cannot compile because validation failed: {}", .0.iter().filter(|diagnostic| diagnostic.severity == crate::diagnostic::Severity::Error).map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>().join("; "))]
     Validation(Vec<Diagnostic>),
     /// Validated model could not compile to bounded runtime state.
     #[error("audio compilation failed: {0}")]
@@ -3484,8 +3468,8 @@ mod tests {
             diagnostics
                 .as_slice()
                 .iter()
-                .any(|diagnostic| diagnostic.code == "CRV092"),
-            "shared Delay state alone should cross the named publication budget: {diagnostics:?}"
+                .any(|diagnostic| diagnostic.code == "CRV093"),
+            "shared Delay state alone should cross the named live publication budget: {diagnostics:?}"
         );
         assert!(CompiledProject::compile(&heavy).is_err());
     }

@@ -19,7 +19,7 @@ use crate::{
 };
 
 use super::{
-    CompiledProject, EngineError, FinalizedAudioAnalysis, ProcessingMode,
+    AdmissionProfile, CompiledProject, EngineError, FinalizedAudioAnalysis, ProcessingMode,
     analysis::{ANALYSIS_SCHEMA, analyze_finalized_wav},
     mix_graph::{ChannelRole, MAX_MIX_CHANNELS},
 };
@@ -451,7 +451,8 @@ pub fn render_project(
     let project = bundle
         .publishable()
         .ok_or_else(|| EngineError::Validation(bundle.diagnostics.as_slice().to_vec()))?;
-    let compiled = CompiledProject::compile_with_assets(project, &bundle.assets)?;
+    let compiled =
+        CompiledProject::compile_for(project, &bundle.assets, AdmissionProfile::Offline)?;
     let destination = resolved_destination(&options.output)?;
     validate_render_destination(bundle, &destination)?;
     let parent = destination.parent().ok_or_else(|| {

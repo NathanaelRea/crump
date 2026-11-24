@@ -7,7 +7,7 @@ use serde::Serialize;
 use crate::{
     diagnostic::{Diagnostic, Diagnostics},
     dsl::{parse_module, parse_project},
-    engine::{CompiledProject, ProcessingMode},
+    engine::{AdmissionProfile, CompiledProject, ProcessingMode},
     media::AssetInventory,
     model::{
         Instrument, InstrumentKind, MediaAsset, MediaAssetUsage, NodeKind, PatternEvent,
@@ -250,7 +250,7 @@ pub(crate) fn render_module_preview(
     let mut project = preview_project(&module.instrument)?;
     project.assets = project_assets.to_vec();
     project.acoustic_profiles = module.acoustic_profiles.clone();
-    let compiled = CompiledProject::compile_with_assets(&project, inventory)
+    let compiled = CompiledProject::compile_for(&project, inventory, AdmissionProfile::Offline)
         .map_err(|error| error.to_string())?;
     let frame_count = usize::try_from(compiled.total_frames())
         .map_err(|_| "Module preview frame count exceeds addressable memory".to_owned())?;

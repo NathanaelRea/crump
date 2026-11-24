@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    CompiledProject, EngineError, ProcessingMode,
+    AdmissionProfile, CompiledProject, EngineError, ProcessingMode,
     generated_audio::{
         GENERATED_AUDIO_FORMAT, GeneratedAudioArtifact, build_generated_audio_artifact,
         valid_source_id,
@@ -142,7 +142,8 @@ pub fn bounce_revision(
             path.display()
         )));
     }
-    let compiled = CompiledProject::compile_with_assets(project, &bundle.assets)?;
+    let compiled =
+        CompiledProject::compile_for(project, &bundle.assets, AdmissionProfile::Offline)?;
     if request.start_frame >= request.end_frame || request.end_frame > compiled.arrangement_frames()
     {
         return Err(EngineError::Compile(format!(

@@ -342,6 +342,8 @@ pub struct Outcome {
     pub kind: OutcomeKind,
     /// Appended Project History entry.
     pub history_entry: HistoryEntry,
+    /// Diagnostics from validation of a published Candidate.
+    pub diagnostics: Vec<crate::diagnostic::Diagnostic>,
 }
 
 /// Shared operation-value parse category, allowing adapters to retain their public error labels.
@@ -430,6 +432,7 @@ pub fn execute(root: impl AsRef<Path>, request: Request) -> Result<Outcome, Exec
             Ok(Outcome {
                 kind: OutcomeKind::HistoryRestored,
                 history_entry: entry,
+                diagnostics: Vec::new(),
             })
         }
         Operation::PublishCandidate => {
@@ -445,6 +448,7 @@ pub fn execute(root: impl AsRef<Path>, request: Request) -> Result<Outcome, Exec
             Ok(Outcome {
                 kind: OutcomeKind::CandidatePublished,
                 history_entry: entry,
+                diagnostics: bundle.diagnostics.into_vec(),
             })
         }
         operation => {
@@ -465,6 +469,7 @@ pub fn execute(root: impl AsRef<Path>, request: Request) -> Result<Outcome, Exec
             Ok(Outcome {
                 kind: OutcomeKind::EditApplied,
                 history_entry: entry,
+                diagnostics: Vec::new(),
             })
         }
     }

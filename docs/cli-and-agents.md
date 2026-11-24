@@ -282,6 +282,12 @@ crump --project ./song --json render --output render/delivery \
   --stem group/music:post_fader
 ```
 
+`publish --json` includes Candidate validation findings in `data.diagnostics`
+on success. CRV093 means the revision is available to `render` and
+`asset bounce`, including render planning, while `play` and `qualify` still
+require Live admission. CRV092 blocks publication when the Offline profile
+fails.
+
 `--plan` is non-mutating and reports the exact Active render range, destination state, requested stems, alignment padding, processing policy, and whether publication would replace or conflict. Repeat `--stem OWNER:TAP` with a durable `track/ID` or `group/ID` and `pre_fader`/`post_fader`; duplicate, missing, Return, or Master selections are rejected.
 
 Every stem is stereo float WAV with the same start, frame count, tail, and sample rate as Master. Both taps include upstream main routing and processing through the selected owner's inserts. `post_fader` additionally includes that owner's gain, panner, and Mute. Neither tap folds in outgoing Sends or downstream Group, Return, or Master processing. Deterministic zero padding aligns the tap with compiled Master output latency, and the manifest records the exact delay and policy. Arbitrary selected stems are not claimed to reconstruct Master when omitted branches or downstream processing make that impossible.

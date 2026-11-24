@@ -4769,9 +4769,14 @@ fn candidate_instrument_sections(
 fn candidate_runtime_inspection(
     bundle: &ProjectBundle,
 ) -> (Option<MixGraphInspection>, Option<ControlInspector>) {
-    let compiled = bundle
-        .publishable()
-        .and_then(|project| CompiledProject::compile_with_assets(project, &bundle.assets).ok());
+    let compiled = bundle.publishable().and_then(|project| {
+        CompiledProject::compile_for(
+            project,
+            &bundle.assets,
+            crate::engine::AdmissionProfile::Offline,
+        )
+        .ok()
+    });
     let processing_graph = compiled
         .as_ref()
         .map(|compiled| compiled.mix_graph_inspection().clone());

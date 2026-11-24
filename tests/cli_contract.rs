@@ -2589,3 +2589,83 @@ fn instrument_modulation_route_edits_use_checked_cli_operations() {
     assert!(source.contains("macro-tone source macro-source target tone depth 0.4"));
     assert!(source.contains("order -20 bypass true"));
 }
+
+#[test]
+fn live_work_budget_warning_allows_publication_and_offline_render() {
+    let root = fixture_named("virtual_analog_foundation.crump");
+    let track = (0..8)
+        .map(|index| {
+            format!(
+                "    track hybrid-{index} \"Hybrid {index}\" instrument hybrid level -24db pan 0 {{\n      clip phrase-{index} pattern phrase start 0bar duration 1bar mode once\n    }}"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let path = root.path().join("project.crump");
+    let source = fs::read_to_string(&path)
+        .unwrap()
+        .replace("polyphony 4", "polyphony 64")
+        .replace(
+            "    track hybrid-track \"Virtual Analog\" instrument hybrid level -12db pan 0 {\n      clip phrase pattern phrase start 0bar duration 1bar mode once\n    }",
+            &track,
+        );
+    fs::write(path, source).unwrap();
+
+    let published = publish(&root);
+    assert!(
+        published["data"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|diagnostic| {
+                diagnostic["code"] == "CRV093"
+                    && diagnostic["severity"] == "warning"
+                    && diagnostic["message"]
+                        .as_str()
+                        .unwrap()
+                        .contains("work units/frame")
+            }),
+        "{published}"
+    );
+    for args in [
+        &["render", "--output", "master", "--plan"][..],
+        &["render", "--output", "master"][..],
+    ] {
+        let output = invoke(&root, args);
+        assert!(output.status.success(), "{}", response(&output));
+    }
+    assert!(root.path().join("master/master.wav").is_file());
+
+    let bounced = invoke(
+        &root,
+        &[
+            "asset",
+            "bounce",
+            "--source",
+            "track/hybrid-0:pre_fader",
+            "--from",
+            "0beat",
+            "--to",
+            "1/4beat",
+            "--tail-seconds",
+            "0",
+            "--id",
+            "hybrid-bounce",
+            "--name",
+            "Hybrid bounce",
+        ],
+    );
+    assert!(bounced.status.success(), "{}", response(&bounced));
+    assert!(root.path().join("media/hybrid-bounce.wav").is_file());
+
+    let play = invoke(&root, &["play", "--plan"]);
+    assert!(!play.status.success());
+    let play = response(&play);
+    assert!(
+        play["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("work units/frame"),
+        "{play}"
+    );
+}

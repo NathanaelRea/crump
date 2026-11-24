@@ -69,6 +69,15 @@ Restore copies the selected exact source set and content-addressed media bytes i
 
 This is durable Project History, not session-only undo/redo. Routine Production View changes are separate entries, so selecting and restoring an earlier action provides the normal reversible workflow.
 
+## Runtime admission
+
+Project Publication requires the Offline profile, which keeps the structural
+limits and caps one runtime at 1 GiB. CRV092 names exceeded Offline limits and
+blocks publication. CRV093 reports exceeded Live limits on a Project that can
+publish, render, and bounce. Live playback and realtime qualification account
+for the memory and per-frame work of overlapping runtimes during publication.
+See [ADR 0030](adr/0030-live-and-offline-runtime-admission.md).
+
 ## Render range
 
 The offline Render Range is explicit and finite:

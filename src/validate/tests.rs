@@ -823,7 +823,7 @@ fn rejects_fixed_processor_telemetry_capacity_before_runtime_allocation() {
         .find(|diagnostic| diagnostic.code == "CRV092")
         .cloned()
         .expect("processor telemetry capacity diagnostic");
-    assert!(diagnostic.message.contains("fixed telemetry capacity"));
+    assert!(diagnostic.message.contains("processors"));
 }
 
 #[test]
@@ -885,8 +885,7 @@ fn repeated_instrument_post_chains_count_as_runtime_processor_instances() {
             .as_slice()
             .iter()
             .any(|diagnostic| {
-                diagnostic.code == "CRV092"
-                    && diagnostic.message.contains("fixed telemetry capacity")
+                diagnostic.code == "CRV092" && diagnostic.message.contains("processors")
             })
     );
 }
@@ -927,11 +926,11 @@ fn graph_voice_effect_state_survives_compiled_resource_recalculation() {
         .find(|diagnostic| diagnostic.code == "CRV092")
         .cloned()
         .unwrap_or_else(|| panic!("graph voice state budget diagnostic: {diagnostics:?}"));
-    assert!(diagnostic.message.contains("bytes at publication"));
+    assert!(diagnostic.message.contains("runtime bytes"));
 }
 
 #[test]
-fn rejects_named_mix_runtime_budget_before_allocation() {
+fn warns_about_live_mix_runtime_memory_before_allocation() {
     let processors = (0..360)
         .map(|index| {
             format!("      processor delay_{index} delay {{\n        setting time 1s\n      }}\n")
@@ -951,10 +950,10 @@ fn rejects_named_mix_runtime_budget_before_allocation() {
     let diagnostic = diagnostics
         .as_slice()
         .iter()
-        .find(|diagnostic| diagnostic.code == "CRV092")
+        .find(|diagnostic| diagnostic.code == "CRV093")
         .expect("named runtime budget diagnostic");
-    assert!(diagnostic.message.contains("bytes at publication"));
-    assert!(diagnostic.message.contains("budget"));
+    assert!(diagnostic.message.contains("runtime bytes"));
+    assert!(!diagnostics.has_errors());
 }
 
 #[test]

@@ -17,7 +17,7 @@ use crate::{
         AssetInventory, load_asset_inventory, load_asset_inventory_from_bytes, valid_asset_path,
     },
     model::{Project, SOURCE_VERSION_V1},
-    validate::{validate_project, validate_project_assets},
+    validate::validate_project_with_topology,
 };
 
 /// Conventional root source filename.
@@ -174,8 +174,7 @@ fn finish_candidate_reconstruction(
             }
         };
         diagnostics.extend(asset_diagnostics);
-        diagnostics.extend(validate_project(candidate));
-        diagnostics.extend(validate_project_assets(candidate, &assets));
+        diagnostics.extend(validate_project_with_topology(candidate, Some(&assets)).0);
         assets
     } else {
         AssetInventory::default()

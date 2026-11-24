@@ -168,15 +168,19 @@ fn command_inspect(cli: &Cli, args: &InspectArgs) -> Result<Success, Failure> {
                     json!([]),
                 )
             })?;
-        let compiled =
-            CompiledProject::compile_with_assets(project, &bundle.assets).map_err(|error| {
-                Failure::blocked(
-                    "inspect",
-                    "control_compile_failed",
-                    error.to_string(),
-                    json!([]),
-                )
-            })?;
+        let compiled = CompiledProject::compile_for(
+            project,
+            &bundle.assets,
+            crate::engine::AdmissionProfile::Offline,
+        )
+        .map_err(|error| {
+            Failure::blocked(
+                "inspect",
+                "control_compile_failed",
+                error.to_string(),
+                json!([]),
+            )
+        })?;
         if frame > compiled.total_frames() {
             return Err(Failure::blocked(
                 "inspect",
@@ -324,13 +328,21 @@ fn command_publish(cli: &Cli, args: &PublishArgs) -> Result<Success, Failure> {
         error => Failure::operational("publish", "history_error", error),
     })?;
     let revision = outcome.history_entry.revision.clone();
+    let mut human = format!(
+        "Published {} as history entry {}",
+        revision, outcome.history_entry.id
+    );
+    for diagnostic in &outcome.diagnostics {
+        human.push_str(&format!("\n{}: {}", diagnostic.code, diagnostic.message));
+    }
     Ok(Success {
         command: "publish",
-        human: format!(
-            "Published {} as history entry {}",
-            revision, outcome.history_entry.id
-        ),
-        data: json!({ "revision": revision, "history_entry": outcome.history_entry }),
+        human,
+        data: json!({
+            "revision": revision,
+            "history_entry": outcome.history_entry,
+            "diagnostics": outcome.diagnostics,
+        }),
     })
 }
 
@@ -756,8 +768,12 @@ fn command_render(cli: &Cli, args: &RenderArgs) -> Result<Success, Failure> {
                 "Active Revision could not be parsed",
             )
         })?;
-        let compiled = CompiledProject::compile_with_assets(project, &active.assets)
-            .map_err(|error| Failure::operational("render", "render_failed", error))?;
+        let compiled = CompiledProject::compile_for(
+            project,
+            &active.assets,
+            crate::engine::AdmissionProfile::Offline,
+        )
+        .map_err(|error| Failure::operational("render", "render_failed", error))?;
         let stems = plan_render_stems(&compiled, &args.stems)
             .map_err(|error| Failure::operational("render", "render_failed", error))?;
         let arrangement_frames = compiled.arrangement_frames();

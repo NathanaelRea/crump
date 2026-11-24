@@ -68,6 +68,13 @@ The most recent valid project revision published to the runtime and responsible 
 
 The successful whole-Project validation that records a Candidate Revision in Project History and schedules it for safe runtime publication. Workspace edits publish automatically; an external file edit requires an explicit machine-readable `crump` CLI command, with Agent origin and explanation when applicable.
 
+### Runtime Admission Profile
+
+The limits that apply when compiling a Project. Live admission budgets callback
+work and memory during overlapping runtime publication. Offline admission keeps
+structural limits and budgets the memory of one runtime. Project Publication
+requires Offline admission and warns when Live admission fails.
+
 ### Affected Instrument Restart
 
 The transition for a valid topology change: Crump publishes the new graph with a short protective fade, resets the changed Instrument's voices and effect state, and leaves transport and unchanged Tracks running. The workspace reports the restart; incompatible state is not migrated.

@@ -311,6 +311,18 @@ fn estimate_includes_voice_nodes_buffers_and_transition_headroom() {
         !near_budget.admitted,
         "two-runtime publication work must be admitted, not only steady-state work"
     );
+    assert!(near_budget.admits(AdmissionProfile::Offline));
+
+    near_budget.processors = MAX_PROCESSOR_INSTANCES + 1;
+    near_budget.graph_voice_state_bytes = MAX_PUBLICATION_RUNTIME_BYTES + 1;
+    near_budget.recalculate_memory_and_admission();
+    let diagnostic = crate::validate::admission_diagnostic(
+        AdmissionProfile::Offline,
+        &near_budget.admission_failures(AdmissionProfile::Offline),
+    );
+    assert_eq!(diagnostic.code, "CRV092");
+    assert!(diagnostic.message.contains("processors"));
+    assert!(diagnostic.message.contains("runtime bytes"));
 }
 
 #[test]

@@ -88,11 +88,14 @@ pub const MAX_MODULATION_OPERATORS: usize = 2_048;
 /// Validates a complete Project candidate for publication.
 #[must_use]
 pub fn validate_project(project: &Project) -> Diagnostics {
-    validate_project_with_topology(project).0
+    validate_project_with_topology(project, None).0
 }
 
 /// Validates while retaining the one canonical authored topology for runtime lowering.
-pub(crate) fn validate_project_with_topology(project: &Project) -> (Diagnostics, AuthoredTopology) {
+pub(crate) fn validate_project_with_topology(
+    project: &Project,
+    inventory: Option<&AssetInventory>,
+) -> (Diagnostics, AuthoredTopology) {
     let mut diagnostics = Diagnostics::new();
     validate_project_header(project, &mut diagnostics);
     validate_acoustic_profiles(project, &mut diagnostics);
@@ -118,41 +121,63 @@ pub(crate) fn validate_project_with_topology(project: &Project) -> (Diagnostics,
             .with_help("reduce Tracks, dense simultaneous Events, or loop-expanded Clip length"),
         );
     }
+    if let Some(inventory) = inventory {
+        diagnostics.extend(validate_asset_contents(project, inventory));
+    }
     if !diagnostics.has_errors() {
-        match crate::engine::mix_graph::CompiledMixGraph::resource_estimate_for_validation(
-            project, &topology,
-        ) {
-            Ok(estimate) => push_admission_diagnostics(&estimate, true, &mut diagnostics),
-            Err(error) => diagnostics.push(
-                Diagnostic::error(
-                    "CRV092",
-                    format!("compiled mix graph rejected candidate: {error}"),
-                )
-                .with_help("inspect routing, processor contracts, and runtime resource bounds"),
-            ),
-        }
+        validate_admission(project, &topology, inventory, &mut diagnostics);
     }
     (diagnostics, topology)
 }
 
-/// Reports a runtime estimate against both admission profiles.
-///
-/// Exceeding the offline budget is an error: nothing can render the Project. Exceeding only the
-/// live budget is a warning: the Project publishes and renders, but live playback is unavailable.
-/// `report_live` suppresses a live warning already reported by an earlier, smaller estimate.
-fn push_admission_diagnostics(
-    estimate: &crate::engine::mix_graph::RuntimeResourceEstimate,
-    report_live: bool,
+fn validate_admission(
+    project: &Project,
+    topology: &AuthoredTopology,
+    inventory: Option<&AssetInventory>,
     diagnostics: &mut Diagnostics,
 ) {
-    let offline = estimate.admission_failures(AdmissionProfile::Offline);
-    if !offline.is_empty() {
-        diagnostics.push(admission_diagnostic(AdmissionProfile::Offline, &offline));
-        return;
-    }
-    let live = estimate.admission_failures(AdmissionProfile::Live);
-    if report_live && !live.is_empty() {
-        diagnostics.push(admission_diagnostic(AdmissionProfile::Live, &live));
+    let estimate = (|| {
+        let mut estimate =
+            crate::engine::mix_graph::CompiledMixGraph::resource_estimate_for_validation(
+                project, topology,
+            )?;
+        if let Some(inventory) = inventory {
+            let sample_rate = project.sample_rate;
+            let sample_bytes =
+                crate::engine::sample::CompiledSampleLibrary::estimated_allocation_bytes_for_project(
+                    project, inventory, sample_rate,
+                )
+                .map_err(|error| crate::engine::EngineError::Compile(error.to_string()))?;
+            let spectral_bytes =
+                crate::engine::spectral::CompiledSpectralLibrary::estimated_allocation_bytes_for_project(
+                    project, inventory, sample_rate,
+                )
+                .map_err(|error| crate::engine::EngineError::Compile(error.to_string()))?;
+            estimate.include_additional_instrument_program_bytes(
+                sample_bytes.saturating_add(spectral_bytes),
+            );
+        }
+        Ok::<_, crate::engine::EngineError>(estimate)
+    })();
+    match estimate {
+        Ok(estimate) => {
+            let offline = estimate.admission_failures(AdmissionProfile::Offline);
+            if !offline.is_empty() {
+                diagnostics.push(admission_diagnostic(AdmissionProfile::Offline, &offline));
+            } else {
+                let live = estimate.admission_failures(AdmissionProfile::Live);
+                if !live.is_empty() {
+                    diagnostics.push(admission_diagnostic(AdmissionProfile::Live, &live));
+                }
+            }
+        }
+        Err(error) => diagnostics.push(
+            Diagnostic::error(
+                "CRV092",
+                format!("compiled runtime rejected candidate: {error}"),
+            )
+            .with_help("inspect routing, processor contracts, and runtime resource bounds"),
+        ),
     }
 }
 
@@ -179,7 +204,7 @@ pub(crate) fn admission_diagnostic(
                 "Project exceeds the live playback budget: {detail}; it publishes and renders, but cannot play live"
             ),
         )
-        .with_help(format!("{help}; or freeze Tracks to play it live")),
+        .with_help(help),
     }
 }
 
@@ -244,6 +269,15 @@ pub(crate) fn validate_acoustic_profiles(project: &Project, diagnostics: &mut Di
 /// Validates sample source regions against verified exact-byte WAV metadata.
 #[must_use]
 pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) -> Diagnostics {
+    let mut diagnostics = validate_asset_contents(project, inventory);
+    if !diagnostics.has_errors() && !project.assets.is_empty() {
+        let topology = AuthoredTopology::compile(project);
+        validate_admission(project, &topology, Some(inventory), &mut diagnostics);
+    }
+    diagnostics
+}
+
+fn validate_asset_contents(project: &Project, inventory: &AssetInventory) -> Diagnostics {
     let mut diagnostics = Diagnostics::new();
     for declaration in &project.assets {
         if let Some(asset) = inventory.get(&declaration.id)
@@ -487,23 +521,6 @@ pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) ->
                     );
                 }
             }
-        }
-    }
-    if !diagnostics.has_errors() {
-        let topology = AuthoredTopology::compile(project);
-        if let (Ok(sample_bytes), Ok(mut estimate)) = (
-            crate::engine::sample::CompiledSampleLibrary::estimated_allocation_bytes_for_project(
-                project,
-                inventory,
-                project.sample_rate,
-            ),
-            crate::engine::mix_graph::CompiledMixGraph::resource_estimate_for_validation(
-                project, &topology,
-            ),
-        ) {
-            let live_admitted_without_media = estimate.admitted;
-            estimate.include_additional_instrument_program_bytes(sample_bytes);
-            push_admission_diagnostics(&estimate, live_admitted_without_media, &mut diagnostics);
         }
     }
     diagnostics
