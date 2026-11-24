@@ -18,6 +18,8 @@ profile wooden-body {
 
 Import the file before the root Project declaration, using a normalized Project-relative `.crump` path. Source-v2 Instrument Modules can also contain profiles after their Instrument declaration. `crump module export` includes every required profile, so the exported acoustic module is self-contained.
 
+Profiles share one Project-wide namespace. When multiple imported sources (such as a standalone `crump-profile 1` file and one or more self-contained Instrument Modules) declare the same profile ID with semantically identical parsed bodies—comparing root frequency and ordered modes rather than comments, formatting, or mode labels—Crump deduplicates them deterministically into one profile, keeping the first declaration in import order. Declaring the same profile ID with differing bodies across sources (or repeating the same profile ID within one source file) fails validation with `CRV210`, naming both locations so one can be renamed.
+
 Connect `note.gate` and `note.velocity` to an `exciter`. Connect the resulting mono Audio, `note.pitch` and `note.gate` to a `modal_bank`. Convert its mono output through `mono_to_stereo` before the graph Output.
 
 | Node | Required inputs | Settings |

@@ -184,22 +184,71 @@ pub(crate) fn admission_diagnostic(
 }
 
 pub(crate) fn validate_acoustic_profiles(project: &Project, diagnostics: &mut Diagnostics) {
-    let mut profiles = BTreeMap::new();
+    let format_location = |location: &SourceLocation| {
+        format!(
+            "{}:{}:{}",
+            location.file.display(),
+            location.line,
+            location.column
+        )
+    };
+    let mut profiles = BTreeMap::<&str, &crate::model::AcousticProfile>::new();
     for profile in &project.acoustic_profiles {
-        if !valid_id(&profile.id) || profiles.insert(profile.id.as_str(), profile).is_some() {
+        if !valid_id(&profile.id) {
             diagnostics.push(
                 Diagnostic::error(
                     "CRV210",
-                    "acoustic profile identities must be valid and unique",
+                    format!(
+                        "acoustic profile identity `{}` is invalid; IDs must start with an ASCII letter and contain only ASCII letters, digits, `-`, or `_`",
+                        profile.id
+                    ),
                 )
                 .at(profile.location.clone()),
             );
+        } else if let Some(first) = profiles.get(profile.id.as_str()).copied() {
+            if first.body != profile.body {
+                diagnostics.push(
+                    Diagnostic::error(
+                        "CRV210",
+                        format!(
+                            "conflicting acoustic profile `{}`: definitions at {} and {} have different bodies",
+                            profile.id,
+                            format_location(&first.location),
+                            format_location(&profile.location),
+                        ),
+                    )
+                    .at(profile.location.clone())
+                    .with_help(format!(
+                        "rename one of the `{}` profiles (and its `modal_bank` references) or align their bodies",
+                        profile.id
+                    )),
+                );
+            } else if first.location.file == profile.location.file {
+                diagnostics.push(
+                    Diagnostic::error(
+                        "CRV210",
+                        format!(
+                            "duplicate acoustic profile `{}` in the same file at {} and {}",
+                            profile.id,
+                            format_location(&first.location),
+                            format_location(&profile.location),
+                        ),
+                    )
+                    .at(profile.location.clone())
+                    .with_help(format!(
+                        "remove the duplicate `{}` declaration or rename one of the profiles",
+                        profile.id
+                    )),
+                );
+            }
+        } else {
+            profiles.insert(profile.id.as_str(), profile);
         }
         if let Err(error) = profile.body.validate() {
             diagnostics.push(Diagnostic::error("CRV210", error).at(profile.location.clone()));
         }
     }
-    if project.acoustic_profiles.len() > 256 {
+    if profiles.len() > 256 {
         diagnostics.push(Diagnostic::error(
             "CRV210",
             "at most 256 acoustic profiles are admitted",
