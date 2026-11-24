@@ -38,9 +38,14 @@ project "Portable Deep House Synthesis Reference" {
 
     pattern kick-four 1bar {
       hit 0beat kick 0.9
-      hit 1beat kick 0.86
+      hit 5/4qn kick 0.86
       hit 2beat kick 0.9
       hit 3beat kick 0.86
+      hit 1/2qn kick 0.85
+      hit 3/4qn kick 0.85
+      hit 3/2qn kick 0.85
+      hit 3/4qn snare 0.85
+      hit 1qn hat 0.85
     }
     pattern kick-fill 1bar from kick-four {
       rotate 1/2beat
@@ -51,14 +56,14 @@ project "Portable Deep House Synthesis Reference" {
       seed 301
     }
     pattern perc-pocket 2bar {
-      hit 1beat clap 0.58
-      hit 3beat clap 0.62
+      hit 1beat clap 0.88
+      hit 3beat clap 0.3
       hit 5beat snare 0.5
       hit 7beat clap 0.64
       hit 1/2beat hat 0.34
-      hit 3/2beat hat 0.4
-      hit 5/2beat hat 0.36
-      hit 7/2beat hat 0.44
+      hit 3/2beat snare 0.85
+      hit 5/2beat snare 0.36
+      hit 7/2beat hat 0.2
       hit 9/2beat hat 0.36
       hit 11/2beat hat 0.42
       hit 13/2beat hat 0.38
@@ -175,7 +180,7 @@ project "Portable Deep House Synthesis Reference" {
 
     automation bass-cutoff target instrument/dh-bass/cutoff {
       point intro 0bar 280hz linear
-      point groove 16bar 420hz linear
+      point groove 143/2qn 428.65281955067485hz linear
       point break 48bar 260hz linear
       point drop 64bar 520hz linear
       point outro 96bar 340hz linear
@@ -257,7 +262,7 @@ project "Portable Deep House Synthesis Reference" {
       point end 112bar -30db step
     }
 
-    track kick-drums "Four-on-the-floor Kick" instrument dh-percussion level -9db pan 0 {
+    track kick-drums "Four-on-the-floor Kick" instrument dh-percussion level 0db pan 0 {
       processor kick-eq eq {
         setting high_pass 24hz
         setting mid1_frequency 320hz
@@ -270,7 +275,7 @@ project "Portable Deep House Synthesis Reference" {
       clip kick-drop pattern kick-four start 64bar duration 40bar mode loop
       clip kick-out pattern kick-fill start 104bar duration 8bar mode loop
     }
-    track percussion "Swing Percussion" instrument dh-percussion level -14db pan 0 {
+    track percussion "Swing Percussion" instrument dh-percussion level 0db pan 0 {
       panner stereo_pan 0.44 0.65
       send percussion-room target return/room tap post level 3.9db
       output group/drums
@@ -281,7 +286,7 @@ project "Portable Deep House Synthesis Reference" {
         groove deep-swing
       }
     }
-    track bass "Sub and Analog Bass" instrument dh-bass level -11db pan -0.49 {
+    track bass "Sub and Analog Bass" instrument dh-bass level -5.4db pan -0.3 {
       processor bass-duck compressor {
         setting detector peak
         setting threshold -25db
@@ -308,7 +313,7 @@ project "Portable Deep House Synthesis Reference" {
         groove deep-swing
       }
     }
-    track keys "Hybrid Sample and Multisample Keys" instrument dh-keys level -16db pan -0.08 {
+    track keys "Hybrid Sample and Multisample Keys" instrument dh-keys level -0.6db pan -0.08 {
       panner stereo_pan -0.1 0.72
       processor keys-eq eq {
         setting high_pass 150hz
@@ -326,7 +331,7 @@ project "Portable Deep House Synthesis Reference" {
         groove deep-swing
       }
     }
-    track lead "Wavetable Hook" instrument dh-lead level -18db pan 0.12 {
+    track lead "Wavetable Hook" instrument dh-lead level -26.5db pan 0.12 {
       panner stereo_pan -0.43 0.72
       send lead-room target return/room tap post level 0db
       send lead-echo target return/echo tap post level -30db
@@ -344,7 +349,7 @@ project "Portable Deep House Synthesis Reference" {
         fade 0bar 1bar
       }
     }
-    track pad "Analog Pad" instrument dh-pad level -18db pan 0 {
+    track pad "Analog Pad" instrument dh-pad level 5.2db pan 0 {
       panner stereo_pan -0.03 0.85
       send pad-room target return/room tap post level -17.3db
       output group/music
@@ -352,7 +357,7 @@ project "Portable Deep House Synthesis Reference" {
         fade 4bar 4bar
       }
     }
-    track evolving "Evolving Wavetable Bed" instrument dh-evolving-texture level -24db pan 0 {
+    track evolving "Evolving Wavetable Bed" instrument dh-evolving-texture level -39.2db pan 0 {
       panner stereo_pan -0.9 0.9
       send evolving-room target return/room tap post level -13db
       output group/music
@@ -360,7 +365,7 @@ project "Portable Deep House Synthesis Reference" {
         fade 4bar 4bar
       }
     }
-    track granular "Granular Cloud" instrument dh-granular-texture level -36db pan -0.18 {
+    track granular "Granular Cloud" instrument dh-granular-texture level -12.4db pan -0.18 {
       send granular-room target return/room tap post level -11db
       send granular-echo target return/echo tap post level -21db
       output group/music
@@ -372,7 +377,7 @@ project "Portable Deep House Synthesis Reference" {
         fade 2bar 2bar
       }
     }
-    track spectral "Spectral Air" instrument dh-spectral-transform level -36db pan 0.2 {
+    track spectral "Spectral Air" instrument dh-spectral-transform level -9.4db pan 0.2 {
       send spectral-room target return/room tap post level -10db
       output group/music
       clip spectral-break pattern spectral-air start 44bar duration 20bar mode loop {
@@ -394,7 +399,7 @@ project "Portable Deep House Synthesis Reference" {
       clip rise-outro pattern transition-rise start 92bar duration 4bar mode once
     }
 
-    group music "Music" level -3.3db {
+    group music "Music" level -8.5db {
       processor music-eq eq {
         setting high_pass 28hz
         setting mid1_frequency 280hz
@@ -409,7 +414,7 @@ project "Portable Deep House Synthesis Reference" {
       }
       output master
     }
-    group drums "Drums" level 5.1db {
+    group drums "Drums" level -14.1db {
       processor drum-color saturation {
         setting drive 1.06
         setting mix 0.1
@@ -430,7 +435,7 @@ project "Portable Deep House Synthesis Reference" {
       }
       output master
     }
-    return echo "Shared Echo" level -12db {
+    return echo "Shared Echo" level 3.7db {
       processor echo-delay delay {
         setting tempo_sync true
         setting division 1/8d
@@ -446,7 +451,7 @@ project "Portable Deep House Synthesis Reference" {
     follower kick-motion from track/kick-drums tap post detector peak attack 3ms release 110ms floor -54db ceiling -8db target instrument/dh-bass/cutoff depth 120hz {
       clamp 0 1
     }
-    master level 4.5db {
+    master level 5.6db {
       processor master-glue compressor {
         setting detector rms
         setting threshold -16.440204620361328db

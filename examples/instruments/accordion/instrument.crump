@@ -1,14 +1,14 @@
 crump-module 2
 instrument accordion "Accordion" graph {
   polyphony 6
-  parameter attack "Attack" seconds 0.002s 2s 0.054497s 0.054497s modulatable
-  parameter release "Release" seconds 0.01s 4s 0.12s 0.12s
-  parameter vibrato-depth "Vibrato" ratio 0 1 0 0 modulatable
-  parameter noise "Air" ratio 0 4 0.0130897 0.0130897 modulatable
-  parameter register "Register level" ratio 0.05 20 1.56675 1.56675 modulatable
+  parameter attack "Attack" seconds 0.002s 2s 0.054497s 0.03279506143294677s modulatable
+  parameter release "Release" seconds 0.01s 4s 0.12s 2.6372633320093155s
+  parameter vibrato-depth "Vibrato" ratio 0 1 0 0.6816715598106384 modulatable
+  parameter noise "Air" ratio 0 4 0.0130897 0 modulatable
+  parameter register "Register level" ratio 0.05 20 1.56675 13.215172857046127 modulatable
   parameter dynamics "Dynamics" ratio 0 1 0.357143 0.357143 modulatable
-  parameter level "Level" ratio 0 2 1 1
-  parameter pan "Pan" pan -1 1 0 0
+  parameter level "Level" ratio 0 2 1 0.9024612903594971
+  parameter pan "Pan" pan -1 1 0 -0.49727731943130493
   faceplate {
     control attack "Attack" "How quickly the note speaks" maps attack
     control release "Release" "Fade-out after Note Off" maps release

@@ -6,6 +6,7 @@
 //!   frequency & transfer analyzer and primary device controls.
 
 use super::theme::{self, with_alpha};
+use super::widgets::preview_key;
 use super::widgets::{
     Cell, apply_row_click, led_button, paint_dbfs_meter_vertical, paint_gr_meter_vertical,
     pill_toggle, rotary_knob, table, toolbar, unavailable,
@@ -15,6 +16,10 @@ use crate::engine::mix_graph::CompiledProcessorInspection;
 use crate::model::{ProcessorKind, Unit};
 
 const CARD_WIDTH: f32 = 278.0;
+/// Width of one knob column inside a device card.
+const KNOB_COLUMN_W: f32 = 84.0;
+/// Most knobs a device card lays out on one row before wrapping.
+const MAX_KNOBS_PER_ROW: usize = 8;
 
 pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
@@ -26,9 +31,15 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
         return;
     };
 
-    // Collect distinct owners in deterministic chain order
+    // Distinct owners in the rack's signal order: channel chains first, then the rest.
     let mut owners: Vec<String> = Vec::new();
-    for proc in &graph.processors {
+    let signal_order = graph
+        .channels
+        .iter()
+        .flat_map(|channel| &channel.processors)
+        .filter_map(|id| graph.processors.iter().find(|proc| proc.id == *id))
+        .chain(&graph.processors);
+    for proc in signal_order {
         if !owners.contains(&proc.owner) {
             owners.push(proc.owner.clone());
         }
@@ -47,7 +58,9 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
         .inner_margin(egui::Margin::symmetric(10, 4))
         .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
         .show(ui, |ui| {
-            ui.horizontal_wrapped(|ui| {
+            // One row, as in the Console: a wrapping row pushed the right-aligned Params Table
+            // toggle onto a hidden second line.
+            ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 5.0;
 
                 // Matching Mix sub-view switcher (Console | FX Rack)
@@ -55,10 +68,9 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui,
                     "Console",
                     app.view == View::Mixer,
-                    theme::ACCENT_AMBER,
                     "Return to Mixer Console · 2",
                 )
-                .clicked()
+                .tab_pressed()
                 {
                     cx.send(Action::ShowView(View::Mixer));
                 }
@@ -66,10 +78,9 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui,
                     "FX Rack",
                     app.view == View::Processing && !cx.state.processing_table_mode,
-                    theme::ACCENT_CYAN,
                     "Horizontal FX signal-chain device rack · 3",
                 )
-                .clicked()
+                .tab_pressed()
                 {
                     cx.state.processing_table_mode = false;
                 }
@@ -86,7 +97,6 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui,
                     &format!("All ({})", graph.processors.len()),
                     cx.state.processing_owner_filter.is_none(),
-                    theme::ACCENT_AMBER,
                     "Show all processors across the mix graph",
                 )
                 .clicked()
@@ -106,7 +116,6 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ui,
                         &format!("{short} ({count})"),
                         active,
-                        theme::ACCENT_CYAN,
                         &format!("Filter device rack to {owner}"),
                     )
                     .clicked()
@@ -120,7 +129,6 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ui,
                         "Params Table",
                         cx.state.processing_table_mode,
-                        theme::ACCENT_CYAN,
                         "Show full processor inspection table",
                     )
                     .clicked()
@@ -141,10 +149,27 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
         return;
     }
 
-    let visible: Vec<(usize, &CompiledProcessorInspection)> = graph
-        .processors
+    // Signal order: each channel's chain in its authored order (the telemetry index order can
+    // differ), then any processor no channel lists, in index order.
+    let mut ordered: Vec<(usize, &CompiledProcessorInspection)> = graph
+        .channels
         .iter()
-        .enumerate()
+        .flat_map(|channel| &channel.processors)
+        .filter_map(|id| {
+            graph
+                .processors
+                .iter()
+                .enumerate()
+                .find(|(_, proc)| proc.id == *id)
+        })
+        .collect();
+    for (index, proc) in graph.processors.iter().enumerate() {
+        if !ordered.iter().any(|(listed, _)| *listed == index) {
+            ordered.push((index, proc));
+        }
+    }
+    let visible: Vec<(usize, &CompiledProcessorInspection)> = ordered
+        .into_iter()
         .filter(|(_, p)| {
             cx.state
                 .processing_owner_filter
@@ -153,14 +178,29 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
         })
         .collect();
 
-    let selected = clamp_index(app.selected_processor, graph.processors.len());
+    // The inspector follows the visible chain: a selection outside the filtered chain moves to
+    // that chain's first device, so the rack and inspector always agree.
+    let mut selected = clamp_index(app.selected_processor, graph.processors.len());
+    if !visible.iter().any(|(index, _)| *index == selected)
+        && let Some((first, _)) = visible.first()
+    {
+        selected = *first;
+        cx.send(Action::SelectProcessor(selected));
+    }
     let focused_proc = graph.processors.get(selected);
 
     // ── Lower Split: Focused Device Deep Inspector (FabFilter-style Analyzer + Primary Controls) ──
     if let Some(proc) = focused_proc {
+        // The rack needs only its tallest card; the inspector takes the rest of the view.
+        let rack_need = visible
+            .iter()
+            .map(|(_, proc)| device_content_height(proc))
+            .fold(250.0_f32, f32::max)
+            + 44.0;
+        let inspector_h = (ui.available_height() - rack_need).clamp(228.0, 420.0);
         egui::TopBottomPanel::bottom("crump-fx-deep-inspector")
             .resizable(false)
-            .exact_height(228.0)
+            .exact_height(inspector_h)
             .frame(
                 egui::Frame::new()
                     .fill(theme::BG_SURFACE)
@@ -180,7 +220,13 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                 .inner_margin(egui::Margin::same(10)),
         )
         .show_inside(ui, |ui| {
-            let rack_h = (ui.available_height() - 14.0).clamp(300.0, 410.0);
+            let rack_rect = ui.max_rect();
+            let rack_cap = (ui.available_height() - 14.0).max(250.0);
+            let tallest = visible
+                .iter()
+                .map(|(_, proc)| device_content_height(proc))
+                .fold(250.0_f32, f32::max)
+                .min(rack_cap);
             egui::ScrollArea::horizontal()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
@@ -188,33 +234,111 @@ pub(super) fn processing(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ui.spacing_mut().item_spacing.x = 0.0;
                         let mut prev_owner: Option<&str> = None;
                         for (global_idx, proc) in visible {
-                            let is_new_owner = prev_owner.is_some_and(|p| p != proc.owner);
-                            if let Some(prev) = prev_owner {
-                                signal_connector(
+                            match prev_owner {
+                                Some(prev) if prev == proc.owner => {
+                                    signal_connector(ui, true, None, tallest, true);
+                                }
+                                // Every chain, the first included, opens with its owner badge.
+                                prev => signal_connector(
                                     ui,
-                                    prev == proc.owner,
-                                    if is_new_owner {
-                                        Some(short_owner_label(&proc.owner))
-                                    } else {
-                                        None
-                                    },
-                                    rack_h,
-                                );
+                                    false,
+                                    Some(short_owner_label(&proc.owner)),
+                                    tallest,
+                                    prev.is_some(),
+                                ),
                             }
                             prev_owner = Some(proc.owner.as_str());
-                            device_card(ui, cx, global_idx, proc, global_idx == selected, rack_h);
+                            // Every card shares the tallest card's height so footers align.
+                            let card_h = tallest;
+                            device_card(ui, cx, global_idx, proc, global_idx == selected, card_h);
                         }
                     });
                 });
+            // Fade the rack's right edge so a card cut by the window reads as "more to scroll".
+            let fade = Rect::from_min_max(
+                Pos2::new(rack_rect.right() - 48.0, rack_rect.top()),
+                rack_rect.right_bottom(),
+            );
+            let mut mesh = egui::Mesh::default();
+            let clear = with_alpha(theme::BG_WELL, 0.0);
+            mesh.colored_vertex(fade.left_top(), clear);
+            mesh.colored_vertex(fade.right_top(), theme::BG_WELL);
+            mesh.colored_vertex(fade.right_bottom(), theme::BG_WELL);
+            mesh.colored_vertex(fade.left_bottom(), clear);
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(0, 2, 3);
+            ui.painter().add(egui::Shape::mesh(mesh));
         });
+}
+
+/// Knob columns per row: at least three, and up to `MAX_KNOBS_PER_ROW` so dense devices widen
+/// rather than wrap.
+fn knobs_per_row(knobs: usize) -> usize {
+    knobs.clamp(3, MAX_KNOBS_PER_ROW)
+}
+
+/// Devices with more controls get wider cards so every control sits on one row (up to
+/// `MAX_KNOBS_PER_ROW`), which keeps all cards in the rack one short, shared height.
+fn card_width(proc: &CompiledProcessorInspection) -> f32 {
+    let per_row = knobs_per_row(knob_count(proc));
+    CARD_WIDTH.max(per_row as f32 * KNOB_COLUMN_W + 24.0)
+}
+
+fn knob_count(proc: &CompiledProcessorInspection) -> usize {
+    proc.settings
+        .iter()
+        .filter(|s| s.unit.is_some() && s.value.is_some())
+        .count()
+}
+
+/// The height a device card needs for its header, scope, choice pills, knob rows and footer, so
+/// cards hug their controls instead of stretching to fill the rack.
+fn device_content_height(proc: &CompiledProcessorInspection) -> f32 {
+    let knobs = knob_count(proc);
+    let has_choices = proc.settings.iter().any(|s| s.choice.is_some());
+    let rows = knobs.div_ceil(knobs_per_row(knobs)).max(1) as f32;
+    120.0 + if has_choices { 34.0 } else { 0.0 } + rows * 88.0 + 36.0
+}
+
+/// A choice token shown as words: `soft_clip` → `Soft Clip`.
+fn humanize_choice(token: &str) -> String {
+    token
+        .split(['_', '-'])
+        .filter(|w| !w.is_empty())
+        .map(|w| {
+            let mut chars = w.chars();
+            chars.next().map_or_else(String::new, |c| {
+                c.to_uppercase().collect::<String>() + chars.as_str()
+            })
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn short_owner_label(owner: &str) -> &str {
     owner.split('/').next_back().unwrap_or(owner)
 }
 
-fn signal_connector(ui: &mut Ui, same_chain: bool, next_owner: Option<&str>, height: f32) {
-    let w = if same_chain { 22.0 } else { 42.0 };
+fn signal_connector(
+    ui: &mut Ui,
+    same_chain: bool,
+    next_owner: Option<&str>,
+    height: f32,
+    divider: bool,
+) {
+    let badge_font = FontId::monospace(8.0);
+    let badge_w = next_owner.map_or(0.0, |owner| {
+        ui.painter()
+            .layout_no_wrap(owner.to_uppercase(), badge_font.clone(), theme::ACCENT_CYAN)
+            .size()
+            .x
+            + 10.0
+    });
+    let w = if same_chain {
+        22.0
+    } else {
+        (badge_w + 6.0).max(42.0)
+    };
     let (rect, _) = ui.allocate_exact_size(Vec2::new(w, height), Sense::hover());
     let p = ui.painter();
     let cy = rect.top() + 86.0;
@@ -236,15 +360,17 @@ fn signal_connector(ui: &mut Ui, same_chain: bool, next_owner: Option<&str>, hei
             Stroke::NONE,
         ));
     } else {
-        p.vline(
-            rect.center().x,
-            (rect.top() + 26.0)..=(rect.bottom() - 10.0),
-            Stroke::new(1.0_f32, theme::BORDER_STRONG),
-        );
+        if divider {
+            p.vline(
+                rect.center().x,
+                (rect.top() + 26.0)..=(rect.bottom() - 10.0),
+                Stroke::new(1.0_f32, theme::BORDER_STRONG),
+            );
+        }
         if let Some(owner) = next_owner {
             let badge = Rect::from_center_size(
                 Pos2::new(rect.center().x, rect.top() + 12.0),
-                Vec2::new(38.0, 16.0),
+                Vec2::new(badge_w, 16.0),
             );
             p.rect_filled(badge, 3.0, with_alpha(theme::ACCENT_CYAN, 0.2));
             p.rect_stroke(
@@ -257,7 +383,7 @@ fn signal_connector(ui: &mut Ui, same_chain: bool, next_owner: Option<&str>, hei
                 badge.center(),
                 Align2::CENTER_CENTER,
                 owner.to_uppercase(),
-                FontId::monospace(8.0),
+                badge_font,
                 theme::ACCENT_CYAN,
             );
         }
@@ -334,7 +460,7 @@ fn device_card(
         .stroke(Stroke::new(
             if is_selected { 1.6_f32 } else { 1.0_f32 },
             if is_selected {
-                accent
+                theme::SELECTION
             } else {
                 theme::BORDER_SUBTLE
             },
@@ -344,15 +470,15 @@ fn device_card(
 
     let resp = frame
         .show(ui, |ui| {
-            ui.set_width(CARD_WIDTH);
+            let card_w = card_width(proc);
+            ui.set_width(card_w);
             ui.set_min_height(card_h);
             ui.set_max_height(card_h);
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
 
                 // 1. Top color accent strip
-                let (top_bar, _) =
-                    ui.allocate_exact_size(Vec2::new(CARD_WIDTH, 3.0), Sense::hover());
+                let (top_bar, _) = ui.allocate_exact_size(Vec2::new(card_w, 3.0), Sense::hover());
                 ui.painter().rect_filled(
                     top_bar,
                     CornerRadius {
@@ -380,7 +506,7 @@ fn device_card(
                             let led_color = if transient.is_some() {
                                 theme::SIG_HOT
                             } else if active_audio {
-                                theme::SIG_NOMINAL
+                                theme::TEXT_SECONDARY
                             } else {
                                 theme::TEXT_MUTED
                             };
@@ -396,6 +522,9 @@ fn device_card(
                             if pwr_resp.clicked() {
                                 cx.send(Action::SelectProcessor(global_idx));
                                 if ui.input(|i| i.modifiers.shift) {
+                                    let key = preview_key::processor_bypass(&proc.id);
+                                    let durable = cx.state.flag(&key, proc.authored_bypass);
+                                    cx.state.hold_flag(&key, !durable);
                                     cx.send(Action::ToggleProcessorDurableBypass {
                                         processor: proc.id.clone(),
                                     });
@@ -490,7 +619,8 @@ fn device_card(
                         ui.set_max_height(body_h - 12.0);
                         ui.spacing_mut().item_spacing.y = 6.0;
 
-                        visualizer_bay(ui, proc, meter, accent, active_audio, 64.0);
+                        let shown = with_previews(proc, cx.state);
+                        visualizer_bay(ui, &shown, meter, accent, active_audio, 64.0);
 
                         // 4. Interactive discrete choice pills (click to cycle!)
                         let choices: Vec<_> = proc
@@ -508,8 +638,10 @@ fn device_card(
                                         .fill(theme::BG_WELL)
                                         .stroke(Stroke::new(
                                             1.0_f32,
+                                            // Neutral frame like any selector; the accent lives
+                                            // only in the value text so it never reads as an error.
                                             if next.is_some() {
-                                                with_alpha(accent, 0.5)
+                                                theme::BORDER_STRONG
                                             } else {
                                                 theme::BORDER_SUBTLE
                                             },
@@ -525,7 +657,7 @@ fn device_card(
                                                         .color(theme::TEXT_MUTED),
                                                 );
                                                 ui.label(
-                                                    RichText::new(val)
+                                                    RichText::new(humanize_choice(val))
                                                         .monospace()
                                                         .size(9.5)
                                                         .color(accent),
@@ -575,9 +707,10 @@ fn device_card(
                             .id_salt(("proc-knobs", &proc.id))
                             .max_height(scroll_h)
                             .show(ui, |ui| {
-                                let col_w = ((CARD_WIDTH - 24.0) / 3.0).floor();
-                                for chunk in continuous.chunks(3) {
-                                    ui.horizontal(|ui| {
+                                let per_row = knobs_per_row(continuous.len());
+                                let col_w = ((card_width(proc) - 24.0) / per_row as f32).floor();
+                                for chunk in continuous.chunks(per_row) {
+                                    ui.horizontal_top(|ui| {
                                         ui.spacing_mut().item_spacing.x = 0.0;
                                         for (setting, unit, value, min, max) in chunk {
                                             ui.allocate_ui_with_layout(
@@ -601,9 +734,9 @@ fn device_card(
                                                     let out = rotary_knob(
                                                         ui,
                                                         cx.state,
-                                                        &format!(
-                                                            "proc-{}-{}",
-                                                            proc.id, setting.key
+                                                        &preview_key::processor_setting(
+                                                            &proc.id,
+                                                            &setting.key,
                                                         ),
                                                         &label,
                                                         *value,
@@ -678,20 +811,21 @@ fn device_card(
                                 );
                             }
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                // The normal, processing state stays unlit; only a bypassed
+                                // device lights up.
+                                let bypass_key = preview_key::processor_bypass(&proc.id);
+                                let bypassed = cx.state.flag(&bypass_key, proc.authored_bypass);
                                 if led_button(
                                     ui,
-                                    if proc.authored_bypass {
-                                        "BYPASSED"
-                                    } else {
-                                        "ACTIVE"
-                                    },
-                                    !proc.authored_bypass,
-                                    theme::SIG_NOMINAL,
+                                    if bypassed { "Bypassed" } else { "Bypass" },
+                                    bypassed,
+                                    theme::SIG_HOT,
                                     Vec2::new(66.0, 18.0),
                                     "Toggle durable source bypass · B",
                                 )
                                 .clicked()
                                 {
+                                    cx.state.hold_flag(&bypass_key, !bypassed);
                                     cx.send(Action::ToggleProcessorDurableBypass {
                                         processor: proc.id.clone(),
                                     });
@@ -718,6 +852,10 @@ fn focused_device_inspector(
 ) {
     let app = cx.app;
     let accent = theme::processor_color(proc.kind);
+    // Reordering stops at the ends of the processor's own chain.
+    let (can_earlier, can_later) = app
+        .processing_graph()
+        .map_or((true, true), |graph| chain_moves(graph, &proc.id));
     let meter = (proc.index < app.telemetry.engine.processor_count)
         .then(|| app.telemetry.engine.processor_activity[proc.index]);
     let transient = app.audition_plan.transient_bypass.get(&proc.id).copied();
@@ -769,20 +907,19 @@ fn focused_device_inspector(
 
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 5.0;
+            let bypass_key = preview_key::processor_bypass(&proc.id);
+            let bypassed = cx.state.flag(&bypass_key, proc.authored_bypass);
             if led_button(
                 ui,
-                if proc.authored_bypass {
-                    "SOURCE OFF"
-                } else {
-                    "SOURCE ON"
-                },
-                !proc.authored_bypass,
-                theme::SIG_NOMINAL,
+                if bypassed { "Bypassed" } else { "Bypass" },
+                bypassed,
+                theme::SIG_HOT,
                 Vec2::new(76.0, 20.0),
                 "Toggle durable source bypass · B",
             )
             .clicked()
             {
+                cx.state.hold_flag(&bypass_key, !bypassed);
                 cx.send(Action::ToggleProcessorDurableBypass {
                     processor: proc.id.clone(),
                 });
@@ -790,13 +927,13 @@ fn focused_device_inspector(
             if led_button(
                 ui,
                 if transient.is_some() {
-                    "A/B ACTIVE"
+                    "A/B Bypassed"
                 } else {
-                    "A/B BYPASS"
+                    "A/B Bypass"
                 },
                 transient.is_some(),
                 theme::SIG_HOT,
-                Vec2::new(78.0, 20.0),
+                Vec2::new(90.0, 20.0),
                 "Toggle transient A/B comparison bypass · b",
             )
             .clicked()
@@ -805,30 +942,38 @@ fn focused_device_inspector(
                     processor: proc.id.clone(),
                 });
             }
-            if led_button(
-                ui,
-                "Later >",
-                false,
-                accent,
-                Vec2::new(56.0, 20.0),
-                "Move processor later in chain · J",
-            )
-            .clicked()
+            if ui
+                .add_enabled_ui(can_later, |ui| {
+                    led_button(
+                        ui,
+                        "Later >",
+                        false,
+                        accent,
+                        Vec2::new(56.0, 20.0),
+                        "Move processor later in chain · J",
+                    )
+                })
+                .inner
+                .clicked()
             {
                 cx.send(Action::MoveProcessor {
                     processor: proc.id.clone(),
                     direction: MoveDirection::Later,
                 });
             }
-            if led_button(
-                ui,
-                "< Earlier",
-                false,
-                accent,
-                Vec2::new(62.0, 20.0),
-                "Move processor earlier in chain · K",
-            )
-            .clicked()
+            if ui
+                .add_enabled_ui(can_earlier, |ui| {
+                    led_button(
+                        ui,
+                        "< Earlier",
+                        false,
+                        accent,
+                        Vec2::new(62.0, 20.0),
+                        "Move processor earlier in chain · K",
+                    )
+                })
+                .inner
+                .clicked()
             {
                 cx.send(Action::MoveProcessor {
                     processor: proc.id.clone(),
@@ -851,9 +996,10 @@ fn focused_device_inspector(
 
         // Left: Large High-Res FabFilter-style Interactive Analyzer
         ui.allocate_ui(Vec2::new(left_w, avail_h), |ui| {
+            let shown = with_previews(proc, cx.state);
             paint_deep_analyzer(
                 ui,
-                proc,
+                &shown,
                 meter,
                 accent,
                 active_audio,
@@ -881,12 +1027,25 @@ fn focused_device_inspector(
                         );
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if let Some(m) = meter {
+                                // Gain reduction only means something for dynamics.
+                                let gr = matches!(
+                                    proc.kind,
+                                    ProcessorKind::Compressor
+                                        | ProcessorKind::Gate
+                                        | ProcessorKind::Limiter
+                                )
+                                .then(|| {
+                                    format!(
+                                        " · GR {}",
+                                        theme::format_db(f64::from(m.gain_reduction_db))
+                                    )
+                                })
+                                .unwrap_or_default();
                                 ui.label(
                                     RichText::new(format!(
-                                        "IN {} · OUT {} · GR {:.1}dB",
+                                        "IN {} dB · OUT {} dB{gr}",
                                         theme::format_dbfs(m.input_peak),
                                         theme::format_dbfs(m.output_peak),
-                                        m.gain_reduction_db
                                     ))
                                     .monospace()
                                     .size(9.5)
@@ -926,7 +1085,7 @@ fn focused_device_inspector(
                                     let out = rotary_knob(
                                         ui,
                                         cx.state,
-                                        &format!("insp-{}-{}", proc.id, setting.key),
+                                        &preview_key::processor_setting(&proc.id, &setting.key),
                                         &short_setting_label(&setting.key),
                                         *value,
                                         *min,
@@ -1112,9 +1271,25 @@ fn short_setting_label(key: &str) -> String {
         .replace("_seconds", "")
         .replace("_ratio", "")
         .replace('_', " ");
-    let up = clean.to_uppercase();
-    if up.len() > 10 {
-        up.chars().take(10).collect()
+    // Abbreviate long words the way hardware panels do instead of cutting mid-word.
+    let words: Vec<String> = clean
+        .split_whitespace()
+        .map(|word| match word {
+            "frequency" | "freq" => "FREQ".to_owned(),
+            "resonance" => "RES".to_owned(),
+            "threshold" => "THRESH".to_owned(),
+            "release" if clean.len() > 10 => "REL".to_owned(),
+            "attack" if clean.len() > 10 => "ATK".to_owned(),
+            "feedback" => "FDBK".to_owned(),
+            "lookahead" => "LOOKAHEAD".to_owned(),
+            other => other.to_uppercase(),
+        })
+        .collect();
+    let up = words.join(" ");
+    if up.chars().count() > 12 {
+        let mut short: String = up.chars().take(11).collect();
+        short.push('…');
+        short
     } else {
         up
     }
@@ -1221,6 +1396,44 @@ fn visualizer_bay(
     }
 }
 
+/// The processor as its controls currently show it: settings being dragged, or committed and not
+/// yet reloaded, replace their stored values, so the curves move with the knobs.
+fn with_previews<'a>(
+    proc: &'a CompiledProcessorInspection,
+    state: &UiState,
+) -> std::borrow::Cow<'a, CompiledProcessorInspection> {
+    let previews = proc
+        .settings
+        .iter()
+        .enumerate()
+        .filter_map(|(index, setting)| {
+            state
+                .drag_preview(&preview_key::processor_setting(&proc.id, &setting.key))
+                .map(|value| (index, value))
+        })
+        .collect::<Vec<_>>();
+    if previews.is_empty() {
+        return std::borrow::Cow::Borrowed(proc);
+    }
+    let mut shown = proc.clone();
+    for (index, value) in previews {
+        shown.settings[index].value = Some(value);
+    }
+    std::borrow::Cow::Owned(shown)
+}
+
+/// Whether the processor can move earlier and later within its own channel chain.
+fn chain_moves(graph: &MixGraphInspection, processor: &str) -> (bool, bool) {
+    graph
+        .channels
+        .iter()
+        .find_map(|channel| {
+            let index = channel.processors.iter().position(|id| id == processor)?;
+            Some((index > 0, index + 1 < channel.processors.len()))
+        })
+        .unwrap_or((true, true))
+}
+
 fn setting_val(proc: &CompiledProcessorInspection, needle: &str) -> Option<f64> {
     proc.settings
         .iter()
@@ -1325,7 +1538,7 @@ fn paint_eq_curve_detailed(
                 painter.text(
                     Pos2::new(px, py - 9.0),
                     Align2::CENTER_BOTTOM,
-                    format!("{tag} {:+.1}dB", gain),
+                    format!("{tag} {:+.1} dB", gain),
                     FontId::monospace(8.5),
                     theme::TEXT_PRIMARY,
                 );
@@ -1438,10 +1651,11 @@ fn paint_dynamics_preview(
     painter.text(
         Pos2::new(rect.left() + 4.0, rect.top() + 3.0),
         Align2::LEFT_TOP,
-        format!("GR {gr_db:.1} dB"),
+        format!("GR {}", theme::format_db(f64::from(gr_db))),
         FontId::monospace(9.5),
+        // Gain reduction is normal compressor work, not a warning: neutral text.
         if gr_db.abs() > 0.3 {
-            theme::ACCENT_AMBER
+            theme::TEXT_SECONDARY
         } else {
             theme::TEXT_MUTED
         },
@@ -1531,7 +1745,8 @@ fn paint_fx_transfer_preview(
     painter.text(
         Pos2::new(rect.left() + 4.0, rect.top() + 3.0),
         Align2::LEFT_TOP,
-        format!("MIX {:.0}%", mix * 100.0),
+        // The curve is the wet shaper alone; the mix setting lives with the controls.
+        "WET TRANSFER",
         FontId::monospace(9.0),
         theme::TEXT_SECONDARY,
     );

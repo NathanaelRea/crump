@@ -1,9 +1,8 @@
 //! egui desktop client over the client-independent [`Workspace`] session.
 //!
-//! This is the only part of the workspace that depends on a windowing library. Like the terminal
-//! client it draws the session without changing it, and every change it makes goes through
-//! [`Workspace::dispatch`]. Keys go through the shared keymap, so the window is keyboard-complete
-//! in the same way as the terminal; pointer input is layered on top as further [`Action`] values.
+//! This is the only part of the workspace that depends on a windowing library. It draws the
+//! session without changing it, and every change it makes goes through [`Workspace::dispatch`]:
+//! pointer input and the keyboard shortcuts in `keymap` both become [`Action`] values.
 
 use std::{
     collections::BTreeMap,
@@ -16,11 +15,12 @@ use eframe::egui::{
     Stroke, StrokeKind, Ui, Vec2,
 };
 
-use super::keymap::Keymap;
 use super::*;
+use widgets::TabPress;
 
 mod arrangement;
-mod input;
+mod history_view;
+mod keymap;
 mod mixer;
 mod processing;
 mod sequencer;
@@ -36,6 +36,10 @@ mod tests;
 const TICK_RATE: Duration = Duration::from_millis(33);
 const BACKGROUND_POLL_RATE: Duration = Duration::from_millis(5);
 const REFRESH_RATE: Duration = Duration::from_millis(400);
+/// Window width below which the top bar splits into two rows.
+const TOP_BAR_COMPACT_WIDTH: f32 = 1180.0;
+/// Height of one top bar row.
+const TOP_BAR_ROW: f32 = 32.0;
 
 /// Runs the desktop workspace window for one Project.
 pub fn run(path: impl AsRef<Path>) -> Result<(), WorkspaceError> {
@@ -61,7 +65,6 @@ pub fn run(path: impl AsRef<Path>) -> Result<(), WorkspaceError> {
             style(&creation.egui_ctx);
             Ok(Box::new(Client {
                 app,
-                keymap: Keymap::default(),
                 state: UiState::default(),
                 next_refresh: Instant::now() + REFRESH_RATE,
             }))
@@ -93,6 +96,8 @@ struct UiState {
     /// Committed values shown until their edit reloads; see [`UiState::settle_held_previews`].
     held_previews: BTreeMap<String, f64>,
     held_revision: Option<crate::project::RevisionId>,
+    /// Toggles clicked whose edit has not reloaded yet, shown in their new state meanwhile.
+    held_flags: BTreeMap<String, bool>,
     /// Studio keyboard base octave offset (`C3` = 3).
     keyboard_octave: i8,
     /// Sustain / hold latch for the on-screen studio keyboard.
@@ -144,6 +149,20 @@ struct UiState {
     graph_zoom: f32,
     graph_fitted_for: Option<String>,
     graph_node_offsets: BTreeMap<String, Vec2>,
+    /// The status line last drawn and when it first appeared, so hints can expire.
+    status_seen: Option<(String, Instant)>,
+    /// The view drawn last frame, and the last one that was not Diagnostics, so the window can
+    /// step off an empty Diagnostics list the way it came.
+    last_view: View,
+    before_diagnostics: View,
+    /// The view the last frame drew, to spot a page switch.
+    drawn_view: Option<View>,
+    /// History shows (and, while previewing, plays) the current version instead of the picked one.
+    history_show_now: bool,
+    /// The History rail is being dragged: show only versions already parsed.
+    history_dragging: bool,
+    /// Differences between History versions by (from, to) entry ID, computed once.
+    history_diffs: BTreeMap<(String, String), Vec<history_view::ValueChange>>,
 }
 
 impl Default for UiState {
@@ -160,6 +179,7 @@ impl Default for UiState {
             drag_previews: BTreeMap::new(),
             held_previews: BTreeMap::new(),
             held_revision: None,
+            held_flags: BTreeMap::new(),
             keyboard_octave: 3,
             keyboard_latch: false,
             show_keyboard: true,
@@ -188,6 +208,13 @@ impl Default for UiState {
             graph_zoom: 1.0,
             graph_fitted_for: None,
             graph_node_offsets: BTreeMap::new(),
+            status_seen: None,
+            last_view: View::Timeline,
+            before_diagnostics: View::Timeline,
+            drawn_view: None,
+            history_show_now: false,
+            history_dragging: false,
+            history_diffs: BTreeMap::new(),
         }
     }
 }
@@ -219,6 +246,16 @@ impl UiState {
         self.held_previews.insert(key.to_owned(), value);
     }
 
+    /// A toggle's state as shown: the session's, unless a click on it has not reloaded yet.
+    fn flag(&self, key: &str, actual: bool) -> bool {
+        self.held_flags.get(key).copied().unwrap_or(actual)
+    }
+
+    /// Shows a toggle in `value` until the edit committing it reloads.
+    fn hold_flag(&mut self, key: &str, value: bool) {
+        self.held_flags.insert(key.to_owned(), value);
+    }
+
     /// Ends a drag that commits nothing.
     fn cancel_drag_preview(&mut self, key: &str) {
         self.drag_previews.remove(key);
@@ -230,6 +267,7 @@ impl UiState {
         let revision = &app.bundle.revision;
         if self.held_revision.as_ref() != Some(revision) || !app.edits_pending() {
             self.held_previews.clear();
+            self.held_flags.clear();
             self.held_revision = Some(revision.clone());
         }
     }
@@ -257,7 +295,6 @@ impl Cx<'_> {
 
 struct Client {
     app: Workspace,
-    keymap: Keymap,
     state: UiState,
     next_refresh: Instant,
 }
@@ -271,13 +308,7 @@ pub(super) fn inline_text_focused(ctx: &egui::Context, app: &Workspace) -> bool 
 impl eframe::App for Client {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         let focused = inline_text_focused(ctx, &self.app);
-        input::take_keys(
-            raw_input,
-            &mut self.app,
-            &mut self.keymap,
-            &mut self.state.modal_submit,
-            focused,
-        );
+        keymap::take_keys(raw_input, &mut self.app, &mut self.state, focused);
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -290,7 +321,10 @@ impl eframe::App for Client {
             self.app.dispatch(Action::Quit);
         }
 
+        settle_view(&mut self.app, &mut self.state);
+        let drawn = Instant::now();
         let actions = draw(ctx, &self.app, &mut self.state);
+        self.app.performance.observe_draw(drawn.elapsed());
         let acted = !actions.is_empty();
         for action in actions {
             self.app.dispatch(action);
@@ -321,6 +355,23 @@ impl eframe::App for Client {
         if let Some(report) = self.app.performance.report() {
             eprintln!("{report}");
         }
+    }
+}
+
+/// Keeps the window off an empty Diagnostics list. Diagnostics have no page of their own in the
+/// window, only a chip while problems exist, so Tab steps over the list and fixing the last
+/// problem returns to the view it was opened from.
+fn settle_view(app: &mut Workspace, state: &mut UiState) {
+    if app.view == View::Diagnostics && app.bundle.diagnostics.as_slice().is_empty() {
+        app.dispatch(match state.last_view {
+            View::Source => Action::CycleView(1),
+            View::History => Action::CycleView(-1),
+            _ => Action::ShowView(state.before_diagnostics),
+        });
+    }
+    state.last_view = app.view;
+    if app.view != View::Diagnostics {
+        state.before_diagnostics = app.view;
     }
 }
 
@@ -356,7 +407,13 @@ fn draw(ctx: &egui::Context, app: &Workspace, state: &mut UiState) -> Vec<Action
 
     // Unified 44px Studio Top Transport & Navigation Bar
     egui::TopBottomPanel::top("crump-topbar")
-        .exact_height(44.0)
+        .exact_height(
+            if ctx.content_rect().width() - 20.0 < TOP_BAR_COMPACT_WIDTH {
+                2.0 * TOP_BAR_ROW + 18.0
+            } else {
+                44.0
+            },
+        )
         .frame(
             egui::Frame::new()
                 .fill(theme::BG_SURFACE)
@@ -374,19 +431,30 @@ fn draw(ctx: &egui::Context, app: &Workspace, state: &mut UiState) -> Vec<Action
                 .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
                 .inner_margin(egui::Margin::symmetric(10, 3)),
         )
-        .show(ctx, |ui| footer(ui, &cx));
+        .show(ctx, |ui| footer(ui, &mut cx));
 
     // Tactile Studio Keyboard / Drum Pad Dock on Sound & Event Grid views
     let keyboard_eligible = keymap::NOTE_VIEWS.contains(&app.view) || app.view == View::EventGrid;
     if keyboard_eligible && cx.state.show_keyboard {
-        egui::TopBottomPanel::bottom("crump-notes")
-            .frame(
-                egui::Frame::new()
-                    .fill(theme::BG_SURFACE)
-                    .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
-                    .inner_margin(egui::Margin::symmetric(10, 5)),
-            )
-            .show(ctx, |ui| widgets::note_strip(ui, &mut cx));
+        // One panel memory per view: the drum pads and the keyboard differ in height.
+        egui::TopBottomPanel::bottom(egui::Id::new((
+            "crump-notes",
+            std::mem::discriminant(&app.view),
+        )))
+        .frame(
+            egui::Frame::new()
+                .fill(theme::BG_SURFACE)
+                .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
+                .inner_margin(egui::Margin::symmetric(10, 5)),
+        )
+        .show(ctx, |ui| widgets::note_strip(ui, &mut cx));
+    }
+
+    // A view's first frame measures itself (scroll extents, panel heights); discard that pass
+    // so a page switch is drawn once, already laid out, instead of settling visibly.
+    if cx.state.drawn_view != Some(app.view) {
+        cx.state.drawn_view = Some(app.view);
+        ctx.request_discard("view changed");
     }
 
     // Primary Studio Canvas (zero extra padding so Timeline / Mixer / Piano Roll fill edge-to-edge)
@@ -400,6 +468,10 @@ fn draw(ctx: &egui::Context, app: &Workspace, state: &mut UiState) -> Vec<Action
             }
         });
 
+    // A History version is only heard while History is open.
+    if app.view != View::History && app.history_preview.is_some() {
+        cx.send(Action::PreviewHistoryVersion(None));
+    }
     modal(ctx, &mut cx);
     cx.actions
 }
@@ -440,421 +512,526 @@ fn studio_top_bar(ui: &mut Ui, cx: &mut Cx<'_>) {
         _ => {}
     }
 
-    ui.horizontal_centered(|ui| {
-        ui.spacing_mut().item_spacing.x = 6.0;
-
-        // ── Left: Brand mark + 4 Primary Mode Segmented Control ──
-        let (mark, _) = ui.allocate_exact_size(Vec2::new(6.0, 18.0), Sense::hover());
-        ui.painter().rect_filled(mark, 2.0, theme::ACCENT_AMBER);
-
-        egui::Frame::new()
-            .fill(theme::BG_WELL)
-            .corner_radius(5.0)
-            .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
-            .inner_margin(egui::Margin::same(2))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 2.0;
-                    for (m, label, target, tip) in [
-                        (
-                            PrimaryMode::Arrange,
-                            "Arrange",
-                            View::Timeline,
-                            "Timeline Arrangement · Key 1",
-                        ),
-                        (
-                            PrimaryMode::Mix,
-                            "Mix",
-                            cx.state.last_mix_view,
-                            "Mixing Console & FX Rack · Key 2 / 3",
-                        ),
-                        (
-                            PrimaryMode::Edit,
-                            "Edit",
-                            cx.state.last_edit_view,
-                            "Piano Roll & Automation · Key 4 / 8",
-                        ),
-                        (
-                            PrimaryMode::Sound,
-                            "Sound",
-                            cx.state.last_sound_view,
-                            "Faceplate, Synth, Graph & Params · Key 5-7, 9",
-                        ),
-                    ] {
-                        if widgets::pill_toggle(ui, label, mode == m, theme::ACCENT_AMBER, tip)
-                            .clicked()
-                        {
-                            cx.send(Action::ShowView(target));
-                        }
-                    }
+    // Below this width the transport moves to a second row, so nothing collides.
+    let compact = ui.available_width() < TOP_BAR_COMPACT_WIDTH;
+    if compact {
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 6.0;
+            ui.horizontal(|ui| {
+                ui.set_height(TOP_BAR_ROW);
+                ui.spacing_mut().item_spacing.x = 6.0;
+                mode_tabs(ui, cx, mode);
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    status_cluster(ui, cx, false);
                 });
             });
+            ui.horizontal(|ui| {
+                ui.set_height(TOP_BAR_ROW);
+                ui.spacing_mut().item_spacing.x = 6.0;
+                transport_deck(ui, cx);
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing.x = 5.0;
+                    master_readouts(ui, cx.app);
+                });
+            });
+        });
+    } else {
+        ui.horizontal_centered(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            mode_tabs(ui, cx, mode);
+            ui.add_space(6.0);
+            transport_deck(ui, cx);
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                status_cluster(ui, cx, true);
+            });
+        });
+    }
+}
 
-        ui.add_space(6.0);
+/// Brand mark and the four primary mode tabs.
+fn mode_tabs(ui: &mut Ui, cx: &mut Cx<'_>, mode: PrimaryMode) {
+    // ── Left: Brand mark + 4 Primary Mode Segmented Control ──
+    let (mark, _) = ui.allocate_exact_size(Vec2::new(6.0, 18.0), Sense::hover());
+    ui.painter().rect_filled(mark, 2.0, theme::ACCENT_AMBER);
 
-        // ── Center: Recessed Hardware Transport Deck ──
-        let playing = app.player.is_some() && !app.playback_paused;
-        let looping = app.audition_status.as_ref().is_some_and(|s| s.looping)
-            || app.audition_plan.range.looping;
-
-        egui::Frame::new()
-            .fill(theme::BG_WELL)
-            .corner_radius(5.0)
-            .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
-            .inner_margin(egui::Margin::symmetric(6, 3))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 4.0;
-
-                    if widgets::icon_button(
-                        ui,
-                        Vec2::new(24.0, 22.0),
-                        false,
-                        theme::TEXT_PRIMARY,
-                        "Return to Zero (Bar 1)",
-                        theme::paint_rtz_icon,
-                    )
-                    .clicked()
-                    {
-                        cx.send(Action::Timeline(TimelineAction::MoveSongEdge {
-                            end: false,
-                        }));
+    egui::Frame::new()
+        .fill(theme::BG_WELL)
+        .corner_radius(5.0)
+        .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
+        .inner_margin(egui::Margin::same(2))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+                for (m, label, target, tip) in [
+                    (
+                        PrimaryMode::Arrange,
+                        "Arrange",
+                        View::Timeline,
+                        "Arrange · Ctrl-1",
+                    ),
+                    (
+                        PrimaryMode::Mix,
+                        "Mix",
+                        cx.state.last_mix_view,
+                        "Console and FX rack · Ctrl-2",
+                    ),
+                    (
+                        PrimaryMode::Edit,
+                        "Edit",
+                        cx.state.last_edit_view,
+                        "Piano roll and automation · Ctrl-3",
+                    ),
+                    (
+                        PrimaryMode::Sound,
+                        "Sound",
+                        cx.state.last_sound_view,
+                        "Faceplate, synth, graph and parameters · Ctrl-4",
+                    ),
+                ] {
+                    if widgets::pill_toggle(ui, label, mode == m, tip).tab_pressed() {
+                        cx.send(Action::ShowView(target));
                     }
+                }
+            });
+        });
+}
 
-                    if widgets::icon_button(
-                        ui,
-                        Vec2::new(28.0, 22.0),
-                        playing,
-                        theme::SIG_NOMINAL,
-                        if playing {
-                            "Pause · Space"
-                        } else {
-                            "Play · Space"
-                        },
-                        |p, r, c| {
-                            if playing {
-                                theme::paint_pause_icon(p, r, c);
-                            } else {
-                                theme::paint_play_icon(p, r, c);
-                            }
-                        },
-                    )
-                    .clicked()
-                    {
-                        cx.send(Action::TogglePlayback);
-                    }
+/// The recessed transport deck: return, play, stop, loop, position, tempo, meter, voices and
+/// audition target.
+fn transport_deck(ui: &mut Ui, cx: &mut Cx<'_>) {
+    let app = cx.app;
+    // ── Center: Recessed Hardware Transport Deck ──
+    let playing = app.player.is_some() && !app.playback_paused;
+    let looping =
+        app.audition_status.as_ref().is_some_and(|s| s.looping) || app.audition_plan.range.looping;
 
-                    if widgets::icon_button(
-                        ui,
-                        Vec2::new(24.0, 22.0),
-                        false,
-                        theme::SIG_CLIP,
-                        "Stop · S",
-                        theme::paint_stop_icon,
-                    )
-                    .clicked()
-                    {
-                        cx.send(Action::StopPlayback);
-                    }
+    egui::Frame::new()
+        .fill(theme::BG_WELL)
+        .corner_radius(5.0)
+        .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
+        .inner_margin(egui::Margin::symmetric(6, 3))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
 
-                    if widgets::icon_button(
-                        ui,
-                        Vec2::new(24.0, 22.0),
-                        looping,
-                        theme::ACCENT_AMBER,
-                        "Toggle Loop · L",
-                        theme::paint_loop_icon,
-                    )
-                    .clicked()
-                    {
-                        cx.send(Action::ToggleAuditionRangeLoop);
-                    }
+                if widgets::icon_button(
+                    ui,
+                    Vec2::new(24.0, 22.0),
+                    false,
+                    theme::TEXT_PRIMARY,
+                    "Go to the start · Home",
+                    theme::paint_rtz_icon,
+                )
+                .clicked()
+                {
+                    cx.send(Action::Timeline(TimelineAction::MoveSongEdge {
+                        end: false,
+                    }));
+                }
 
-                    ui.separator();
-
-                    // LCD Bar:Beat Position
-                    let pos_text = if app.player.is_some() {
-                        transport_label(app)
-                    } else if let Some(project) = &app.bundle.project {
-                        let pos = app.timeline_position();
-                        let bar_q = (f64::from(project.song.meter.numerator)
-                            * (4.0 / f64::from(project.song.meter.denominator).max(1.0)))
-                        .max(1.0);
-                        let q = pos.at.as_f64().max(0.0);
-                        let bar = (q / bar_q).floor() as u32 + 1;
-                        let beat = (q % bar_q).floor() as u32 + 1;
-                        format!("{bar}:{beat:02}")
+                if widgets::icon_button(
+                    ui,
+                    Vec2::new(28.0, 22.0),
+                    playing,
+                    theme::SIG_NOMINAL,
+                    if playing {
+                        "Pause · Space"
                     } else {
-                        "1:01".to_owned()
-                    };
-                    ui.label(
-                        RichText::new(pos_text)
-                            .monospace()
-                            .strong()
-                            .size(13.5)
-                            .color(if playing {
-                                theme::SIG_NOMINAL
-                            } else {
-                                theme::TEXT_PRIMARY
-                            }),
-                    )
-                    .on_hover_text("Transport position (Bar:Beat)");
+                        "Play · Space"
+                    },
+                    |p, r, c| {
+                        if playing {
+                            theme::paint_pause_icon(p, r, c);
+                        } else {
+                            theme::paint_play_icon(p, r, c);
+                        }
+                    },
+                )
+                .clicked()
+                {
+                    cx.send(Action::TogglePlayback);
+                }
 
-                    // Draggable Tempo & Meter from Project
-                    if let Some(project) = &app.bundle.project {
-                        ui.separator();
-                        let bpm_key = "transport-bpm";
-                        let live_bpm = cx
-                            .state
-                            .drag_preview(bpm_key)
-                            .unwrap_or(project.song.tempo_bpm);
-                        let (bpm_rect, bpm_resp) =
-                            ui.allocate_exact_size(Vec2::new(58.0, 20.0), Sense::click_and_drag());
-                        if bpm_resp.hovered() || bpm_resp.dragged() {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
-                        }
-                        if bpm_resp.drag_started() {
-                            cx.state.set_drag_preview(bpm_key, live_bpm);
-                        }
-                        if bpm_resp.dragged() {
-                            let fine = ui.input(|i| i.modifiers.shift);
-                            let step = if fine { 0.1 } else { 0.5 };
-                            let next = (live_bpm - f64::from(bpm_resp.drag_delta().y) * step)
-                                .clamp(20.0, 300.0);
-                            cx.state.set_drag_preview(bpm_key, next);
-                        }
-                        if bpm_resp.drag_stopped()
-                            && let Some(final_bpm) = cx.state.take_drag_preview(bpm_key)
-                        {
-                            let rounded = (final_bpm * 2.0).round() / 2.0;
-                            if (rounded - project.song.tempo_bpm).abs() > 0.05 {
-                                cx.send(Action::SetSongTempo { bpm: rounded });
-                            }
-                        }
-                        ui.painter().rect_filled(
-                            bpm_rect,
-                            3.0,
-                            if bpm_resp.hovered() || bpm_resp.dragged() {
-                                theme::BG_HOVER
-                            } else {
-                                Color32::TRANSPARENT
-                            },
-                        );
-                        ui.painter().text(
-                            bpm_rect.center(),
-                            Align2::CENTER_CENTER,
-                            format!("{live_bpm:.0} BPM"),
-                            FontId::monospace(11.0),
-                            theme::ACCENT_AMBER,
-                        );
-                        bpm_resp.on_hover_text(
-                            "Song Tempo · Drag vertically to adjust · Shift+drag fine",
-                        );
+                if widgets::icon_button(
+                    ui,
+                    Vec2::new(24.0, 22.0),
+                    false,
+                    theme::SIG_CLIP,
+                    "Stop · Shift-Space",
+                    theme::paint_stop_icon,
+                )
+                .clicked()
+                {
+                    cx.send(Action::StopPlayback);
+                }
 
-                        let meter = &project.song.meter;
-                        ui.label(
-                            RichText::new(format!("{}/{}", meter.numerator, meter.denominator))
-                                .monospace()
-                                .size(11.0)
-                                .color(theme::TEXT_SECONDARY),
-                        );
+                if widgets::icon_button(
+                    ui,
+                    Vec2::new(24.0, 22.0),
+                    looping,
+                    theme::ACCENT_AMBER,
+                    "Loop · L",
+                    theme::paint_loop_icon,
+                )
+                .clicked()
+                {
+                    cx.send(Action::ToggleAuditionRangeLoop);
+                }
+
+                ui.separator();
+
+                // LCD Bar:Beat Position
+                // One position format everywhere: bar.beat.sixteenth, 1-based.
+                let pos_text = match (&app.bundle.project, app.player.is_some()) {
+                    (Some(project), playing) => {
+                        let q = if playing {
+                            transport_quarter_notes(app)
+                        } else {
+                            app.timeline_position().at.as_f64()
+                        };
+                        theme::format_bar_beat(q, project.song.meter)
                     }
+                    (None, true) => transport_label(app),
+                    (None, false) => "1.1.1".to_owned(),
+                };
+                // Fixed slot sized for `999.4.4`, so the deck never shifts as bars count up.
+                let (pos_rect, pos_resp) =
+                    ui.allocate_exact_size(Vec2::new(70.0, 20.0), Sense::hover());
+                ui.painter().text(
+                    pos_rect.center(),
+                    Align2::CENTER_CENTER,
+                    pos_text,
+                    FontId::monospace(13.5),
+                    theme::TEXT_PRIMARY,
+                );
+                pos_resp.on_hover_text("Transport position (bar.beat.sixteenth)");
 
-                    // Active Voices badge when > 0
-                    if app.telemetry.engine.active_voices > 0 {
-                        ui.separator();
-                        ui.label(
-                            RichText::new(format!("{}v", app.telemetry.engine.active_voices))
+                // Draggable Tempo & Meter from Project
+                if let Some(project) = &app.bundle.project {
+                    ui.separator();
+                    let bpm_key = "transport-bpm";
+                    let live_bpm = cx
+                        .state
+                        .drag_preview(bpm_key)
+                        .unwrap_or(project.song.tempo_bpm);
+                    let (bpm_rect, bpm_resp) =
+                        ui.allocate_exact_size(Vec2::new(66.0, 20.0), Sense::click_and_drag());
+                    if bpm_resp.hovered() || bpm_resp.dragged() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+                    }
+                    if bpm_resp.drag_started() {
+                        cx.state.set_drag_preview(bpm_key, live_bpm);
+                    }
+                    if bpm_resp.dragged() {
+                        let fine = ui.input(|i| i.modifiers.shift);
+                        let step = if fine { 0.1 } else { 0.5 };
+                        let next = (live_bpm - f64::from(bpm_resp.drag_delta().y) * step)
+                            .clamp(20.0, 300.0);
+                        cx.state.set_drag_preview(bpm_key, next);
+                    }
+                    if bpm_resp.drag_stopped()
+                        && let Some(final_bpm) = cx.state.take_drag_preview(bpm_key)
+                    {
+                        let rounded = (final_bpm * 2.0).round() / 2.0;
+                        if (rounded - project.song.tempo_bpm).abs() > 0.05 {
+                            cx.send(Action::SetSongTempo { bpm: rounded });
+                        }
+                    }
+                    ui.painter().rect_filled(
+                        bpm_rect,
+                        3.0,
+                        if bpm_resp.hovered() || bpm_resp.dragged() {
+                            theme::BG_HOVER
+                        } else {
+                            Color32::TRANSPARENT
+                        },
+                    );
+                    ui.painter().text(
+                        bpm_rect.center(),
+                        Align2::CENTER_CENTER,
+                        // Edits land in half-BPM steps; show the half when there is one.
+                        if (live_bpm * 2.0).round() % 2.0 == 0.0 {
+                            format!("{live_bpm:.0} BPM")
+                        } else {
+                            format!("{:.1} BPM", (live_bpm * 2.0).round() / 2.0)
+                        },
+                        FontId::monospace(11.0),
+                        theme::TEXT_PRIMARY,
+                    );
+                    bpm_resp
+                        .on_hover_text("Song Tempo · Drag vertically to adjust · Shift+drag fine");
+
+                    let meter = &project.song.meter;
+                    ui.label(
+                        RichText::new(format!("{}/{}", meter.numerator, meter.denominator))
+                            .monospace()
+                            .size(11.0)
+                            .color(theme::TEXT_SECONDARY),
+                    );
+                }
+
+                // A past version playing from History is named, so it is never mistaken for the
+                // current project.
+                if let Some((entry, _)) = &app.history_preview
+                    && (app.player.is_some() || app.playback_requested)
+                    && let Some(index) = app.history.iter().position(|c| c.id == *entry)
+                {
+                    let number = app.history.len() - index;
+                    ui.label(
+                        RichText::new(format!("Hearing v{number}"))
+                            .strong()
+                            .size(10.5)
+                            .color(theme::ACCENT_CYAN),
+                    )
+                    .on_hover_text("Playing an earlier version from History");
+                }
+                // Active voices in a fixed slot that stays put when nothing sounds.
+                ui.separator();
+                let voices = app.telemetry.engine.active_voices;
+                let (voice_rect, voice_resp) =
+                    ui.allocate_exact_size(Vec2::new(28.0, 20.0), Sense::hover());
+                ui.painter().text(
+                    voice_rect.center(),
+                    Align2::CENTER_CENTER,
+                    format!("{voices}v"),
+                    FontId::monospace(10.5),
+                    if voices > 0 {
+                        theme::TEXT_SECONDARY
+                    } else {
+                        theme::TEXT_MUTED
+                    },
+                );
+                voice_resp.on_hover_text("Active polyphonic synth voices");
+
+                // Clean clickable Audition Target indicator
+                ui.separator();
+                let target_short = compact_audition_target(app);
+                if ui
+                    .add(
+                        egui::Button::new(
+                            RichText::new(target_short)
                                 .monospace()
                                 .size(10.5)
                                 .color(theme::ACCENT_CYAN),
                         )
-                        .on_hover_text("Active polyphonic synth voices");
-                    }
-
-                    // Clean clickable Audition Target indicator
-                    ui.separator();
-                    let target_short = compact_audition_target(app);
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                RichText::new(target_short)
-                                    .monospace()
-                                    .size(10.5)
-                                    .color(theme::ACCENT_CYAN),
-                            )
-                            .fill(theme::BG_SURFACE),
-                        )
-                        .on_hover_text("Click to choose Audition target · A")
-                        .clicked()
-                    {
-                        cx.send(Action::OpenAuditionTarget);
-                    }
-                });
-            });
-
-        // ── Right: Utility Icons, Master dBFS Meter, DSP%, Publish, Undo, Project Status ──
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            ui.spacing_mut().item_spacing.x = 5.0;
-
-            // Compact Utility Pills (?, Hist, Diag, Src) — rendered right-to-left
-            let has_errors = app.bundle.diagnostics.has_errors();
-            let diag_count = app.bundle.diagnostics.as_slice().len();
-            for (v, label, tip, alert) in [
-                (View::Help, "?", "Shortcuts & Help · ?", false),
-                (View::History, "Hist", "Revision History · H", false),
-                (
-                    View::Diagnostics,
-                    if diag_count > 0 { "Diag!" } else { "Diag" },
-                    "Project Diagnostics",
-                    has_errors,
-                ),
-                (
-                    View::Source,
-                    "Src",
-                    "Authoritative .crump Source · 0",
-                    false,
-                ),
-            ] {
-                let active = app.view == v;
-                let color = if alert {
-                    theme::SIG_CLIP
-                } else {
-                    theme::ACCENT_CYAN
-                };
-                if widgets::led_button(
-                    ui,
-                    label,
-                    active || alert,
-                    color,
-                    Vec2::new(if label == "?" { 22.0 } else { 34.0 }, 22.0),
-                    tip,
-                )
-                .clicked()
+                        .fill(theme::BG_SURFACE)
+                        .min_size(Vec2::new(96.0, 20.0)),
+                    )
+                    .on_hover_text("Click to choose what plays")
+                    .clicked()
                 {
-                    cx.send(Action::ShowView(v));
+                    cx.send(Action::OpenAuditionTarget);
                 }
-            }
-
-            ui.separator();
-
-            // Master Calibrated Logarithmic dBFS Meter (rendered left-to-right internally)
-            widgets::dbfs_meter_horizontal(
-                ui,
-                app.telemetry.engine.current_peak,
-                app.telemetry.engine.current_peak * 0.72,
-                114.0,
-                true,
-            )
-            .on_hover_text("Master Output Peak & RMS (dBFS)");
-
-            // DSP CPU load indicator
-            let dsp_pct = (app.telemetry.callback_utilization * 100.0).clamp(0.0, 99.9);
-            let dsp_color = if dsp_pct >= 75.0 {
-                theme::SIG_CLIP
-            } else if dsp_pct >= 45.0 {
-                theme::SIG_HOT
-            } else {
-                theme::TEXT_SECONDARY
-            };
-            ui.label(
-                RichText::new(format!("DSP {dsp_pct:.0}%"))
-                    .monospace()
-                    .size(10.0)
-                    .color(dsp_color),
-            )
-            .on_hover_text("Audio callback DSP load");
-
-            ui.separator();
-
-            // Publish & Undo CTAs
-            let needs_publish = !app.candidate_is_active() && !has_errors && !loading(app);
-            if ui
-                .add(
-                    egui::Button::new(RichText::new("Publish").size(10.5).strong().color(
-                        if needs_publish {
-                            theme::BG_WELL
-                        } else {
-                            theme::TEXT_PRIMARY
-                        },
-                    ))
-                    .fill(if needs_publish {
-                        theme::ACCENT_AMBER
-                    } else {
-                        theme::BG_CARD
-                    }),
-                )
-                .on_hover_text("Publish Candidate as Active Revision · P")
-                .clicked()
-            {
-                cx.send(Action::OpenPublish);
-            }
-
-            let can_undo = app.history.len() > 1;
-            if ui
-                .add_enabled(
-                    can_undo,
-                    egui::Button::new(RichText::new("Undo").size(10.5).color(if can_undo {
-                        theme::TEXT_PRIMARY
-                    } else {
-                        theme::TEXT_MUTED
-                    }))
-                    .fill(theme::BG_CARD),
-                )
-                .on_hover_text("Restore previous Revision History entry")
-                .clicked()
-            {
-                cx.send(Action::UndoHistory);
-            }
-
-            // Compact Project Name (truncated cleanly) + Live Revision Dot
-            let project_name = match app.bundle.project.as_ref() {
-                Some(project) => project.name.as_str(),
-                None if loading(app) => "Loading…",
-                None => "Broken",
-            };
-            let (dot_color, rev_tip) = if loading(app) {
-                (theme::TEXT_MUTED, "Loading Project…".to_owned())
-            } else if has_errors {
-                (
-                    theme::SIG_CLIP,
-                    "Invalid Candidate (has diagnostics)".to_owned(),
-                )
-            } else if app.candidate_is_active() {
-                (
-                    theme::SIG_NOMINAL,
-                    format!(
-                        "Active Revision {} (in sync)",
-                        short_revision(&app.bundle.revision)
-                    ),
-                )
-            } else {
-                (
-                    theme::SIG_HOT,
-                    format!(
-                        "Unpublished Candidate {} (Active: {})",
-                        short_revision(&app.bundle.revision),
-                        short_optional(app.active_revision.as_ref())
-                    ),
-                )
-            };
-            ui.add_sized(
-                Vec2::new(112.0, 20.0),
-                egui::Label::new(
-                    RichText::new(project_name)
-                        .strong()
-                        .size(11.0)
-                        .color(theme::TEXT_PRIMARY),
-                )
-                .truncate(),
-            )
-            .on_hover_text(rev_tip.clone());
-
-            let (dot, dot_resp) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
-            ui.painter().circle_filled(dot.center(), 3.8, dot_color);
-            dot_resp.on_hover_text(rev_tip);
+            });
         });
+}
+
+/// Master meter and DSP load.
+fn master_readouts(ui: &mut Ui, app: &Workspace) {
+    // Master Calibrated Logarithmic dBFS Meter (rendered left-to-right internally)
+    let (master_peak, master_avg) = master_levels(app);
+    widgets::dbfs_meter_horizontal(ui, master_peak, master_avg, 96.0, true)
+        .on_hover_text("Master peak and average (dBFS), as on the Master strip");
+
+    // DSP CPU load indicator
+    let dsp_pct = (app.telemetry.callback_utilization * 100.0).clamp(0.0, 99.9);
+    let dsp_color = if dsp_pct >= 75.0 {
+        theme::SIG_CLIP
+    } else if dsp_pct >= 45.0 {
+        theme::SIG_HOT
+    } else {
+        theme::TEXT_SECONDARY
+    };
+    let (dsp_rect, dsp_resp) = ui.allocate_exact_size(Vec2::new(54.0, 20.0), Sense::hover());
+    ui.painter().text(
+        dsp_rect.right_center(),
+        Align2::RIGHT_CENTER,
+        format!("DSP {dsp_pct:.0}%"),
+        FontId::monospace(10.0),
+        dsp_color,
+    );
+    dsp_resp.on_hover_text("Audio callback DSP load");
+}
+
+/// Right-to-left: utility tabs, the Master readouts when they share the row, Publish, Undo,
+/// project name, revision dot and issue chip.
+fn status_cluster(ui: &mut Ui, cx: &mut Cx<'_>, show_meter: bool) {
+    let app = cx.app;
+    ui.spacing_mut().item_spacing.x = 5.0;
+    ui.spacing_mut().item_spacing.x = 5.0;
+
+    // Utility pills (?, History, Source), rendered right to left. Diagnostics have no
+    // page of their own here: a red chip appears only while the Candidate has problems.
+    let has_errors = app.bundle.diagnostics.has_errors();
+    for (v, label, tip) in [
+        (View::Help, "?", "Shortcuts & Help · ?"),
+        (View::History, "History", "Revision History · H"),
+        (View::Source, "Source", "Authoritative .crump Source · 0"),
+    ] {
+        let active = app.view == v;
+        let width = if label == "?" {
+            22.0
+        } else {
+            14.0 + label.chars().count() as f32 * 6.4
+        };
+        // Lit neutral when open: these are navigation, not a call to action.
+        if widgets::led_button(
+            ui,
+            label,
+            active,
+            theme::TEXT_SECONDARY,
+            Vec2::new(width, 22.0),
+            tip,
+        )
+        .tab_pressed()
+        {
+            cx.send(Action::ShowView(v));
+        }
+    }
+
+    ui.separator();
+
+    if show_meter {
+        // Master Calibrated Logarithmic dBFS Meter (rendered left-to-right internally)
+        let (master_peak, master_avg) = master_levels(app);
+        widgets::dbfs_meter_horizontal(ui, master_peak, master_avg, 96.0, true)
+            .on_hover_text("Master peak and average (dBFS), as on the Master strip");
+
+        // DSP CPU load indicator
+        let dsp_pct = (app.telemetry.callback_utilization * 100.0).clamp(0.0, 99.9);
+        let dsp_color = if dsp_pct >= 75.0 {
+            theme::SIG_CLIP
+        } else if dsp_pct >= 45.0 {
+            theme::SIG_HOT
+        } else {
+            theme::TEXT_SECONDARY
+        };
+        let (dsp_rect, dsp_resp) = ui.allocate_exact_size(Vec2::new(54.0, 20.0), Sense::hover());
+        ui.painter().text(
+            dsp_rect.right_center(),
+            Align2::RIGHT_CENTER,
+            format!("DSP {dsp_pct:.0}%"),
+            FontId::monospace(10.0),
+            dsp_color,
+        );
+        dsp_resp.on_hover_text("Audio callback DSP load");
+    }
+    if show_meter {
+        ui.separator();
+    }
+
+    // Publish & Undo CTAs
+    let settling = app.publication_settling();
+    let needs_publish = needs_publish(app);
+    if widgets::publish_button(ui, "Publish", needs_publish)
+        .on_hover_text("Publish Candidate as Active Revision · Ctrl-S")
+        .clicked()
+    {
+        cx.send(Action::OpenPublish);
+    }
+
+    let can_undo = app.history.len() > 1;
+    if ui
+        .add_enabled(
+            can_undo,
+            egui::Button::new(RichText::new("Undo").size(10.5).color(if can_undo {
+                theme::TEXT_PRIMARY
+            } else {
+                theme::TEXT_MUTED
+            }))
+            .fill(theme::BG_CARD),
+        )
+        .on_hover_text("Undo the last change · Ctrl-Z")
+        .clicked()
+    {
+        cx.send(Action::UndoHistory);
+    }
+
+    // Compact Project Name (truncated cleanly) + Live Revision Dot
+    let project_name = match app.bundle.project.as_ref() {
+        Some(project) => project.name.as_str(),
+        None if loading(app) => "Loading…",
+        None => "Broken",
+    };
+    let (dot_color, rev_tip) = if loading(app) {
+        (theme::TEXT_MUTED, "Loading Project…".to_owned())
+    } else if has_errors {
+        // The error chip carries the colour; the dot only steps back.
+        (
+            theme::TEXT_MUTED,
+            "Invalid Candidate (has diagnostics)".to_owned(),
+        )
+    } else if app.candidate_is_active() || settling {
+        // In sync is the normal state: the dot stays quiet.
+        (
+            theme::TEXT_MUTED,
+            format!(
+                "Active Revision {} (in sync)",
+                short_revision(&app.bundle.revision)
+            ),
+        )
+    } else {
+        (
+            theme::SIG_HOT,
+            format!(
+                "Unpublished Candidate {} (Active: {})",
+                short_revision(&app.bundle.revision),
+                short_optional(app.active_revision.as_ref())
+            ),
+        )
+    };
+    // The name takes whatever the transport cluster leaves free, within reason.
+    // The issue chip and the dot sit left of the name: take their room first, so the
+    // chip never draws over the transport deck when problems appear.
+    let chip = issue_chip(app);
+    let chip_w = chip.as_ref().map_or(0.0, |(label, _)| {
+        14.0 + label.chars().count() as f32 * 6.4 + 5.0
     });
+    let reserved = chip_w + 8.0 + 2.0 * ui.spacing().item_spacing.x + 12.0;
+    let name_w = ui
+        .painter()
+        .layout_no_wrap(
+            project_name.to_owned(),
+            FontId::proportional(11.0),
+            theme::TEXT_PRIMARY,
+        )
+        .size()
+        .x
+        .clamp(112.0, 280.0)
+        .min((ui.available_width() - reserved).max(60.0))
+        + 4.0;
+    ui.add_sized(
+        Vec2::new(name_w, 20.0),
+        egui::Label::new(
+            RichText::new(project_name)
+                .strong()
+                .size(11.0)
+                .color(theme::TEXT_PRIMARY),
+        )
+        .truncate(),
+    )
+    .on_hover_text(format!("{project_name}\n{rev_tip}"));
+
+    let (dot, dot_resp) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
+    ui.painter().circle_filled(dot.center(), 3.8, dot_color);
+    dot_resp.on_hover_text(rev_tip);
+
+    // Problems sit beside the project they belong to, left of everything that stays put.
+    if let Some((label, color)) = chip {
+        let width = 14.0 + label.chars().count() as f32 * 6.4;
+        if widgets::led_button(
+            ui,
+            &label,
+            true,
+            color,
+            Vec2::new(width, 22.0),
+            "Problems in the Candidate source · click to inspect",
+        )
+        .tab_pressed()
+        {
+            cx.send(Action::ShowView(View::Diagnostics));
+        }
+    }
 }
 
 fn compact_audition_target(app: &Workspace) -> String {
@@ -870,38 +1047,153 @@ fn compact_audition_target(app: &Workspace) -> String {
     }
 }
 
+/// The Master bus peak and average, from its own meter when the engine reports one, so the top
+/// bar and the Master strip always agree.
+fn master_levels(app: &Workspace) -> (f32, f32) {
+    let engine = &app.telemetry.engine;
+    app.mix_channel_indexes
+        .get("master")
+        .copied()
+        .filter(|&index| index < engine.channel_count)
+        .map_or((engine.current_peak, engine.current_peak * 0.65), |index| {
+            let meter = engine.channel_activity[index];
+            (meter.current_peak, meter.average)
+        })
+}
+
+/// Whether a valid Candidate waits to be published. Only once the session has settled: an edit
+/// publishes itself, and its reload must not flash the Publish button on the way through.
+fn needs_publish(app: &Workspace) -> bool {
+    !app.candidate_is_active()
+        && !app.bundle.diagnostics.has_errors()
+        && !loading(app)
+        && !app.publication_settling()
+}
+
+/// The top-bar problem chip: only while the Candidate has diagnostics, red for errors.
+fn issue_chip(app: &Workspace) -> Option<(String, Color32)> {
+    let diagnostics = app.bundle.diagnostics.as_slice();
+    let errors = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity == crate::diagnostic::Severity::Error)
+        .count();
+    let plural =
+        |count: usize, noun: &str| format!("{count} {noun}{}", if count == 1 { "" } else { "s" });
+    if errors > 0 {
+        Some((plural(errors, "error"), theme::SIG_CLIP))
+    } else if !diagnostics.is_empty() {
+        Some((plural(diagnostics.len(), "warning"), theme::SIG_HOT))
+    } else {
+        None
+    }
+}
+
 /// Whether the session is still reading the Project for the first time.
 fn loading(app: &Workspace) -> bool {
     app.bundle.project.is_none() && app.bundle.revision.0.is_empty() && app.has_pending_work()
 }
 
-fn footer(ui: &mut Ui, cx: &Cx<'_>) {
+/// How long a hint about a refused action stays in the footer.
+const GUIDANCE_LINGER: Duration = Duration::from_secs(6);
+
+/// How the footer treats the session's status line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StatusTone {
+    /// Progress and confirmations: the window already shows the outcome, so nothing is said.
+    Quiet,
+    /// An action was refused or needs something first; shown in amber for a few seconds.
+    Guidance,
+    /// Something failed; shown in red until the next status replaces it.
+    Failure,
+}
+
+fn status_tone(status: &str) -> StatusTone {
+    const FAILURE: [&str; 7] = [
+        "failed",
+        "could not",
+        "cannot",
+        "invalid",
+        "rejected",
+        "delayed",
+        "is stale",
+    ];
+    const GUIDANCE: [&str; 17] = [
+        "unavailable",
+        "not found",
+        " before ",
+        " first",
+        "requires",
+        "must ",
+        "has no ",
+        "no further",
+        "no prior",
+        "no clip",
+        "no project",
+        "no continuous",
+        "no timeline",
+        "is undefined",
+        "is unset",
+        "nothing earlier",
+        "already",
+    ];
+    // Names quoted in backticks (an Instrument called `error-bass`) never set the tone.
+    let status = status
+        .split('`')
+        .step_by(2)
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
+    if FAILURE.iter().any(|word| status.contains(word)) {
+        StatusTone::Failure
+    } else if GUIDANCE.iter().any(|word| status.contains(word))
+        || status.starts_with("enter ")
+        || status.starts_with("create ")
+        || status.contains("is the only")
+    {
+        StatusTone::Guidance
+    } else {
+        StatusTone::Quiet
+    }
+}
+
+fn footer(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
+    // The footer speaks only when something is wrong; routine progress stays silent.
+    let since = match &cx.state.status_seen {
+        Some((text, since)) if *text == app.status => *since,
+        _ => {
+            let now = Instant::now();
+            cx.state.status_seen = Some((app.status.clone(), now));
+            now
+        }
+    };
+    let shown = match status_tone(&app.status) {
+        StatusTone::Failure => Some(theme::SIG_CLIP),
+        StatusTone::Guidance if since.elapsed() < GUIDANCE_LINGER => Some(theme::SIG_HOT),
+        _ => None,
+    };
+    if shown.is_some() {
+        // Repaint once the hint expires, so it leaves without waiting for input.
+        ui.ctx().request_repaint_after(GUIDANCE_LINGER);
+    }
     ui.horizontal_centered(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
-        let (dot, _) = ui.allocate_exact_size(Vec2::splat(6.0), Sense::hover());
-        ui.painter()
-            .circle_filled(dot.center(), 2.8, theme::ACCENT_CYAN);
-        ui.label(
-            RichText::new(widgets::legible(&app.status))
-                .size(10.5)
-                .color(theme::TEXT_SECONDARY),
-        );
-
-        if app.note_mode {
-            ui.label(
-                RichText::new("NOTE MODE")
-                    .strong()
-                    .size(10.0)
-                    .color(theme::SIG_HOT),
-            );
-        } else if app.timeline_state.visual() && app.view == View::Timeline {
-            ui.label(
-                RichText::new("RANGE SELECT")
-                    .strong()
-                    .size(10.0)
-                    .color(theme::SIG_NOMINAL),
-            );
+        if let Some(color) = shown {
+            let (dot, _) = ui.allocate_exact_size(Vec2::splat(6.0), Sense::hover());
+            ui.painter().circle_filled(dot.center(), 2.8, color);
+            // Leave room for the mode badge and the revision readout on the right.
+            let width = (ui.available_width() - 320.0).max(120.0);
+            ui.allocate_ui(Vec2::new(width, 16.0), |ui| {
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(widgets::legible(&app.status))
+                            .size(10.5)
+                            .color(color),
+                    )
+                    .truncate(),
+                )
+                .on_hover_text(widgets::legible(&app.status));
+            });
         }
 
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -915,7 +1207,15 @@ fn footer(ui: &mut Ui, cx: &Cx<'_>) {
             } else {
                 ui.label(
                     RichText::new(format!(
-                        "Rev {} · MIDI {}",
+                        "{} {} · MIDI {}",
+                        // Named by its role: never published, published, or awaiting publish.
+                        if app.active_revision.is_none() {
+                            "Unpublished"
+                        } else if app.candidate_is_active() || app.publication_settling() {
+                            "Rev"
+                        } else {
+                            "Candidate"
+                        },
                         short_revision(&app.bundle.revision),
                         if app.telemetry.midi_connected {
                             "ON"
@@ -926,6 +1226,22 @@ fn footer(ui: &mut Ui, cx: &Cx<'_>) {
                     .monospace()
                     .size(9.5)
                     .color(theme::TEXT_MUTED),
+                );
+            }
+            // Mode badges sit on the fixed right side, so a status message never moves them.
+            if app.note_mode {
+                ui.label(
+                    RichText::new("NOTE MODE")
+                        .strong()
+                        .size(10.0)
+                        .color(theme::SIG_HOT),
+                );
+            } else if app.timeline_state.visual() && app.view == View::Timeline {
+                ui.label(
+                    RichText::new("RANGE SELECT")
+                        .strong()
+                        .size(10.0)
+                        .color(theme::ACCENT_CYAN),
                 );
             }
         });
@@ -949,17 +1265,28 @@ fn modal(ctx: &egui::Context, cx: &mut Cx<'_>) {
                 ..
             } => input_modal(ui, cx, title, prompt, value, *replace_on_type),
             Modal::ConfirmRestore { entry_id } => {
+                // Plain words: which version, and that nothing is lost.
+                let version = cx
+                    .app
+                    .history
+                    .iter()
+                    .find(|entry| entry.id == *entry_id)
+                    .map_or_else(
+                        || entry_id.clone(),
+                        |entry| history_view::plain_label(cx.app, entry),
+                    );
                 ui.label(
-                    RichText::new("CONFIRM HISTORY RESTORE")
+                    RichText::new("Restore this version?")
                         .strong()
                         .size(13.0)
-                        .color(theme::ACCENT_AMBER),
+                        .color(theme::TEXT_PRIMARY),
                 );
                 ui.add_space(6.0);
-                ui.label(format!("Restore exact state from {entry_id}?"));
+                ui.label(RichText::new(version).size(12.5).color(theme::TEXT_PRIMARY));
                 ui.label(
                     RichText::new(
-                        "Current source will be replaced atomically and appended as a new History Entry.",
+                        "The whole project goes back to how it was after this change. The restore \
+                         is added as a new change, so everything since stays in History.",
                     )
                     .size(11.5)
                     .color(theme::TEXT_SECONDARY),
@@ -969,9 +1296,7 @@ fn modal(ctx: &egui::Context, cx: &mut Cx<'_>) {
                     if ui
                         .add(
                             egui::Button::new(
-                                RichText::new("Restore")
-                                    .strong()
-                                    .color(theme::BG_WELL),
+                                RichText::new("Restore").strong().color(theme::BG_WELL),
                             )
                             .fill(theme::ACCENT_AMBER),
                         )

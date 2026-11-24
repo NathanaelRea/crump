@@ -6,9 +6,10 @@ use std::collections::{BTreeMap, VecDeque};
 use std::f32::consts::PI;
 
 use super::theme::{self, with_alpha};
+use super::widgets::preview_key;
 use super::widgets::{
     context_combo, horizontal_mini_slider, led_button, pill_toggle, rotary_knob_modulated,
-    unavailable,
+    section_header, unavailable,
 };
 use super::*;
 use crate::model::{
@@ -27,21 +28,13 @@ fn sound_subbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, instrument: &In
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 5.0;
-                for (view, label, key) in [
-                    (View::Faceplate, "Faceplate", "5"),
-                    (View::Instrument, "Synth", "6"),
-                    (View::Graph, "Patch Graph", "9"),
-                    (View::Parameters, "Parameters", "7"),
+                for (view, label) in [
+                    (View::Faceplate, "Faceplate"),
+                    (View::Instrument, "Synth"),
+                    (View::Graph, "Patch Graph"),
+                    (View::Parameters, "Parameters"),
                 ] {
-                    if pill_toggle(
-                        ui,
-                        label,
-                        app.view == view,
-                        theme::ACCENT_AMBER,
-                        &format!("{label} · Key {key}"),
-                    )
-                    .clicked()
-                    {
+                    if pill_toggle(ui, label, app.view == view, label).tab_pressed() {
                         cx.send(Action::ShowView(view));
                     }
                 }
@@ -62,33 +55,41 @@ fn sound_subbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, instrument: &In
                     Action::CycleContext,
                 );
 
-                badge_chip(ui, &format!("{}", instrument.kind), theme::ACCENT_CYAN);
-                badge_chip(
-                    ui,
-                    &format!("{} Voices", instrument.polyphony),
-                    theme::TEXT_SECONDARY,
-                );
+                // Descriptive chips only where they leave room for the toggles on the right.
+                let show_chips = widgets::room(ui, 330.0);
+                if show_chips {
+                    badge_chip(ui, &format!("{}", instrument.kind), theme::ACCENT_CYAN);
+                    badge_chip(
+                        ui,
+                        &if instrument.polyphony == 1 {
+                            "Mono".to_owned()
+                        } else {
+                            format!("{} Voices", instrument.polyphony)
+                        },
+                        theme::TEXT_SECONDARY,
+                    );
+                }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if pill_toggle(
-                        ui,
-                        "Keys",
-                        cx.state.show_keyboard,
-                        theme::ACCENT_CYAN,
-                        "Toggle on-screen studio keyboard",
-                    )
-                    .clicked()
+                    if widgets::room(ui, 60.0)
+                        && pill_toggle(
+                            ui,
+                            "Keys",
+                            cx.state.show_keyboard,
+                            "Toggle on-screen studio keyboard",
+                        )
+                        .clicked()
                     {
                         cx.state.show_keyboard = !cx.state.show_keyboard;
                     }
-                    if pill_toggle(
-                        ui,
-                        "Audition",
-                        false,
-                        theme::SIG_NOMINAL,
-                        "Arm this Instrument for audition · A",
-                    )
-                    .clicked()
+                    if widgets::room(ui, 84.0)
+                        && pill_toggle(
+                            ui,
+                            "Audition",
+                            false,
+                            "Arm this Instrument for audition · A",
+                        )
+                        .clicked()
                     {
                         cx.send(Action::ArmSelectedAudition);
                     }
@@ -112,6 +113,48 @@ fn badge_chip(ui: &mut Ui, text: &str, color: Color32) {
         StrokeKind::Inside,
     );
     painter.text(rect.center(), Align2::CENTER_CENTER, text, font, color);
+}
+
+/// A small painted right-pointing arrow (the bundled fonts lack a "→" glyph).
+fn route_arrow(ui: &mut Ui) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(16.0, 19.0), Sense::hover());
+    let painter = ui.painter();
+    let y = rect.center().y;
+    let stroke = Stroke::new(1.2_f32, theme::TEXT_MUTED);
+    painter.line_segment(
+        [
+            Pos2::new(rect.left() + 2.0, y),
+            Pos2::new(rect.right() - 3.0, y),
+        ],
+        stroke,
+    );
+    painter.line_segment(
+        [
+            Pos2::new(rect.right() - 7.0, y - 3.5),
+            Pos2::new(rect.right() - 3.0, y),
+        ],
+        stroke,
+    );
+    painter.line_segment(
+        [
+            Pos2::new(rect.right() - 7.0, y + 3.5),
+            Pos2::new(rect.right() - 3.0, y),
+        ],
+        stroke,
+    );
+}
+
+/// A chip in a fixed-width column so successive rows line up; long text is truncated.
+fn badge_chip_cell(ui: &mut Ui, text: &str, color: Color32, width: f32) {
+    let max_chars = ((width - 12.0) / 6.2).max(3.0) as usize;
+    ui.allocate_ui_with_layout(
+        Vec2::new(width, 19.0),
+        Layout::left_to_right(Align::Center),
+        |ui| {
+            ui.set_min_width(width);
+            badge_chip(ui, &truncate_text(text, max_chars), color);
+        },
+    );
 }
 
 fn truncate_text(text: &str, max_chars: usize) -> String {
@@ -274,7 +317,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     if !instrument.presentation.tags.is_empty() {
                                         for tag in instrument.presentation.tags.iter().take(4) {
-                                            badge_chip(ui, tag, theme::ACCENT_VIOLET);
+                                            badge_chip(ui, tag, theme::TEXT_SECONDARY);
                                         }
                                     }
                                 });
@@ -364,7 +407,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                                                     badge_chip(
                                                                         ui,
                                                                         &format!("MOD×{mod_count}"),
-                                                                        theme::ACCENT_CYAN,
+                                                                        theme::ACCENT_VIOLET,
                                                                     );
                                                                 }
                                                                 if is_auto {
@@ -380,10 +423,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                                     ui.add_space(6.0);
 
                                                     if let Some(param) = parameter {
-                                                        let drag_key = format!(
-                                                            "fp:{}:{}",
-                                                            instrument.id, param.key
-                                                        );
+                                                        let drag_key = preview_key::instrument_parameter(&instrument.id, &param.key);
                                                         let out = rotary_knob_modulated(
                                                             ui,
                                                             cx.state,
@@ -398,7 +438,10 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                                             mod_range,
                                                             mod_eff,
                                                             &control.explanation,
-                                                            68.0,
+                                                            // Macro knobs scale with their card
+                                                            // so wide cards don't float a tiny dial.
+                                                            (ui.available_width() * 0.16)
+                                                                .clamp(68.0, 104.0),
                                                         );
                                                         if out.clicked || out.committed.is_some() {
                                                             new_selected = Some(index);
@@ -460,12 +503,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                             .show(&mut cols[0], |ui| {
                                 ui.set_min_height(152.0);
                                 ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new("TONE & ENVELOPE RESPONSE")
-                                            .strong()
-                                            .size(10.5)
-                                            .color(theme::TEXT_SECONDARY),
-                                    );
+                                    section_header(ui, "TONE & ENVELOPE RESPONSE", theme::BORDER_STRONG);
                                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                         if ui
                                             .add(
@@ -532,12 +570,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                             .show(&mut cols[1], |ui| {
                                 ui.set_min_height(152.0);
                                 ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new("QUICK PARAMETERS")
-                                            .strong()
-                                            .size(10.5)
-                                            .color(theme::TEXT_SECONDARY),
-                                    );
+                                    section_header(ui, "QUICK PARAMETERS", theme::BORDER_STRONG);
                                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                         if ui
                                             .add(
@@ -547,7 +580,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                                         instrument.parameters.len()
                                                     ))
                                                     .size(10.0)
-                                                    .color(theme::ACCENT_AMBER),
+                                                    .color(theme::ACCENT_CYAN),
                                                 )
                                                 .frame(false),
                                             )
@@ -561,7 +594,7 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 ui.add_space(6.0);
                                 let slider_w = (ui.available_width() - 4.0).max(140.0);
                                 for param in instrument.parameters.iter().take(4) {
-                                    let drag_key = format!("fpq:{}:{}", instrument.id, param.key);
+                                    let drag_key = preview_key::instrument_parameter(&instrument.id, &param.key);
                                     let out = horizontal_mini_slider(
                                         ui,
                                         cx.state,
@@ -599,20 +632,17 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                         .corner_radius(6.0)
                         .inner_margin(egui::Margin::same(12))
                         .show(ui, |ui| {
+                            // Hold the panel to the deck width so its edges line up with the
+                            // panels above it.
+                            ui.set_width(deck_w - 26.0);
                             ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("ACTIVE MODULATION & ROUTING")
-                                        .strong()
-                                        .size(10.5)
-                                        .color(theme::ACCENT_VIOLET),
-                                );
+                                section_header(ui, "ACTIVE MODULATION & ROUTING", theme::ACCENT_VIOLET);
                                 ui.label(
                                     RichText::new(format!(
                                         "{} sources · {} routes",
                                         instrument.modulation_sources.len(),
                                         instrument.modulation_routes.len()
                                     ))
-                                    .monospace()
                                     .size(10.0)
                                     .color(theme::TEXT_MUTED),
                                 );
@@ -642,7 +672,6 @@ pub(super) fn faceplate(ui: &mut Ui, cx: &mut Cx<'_>) {
                                     );
                                     ui.label(
                                         RichText::new(summarize_osc_nodes(instrument))
-                                            .monospace()
                                             .size(11.0)
                                             .color(theme::TEXT_SECONDARY),
                                     );
@@ -731,7 +760,6 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ui.add_space(6.0);
                         ui.label(
                             RichText::new(truncate_text(&summarize_osc_nodes(instrument), 44))
-                                .monospace()
                                 .size(10.0)
                                 .color(theme::TEXT_SECONDARY),
                         );
@@ -743,7 +771,6 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                             instrument,
                             &osc_params,
                             theme::ACCENT_AMBER,
-                            "osc",
                             &mut pending_actions,
                         );
                     },
@@ -770,7 +797,6 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 theme::format_compact_value(cut, Unit::Hertz),
                                 res * 100.0
                             ))
-                            .monospace()
                             .size(10.0)
                             .color(theme::TEXT_SECONDARY),
                         );
@@ -812,7 +838,6 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                         instrument,
                         &flt_params,
                         theme::ACCENT_CYAN,
-                        "flt",
                         &mut pending_actions,
                     );
                 });
@@ -839,7 +864,6 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 .filter(|r| !r.bypass)
                                 .count()
                         ))
-                        .monospace()
                         .size(10.0)
                         .color(theme::TEXT_SECONDARY),
                     );
@@ -851,7 +875,6 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                         instrument,
                         &env_params,
                         theme::ACCENT_VIOLET,
-                        "env",
                         &mut pending_actions,
                     );
                 });
@@ -869,6 +892,7 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
         .inner_margin(egui::Margin::symmetric(12, 5))
         .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 for (index, sec) in sections.iter().enumerate() {
@@ -879,9 +903,7 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                     } else {
                         sec.name.clone()
                     };
-                    if pill_toggle(ui, &label, active, theme::ACCENT_CYAN, &sec.name).clicked()
-                        && !active
-                    {
+                    if pill_toggle(ui, &label, active, &sec.name).clicked() && !active {
                         pending_actions.push(Action::AdjustSelected(
                             index as isize - app.selected_instrument_section as isize,
                         ));
@@ -940,7 +962,7 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                             }
                             let is_sel = idx == selected_row;
                             let kind_color = match row.kind {
-                                Some(PresentationItemKind::Node) => theme::ACCENT_AMBER,
+                                Some(PresentationItemKind::Node) => theme::TEXT_SECONDARY,
                                 Some(PresentationItemKind::Parameter) => theme::ACCENT_CYAN,
                                 Some(PresentationItemKind::Route)
                                 | Some(PresentationItemKind::Source) => theme::ACCENT_VIOLET,
@@ -957,7 +979,7 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 .stroke(Stroke::new(
                                     1.0_f32,
                                     if is_sel {
-                                        theme::ACCENT_CYAN
+                                        theme::SELECTION
                                     } else {
                                         theme::BORDER_SUBTLE
                                     },
@@ -986,8 +1008,10 @@ pub(super) fn instrument_sections(ui: &mut Ui, cx: &mut Cx<'_>) {
                                                 .find(|p| p.key == row.id)
                                         {
                                             ui.add_space(8.0);
-                                            let drag_key =
-                                                format!("instsec:{}:{}", instrument.id, param.key);
+                                            let drag_key = preview_key::instrument_parameter(
+                                                &instrument.id,
+                                                &param.key,
+                                            );
                                             let out = horizontal_mini_slider(
                                                 ui,
                                                 cx.state,
@@ -1100,7 +1124,6 @@ fn draw_module_knob_row(
     instrument: &Instrument,
     params: &[&Parameter],
     accent: Color32,
-    prefix: &str,
     pending_actions: &mut Vec<Action>,
 ) {
     if params.is_empty() {
@@ -1118,7 +1141,7 @@ fn draw_module_knob_row(
     ui.columns(cols, |columns| {
         for (i, param) in params.iter().enumerate() {
             columns[i].vertical_centered(|ui| {
-                let drag_key = format!("synth:{prefix}:{}:{}", instrument.id, param.key);
+                let drag_key = preview_key::instrument_parameter(&instrument.id, &param.key);
                 let mod_range = param_static_mod_range(instrument, param);
                 let mod_eff = effective_param_value(app, instrument, &param.key);
                 let out = rotary_knob_modulated(
@@ -1174,13 +1197,9 @@ fn draw_modulation_matrix(
         .corner_radius(6.0)
         .inner_margin(egui::Margin::same(10))
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("MODULATION MATRIX")
-                        .strong()
-                        .size(11.0)
-                        .color(theme::ACCENT_VIOLET),
-                );
+                section_header(ui, "MODULATION MATRIX", theme::ACCENT_VIOLET);
                 ui.label(
                     RichText::new("Drag depth bar · Double-click zero · Click power to bypass")
                         .size(10.0)
@@ -1217,9 +1236,12 @@ fn draw_mod_route_row(
         .map(|p| (p.maximum - p.minimum).abs().max(1.0))
         .unwrap_or(1.0);
     let current_depth = unit.parse_value(&route.depth).unwrap_or(0.0);
+    // A bypass click shows at once, like Mute, instead of waiting for its edit to reload.
+    let bypass_key = format!("route-bypass:{}:{}", instrument.id, route.id);
+    let bypassed = state.flag(&bypass_key, route.bypass);
 
     egui::Frame::new()
-        .fill(if route.bypass {
+        .fill(if bypassed {
             theme::BG_WELL
         } else {
             theme::BG_CANVAS
@@ -1228,30 +1250,36 @@ fn draw_mod_route_row(
         .corner_radius(4.0)
         .inner_margin(egui::Margin::symmetric(8, 5))
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
                 if led_button(
                     ui,
-                    if route.bypass { "OFF" } else { "ON" },
-                    !route.bypass,
+                    if bypassed { "OFF" } else { "ON" },
+                    !bypassed,
                     theme::ACCENT_VIOLET,
                     Vec2::new(34.0, 20.0),
                     "Toggle modulation route bypass",
                 )
                 .clicked()
                 {
+                    state.hold_flag(&bypass_key, !bypassed);
                     pending_actions.push(Action::ToggleInstrumentRouteBypassById {
                         instrument: instrument.id.clone(),
                         route: route.id.clone(),
                     });
                 }
 
-                badge_chip(ui, &route.source, theme::ACCENT_VIOLET);
-                ui.label(RichText::new("->").color(theme::TEXT_MUTED));
-                badge_chip(
+                badge_chip_cell(ui, &route.source, theme::ACCENT_VIOLET, 96.0);
+                route_arrow(ui);
+                badge_chip_cell(
                     ui,
                     target_param.map_or(&route.target, |p| &p.name),
                     theme::ACCENT_CYAN,
+                    96.0,
                 );
+                // The depth bar takes the row's remaining width, leaving room for polarity and
+                // the live readout, so bars in successive rows share both edges.
+                let depth_w = (ui.available_width() - 96.0).clamp(140.0, 520.0);
 
                 // Bipolar draggable depth bar with logarithmic perceptual fill for Unit::Hertz!
                 let drag_key = format!("moddepth:{}:{}", instrument.id, route.id);
@@ -1264,12 +1292,12 @@ fn draw_mod_route_row(
                     max_depth,
                     target_param,
                     unit,
-                    if route.bypass {
+                    if bypassed {
                         theme::TEXT_MUTED
                     } else {
                         theme::ACCENT_VIOLET
                     },
-                    220.0,
+                    depth_w,
                     20.0,
                 );
                 if let Some(new_depth) = out.committed {
@@ -1284,11 +1312,18 @@ fn draw_mod_route_row(
                     ControlPolarity::Unipolar => "UNI",
                     ControlPolarity::Bipolar => "BI",
                 };
-                ui.label(
-                    RichText::new(pol)
-                        .monospace()
-                        .size(9.5)
-                        .color(theme::TEXT_MUTED),
+                ui.allocate_ui_with_layout(
+                    Vec2::new(26.0, 19.0),
+                    Layout::left_to_right(Align::Center),
+                    |ui| {
+                        ui.set_min_width(26.0);
+                        ui.label(
+                            RichText::new(pol)
+                                .monospace()
+                                .size(9.5)
+                                .color(theme::TEXT_MUTED),
+                        );
+                    },
                 );
 
                 if let Some((Some(contrib), u)) = live {
@@ -1452,16 +1487,7 @@ fn synth_module_card(ui: &mut Ui, title: &str, accent: Color32, body: impl FnOnc
         .show(ui, |ui| {
             ui.set_min_height(198.0);
             ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    let (bar, _) = ui.allocate_exact_size(Vec2::new(3.0, 12.0), Sense::hover());
-                    ui.painter().rect_filled(bar, 1.0, accent);
-                    ui.label(
-                        RichText::new(title)
-                            .strong()
-                            .size(10.5)
-                            .color(theme::TEXT_SECONDARY),
-                    );
-                });
+                section_header(ui, title, accent);
                 ui.add_space(6.0);
                 body(ui);
             });
@@ -1658,8 +1684,8 @@ fn paint_instrument_filter_scope(
     );
     let inner = rect.shrink(6.0);
 
-    let cut_key = cut_p.map(|p| format!("bode_cut:{}:{}", instrument.id, p.key));
-    let res_key = res_p.map(|p| format!("bode_res:{}:{}", instrument.id, p.key));
+    let cut_key = cut_p.map(|p| preview_key::instrument_parameter(&instrument.id, &p.key));
+    let res_key = res_p.map(|p| preview_key::instrument_parameter(&instrument.id, &p.key));
 
     // Direct 2D drag on Bode plot adjusts Cutoff (X, log Hz) and Resonance (Y)
     if interactive
@@ -1863,8 +1889,8 @@ fn paint_instrument_adsr_scope(
     );
     let inner = rect.shrink(7.0);
 
-    let dec_key = dec_p.map(|p| format!("adsr_dec:{}:{}", instrument.id, p.key));
-    let sus_key = sus_p.map(|p| format!("adsr_sus:{}:{}", instrument.id, p.key));
+    let dec_key = dec_p.map(|p| preview_key::instrument_parameter(&instrument.id, &p.key));
+    let sus_key = sus_p.map(|p| preview_key::instrument_parameter(&instrument.id, &p.key));
 
     if interactive
         && resp.dragged()
@@ -2080,12 +2106,11 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new(format!(
-                        "Voice Domain: {}/{} nodes · {} cables",
+                        "Voice Domain: {} nodes (limit {}) · {} cables",
                         voice.nodes.len(),
                         voice.max_nodes,
                         voice.connections.len()
                     ))
-                    .monospace()
                     .size(10.5)
                     .color(theme::TEXT_SECONDARY),
                 );
@@ -2188,9 +2213,9 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
     );
 
     // Base geometry at zoom = 1.0 to decide stacking + auto-fit
-    let base_node_w = 166.0_f32;
-    let base_node_h = 84.0_f32;
-    let base_col_gap = 64.0_f32;
+    let base_node_w = 178.0_f32;
+    let base_node_h = 92.0_f32;
+    let base_col_gap = 40.0_f32;
     let base_row_gap = 26.0_f32;
 
     let probe_voice = layout_graph_nodes(
@@ -2259,7 +2284,7 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
         let pad_y = 36.0_f32;
         let fit_x = (canvas_rect.width() - pad_x).max(100.0) / total_w.max(1.0);
         let fit_y = (canvas_rect.height() - pad_y).max(100.0) / total_h.max(1.0);
-        let fit_zoom = fit_x.min(fit_y).clamp(0.50, 1.08);
+        let fit_zoom = fit_x.min(fit_y).clamp(0.50, 1.25);
         cx.state.graph_zoom = fit_zoom;
 
         let scaled_w = total_w * fit_zoom;
@@ -2393,15 +2418,20 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
     painter.rect_stroke(
         voice_box,
         8.0,
-        Stroke::new(1.0_f32, with_alpha(theme::ACCENT_AMBER, 0.38)),
+        // Neutral container: amber is kept for selection, and this frame wraps everything.
+        Stroke::new(1.0_f32, theme::BORDER_STRONG),
         StrokeKind::Inside,
     );
     painter.text(
         Pos2::new(voice_box.left() + 12.0, voice_box.top() + 7.0),
         Align2::LEFT_TOP,
-        format!("POLYPHONIC VOICE DOMAIN · {} VOICES", instrument.polyphony),
+        if instrument.polyphony == 1 {
+            "MONO VOICE DOMAIN".to_owned()
+        } else {
+            format!("POLYPHONIC VOICE DOMAIN · {} VOICES", instrument.polyphony)
+        },
         FontId::monospace((10.0 * zoom).clamp(8.5, 11.0)),
-        theme::ACCENT_AMBER,
+        theme::TEXT_MUTED,
     );
 
     // Paint Shared Domain container + bridge cable
@@ -2410,7 +2440,7 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
         painter.rect_stroke(
             sbox,
             8.0,
-            Stroke::new(1.0_f32, with_alpha(theme::ACCENT_CYAN, 0.42)),
+            Stroke::new(1.0_f32, theme::BORDER_STRONG),
             StrokeKind::Inside,
         );
         painter.text(
@@ -2418,7 +2448,7 @@ pub(super) fn graph(ui: &mut Ui, cx: &mut Cx<'_>) {
             Align2::LEFT_TOP,
             "SHARED POST-VOICE FX DOMAIN",
             FontId::monospace((10.0 * zoom).clamp(8.5, 11.0)),
-            theme::ACCENT_CYAN,
+            theme::TEXT_MUTED,
         );
 
         let (p0, p1) = if stack_shared_below {
@@ -2760,49 +2790,68 @@ fn paint_graph_node_card(
 
     // Header text: truncated node ID (left) + kind tag (right) with zero collision
     let kind_label = theme::node_kind_label(node.kind);
-    let id_max_chars = ((rect.width() / (8.5 * zoom.max(0.6))) as usize)
-        .saturating_sub(kind_label.len() + 2)
-        .max(5);
+    let id_font_size = (12.0 * zoom).clamp(10.0, 13.5);
+    let kind_font_size = (8.5 * zoom).clamp(7.5, 10.0);
+    let kind_w = kind_label.chars().count() as f32 * kind_font_size * 0.62;
+    let id_room = rect.width() - 13.0 - kind_w - 10.0;
+    let id_max_chars = ((id_room / (id_font_size * 0.56)) as usize).max(4);
     let clip = painter.with_clip_rect(rect.shrink(3.0));
     clip.text(
         Pos2::new(rect.left() + 7.0, header.center().y),
         Align2::LEFT_CENTER,
         truncate_text(&node.id, id_max_chars),
-        FontId::proportional((11.0 * zoom).clamp(9.0, 12.5)),
+        FontId::proportional(id_font_size),
         theme::TEXT_PRIMARY,
     );
     clip.text(
         Pos2::new(rect.right() - 6.0, header.center().y),
         Align2::RIGHT_CENTER,
         kind_label,
-        FontId::monospace((8.5 * zoom).clamp(7.5, 10.0)),
+        FontId::monospace(kind_font_size),
         accent,
     );
 
-    // Center body: compact top 2 settings (inset so they never touch port labels)
+    // Center body: compact top 2 settings, inset past the widest port label on each side so
+    // jack names and settings never overlap.
+    let port_font = FontId::monospace((9.0 * zoom).clamp(8.0, 10.5));
+    let port_char_w = port_font.size * 0.62;
+    let label_span = |ports: &[String], max: usize| {
+        let longest = ports.iter().map(|p| p.chars().count().min(max)).max();
+        longest.map_or(8.0, |len| 6.0 + len as f32 * port_char_w + 8.0)
+    };
+    let body_left = rect.left() + label_span(&ln.in_ports, 8);
+    let body_right = rect.right() - label_span(&ln.out_ports, 8);
+    let setting_font = FontId::monospace((10.0 * zoom).clamp(8.5, 11.5));
+    let setting_chars = ((body_right - body_left) / (setting_font.size * 0.62)).max(4.0) as usize;
     let body_clip = painter.with_clip_rect(Rect::from_min_max(
-        Pos2::new(rect.left() + 28.0 * zoom, header.bottom() + 2.0),
-        Pos2::new(rect.right() - 24.0 * zoom, rect.bottom() - 3.0),
+        Pos2::new(body_left, header.bottom() + 2.0),
+        Pos2::new(body_right, rect.bottom() - 3.0),
     ));
     let mut y = header.bottom() + 7.0 * zoom;
     for setting in node.settings.iter().take(2) {
-        let line = format!("{}: {}", setting.key, format_setting_value(&setting.value));
         body_clip.text(
-            Pos2::new(rect.left() + 30.0 * zoom, y),
+            Pos2::new(body_left, y),
             Align2::LEFT_TOP,
-            truncate_text(&line, 18),
-            FontId::monospace((9.0 * zoom).clamp(7.5, 10.5)),
+            truncate_text(&setting.key, setting_chars),
+            setting_font.clone(),
+            theme::TEXT_MUTED,
+        );
+        y += 12.0 * zoom;
+        body_clip.text(
+            Pos2::new(body_left, y),
+            Align2::LEFT_TOP,
+            truncate_text(&format_setting_value(&setting.value), setting_chars),
+            setting_font.clone(),
             if matches!(setting.value, SettingValue::Parameter(_)) {
                 theme::ACCENT_CYAN
             } else {
-                theme::TEXT_SECONDARY
+                theme::TEXT_PRIMARY
             },
         );
-        y += 14.0 * zoom;
+        y += 15.0 * zoom;
     }
 
     // Named per-port Input Jacks (left edge)
-    let port_font = FontId::monospace((8.0 * zoom).clamp(7.0, 9.5));
     for port in &ln.in_ports {
         let p = ln.in_port_pos(port, header_h);
         painter.circle_filled(p, 3.2, theme::BG_WELL);
@@ -2810,7 +2859,7 @@ fn paint_graph_node_card(
         clip.text(
             Pos2::new(rect.left() + 6.0, p.y),
             Align2::LEFT_CENTER,
-            truncate_text(port, 5),
+            truncate_text(port, 8),
             port_font.clone(),
             theme::TEXT_MUTED,
         );
@@ -2824,7 +2873,7 @@ fn paint_graph_node_card(
         clip.text(
             Pos2::new(rect.right() - 6.0, p.y),
             Align2::RIGHT_CENTER,
-            truncate_text(port, 4),
+            truncate_text(port, 8),
             port_font.clone(),
             theme::TEXT_MUTED,
         );
@@ -2843,20 +2892,16 @@ fn draw_graph_inspector(
     selected: usize,
     pending_actions: &mut Vec<Action>,
 ) {
-    ui.label(
-        RichText::new("NODE INSPECTOR")
-            .strong()
-            .size(11.0)
-            .color(theme::ACCENT_AMBER),
-    );
+    section_header(ui, "NODE INSPECTOR", theme::ACCENT_AMBER);
     ui.add_space(6.0);
 
+    let voice_domain = if instrument.polyphony == 1 {
+        "Mono Voice"
+    } else {
+        "Polyphonic Voice"
+    };
     let resolved: Option<(&Graph, &GraphNode, &str)> = if selected < voice_order.len() {
-        Some((
-            voice,
-            &voice.nodes[voice_order[selected]],
-            "Polyphonic Voice",
-        ))
+        Some((voice, &voice.nodes[voice_order[selected]], voice_domain))
     } else if let Some(shared) = &instrument.shared_graph
         && selected >= shared_node_offset
         && selected < shared_node_offset + shared_order.len()
@@ -2869,7 +2914,7 @@ fn draw_graph_inspector(
     } else {
         voice_order
             .first()
-            .map(|&idx| (voice, &voice.nodes[idx], "Polyphonic Voice"))
+            .map(|&idx| (voice, &voice.nodes[idx], voice_domain))
     };
 
     let Some((domain_graph, node, domain_name)) = resolved else {
@@ -2887,9 +2932,15 @@ fn draw_graph_inspector(
         );
         badge_chip(ui, theme::node_kind_label(node.kind), accent);
     });
+    // Domain and source location on their own lines, so neither wraps mid-phrase.
+    ui.label(
+        RichText::new(domain_name)
+            .size(10.5)
+            .color(theme::TEXT_SECONDARY),
+    );
     ui.label(
         RichText::new(format!(
-            "{domain_name} · {}:{}",
+            "{}:{}",
             node.location.file.display(),
             node.location.line
         ))
@@ -2899,23 +2950,19 @@ fn draw_graph_inspector(
     );
     ui.add_space(8.0);
 
-    ui.label(
-        RichText::new("SETTINGS & PARAMETERS")
-            .strong()
-            .size(10.0)
-            .color(theme::TEXT_SECONDARY),
-    );
+    section_header(ui, "SETTINGS & PARAMETERS", theme::BORDER_STRONG);
     ui.add_space(4.0);
-    let slider_w = (ui.available_width() - 4.0).max(160.0);
-
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
+            // Measured inside the scroll area, so the scrollbar's width is already taken out;
+            // measured outside, the rows overflow it and the resizable panel creeps wider.
+            let slider_w = (ui.available_width() - 4.0).max(160.0);
             for setting in &node.settings {
                 if let SettingValue::Parameter(param_key) = &setting.value
                     && let Some(param) = instrument.parameters.iter().find(|p| p.key == *param_key)
                 {
-                    let drag_key = format!("graph:{}:{}:{}", instrument.id, node.id, param.key);
+                    let drag_key = preview_key::instrument_parameter(&instrument.id, &param.key);
                     let out = horizontal_mini_slider(
                         ui,
                         state,
@@ -2966,29 +3013,25 @@ fn draw_graph_inspector(
             }
 
             ui.add_space(10.0);
-            ui.label(
-                RichText::new("SIGNAL CONNECTIONS")
-                    .strong()
-                    .size(10.0)
-                    .color(theme::TEXT_SECONDARY),
-            );
+            section_header(ui, "SIGNAL CONNECTIONS", theme::BORDER_STRONG);
             ui.add_space(4.0);
             let mut any_conn = false;
             for conn in &domain_graph.connections {
                 if conn.from.node == node.id || conn.to.node == node.id {
                     any_conn = true;
                     ui.label(
-                        RichText::new(format!(
-                            "{}.{} -> {}.{}",
-                            conn.from.node, conn.from.port, conn.to.node, conn.to.port
-                        ))
+                        RichText::new(
+                            widgets::legible(&format!(
+                                "{}.{} → {}.{}",
+                                conn.from.node, conn.from.port, conn.to.node, conn.to.port
+                            ))
+                            .into_owned(),
+                        )
                         .monospace()
                         .size(10.0)
-                        .color(if conn.from.node == node.id {
-                            theme::ACCENT_AMBER
-                        } else {
-                            theme::ACCENT_CYAN
-                        }),
+                        // Direction is in the arrow; colour stays neutral rather than inventing
+                        // a second cable palette beside the canvas.
+                        .color(theme::TEXT_SECONDARY),
                     );
                 }
             }
@@ -3048,7 +3091,8 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
                 );
                 ui.add(
                     egui::TextEdit::singleline(&mut cx.state.param_search)
-                        .hint_text("Filter by parameter name or key…")
+                        .hint_text(RichText::new("Filter by name or key…").color(theme::TEXT_MUTED))
+                        .font(FontId::proportional(12.0))
                         .desired_width(220.0),
                 );
                 if !cx.state.param_search.is_empty() && ui.small_button("×").clicked() {
@@ -3056,16 +3100,11 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
                 }
 
                 ui.separator();
-                for (mode, label, accent) in [
-                    (0u8, "All", theme::ACCENT_AMBER),
-                    (1u8, "Automated", theme::SIG_NOMINAL),
-                    (2u8, "Modulated", theme::ACCENT_VIOLET),
-                ] {
+                for (mode, label) in [(0u8, "All"), (1u8, "Automated"), (2u8, "Modulated")] {
                     if pill_toggle(
                         ui,
                         label,
                         cx.state.param_filter_mode == mode,
-                        accent,
                         &format!("Show {label} parameters"),
                     )
                     .clicked()
@@ -3075,13 +3114,16 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.label(
-                        RichText::new(format!(
-                            "{} params · Click A to automate · Double-click resets",
-                            instrument.parameters.len()
-                        ))
-                        .size(10.5)
-                        .color(theme::TEXT_MUTED),
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(format!(
+                                "{} params · Click A to automate · Double-click resets",
+                                instrument.parameters.len()
+                            ))
+                            .size(10.5)
+                            .color(theme::TEXT_MUTED),
+                        )
+                        .truncate(),
                     );
                 });
             });
@@ -3182,12 +3224,10 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
                             ui.columns(2, |cols| {
                                 // Left: Automation Coverage
                                 cols[0].vertical(|ui| {
-                                    ui.label(
-                                        RichText::new("SONG AUTOMATION COVERAGE")
-                                            .strong()
-                                            .size(10.5)
-                                            .color(theme::SIG_NOMINAL),
-                                    );
+                                    // A gutter before the Modulation column, so `Edit >` stays
+                                    // with its own row.
+                                    ui.set_max_width(ui.available_width() - 18.0);
+                                    section_header(ui, "SONG AUTOMATION COVERAGE", theme::SIG_NOMINAL);
                                     ui.add_space(5.0);
                                     let inst_lanes: Vec<_> = project
                                         .song
@@ -3249,12 +3289,7 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
 
                                 // Right: Internal Modulation Coverage
                                 cols[1].vertical(|ui| {
-                                    ui.label(
-                                        RichText::new("INTERNAL MODULATION ROUTES")
-                                            .strong()
-                                            .size(10.5)
-                                            .color(theme::ACCENT_VIOLET),
-                                    );
+                                    section_header(ui, "INTERNAL MODULATION ROUTES", theme::ACCENT_VIOLET);
                                     ui.add_space(5.0);
                                     if instrument.modulation_routes.is_empty() {
                                         ui.label(
@@ -3276,12 +3311,25 @@ pub(super) fn parameters(ui: &mut Ui, cx: &mut Cx<'_>) {
                                                         theme::ACCENT_VIOLET
                                                     },
                                                 );
-                                                ui.label(
-                                                    RichText::new("->").color(theme::TEXT_MUTED),
+                                                route_arrow(ui);
+                                                let target = instrument
+                                                    .parameters
+                                                    .iter()
+                                                    .find(|p| p.key == route.target);
+                                                badge_chip(
+                                                    ui,
+                                                    target.map_or(&route.target, |p| &p.name),
+                                                    theme::ACCENT_CYAN,
                                                 );
-                                                badge_chip(ui, &route.target, theme::ACCENT_CYAN);
+                                                let depth = target
+                                                    .and_then(|p| {
+                                                        p.unit.parse_value(&route.depth).ok().map(|v| {
+                                                            theme::format_compact_value(v, p.unit)
+                                                        })
+                                                    })
+                                                    .unwrap_or_else(|| route.depth.clone());
                                                 ui.label(
-                                                    RichText::new(&route.depth)
+                                                    RichText::new(depth)
                                                         .monospace()
                                                         .size(10.5)
                                                         .color(theme::TEXT_SECONDARY),
@@ -3356,7 +3404,7 @@ fn draw_parameter_matrix_card(
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     // M modulation indicator
                     if mod_count > 0 {
-                        badge_chip(ui, &format!("M×{mod_count}"), theme::ACCENT_VIOLET);
+                        badge_chip(ui, &format!("MOD×{mod_count}"), theme::ACCENT_VIOLET);
                     } else if param.modulatable {
                         badge_chip(ui, "M", theme::TEXT_MUTED);
                     }
@@ -3400,7 +3448,7 @@ fn draw_parameter_matrix_card(
 
             // Card Body: Tactile Rotary Knob + Range Metadata & Slider
             ui.horizontal(|ui| {
-                let drag_key = format!("pmat:{}:{}", instrument.id, param.key);
+                let drag_key = preview_key::instrument_parameter(&instrument.id, &param.key);
                 let out = rotary_knob_modulated(
                     ui,
                     state,
@@ -3435,7 +3483,7 @@ fn draw_parameter_matrix_card(
                 ui.add_space(6.0);
                 ui.vertical(|ui| {
                     let slider_w = (ui.available_width() - 4.0).max(96.0);
-                    let slider_key = format!("pmats:{}:{}", instrument.id, param.key);
+                    let slider_key = preview_key::instrument_parameter(&instrument.id, &param.key);
                     let sout = horizontal_mini_slider(
                         ui,
                         state,
@@ -3460,7 +3508,7 @@ fn draw_parameter_matrix_card(
                     ui.add_space(4.0);
                     ui.label(
                         RichText::new(format!(
-                            "Range {} .. {}",
+                            "Range {} – {}",
                             theme::format_compact_value(param.minimum, param.unit),
                             theme::format_compact_value(param.maximum, param.unit),
                         ))
@@ -3477,19 +3525,20 @@ fn draw_parameter_matrix_card(
                         .size(9.5)
                         .color(theme::TEXT_MUTED),
                     );
-                    if let Some(eff) = mod_eff
-                        && (eff - param.value).abs() > 1e-3
-                    {
-                        ui.label(
-                            RichText::new(format!(
-                                "Live {}",
-                                theme::format_compact_value(eff, param.unit)
-                            ))
+                    // The Live row always takes its line, so cards keep their height as
+                    // modulation moves the effective value on and off the authored one.
+                    let live = mod_eff
+                        .filter(|eff| (eff - param.value).abs() > 1e-3)
+                        .map_or_else(
+                            || " ".to_owned(),
+                            |eff| format!("Live {}", theme::format_compact_value(eff, param.unit)),
+                        );
+                    ui.label(
+                        RichText::new(live)
                             .monospace()
                             .size(9.5)
-                            .color(theme::ACCENT_CYAN),
-                        );
-                    }
+                            .color(theme::TEXT_SECONDARY),
+                    );
                 });
             });
         });

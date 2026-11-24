@@ -4,6 +4,7 @@
 //! PRE/POST tags, clickable insert bypass LEDs, bank filter pills, and Console | FX Rack sub-bar.
 
 use super::theme::{self, with_alpha};
+use super::widgets::preview_key;
 use super::widgets::{
     Cell, apply_row_click, horizontal_mini_slider, led_button, paint_dbfs_meter_vertical,
     pill_toggle, rotary_knob, table, toolbar, unavailable, vertical_fader,
@@ -15,7 +16,7 @@ const STRIP_WIDTH: f32 = 116.0;
 const MASTER_WIDTH: f32 = 128.0;
 /// Fixed upper-bay height above the fader/meter bay shared by channel strips and Master strip
 /// so every fader in the console aligns horizontally on one unified 0 dB datum line.
-const UPPER_BAY_HEIGHT: f32 = 252.0;
+const UPPER_BAY_HEIGHT: f32 = 276.0;
 
 pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
@@ -38,10 +39,9 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui,
                     "Console",
                     app.view == View::Mixer && !cx.state.mixer_table_mode,
-                    theme::ACCENT_AMBER,
                     "Studio vertical channel-strip mixing console · 2",
                 )
-                .clicked()
+                .tab_pressed()
                 {
                     cx.state.mixer_table_mode = false;
                 }
@@ -49,10 +49,9 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                     ui,
                     "FX Rack",
                     app.view == View::Processing,
-                    theme::ACCENT_CYAN,
                     "Open Processing FX Rack & Device Inspector · 3",
                 )
-                .clicked()
+                .tab_pressed()
                 {
                     cx.send(Action::ShowView(View::Processing));
                 }
@@ -60,33 +59,20 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                 ui.separator();
 
                 // Bank visibility filter pills
-                let filters: [(u8, &str, Color32); 4] = [
-                    (0, "All", theme::TEXT_PRIMARY),
-                    (
-                        1,
-                        &format!("Tracks ({})", project.song.tracks.len()),
-                        theme::ACCENT_AMBER,
-                    ),
-                    (
-                        2,
-                        &format!("Groups ({})", project.song.groups.len()),
-                        theme::ACCENT_CYAN,
-                    ),
-                    (
-                        3,
-                        &format!("Returns ({})", project.song.returns.len()),
-                        theme::ACCENT_VIOLET,
-                    ),
+                let filters: [(u8, String); 4] = [
+                    (0, "All".to_owned()),
+                    (1, format!("Tracks ({})", project.song.tracks.len())),
+                    (2, format!("Groups ({})", project.song.groups.len())),
+                    (3, format!("Returns ({})", project.song.returns.len())),
                 ];
-                for (code, label, accent) in filters {
+                for (code, label) in filters {
                     if pill_toggle(
                         ui,
-                        label,
+                        &label,
                         cx.state.mixer_bank_filter == code,
-                        accent,
                         "Filter console banks",
                     )
-                    .clicked()
+                    .tab_pressed()
                     {
                         cx.state.mixer_bank_filter = code;
                         cx.state.mixer_table_mode = false;
@@ -97,8 +83,8 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                 if solo_count > 0
                     && led_button(
                         ui,
-                        &format!("CLEAR SOLO ({solo_count})"),
-                        true,
+                        &format!("Clear Solo ({solo_count})"),
+                        false,
                         theme::SIG_HOT,
                         Vec2::new(112.0, 20.0),
                         "Clear all transient channel solos",
@@ -113,7 +99,6 @@ pub(super) fn mixer(ui: &mut Ui, cx: &mut Cx<'_>) {
                         ui,
                         "Params Table",
                         cx.state.mixer_table_mode,
-                        theme::ACCENT_CYAN,
                         "Inspect all raw mixer parameter targets in table form",
                     )
                     .clicked()
@@ -328,7 +313,7 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
 
     let strip_h = desc.height;
     let inner_w = STRIP_WIDTH - 12.0;
-    let fader_h = (strip_h - UPPER_BAY_HEIGHT - 56.0).clamp(160.0, 340.0);
+    let fader_h = (strip_h - UPPER_BAY_HEIGHT - 62.0).clamp(160.0, 560.0);
 
     let frame = egui::Frame::new()
         .fill(if is_selected {
@@ -339,7 +324,7 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
         .stroke(Stroke::new(
             if is_selected { 1.4_f32 } else { 1.0_f32 },
             if is_selected {
-                desc.accent
+                theme::SELECTION
             } else {
                 theme::BORDER_SUBTLE
             },
@@ -360,6 +345,7 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                         Vec2::new(inner_w, UPPER_BAY_HEIGHT),
                         Layout::top_down(Align::Center),
                         |ui| {
+                            ui.set_min_height(UPPER_BAY_HEIGHT);
                             ui.spacing_mut().item_spacing.y = 5.0;
 
                             // 1. Top 4px color bar
@@ -373,16 +359,33 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                             }
 
                             // 2. Channel name & output routing pill
-                            let name_resp = ui.add(
-                                egui::Label::new(
-                                    RichText::new(desc.name)
-                                        .strong()
-                                        .size(12.0)
-                                        .color(theme::TEXT_PRIMARY),
-                                )
-                                .truncate()
-                                .sense(Sense::click()),
+                            // Names get two centred lines before ellipsizing, inside a fixed
+                            // band so every strip keeps the same vertical datum.
+                            let mut job = egui::text::LayoutJob::single_section(
+                                desc.name.to_owned(),
+                                egui::TextFormat {
+                                    font_id: FontId::proportional(11.5),
+                                    color: theme::TEXT_PRIMARY,
+                                    ..Default::default()
+                                },
                             );
+                            job.wrap = egui::text::TextWrapping {
+                                max_width: inner_w - 4.0,
+                                max_rows: 2,
+                                break_anywhere: false,
+                                overflow_character: Some('…'),
+                            };
+                            job.halign = Align::Center;
+                            let galley = ui.fonts_mut(|fonts| fonts.layout_job(job));
+                            let (name_rect, name_resp) =
+                                ui.allocate_exact_size(Vec2::new(inner_w, 30.0), Sense::click());
+                            ui.painter().galley(
+                                // Top-aligned so one- and two-line names share a baseline.
+                                Pos2::new(name_rect.center().x, name_rect.top() + 1.0),
+                                galley,
+                                theme::TEXT_PRIMARY,
+                            );
+                            let name_resp = name_resp.on_hover_text(desc.name);
                             if name_resp.clicked()
                                 && let Some(idx) = level_idx
                             {
@@ -419,7 +422,7 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                             let pan_out = rotary_knob(
                                 ui,
                                 cx.state,
-                                &format!("mix-pan-{}", desc.identity),
+                                &preview_key::channel_pan(&desc.identity),
                                 "PAN",
                                 pan_val,
                                 -1.0,
@@ -447,16 +450,19 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 4.0;
                                 let btn_w = ((inner_w - 8.0) / 3.0).max(24.0);
+                                let mute_key = preview_key::channel_mute(&desc.identity);
+                                let muted = cx.state.flag(&mute_key, desc.channel.mute);
                                 if led_button(
                                     ui,
                                     "M",
-                                    desc.channel.mute,
-                                    theme::SIG_CLIP,
+                                    muted,
+                                    theme::MUTE_LIT,
                                     Vec2::new(btn_w, 20.0),
                                     "Durable source Mute · m",
                                 )
                                 .clicked()
                                 {
+                                    cx.state.hold_flag(&mute_key, !muted);
                                     if let Some(idx) = level_idx {
                                         cx.send(Action::SelectMixerParameter(idx));
                                     }
@@ -516,7 +522,7 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                         let fader_out = vertical_fader(
                             ui,
                             cx.state,
-                            &format!("mix-fader-{}", desc.identity),
+                            &preview_key::channel_level(&desc.identity),
                             desc.channel.level_db,
                             -60.0,
                             12.0,
@@ -564,13 +570,8 @@ fn channel_strip(ui: &mut Ui, cx: &mut Cx<'_>, desc: StripDescriptor<'_>) {
                                     ))
                                     .monospace()
                                     .size(10.5)
-                                    .color(
-                                        if live_db > 0.05 {
-                                            theme::SIG_HOT
-                                        } else {
-                                            theme::TEXT_PRIMARY
-                                        },
-                                    ),
+                                    // Gain above unity is a choice, not a fault.
+                                    .color(theme::TEXT_PRIMARY),
                                 );
                             });
                         })
@@ -612,13 +613,15 @@ fn inserts_box(ui: &mut Ui, cx: &mut Cx<'_>, inserts: &[Processor], level_idx: O
                 } else {
                     for proc in inserts.iter().take(3) {
                         let color = theme::processor_color(proc.kind);
+                        let bypass_key = preview_key::processor_bypass(&proc.id);
+                        let durable = cx.state.flag(&bypass_key, proc.bypass);
                         let bypassed = cx
                             .app
                             .audition_plan
                             .transient_bypass
                             .get(&proc.id)
                             .copied()
-                            .unwrap_or(proc.bypass);
+                            .unwrap_or(durable);
                         let (rect, resp) = ui.allocate_exact_size(
                             Vec2::new(ui.available_width(), 14.0),
                             Sense::click(),
@@ -658,6 +661,7 @@ fn inserts_box(ui: &mut Ui, cx: &mut Cx<'_>, inserts: &[Processor], level_idx: O
                                 .interact_pointer_pos()
                                 .is_some_and(|pos| led_zone.contains(pos));
                             if clicked_led {
+                                cx.state.hold_flag(&bypass_key, !durable);
                                 cx.send(Action::ToggleProcessorDurableBypass {
                                     processor: proc.id.clone(),
                                 });
@@ -760,26 +764,12 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
     let selected_idx = clamp_index(app.selected_mixer_parameter, app.mixer_parameters.len());
     let is_selected = level_idx == Some(selected_idx);
 
-    let (peak, avg) = app
-        .mix_channel_indexes
-        .get("master")
-        .copied()
-        .filter(|&i| i < app.telemetry.engine.channel_count)
-        .map_or(
-            (
-                app.telemetry.engine.current_peak,
-                app.telemetry.engine.current_peak * 0.65,
-            ),
-            |i| {
-                let m = app.telemetry.engine.channel_activity[i];
-                (m.current_peak, m.average)
-            },
-        );
+    let (peak, avg) = master_levels(app);
     let peak_db = theme::amp_to_dbfs(peak);
     let headroom = (0.0 - peak_db).max(0.0);
 
     let inner_w = MASTER_WIDTH - 12.0;
-    let fader_h = (strip_h - UPPER_BAY_HEIGHT - 56.0).clamp(160.0, 340.0);
+    let fader_h = (strip_h - UPPER_BAY_HEIGHT - 62.0).clamp(160.0, 560.0);
 
     egui::Frame::new()
         .fill(Color32::from_rgb(33, 36, 44))
@@ -788,7 +778,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
             if is_selected {
                 theme::ACCENT_AMBER
             } else {
-                with_alpha(theme::ACCENT_AMBER, 0.55)
+                theme::BORDER_STRONG
             },
         ))
         .corner_radius(5.0)
@@ -804,17 +794,19 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                     Vec2::new(inner_w, UPPER_BAY_HEIGHT),
                     Layout::top_down(Align::Center),
                     |ui| {
+                        ui.set_min_height(UPPER_BAY_HEIGHT);
                         ui.spacing_mut().item_spacing.y = 5.0;
 
                         let (bar_rect, _) =
                             ui.allocate_exact_size(Vec2::new(inner_w, 4.0), Sense::hover());
-                        ui.painter().rect_filled(bar_rect, 2.0, theme::ACCENT_AMBER);
+                        ui.painter()
+                            .rect_filled(bar_rect, 2.0, theme::TEXT_SECONDARY);
 
                         ui.label(
                             RichText::new("MASTER")
                                 .strong()
                                 .size(12.5)
-                                .color(theme::ACCENT_AMBER),
+                                .color(theme::TEXT_PRIMARY),
                         );
                         ui.label(
                             RichText::new("STEREO OUT")
@@ -844,25 +836,25 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                                             format!("{} dB", theme::format_dbfs(peak)),
                                             if peak >= 0.99 {
                                                 theme::SIG_CLIP
-                                            } else if peak_db >= -6.0 {
+                                            } else if peak_db >= -1.0 {
                                                 theme::SIG_HOT
                                             } else {
-                                                theme::SIG_NOMINAL
+                                                theme::TEXT_PRIMARY
                                             },
                                         ),
                                         (
-                                            "RMS",
+                                            "AVG",
                                             format!("{} dB", theme::format_dbfs(avg)),
                                             theme::TEXT_SECONDARY,
                                         ),
                                         (
-                                            "HEADRM",
+                                            "HEADROOM",
                                             if peak > 0.001 {
                                                 format!("+{headroom:.1} dB")
                                             } else {
                                                 "—".to_owned()
                                             },
-                                            theme::ACCENT_CYAN,
+                                            theme::TEXT_SECONDARY,
                                         ),
                                         (
                                             "RATE",
@@ -902,7 +894,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                             Vec2::new(inner_w, 22.0),
                             "Open Master bus inserts in FX Rack",
                         )
-                        .clicked()
+                        .tab_pressed()
                         {
                             cx.state.processing_owner_filter = Some("master".to_owned());
                             cx.send(Action::ShowView(View::Processing));
@@ -923,11 +915,11 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                     let fader_out = vertical_fader(
                         ui,
                         cx.state,
-                        "mix-fader-master",
+                        &preview_key::channel_level("master"),
                         master_level_db,
                         -60.0,
                         12.0,
-                        theme::ACCENT_AMBER,
+                        theme::TEXT_SECONDARY,
                         fader_w,
                         fader_h,
                     );
@@ -958,7 +950,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                 // Compact recessed Master dB readout (never stretches vertically!)
                 let readout_resp = egui::Frame::new()
                     .fill(theme::BG_WELL)
-                    .stroke(Stroke::new(1.0_f32, with_alpha(theme::ACCENT_AMBER, 0.45)))
+                    .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
                     .corner_radius(3.0)
                     .inner_margin(egui::Margin::symmetric(4, 3))
                     .show(ui, |ui| {
@@ -969,7 +961,7 @@ fn master_strip(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, strip_h: f32) {
                                     .monospace()
                                     .size(11.0)
                                     .strong()
-                                    .color(theme::ACCENT_AMBER),
+                                    .color(theme::TEXT_PRIMARY),
                             );
                         });
                     })
@@ -1066,7 +1058,7 @@ fn mixer_table(ui: &mut Ui, cx: &mut Cx<'_>) {
                     theme::ACCENT_AMBER,
                 ),
                 format!(
-                    "{} .. {}",
+                    "{} – {}",
                     theme::format_compact_value(spec.minimum, spec.unit),
                     theme::format_compact_value(spec.maximum, spec.unit)
                 )

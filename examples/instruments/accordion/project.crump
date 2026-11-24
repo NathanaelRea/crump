@@ -6,7 +6,7 @@ project "Accordion" {
   sample_rate 48000
   render_tail 2s
   song {
-    tempo 120bpm
+    tempo 170.5bpm
     meter 4/4
     end 8bar
     pattern phrase 8bar {
@@ -37,8 +37,9 @@ project "Accordion" {
       note 28beat C5 3.5beat 0.62
       note 28beat E5 3.5beat 0.62
     }
-    track instrument "Accordion" instrument accordion level 0db pan 0 {
+    track instrument "Accordion" instrument accordion level 6.6db pan -0.93 {
       clip phrase pattern phrase start 0bar duration 8bar mode once
     }
+    master level -2.2db
   }
 }

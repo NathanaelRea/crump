@@ -137,7 +137,9 @@ pub(super) fn load_history(
     let result = (|| {
         let store = HistoryStore::open(&root)?;
         let active = store.active_state()?;
-        let entries = store.list()?;
+        // Newest first: the session lists History the way it is read, latest change on top.
+        let mut entries = store.list()?;
+        entries.reverse();
         let active_revision = active.as_ref().map(|state| state.active_revision.clone());
         let needs_active_bundle = active_revision != previous_revision
             || (active_revision.is_some() && !has_active_bundle);

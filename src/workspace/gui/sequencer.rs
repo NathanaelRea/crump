@@ -24,10 +24,9 @@ fn edit_mode_pills(ui: &mut Ui, cx: &mut Cx<'_>) {
         ui,
         "Piano Roll",
         cx.app.view == View::EventGrid,
-        theme::ACCENT_AMBER,
         "Pattern Piano Roll & Velocity Editor · 4",
     )
-    .clicked()
+    .tab_pressed()
     {
         cx.send(Action::ShowView(View::EventGrid));
     }
@@ -35,10 +34,9 @@ fn edit_mode_pills(ui: &mut Ui, cx: &mut Cx<'_>) {
         ui,
         "Automation",
         cx.app.view == View::Automation,
-        theme::ACCENT_CYAN,
         "Interactive 2D Automation Curve Editor · 8",
     )
-    .clicked()
+    .tab_pressed()
     {
         cx.send(Action::ShowView(View::Automation));
     }
@@ -115,7 +113,9 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
                     app.selected_pattern,
                     Action::CycleContext,
                 );
-                ui.label(
+                widgets::fixed_label(
+                    ui,
+                    96.0,
                     RichText::new(format!("{} · {} ev", pattern.span, pattern.events.len()))
                         .monospace()
                         .size(10.5)
@@ -169,11 +169,13 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
                 {
                     cx.state.roll_zoom = (cx.state.roll_zoom / 1.35).clamp(1.0, 4.0);
                 }
-                ui.label(
-                    RichText::new(format!("{:.0}%", cx.state.roll_zoom * 100.0))
-                        .monospace()
-                        .size(10.0)
-                        .color(theme::TEXT_SECONDARY),
+                let (zoom_rect, _) = ui.allocate_exact_size(Vec2::new(36.0, 14.0), Sense::hover());
+                ui.painter().text(
+                    zoom_rect.center(),
+                    Align2::CENTER_CENTER,
+                    format!("{:.0}%", cx.state.roll_zoom * 100.0),
+                    FontId::monospace(10.0),
+                    theme::TEXT_SECONDARY,
                 );
                 if led_button(
                     ui,
@@ -190,36 +192,31 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
 
                 ui.separator();
 
-                if pill_toggle(
-                    ui,
-                    "Loop",
-                    is_looping_pattern,
-                    theme::ACCENT_AMBER,
-                    "Loop this Pattern · L",
-                )
-                .clicked()
-                {
+                if pill_toggle(ui, "Loop", is_looping_pattern, "Loop this Pattern · L").clicked() {
                     cx.send(Action::TogglePatternLoop);
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if pill_toggle(
-                        ui,
-                        "Event List",
-                        cx.state.event_table_open,
-                        theme::ACCENT_CYAN,
-                        "Toggle tabular event inspector",
-                    )
-                    .clicked()
+                    if widgets::room(ui, 86.0)
+                        && pill_toggle(
+                            ui,
+                            "Event List",
+                            cx.state.event_table_open,
+                            "Toggle tabular event inspector",
+                        )
+                        .clicked()
                     {
                         cx.state.event_table_open = !cx.state.event_table_open;
                     }
                     if let Some(ev) = pattern.events.get(selected) {
-                        ui.label(
-                            RichText::new(event_compact_summary(ev))
-                                .monospace()
-                                .size(10.5)
-                                .color(theme::ACCENT_AMBER),
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(event_compact_summary(ev, project.song.meter))
+                                    .monospace()
+                                    .size(10.5)
+                                    .color(theme::TEXT_SECONDARY),
+                            )
+                            .truncate(),
                         );
                     }
                 });
@@ -251,12 +248,37 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
         )
         .show_inside(ui, |ui| {
             let total_h = ui.available_height().max(260.0);
-            let vel_h = (total_h * 0.27).clamp(90.0, 148.0);
-            let roll_h = (total_h - vel_h - 8.0).max(160.0);
+            // A drum pattern has a fixed kit of lanes: size the grid to them (plus ruler and a
+            // slim hint strip) and give the slack to the velocity lane instead of an empty well.
+            let drum_only = pattern
+                .events
+                .iter()
+                .any(|e| matches!(e, PatternEvent::Hit { .. }))
+                && !pattern
+                    .events
+                    .iter()
+                    .any(|e| matches!(e, PatternEvent::Note { .. }));
+            // Every row keeps a readable minimum height; when they outgrow the pane it scrolls
+            // vertically instead of clipping the lowest notes or lanes.
+            let row_count = build_roll_rows(pattern).0.len();
+            let (roll_h, vel_h) = if drum_only {
+                let lanes = row_count.max(4);
+                let lane_h = if lanes <= 4 { 64.0 } else { 44.0 };
+                let min_roll = 24.0 + lanes as f32 * lane_h + 40.0;
+                // The velocity lane takes a fixed share; the grid's lanes grow into the rest
+                // rather than leaving an empty band between them.
+                let roll_h = (total_h - (total_h * 0.27).clamp(90.0, 240.0) - 8.0)
+                    .clamp(min_roll, 24.0 + lanes as f32 * 72.0 + 40.0);
+                (roll_h, (total_h - roll_h - 8.0).max(90.0))
+            } else {
+                let vel_h = (total_h * 0.27).clamp(90.0, 148.0);
+                let min_roll = 24.0 + row_count as f32 * 15.0 + 40.0;
+                ((total_h - vel_h - 8.0).max(160.0).max(min_roll), vel_h)
+            };
             let zoom = cx.state.roll_zoom.clamp(1.0, 4.0);
             let canvas_w = (ui.available_width().max(320.0) * zoom).max(320.0);
 
-            egui::ScrollArea::horizontal()
+            egui::ScrollArea::both()
                 .id_salt("piano-roll-hscroll")
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
@@ -271,7 +293,7 @@ pub(super) fn event_grid(ui: &mut Ui, cx: &mut Cx<'_>) {
         });
 }
 
-fn event_compact_summary(ev: &PatternEvent) -> String {
+fn event_compact_summary(ev: &PatternEvent, meter: crate::time::Meter) -> String {
     match ev {
         PatternEvent::Note {
             at,
@@ -282,7 +304,7 @@ fn event_compact_summary(ev: &PatternEvent) -> String {
         } => format!(
             "{} @ {} len {} vel {:.0}%",
             crate::model::format_pitch(*pitch),
-            at,
+            theme::format_bar_beat(at.as_f64(), meter),
             duration,
             velocity * 100.0
         ),
@@ -294,7 +316,7 @@ fn event_compact_summary(ev: &PatternEvent) -> String {
         } => format!(
             "{} @ {} vel {:.0}%",
             drum_voice_label(*voice),
-            at,
+            theme::format_bar_beat(at.as_f64(), meter),
             velocity * 100.0
         ),
         PatternEvent::Sample {
@@ -305,7 +327,7 @@ fn event_compact_summary(ev: &PatternEvent) -> String {
             ..
         } => format!(
             "{mapping} @ {} len {} vel {:.0}%",
-            at,
+            theme::format_bar_beat(at.as_f64(), meter),
             duration,
             velocity * 100.0
         ),
@@ -362,31 +384,36 @@ fn build_roll_rows(pattern: &Pattern) -> (Vec<RollRow>, bool) {
                 max_p = max_p.max(*pitch);
             }
         }
-        let mut lo = min_p.saturating_sub(3).max(24);
-        let mut hi = max_p.saturating_add(4).min(96);
-        while hi.saturating_sub(lo) < 17 {
-            if lo > 24 {
+        // Padding stays within C1..C7, but every authored pitch is always shown, however
+        // low or high (MIDI 0..127).
+        let floor = min_p.min(24);
+        let ceiling = max_p.clamp(96, 127);
+        let mut lo = min_p.saturating_sub(3).max(floor);
+        let mut hi = max_p.saturating_add(4).min(ceiling);
+        while hi.saturating_sub(lo) < 17 && (lo > floor || hi < ceiling) {
+            if lo > floor {
                 lo -= 1;
             }
-            if hi < 96 {
+            if hi < ceiling {
                 hi += 1;
             }
         }
         ((lo..=hi).rev().map(RollRow::Pitch).collect(), false)
     } else if has_hits {
+        // Kit order, matching the drum pad bank: Kick, Snare, Hat, Clap.
         let mut rows = vec![
             RollRow::Drum(
-                DrumVoice::Clap,
-                drum_voice_label(DrumVoice::Clap).to_owned(),
+                DrumVoice::Kick,
+                drum_voice_label(DrumVoice::Kick).to_owned(),
             ),
-            RollRow::Drum(DrumVoice::Hat, drum_voice_label(DrumVoice::Hat).to_owned()),
             RollRow::Drum(
                 DrumVoice::Snare,
                 drum_voice_label(DrumVoice::Snare).to_owned(),
             ),
+            RollRow::Drum(DrumVoice::Hat, drum_voice_label(DrumVoice::Hat).to_owned()),
             RollRow::Drum(
-                DrumVoice::Kick,
-                drum_voice_label(DrumVoice::Kick).to_owned(),
+                DrumVoice::Clap,
+                drum_voice_label(DrumVoice::Clap).to_owned(),
             ),
         ];
         for ev in &pattern.events {
@@ -477,9 +504,9 @@ fn piano_roll_canvas(
         theme::TEXT_MUTED,
     );
 
-    // Crisp clamped row heights: drum lanes are compact 44px step rows (never 90px pillars!)
+    // Clamped row heights: drum lanes grow with the pane but never into tall pillars.
     let row_h = if is_drum_grid {
-        (grid_rect.height() / rows.len().max(4) as f32).clamp(36.0, 52.0)
+        (grid_rect.height() / rows.len().max(4) as f32).clamp(36.0, 72.0)
     } else {
         (grid_rect.height() / rows.len().max(1) as f32).clamp(15.0, 34.0)
     };
@@ -564,7 +591,7 @@ fn piano_roll_canvas(
                 }
             }
             RollRow::Drum(voice, _) => {
-                let accent = theme::track_color(i);
+                let accent = theme::drum_voice_color(*voice);
                 let hit_count = pattern
                     .events
                     .iter()
@@ -641,15 +668,19 @@ fn piano_roll_canvas(
             Pos2::new(grid_rect.left(), active_rows_bottom),
             grid_rect.max,
         );
-        painter.rect_filled(lower_grid, 0.0, with_alpha(theme::BG_WELL, 0.75));
+        painter.rect_filled(lower_grid, 0.0, theme::BG_WELL);
         // Subtle step-matrix legend / author hint
-        painter.text(
-            Pos2::new(lower_grid.left() + 12.0, lower_grid.top() + 14.0),
-            Align2::LEFT_TOP,
-            "Double-click any step cell to add a Hit or Note · Drag to move · Right-click for options",
-            FontId::proportional(10.5),
-            with_alpha(theme::TEXT_MUTED, 0.72),
-        );
+        if lower_grid.height() >= 24.0 {
+            let hint = painter.layout_no_wrap(
+                "Double-click any step cell to add a Hit or Note · Drag to move · Right-click for options"
+                    .to_owned(),
+                FontId::proportional(10.5),
+                theme::TEXT_MUTED,
+            );
+            let hint_rect = Align2::CENTER_CENTER.anchor_size(lower_grid.center(), hint.size());
+            painter.rect_filled(hint_rect.expand2(Vec2::new(12.0, 6.0)), 4.0, theme::BG_WELL);
+            painter.galley(hint_rect.min, hint, theme::TEXT_MUTED);
+        }
     }
 
     painter.vline(
@@ -681,7 +712,17 @@ fn piano_roll_canvas(
         } else {
             theme::GRID_SUB
         };
-        painter.vline(x, grid_rect.y_range(), Stroke::new(1.0_f32, color));
+        // Drum grids end their lines at the last lane; below it is plain canvas.
+        let line_bottom = if is_drum_grid {
+            active_rows_bottom.max(grid_rect.top())
+        } else {
+            grid_rect.bottom()
+        };
+        painter.vline(
+            x,
+            grid_rect.top()..=line_bottom,
+            Stroke::new(1.0_f32, color),
+        );
         if is_bar {
             let bar_num = (q / bar_len).round() as u32 + 1;
             painter.vline(
@@ -698,10 +739,11 @@ fn piano_roll_canvas(
             );
         } else if is_beat && grid_rect.width() / span as f32 >= 28.0 {
             let beat_in_bar = ((q % bar_len).round() as u32) + 1;
+            let bar_num = (q / bar_len).floor() as u32 + 1;
             painter.text(
                 Pos2::new(x + 3.0, ruler_rect.center().y),
                 Align2::LEFT_CENTER,
-                format!(".{beat_in_bar}"),
+                format!("{bar_num}.{beat_in_bar}"),
                 FontId::monospace(9.0),
                 theme::TEXT_MUTED,
             );
@@ -723,7 +765,7 @@ fn piano_roll_canvas(
                 voice, velocity, ..
             } => {
                 let vel = *velocity as f32;
-                let base_color = theme::track_color(row_idx);
+                let base_color = theme::drum_voice_color(*voice);
                 let cx_hit = x_of(at_q);
                 let step_w = (x_of(at_q + 0.25) - cx_hit).clamp(14.0, 28.0);
                 let pad_h = (row_h - 10.0).clamp(18.0, 28.0);
@@ -760,11 +802,7 @@ fn piano_roll_canvas(
                         Pos2::new(c.x, c.y + r),
                         Pos2::new(c.x - r, c.y),
                     ],
-                    if idx == selected {
-                        theme::TEXT_PRIMARY
-                    } else {
-                        theme::BG_WELL
-                    },
+                    theme::BG_WELL,
                     Stroke::NONE,
                 ));
                 painter.rect_stroke(
@@ -773,7 +811,7 @@ fn piano_roll_canvas(
                     Stroke::new(
                         if idx == selected { 1.8_f32 } else { 1.0_f32 },
                         if idx == selected {
-                            theme::TEXT_PRIMARY
+                            theme::SELECTION
                         } else {
                             with_alpha(theme::SEAM_DARK, 0.7)
                         },
@@ -1177,7 +1215,7 @@ fn piano_roll_canvas(
     response.context_menu(|ui| {
         if let Some(ev) = pattern.events.get(selected) {
             ui.label(
-                RichText::new(event_compact_summary(ev))
+                RichText::new(event_compact_summary(ev, project.song.meter))
                     .monospace()
                     .size(10.0)
                     .color(theme::ACCENT_AMBER),
@@ -1391,18 +1429,10 @@ fn velocity_and_locks_lane(
         let y_bot = lane.bottom() - pad_bot;
         let y_top = y_bot - vel.clamp(0.0, 1.0) * stem_h;
         let color = if idx == selected {
-            theme::TEXT_PRIMARY
+            theme::SELECTION
         } else {
             match ev {
-                PatternEvent::Hit { voice, .. } => {
-                    let lane_i = match voice {
-                        DrumVoice::Clap => 0,
-                        DrumVoice::Hat => 1,
-                        DrumVoice::Snare => 2,
-                        DrumVoice::Kick => 3,
-                    };
-                    theme::track_color(lane_i)
-                }
+                PatternEvent::Hit { voice, .. } => theme::drum_voice_color(*voice),
                 PatternEvent::Sample { .. } => theme::ACCENT_CYAN,
                 PatternEvent::Note { .. } => theme::ACCENT_AMBER,
             }
@@ -1537,7 +1567,9 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
 
                 // "+ New Lane" menu button for creating automation on any automatable song parameter
                 ui.menu_button(
-                    RichText::new("+ Lane").size(11.0).color(theme::SIG_NOMINAL),
+                    RichText::new("+ Lane")
+                        .size(11.0)
+                        .color(theme::TEXT_PRIMARY),
                     |ui| {
                         ui.set_min_width(220.0);
                         ui.label(
@@ -1661,19 +1693,22 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if pill_toggle(
-                        ui,
-                        "Point List",
-                        cx.state.automation_table_open,
-                        theme::ACCENT_CYAN,
-                        "Toggle automation point table",
-                    )
-                    .clicked()
+                    if widgets::room(ui, 86.0)
+                        && pill_toggle(
+                            ui,
+                            "Point List",
+                            cx.state.automation_table_open,
+                            "Toggle automation point table",
+                        )
+                        .clicked()
                     {
                         cx.state.automation_table_open = !cx.state.automation_table_open;
                     }
-                    if let Some(val) = &snapshot {
-                        ui.label(
+                    let readout_fits = widgets::room(ui, 100.0);
+                    if let Some(val) = snapshot.as_ref().filter(|_| readout_fits) {
+                        widgets::fixed_label(
+                            ui,
+                            96.0,
                             RichText::new(format!(
                                 "EFF {}",
                                 theme::format_compact_value(val.effective, val.unit)
@@ -1681,9 +1716,9 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                             .monospace()
                             .size(10.5)
                             .strong()
-                            .color(theme::ACCENT_CYAN),
+                            .color(theme::TEXT_SECONDARY),
                         );
-                    } else if let Some(s) = spec {
+                    } else if let Some(s) = spec.filter(|_| readout_fits) {
                         ui.label(
                             RichText::new(format!(
                                 "BASE {}",
@@ -1723,14 +1758,26 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 6.0;
                 if let Some(pt) = lane.points.get(selected) {
-                    ui.label(
+                    widgets::fixed_label(
+                        ui,
+                        110.0,
                         RichText::new(format!("POINT {}", pt.id))
                             .size(10.5)
                             .strong()
-                            .color(theme::ACCENT_AMBER),
+                            .color(theme::TEXT_SECONDARY),
                     );
-                    ui.label(
-                        RichText::new(format!("@ {}  ·  {}", pt.at, pt.value))
+                    widgets::fixed_label(
+                        ui,
+                        170.0,
+                        RichText::new(format!(
+                            "@ {}  ·  {}",
+                            theme::format_bar_beat(
+                                pt.at.as_f64(),
+                                project.song.meter
+                            ),
+                            unit.parse_value(&pt.value)
+                                .map_or_else(|_| pt.value.clone(), |v| theme::format_compact_value(v, unit))
+                        ))
                             .monospace()
                             .size(11.0)
                             .color(theme::TEXT_PRIMARY),
@@ -1768,7 +1815,6 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                             ui,
                             label,
                             is_active,
-                            theme::ACCENT_CYAN,
                             "Set outgoing curve shape (or drag diamond midpoint handle)",
                         )
                         .clicked()
@@ -1781,16 +1827,20 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                         }
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if lane.points.len() > 1
-                            && pt.at != MusicalTime::ZERO
-                            && led_button(
-                                ui,
-                                "Delete",
-                                false,
-                                theme::SIG_CLIP,
-                                Vec2::new(54.0, 22.0),
-                                "Delete selected automation point",
-                            )
+                        // Always in place, disabled when the point cannot go, so Exact… never moves.
+                        let deletable = lane.points.len() > 1 && pt.at != MusicalTime::ZERO;
+                        if ui
+                            .add_enabled_ui(deletable, |ui| {
+                                led_button(
+                                    ui,
+                                    "Delete",
+                                    false,
+                                    theme::SIG_CLIP,
+                                    Vec2::new(54.0, 22.0),
+                                    "Delete selected automation point",
+                                )
+                            })
+                            .inner
                             .clicked()
                         {
                             cx.send(Action::DeleteAutomationPoint {
@@ -1802,7 +1852,6 @@ pub(super) fn automation(ui: &mut Ui, cx: &mut Cx<'_>) {
                             ui,
                             "Exact…",
                             false,
-                            theme::ACCENT_AMBER,
                             "Edit exact value · Enter",
                         )
                         .clicked()
@@ -2010,21 +2059,54 @@ fn automation_curve_canvas(
                 Pos2::new(x0, plot.top() + 2.0),
                 Pos2::new(x1, plot.bottom() - 2.0),
             );
-            painter.rect_filled(ghost, 2.0, with_alpha(tr_col, 0.06));
+            // A neutral lift marks where the owning track plays; the track hue would tint the
+            // whole lane.
+            painter.rect_filled(ghost, 2.0, with_alpha(theme::TEXT_PRIMARY, 0.025));
             painter.rect_stroke(
                 ghost,
                 2.0,
-                Stroke::new(1.0_f32, with_alpha(tr_col, 0.14)),
+                Stroke::new(1.0_f32, with_alpha(tr_col, 0.10)),
                 StrokeKind::Inside,
             );
         }
     }
 
     // Horizontal physical-unit reference gridlines & cleanly inset Y-axis labels
-    for i in 0..=4 {
-        let frac = i as f32 / 4.0;
-        let y = y_bot_val - frac * y_span;
-        let v = theme::norm_to_value(frac, min_val, max_val, unit);
+    // The range ends are labelled exactly; interior references are rounded values placed at
+    // their true positions, so the ruler reads like a scale rather than arbitrary numbers.
+    let mut ruler: Vec<f64> = vec![min_val, max_val];
+    let interior: Vec<f64> = if matches!(unit, Unit::Hertz) {
+        [
+            20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10_000.0,
+        ]
+        .into_iter()
+        .filter(|v| *v > min_val && *v < max_val)
+        .collect()
+    } else {
+        let raw = (max_val - min_val) / 4.0;
+        let mag = 10_f64.powf(raw.abs().max(1e-9).log10().floor());
+        let step = [1.0, 2.0, 2.5, 5.0, 10.0]
+            .into_iter()
+            .map(|m| m * mag)
+            .find(|s| *s >= raw)
+            .unwrap_or(10.0 * mag);
+        let mut v = (min_val / step).floor() * step + step;
+        let mut out = Vec::new();
+        while v < max_val - 1e-9 && out.len() < 8 {
+            out.push(v);
+            v += step;
+        }
+        out
+    };
+    let y_of_val = |v: f64| y_bot_val - theme::value_to_norm(v, min_val, max_val, unit) * y_span;
+    for v in interior {
+        let y = y_of_val(v);
+        if ruler.iter().all(|r| (y_of_val(*r) - y).abs() >= 32.0) {
+            ruler.push(v);
+        }
+    }
+    for v in ruler {
+        let y = y_of_val(v);
         painter.hline(plot.x_range(), y, Stroke::new(1.0_f32, theme::GRID_BEAT));
         painter.text(
             Pos2::new(plot.left() - 6.0, y),
@@ -2037,7 +2119,7 @@ fn automation_curve_canvas(
 
     // Vertical bar gridlines + bar numerals (bottom band) + Locator pills (top band, ZERO collision!)
     let bar_px = (bar_len / song_end) as f32 * plot.width();
-    let label_every = (52.0 / bar_px.max(1.0)).ceil().max(1.0) as u32;
+    let label_every = theme::bar_label_interval(52.0 / bar_px.max(1.0));
     let total_bars = (song_end / bar_len).ceil() as u32;
     for bar in 0..=total_bars {
         let q = f64::from(bar) * bar_len;
@@ -2045,16 +2127,37 @@ fn automation_curve_canvas(
             break;
         }
         let x = x_of(q);
-        painter.vline(x, plot.y_range(), Stroke::new(1.0_f32, theme::GRID_BAR));
+        let major = bar.is_multiple_of(label_every) || bar_px >= 24.0;
+        painter.vline(
+            x,
+            plot.y_range(),
+            Stroke::new(
+                1.0_f32,
+                if major {
+                    theme::GRID_BAR
+                } else {
+                    theme::GRID_SUB
+                },
+            ),
+        );
         if bar.is_multiple_of(label_every) {
             painter.vline(
                 x,
                 (bar_band.top() + 4.0)..=bar_band.bottom(),
                 Stroke::new(1.0_f32, theme::BORDER_STRONG),
             );
+            // A label that would run off the right edge hangs left of its tick instead.
+            let fits_right = x + 30.0 <= bar_band.right();
             painter.text(
-                Pos2::new(x + 4.0, bar_band.center().y),
-                Align2::LEFT_CENTER,
+                Pos2::new(
+                    if fits_right { x + 4.0 } else { x - 4.0 },
+                    bar_band.center().y,
+                ),
+                if fits_right {
+                    Align2::LEFT_CENTER
+                } else {
+                    Align2::RIGHT_CENTER
+                },
                 format!("{}", bar + 1),
                 FontId::monospace(10.0),
                 theme::TEXT_SECONDARY,
@@ -2066,20 +2169,32 @@ fn automation_curve_canvas(
         painter.vline(
             x,
             plot.y_range(),
-            Stroke::new(1.0_f32, with_alpha(theme::SIG_HOT, 0.30)),
+            Stroke::new(1.0_f32, with_alpha(theme::TEXT_MUTED, 0.14)),
         );
         let fw = (loc.name.len() as f32 * 5.6 + 10.0).clamp(28.0, 82.0);
+        // A flag that would run off the right edge hangs left of its line instead.
+        let flag_x = if x + fw > locator_band.right() - 2.0 {
+            x - fw
+        } else {
+            x
+        };
         let flag = Rect::from_min_size(
-            Pos2::new(x, locator_band.top() + 1.5),
+            Pos2::new(flag_x, locator_band.top() + 1.5),
             Vec2::new(fw, LOC_BAND_H - 3.0),
         );
-        painter.rect_filled(flag, 2.0, with_alpha(theme::SIG_HOT, 0.90));
+        // Neutral chip and muted tick: resting locators stay quiet beside clips and curves.
+        painter.rect_filled(flag, 2.5, theme::BG_CARD);
+        painter.rect_filled(
+            Rect::from_min_size(flag.left_top(), Vec2::new(2.5, flag.height())),
+            1.0,
+            theme::TEXT_MUTED,
+        );
         painter.text(
-            Pos2::new(flag.left() + 4.0, flag.center().y),
+            Pos2::new(flag.left() + 6.0, flag.center().y),
             Align2::LEFT_CENTER,
             &loc.name,
             FontId::proportional(9.0),
-            theme::BG_WELL,
+            theme::TEXT_SECONDARY,
         );
     }
 
@@ -2119,8 +2234,16 @@ fn automation_curve_canvas(
                 curve_pts.push(Pos2::new(x_of(q1), y_of(v1)));
             }
             AutomationInterpolation::Linear => {
-                curve_pts.push(Pos2::new(x_of(q0), y_of(v0)));
-                curve_pts.push(Pos2::new(x_of(q1), y_of(v1)));
+                // Playback interpolates linearly in value; on a log axis that is a curve, so
+                // sample it rather than drawing a screen-space chord.
+                let steps = 28;
+                for s in 0..=steps {
+                    let t = f64::from(s) / f64::from(steps);
+                    curve_pts.push(Pos2::new(
+                        x_of(q0 + t * (q1 - q0)),
+                        y_of(v0 + t * (v1 - v0)),
+                    ));
+                }
                 let mid_q = (q0 + q1) * 0.5;
                 let mid_v = (v0 + v1) * 0.5;
                 if (x_of(q1) - x_of(q0)) >= 28.0 {

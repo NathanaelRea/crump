@@ -347,8 +347,21 @@ pub fn set_parameter_target(
     value: f64,
 ) -> Result<CheckedReplacement, EditError> {
     let project = bundle.project.as_ref().ok_or(EditError::InvalidBase)?;
+    // An unauthored Master still has its final fader at 0 dB, with the authored range.
+    let unauthored_master = crate::model::ParameterSpec {
+        unit: Unit::Decibels,
+        minimum: -96.0,
+        maximum: 12.0,
+        base: 0.0,
+        automatable: true,
+        modulatable: true,
+    };
     let spec = project
         .parameter_spec(target)
+        .or_else(|| {
+            (matches!(target, ParameterTarget::Master) && project.song.master.is_none())
+                .then_some(unauthored_master)
+        })
         .ok_or_else(|| EditError::UnknownTarget(target.to_string()))?;
     if !value.is_finite() || !(spec.minimum..=spec.maximum).contains(&value) {
         return Err(EditError::OutOfRange {
@@ -395,6 +408,21 @@ pub fn set_parameter_target(
         }
     ) {
         return insert_channel_mute(bundle, project, target, value >= 0.5);
+    }
+    if matches!(target, ParameterTarget::Master) && project.song.master.is_none() {
+        // A Project without an authored Master runs it at 0 dB; the first level edit authors
+        // the Master line at the end of the Song block.
+        let (file, start, indentation) = block_insertion(bundle, &project.song.location, "Song")?;
+        return Ok(CheckedReplacement {
+            file,
+            start,
+            end: start,
+            expected: String::new(),
+            replacement: format!(
+                "{indentation}master level {}\n",
+                spec.unit.format_value(value)
+            ),
+        });
     }
     Err(EditError::UnknownTarget(target.to_string()))
 }

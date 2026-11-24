@@ -1,6 +1,6 @@
 # Native Audio, Revision Transitions, and MIDI
 
-Crump's audio path is native PipeWire on Linux. Playback and offline rendering share the same compiled schedule, Event ordering, sample-accurate control program, seeded voices, graph compiler, Node implementations, and mix graph. Ratatui is not involved in DSP.
+Crump's audio path is native PipeWire on Linux. Playback and offline rendering share the same compiled schedule, Event ordering, sample-accurate control program, seeded voices, graph compiler, Node implementations, and mix graph. The desktop client is not involved in DSP.
 
 ## Audio format and routing
 
@@ -26,7 +26,7 @@ crump --project ./song play --target mapping/kit/snare/drums --path mapping \
   --bypass drum_bus_comp --plan
 ```
 
-`play` compiles the exact Active Revision. In an interactive terminal, `Ctrl-C` is the only key that stops playback early; `q` and Escape do nothing. Native setup and first-callback waits are each bounded to 10 seconds; a backend error, premature stop/disconnect, or callback timeout exits as an operational failure instead of waiting indefinitely. The JSON result reports Active/Candidate identity, elapsed time, peak, callback count, late-callback count, processing errors, transition state, voice count, MIDI state, and dropped MIDI count.
+`play` compiles the exact Active Revision. Interrupt it with `Ctrl-C` to stop early; `--seconds` bounds it. Native setup and first-callback waits are each bounded to 10 seconds; a backend error, premature stop/disconnect, or callback timeout exits as an operational failure instead of waiting indefinitely. The JSON result reports Active/Candidate identity, elapsed time, peak, callback count, late-callback count, processing errors, transition state, voice count, MIDI state, and dropped MIDI count.
 
 The Production Workspace uses the same audition planner and adapter and can publish new Active runtimes while playing. `--plan` resolves, compiles, prerolls, and reports the complete audition inspection without opening audio.
 

@@ -5,10 +5,10 @@ use std::f32::consts::PI;
 
 use egui_extras::{Column, TableBuilder};
 
+use super::keymap::{DRUM_NOTES, KEYBOARD_NOTES};
 use super::theme::{self, with_alpha};
 use super::*;
 use crate::model::Unit;
-use crate::workspace::keymap::{DRUM_NOTES, KEYBOARD_NOTES};
 
 /// Workspace text with symbols egui's bundled fonts lack replaced by covered glyphs.
 pub(super) fn legible(text: &str) -> std::borrow::Cow<'_, str> {
@@ -96,7 +96,7 @@ pub(super) fn paint_dbfs_meter_vertical(painter: &egui::Painter, rect: Rect, pea
     painter.hline(
         inner.x_range(),
         zero_y.clamp(bar_top, inner.bottom()),
-        Stroke::new(0.8_f32, with_alpha(theme::ACCENT_AMBER, 0.35)),
+        Stroke::new(0.8_f32, with_alpha(theme::TEXT_SECONDARY, 0.35)),
     );
 
     for s in 0..segments {
@@ -108,9 +108,11 @@ pub(super) fn paint_dbfs_meter_vertical(painter: &egui::Painter, rect: Rect, pea
             Pos2::new(inner.left(), y_top),
             Pos2::new(inner.right(), y_bot),
         );
-        let base_color = if frac_high >= 0.86 {
+        // Colour zones follow the meter's own dBFS scale: red above 0 dBFS, amber above -6.
+        let frac_mid = (frac_low + frac_high) * 0.5;
+        let base_color = if frac_mid >= theme::dbfs_to_norm(0.0) {
             theme::SIG_CLIP
-        } else if frac_high >= 0.64 {
+        } else if frac_mid >= theme::dbfs_to_norm(-6.0) {
             theme::SIG_HOT
         } else {
             theme::SIG_NOMINAL
@@ -145,7 +147,7 @@ pub(super) fn dbfs_meter_horizontal(
     width: f32,
     show_readout: bool,
 ) -> egui::Response {
-    let readout_w = if show_readout { 44.0 } else { 0.0 };
+    let readout_w = if show_readout { 52.0 } else { 0.0 };
     let bar_w = (width - readout_w - if show_readout { 5.0 } else { 0.0 }).max(24.0);
     ui.allocate_ui_with_layout(
         Vec2::new(width, 14.0),
@@ -176,9 +178,11 @@ pub(super) fn dbfs_meter_horizontal(
                 let frac_high = (s + 1) as f32 / segments as f32;
                 let x0 = inner.left() + s as f32 * (seg_w + gap);
                 let x1 = (x0 + seg_w).min(inner.right());
-                let base_color = if frac_high >= 0.88 {
+                // Same dBFS zones as the vertical meter: red above 0 dBFS, amber above -6.
+                let frac_mid = (frac_low + frac_high) * 0.5;
+                let base_color = if frac_mid >= theme::dbfs_to_norm(0.0) {
                     theme::SIG_CLIP
-                } else if frac_high >= 0.65 {
+                } else if frac_mid >= theme::dbfs_to_norm(-6.0) {
                     theme::SIG_HOT
                 } else {
                     theme::SIG_NOMINAL
@@ -205,15 +209,24 @@ pub(super) fn dbfs_meter_horizontal(
                 );
             }
             if show_readout {
-                let db_text = theme::format_dbfs(peak);
+                // A fixed, right-aligned slot so `-4.2 dB` and `-inf dB` never move neighbours.
+                // Healthy levels read neutral; colour is kept for near-clip and clip.
+                let db_text = format!("{} dB", theme::format_dbfs(peak));
                 let color = if peak >= 0.99 {
                     theme::SIG_CLIP
-                } else if peak_db >= -6.0 {
+                } else if peak_db >= -1.0 {
                     theme::SIG_HOT
                 } else {
                     theme::TEXT_SECONDARY
                 };
-                ui.label(RichText::new(db_text).monospace().size(10.5).color(color));
+                let (slot, _) = ui.allocate_exact_size(Vec2::new(readout_w, 14.0), Sense::hover());
+                ui.painter().text(
+                    slot.right_center(),
+                    Align2::RIGHT_CENTER,
+                    db_text,
+                    FontId::monospace(10.5),
+                    color,
+                );
             }
             response
         },
@@ -315,8 +328,14 @@ pub(super) fn rotary_knob_modulated(
 ) -> ControlOutcome {
     let label_h = if label.is_empty() { 0.0 } else { 13.0 };
     let val_h = 13.0;
-    let total_w = (diameter + 24.0).max(58.0);
-    let total_h = label_h + diameter + 6.0 + val_h;
+    // Reserve the full painted extent (scale ticks and modulation halo) so nothing the dial
+    // draws can reach into the label above or the value readout below.
+    let radius = diameter * 0.42;
+    let arc_radius = radius + 4.2;
+    let outer = arc_radius + if diameter >= 36.0 { 6.5 } else { 4.4 };
+    let below = radius.max(outer * 0.71) + 2.0;
+    let total_w = (diameter + 24.0).max(58.0).max(outer * 2.0 + 4.0);
+    let total_h = label_h + 3.0 + outer + below + 3.0 + val_h;
     let (rect, response) =
         ui.allocate_exact_size(Vec2::new(total_w, total_h), Sense::click_and_drag());
 
@@ -353,9 +372,7 @@ pub(super) fn rotary_knob_modulated(
     }
 
     let painter = ui.painter();
-    let center = Pos2::new(rect.center().x, rect.top() + label_h + diameter * 0.5 + 2.0);
-    let radius = diameter * 0.42;
-    let arc_radius = radius + 4.2;
+    let center = Pos2::new(rect.center().x, rect.top() + label_h + 3.0 + outer);
 
     // 270° arc: start at 135° (bottom-left), sweep clockwise to 405° (bottom-right)
     let start_angle = 0.75 * PI;
@@ -685,28 +702,20 @@ pub(super) fn vertical_fader(
         let n = fader_db_to_norm(tick_db, min_db, max_db);
         let y = track_bot - n * track_span;
         let is_unity = tick_db.abs() < 0.01;
+        // Unity stands out by weight and brightness, not by a warning colour.
         let tick_color = if is_unity {
-            theme::ACCENT_AMBER
+            theme::TEXT_SECONDARY
         } else {
             theme::BORDER_STRONG
         };
-        let tick_len = if is_unity { 4.5 } else { 3.0 };
+        let tick_len = 4.0;
         painter.hline(
             (tick_right - tick_len)..=tick_right,
             y,
             Stroke::new(if is_unity { 1.4_f32 } else { 1.0_f32 }, tick_color),
         );
-        // Subtle unity line across right side of fader slot too
-        if is_unity {
-            painter.hline(
-                (cx + cap_w * 0.5 + 1.5)..=(rect.right() - 1.0),
-                y,
-                Stroke::new(1.2_f32, with_alpha(theme::ACCENT_AMBER, 0.7)),
-            );
-        }
-        if label_gutter > 0.0
-            && (is_unity || tick_db == 6.0 || tick_db == -12.0 || tick_db == -24.0)
-        {
+        // Every tick carries its value, so the scale never shows unexplained dashes.
+        if label_gutter > 0.0 {
             painter.text(
                 Pos2::new(tick_right - tick_len - 2.0, y),
                 Align2::RIGHT_CENTER,
@@ -717,7 +726,7 @@ pub(super) fn vertical_fader(
                 },
                 FontId::monospace(8.5),
                 if is_unity {
-                    theme::ACCENT_AMBER
+                    theme::TEXT_SECONDARY
                 } else {
                     theme::TEXT_MUTED
                 },
@@ -869,21 +878,71 @@ pub(super) fn horizontal_mini_slider(
     }
 
     let painter = ui.painter();
+    // The readout owns an opaque gutter on the right, sized to the widest value this control can
+    // show so it never jitters while dragging. The fill lives only in the rail to its left, so no
+    // fill boundary can ever split the digits.
+    let value_font = FontId::monospace(10.0);
+    // Sampled across the whole range rather than including the live value, so an intermediate
+    // value wider than either end (`-59.4 dB`) cannot widen the gutter mid-drag.
+    let gutter_w = (0..=16)
+        .map(|step: u8| theme::norm_to_value(f32::from(step) / 16.0, min, max, unit))
+        .chain([min, max, default])
+        .map(|v| {
+            painter
+                .layout_no_wrap(
+                    theme::format_compact_value(v, unit),
+                    value_font.clone(),
+                    theme::TEXT_PRIMARY,
+                )
+                .size()
+                .x
+        })
+        .fold(0.0_f32, f32::max)
+        + 10.0;
+    // One minimum value box for every mini slider, so neighbouring rows line up.
+    let gutter_w = gutter_w.max(64.0).min(rect.width() * 0.6);
+    let rail = Rect::from_min_max(rect.min, Pos2::new(rect.right() - gutter_w, rect.bottom()));
+    let gutter = Rect::from_min_max(Pos2::new(rail.right(), rect.top()), rect.max);
+
     painter.rect_filled(rect, 3.0, theme::BG_WELL);
     let norm = theme::value_to_norm(current, min, max, unit);
-    let fill_w = (rect.width() * norm).clamp(0.0, rect.width());
-    if fill_w > 1.0 {
-        let fill_rect = Rect::from_min_max(
-            rect.left_top(),
-            Pos2::new(rect.left() + fill_w, rect.bottom()),
-        );
-        painter.rect_filled(fill_rect, 3.0, with_alpha(accent, 0.36));
+    let fill_w = (rail.width() * norm).clamp(0.0, rail.width());
+    // Pan and symmetric signed amounts (-x..x) fill out from their centre, so centred reads
+    // calm and both directions read alike. Gain is never bipolar: -60..+6 dB fills from the left.
+    let bipolar = fills_from_centre(unit, min, max);
+    if bipolar {
+        let zero_x = rail.left() + rail.width() * theme::value_to_norm(0.0, min, max, unit);
+        let value_x = rail.left() + fill_w;
+        let (left, right) = (zero_x.min(value_x), zero_x.max(value_x));
+        if right - left > 0.5 {
+            painter.rect_filled(
+                Rect::from_min_max(Pos2::new(left, rail.top()), Pos2::new(right, rail.bottom())),
+                0.0,
+                with_alpha(accent, 0.36),
+            );
+        }
         painter.vline(
-            rect.left() + fill_w - 1.0,
-            (rect.top() + 1.0)..=(rect.bottom() - 1.0),
-            Stroke::new(2.0_f32, accent),
+            zero_x,
+            (rail.top() + 2.0)..=(rail.bottom() - 2.0),
+            Stroke::new(1.0_f32, theme::BORDER_STRONG),
+        );
+    } else if fill_w > 1.0 {
+        painter.rect_filled(
+            Rect::from_min_max(rail.min, Pos2::new(rail.left() + fill_w, rail.bottom())),
+            CornerRadius {
+                nw: 3,
+                sw: 3,
+                ne: 0,
+                se: 0,
+            },
+            with_alpha(accent, 0.36),
         );
     }
+    painter.vline(
+        gutter.left(),
+        (rect.top() + 1.0)..=(rect.bottom() - 1.0),
+        Stroke::new(1.0_f32, theme::BORDER_SUBTLE),
+    );
     painter.rect_stroke(
         rect,
         3.0,
@@ -897,38 +956,30 @@ pub(super) fn horizontal_mini_slider(
         ),
         StrokeKind::Inside,
     );
-
-    // The value owns the right edge on its own backing so the fill edge never cuts through it;
-    // the label is clipped to the space left of it.
-    let value_galley = painter.layout_no_wrap(
+    painter.text(
+        Pos2::new(gutter.right() - 5.0, gutter.center().y),
+        Align2::RIGHT_CENTER,
         theme::format_compact_value(current, unit),
-        FontId::monospace(10.0),
+        value_font,
         theme::TEXT_PRIMARY,
     );
-    let value_rect = Align2::RIGHT_CENTER.anchor_size(
-        Pos2::new(rect.right() - 4.0, rect.center().y),
-        value_galley.size(),
-    );
-    painter.rect_filled(
-        value_rect
-            .expand2(Vec2::new(2.0, 0.0))
-            .intersect(rect.shrink(1.0)),
-        2.0,
-        with_alpha(theme::BG_WELL, 0.88),
-    );
-    painter.galley(value_rect.min, value_galley, theme::TEXT_PRIMARY);
-    if !label.is_empty() {
-        let label_clip = Rect::from_min_max(
-            Pos2::new(rect.left() + 4.0, rect.top()),
-            Pos2::new(value_rect.left() - 5.0, rect.bottom()),
-        );
+    // A narrow bipolar rail (a pan control) keeps its label in the tooltip: a letter over a
+    // centre-out fill reads badly.
+    if !label.is_empty() && !(unit == Unit::Pan && rail.width() < 48.0) {
+        let label_clip = rail.shrink2(Vec2::new(4.0, 0.0));
         if label_clip.width() > 8.0 {
-            painter.with_clip_rect(label_clip).text(
-                Pos2::new(rect.left() + 5.0, rect.center().y),
-                Align2::LEFT_CENTER,
+            let fitted = ellipsize(
+                painter,
                 label,
+                &FontId::proportional(10.0),
+                label_clip.width() - 2.0,
+            );
+            painter.with_clip_rect(label_clip).text(
+                Pos2::new(rail.left() + 5.0, rail.center().y),
+                Align2::LEFT_CENTER,
+                fitted,
                 FontId::proportional(10.0),
-                theme::TEXT_SECONDARY,
+                theme::TEXT_PRIMARY,
             );
         }
     }
@@ -951,6 +1002,103 @@ pub(super) fn horizontal_mini_slider(
 // ── Hardware LED Switches & Segmented Pills ─────────────────────────────────
 
 /// Crisp studio hardware LED toggle switch (`M`, `S`, `C`, `A`, etc.).
+/// Whether a slider fills out from its centre: pan and symmetric signed amounts (`-x..x`), never
+/// gain, whose `-60..+6 dB` range reads as a level filling from the left.
+pub(super) fn fills_from_centre(unit: Unit, min: f64, max: f64) -> bool {
+    unit == Unit::Pan
+        || (unit != Unit::Decibels && min < 0.0 && (min + max).abs() <= 1e-9 * max.abs().max(1.0))
+}
+
+/// Keys for optimistic preview values. Every control that shows the same durable value uses the
+/// same key, so dragging one moves the others at once and a committed value shows everywhere
+/// until its edit reloads, instead of each control catching up separately.
+pub(super) mod preview_key {
+    pub(in crate::workspace::gui) fn instrument_parameter(
+        instrument: &str,
+        parameter: &str,
+    ) -> String {
+        format!("param:{instrument}:{parameter}")
+    }
+
+    pub(in crate::workspace::gui) fn processor_setting(processor: &str, setting: &str) -> String {
+        format!("proc:{processor}:{setting}")
+    }
+
+    /// `identity` is the channel's mixer identity: `track/ID`, `group/ID`, `return/ID`, `master`.
+    pub(in crate::workspace::gui) fn channel_level(identity: &str) -> String {
+        format!("level:{identity}")
+    }
+
+    pub(in crate::workspace::gui) fn channel_pan(identity: &str) -> String {
+        format!("pan:{identity}")
+    }
+
+    pub(in crate::workspace::gui) fn channel_mute(identity: &str) -> String {
+        format!("mute:{identity}")
+    }
+
+    pub(in crate::workspace::gui) fn processor_bypass(processor: &str) -> String {
+        format!("bypass:{processor}")
+    }
+}
+
+/// A left-aligned label in a slot of exactly `width`, truncated with a tooltip when it overflows,
+/// so changing text never moves the widgets after it.
+pub(super) fn fixed_label(ui: &mut Ui, width: f32, text: RichText) -> egui::Response {
+    ui.allocate_ui_with_layout(
+        Vec2::new(width, ui.spacing().interact_size.y),
+        Layout::left_to_right(Align::Center),
+        |ui| {
+            ui.set_min_width(width);
+            ui.add(egui::Label::new(text).truncate())
+        },
+    )
+    .inner
+}
+
+/// Whether `width` more points fit in the row. Right-aligned toolbar groups skip what does not
+/// fit, so a narrow window drops low-priority items instead of drawing them over others.
+pub(super) fn room(ui: &Ui, width: f32) -> bool {
+    ui.available_width() >= width + ui.spacing().item_spacing.x
+}
+
+/// The one Publish control style: neutral, with an amber outline and text only while a valid
+/// Candidate waits to be published. Filled amber is kept for the publish dialog itself.
+pub(super) fn publish_button(ui: &mut Ui, label: &str, needs_publish: bool) -> egui::Response {
+    let (text, stroke) = if needs_publish {
+        (
+            theme::ACCENT_AMBER,
+            Stroke::new(1.0_f32, theme::ACCENT_AMBER),
+        )
+    } else {
+        (
+            theme::TEXT_SECONDARY,
+            Stroke::new(1.0_f32, theme::BORDER_SUBTLE),
+        )
+    };
+    ui.add(
+        egui::Button::new(RichText::new(label).size(10.5).strong().color(text))
+            .fill(theme::BG_CARD)
+            .stroke(stroke),
+    )
+}
+
+/// Selection of a tab-like control that should take effect on mouse-down.
+pub(super) trait TabPress {
+    /// Whether the control was pressed or clicked this frame. Tabs select on press, as a
+    /// DAW's do: a quick click whose pointer is still travelling would otherwise read as a
+    /// drag and be dropped. Only use it where selecting twice is harmless.
+    fn tab_pressed(&self) -> bool;
+}
+
+impl TabPress for egui::Response {
+    fn tab_pressed(&self) -> bool {
+        self.clicked()
+            || (self.is_pointer_button_down_on()
+                && self.ctx.input(|input| input.pointer.primary_pressed()))
+    }
+}
+
 pub(super) fn led_button(
     ui: &mut Ui,
     label: &str,
@@ -961,7 +1109,9 @@ pub(super) fn led_button(
 ) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     let painter = ui.painter();
-    let (bg, border, text_color) = if active {
+    let (bg, border, text_color) = if !ui.is_enabled() {
+        (theme::BG_CARD, theme::BORDER_SUBTLE, theme::TEXT_MUTED)
+    } else if active {
         (
             with_alpha(lit_color, 0.28),
             lit_color,
@@ -974,7 +1124,8 @@ pub(super) fn led_button(
     } else if response.hovered() {
         (theme::BG_HOVER, theme::BORDER_STRONG, theme::TEXT_PRIMARY)
     } else {
-        (theme::BG_CARD, theme::BORDER_SUBTLE, theme::TEXT_MUTED)
+        // Unlit but available: secondary text, so it never reads as a disabled control.
+        (theme::BG_CARD, theme::BORDER_SUBTLE, theme::TEXT_SECONDARY)
     };
     painter.rect_filled(rect, 3.0, bg);
     painter.rect_stroke(rect, 3.0, Stroke::new(1.0_f32, border), StrokeKind::Inside);
@@ -992,14 +1143,52 @@ pub(super) fn led_button(
     }
 }
 
+/// `text` shortened with a trailing ellipsis so it fits `max_width` in `font`.
+pub(super) fn ellipsize(
+    painter: &egui::Painter,
+    text: &str,
+    font: &FontId,
+    max_width: f32,
+) -> String {
+    let width = |t: &str| {
+        painter
+            .layout_no_wrap(t.to_owned(), font.clone(), theme::TEXT_PRIMARY)
+            .size()
+            .x
+    };
+    if width(text) <= max_width {
+        return text.to_owned();
+    }
+    let chars: Vec<char> = text.chars().collect();
+    for keep in (1..chars.len()).rev() {
+        let candidate: String = chars[..keep].iter().collect::<String>() + "…";
+        if width(&candidate) <= max_width {
+            return candidate;
+        }
+    }
+    "…".to_owned()
+}
+
+/// The one section-header style: a short accent bar and a muted uppercase title. Color lives
+/// only in the bar, so headers read as one family across every view.
+pub(super) fn section_header(ui: &mut Ui, title: &str, accent: Color32) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 7.0;
+        let (bar, _) = ui.allocate_exact_size(Vec2::new(3.0, 12.0), Sense::hover());
+        ui.painter().rect_filled(bar, 1.0, accent);
+        ui.label(
+            RichText::new(title)
+                .strong()
+                .size(10.5)
+                .color(theme::TEXT_SECONDARY),
+        );
+    });
+}
+
 /// Sleek studio pill toggle for primary workspace modes and sub-view selectors.
-pub(super) fn pill_toggle(
-    ui: &mut Ui,
-    label: &str,
-    active: bool,
-    accent: Color32,
-    tooltip: &str,
-) -> egui::Response {
+/// A tab or toggle. Every one shares the same active treatment, a raised neutral tab with a
+/// slim selection-coloured underline, so tabs never compete with real attention states.
+pub(super) fn pill_toggle(ui: &mut Ui, label: &str, active: bool, tooltip: &str) -> egui::Response {
     let font = FontId::proportional(12.0);
     let galley = ui
         .painter()
@@ -1007,8 +1196,16 @@ pub(super) fn pill_toggle(
     let size = Vec2::new((galley.size().x + 18.0).max(46.0), 24.0);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     let painter = ui.painter();
-    let (bg, border, fg) = if active {
-        (with_alpha(accent, 0.22), accent, theme::TEXT_PRIMARY)
+    // Active reads as a raised neutral tab with a slim accent underline, not a coloured box,
+    // so the accent stays a small cue instead of competing with real attention states.
+    let (bg, border, fg) = if !ui.is_enabled() {
+        (
+            Color32::TRANSPARENT,
+            Color32::TRANSPARENT,
+            theme::TEXT_MUTED,
+        )
+    } else if active {
+        (theme::BG_ACTIVE, theme::BORDER_STRONG, theme::TEXT_PRIMARY)
     } else if response.hovered() {
         (theme::BG_HOVER, theme::BORDER_STRONG, theme::TEXT_PRIMARY)
     } else {
@@ -1021,6 +1218,13 @@ pub(super) fn pill_toggle(
     painter.rect_filled(rect, 4.0, bg);
     if border != Color32::TRANSPARENT {
         painter.rect_stroke(rect, 4.0, Stroke::new(1.0_f32, border), StrokeKind::Inside);
+    }
+    if active {
+        let underline = Rect::from_min_max(
+            Pos2::new(rect.left() + 6.0, rect.bottom() - 3.0),
+            Pos2::new(rect.right() - 6.0, rect.bottom() - 1.0),
+        );
+        painter.rect_filled(underline, 1.0, theme::SELECTION);
     }
     painter.text(rect.center(), Align2::CENTER_CENTER, label, font, fg);
     if tooltip.is_empty() {
@@ -1203,7 +1407,10 @@ pub(super) fn context_combo(
                 .color(theme::TEXT_MUTED),
         );
     }
+    // A fixed, truncating width: a long name never pushes the controls after the picker.
     egui::ComboBox::from_id_salt(format!("ctx-combo-{label}"))
+        .width(156.0)
+        .truncate()
         .selected_text(
             RichText::new(names.get(current).map_or("—", String::as_str))
                 .color(theme::TEXT_PRIMARY),
@@ -1275,7 +1482,7 @@ pub(super) fn note_strip(ui: &mut Ui, cx: &mut Cx<'_>) {
                             RichText::new(if drums { "DRUM PADS" } else { "KEYS" })
                                 .size(9.5)
                                 .strong()
-                                .color(theme::ACCENT_AMBER),
+                                .color(theme::TEXT_MUTED),
                         );
                         if !drums {
                             if led_button(
@@ -1330,17 +1537,7 @@ pub(super) fn note_strip(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 cx.send(Action::NoteOff { key });
                             }
                         }
-                        let voices = app.telemetry.engine.active_voices;
-                        ui.label(
-                            RichText::new(format!("{voices}v"))
-                                .monospace()
-                                .size(10.0)
-                                .color(if voices > 0 {
-                                    theme::SIG_NOMINAL
-                                } else {
-                                    theme::TEXT_MUTED
-                                }),
-                        );
+                        // The voice count lives in the transport deck only.
                         if app.note_mode {
                             ui.label(
                                 RichText::new("LIVE")
@@ -1365,16 +1562,9 @@ pub(super) fn note_strip(ui: &mut Ui, cx: &mut Cx<'_>) {
 }
 
 fn drum_pad_bank(ui: &mut Ui, cx: &mut Cx<'_>) {
-    const FALLBACK_DRUMS: [&str; 8] = [
-        "Kick",
-        "Snare",
-        "Closed Hat",
-        "Clap",
-        "Open Hat",
-        "Rim",
-        "Low Tom",
-        "Crash",
-    ];
+    // The stock kit has four voices; its second row of keys (Z X C V) plays the same four, so
+    // it gets four pads rather than four more that only repeat them under other names.
+    const STOCK_DRUMS: [&str; 4] = ["Kick", "Snare", "Closed Hat", "Clap"];
     let app = cx.app;
     let instrument = app
         .bundle
@@ -1398,12 +1588,8 @@ fn drum_pad_bank(ui: &mut Ui, cx: &mut Cx<'_>) {
         }
     }
     if pads.is_empty() {
-        const EXTRA_KEYS: [(char, u8); 4] = [('g', 46), ('h', 37), ('j', 45), ('k', 49)];
-        for (idx, name) in FALLBACK_DRUMS.iter().enumerate() {
-            let (key, pitch) = DRUM_NOTES
-                .get(idx)
-                .copied()
-                .unwrap_or_else(|| EXTRA_KEYS[(idx - DRUM_NOTES.len()).min(3)]);
+        for (idx, name) in STOCK_DRUMS.iter().enumerate() {
+            let (key, pitch) = DRUM_NOTES[idx];
             pads.push((key, pitch, (*name).to_owned()));
         }
     }
@@ -1573,7 +1759,7 @@ fn staggered_piano(ui: &mut Ui, cx: &mut Cx<'_>) {
         let fill = if is_held {
             theme::ACCENT_AMBER
         } else {
-            Color32::from_rgb(184, 192, 204)
+            Color32::from_rgb(150, 158, 172)
         };
         painter.rect_filled(
             krect,
@@ -1591,7 +1777,8 @@ fn staggered_piano(ui: &mut Ui, cx: &mut Cx<'_>) {
             krect.bottom() - 1.0,
             Stroke::new(1.0_f32, with_alpha(theme::SEAM_DARK, 0.4)),
         );
-        // C-note markers or QWERTY hint at bottom
+        // C keys carry their pitch; every mapped key also carries its QWERTY shortcut.
+        let mapped = (semi as usize) < KEYBOARD_NOTES.len() && white_w >= 26.0;
         if semi % 12 == 0 {
             painter.text(
                 Pos2::new(krect.center().x, krect.bottom() - 3.0),
@@ -1604,7 +1791,20 @@ fn staggered_piano(ui: &mut Ui, cx: &mut Cx<'_>) {
                     Color32::from_rgb(46, 52, 64)
                 },
             );
-        } else if (semi as usize) < KEYBOARD_NOTES.len() && white_w >= 26.0 {
+            if mapped {
+                painter.text(
+                    Pos2::new(krect.center().x, krect.bottom() - 16.0),
+                    Align2::CENTER_BOTTOM,
+                    key_ch.to_ascii_uppercase().to_string(),
+                    FontId::monospace(8.5),
+                    if is_held {
+                        theme::BG_WELL
+                    } else {
+                        Color32::from_rgb(78, 86, 100)
+                    },
+                );
+            }
+        } else if mapped {
             painter.text(
                 Pos2::new(krect.center().x, krect.bottom() - 3.0),
                 Align2::CENTER_BOTTOM,
@@ -1613,7 +1813,7 @@ fn staggered_piano(ui: &mut Ui, cx: &mut Cx<'_>) {
                 if is_held {
                     theme::BG_WELL
                 } else {
-                    Color32::from_rgb(92, 100, 114)
+                    Color32::from_rgb(78, 86, 100)
                 },
             );
         }
@@ -1662,6 +1862,19 @@ fn staggered_piano(ui: &mut Ui, cx: &mut Cx<'_>) {
             ),
             StrokeKind::Inside,
         );
+        if (semi as usize) < KEYBOARD_NOTES.len() && black_w >= 14.0 {
+            painter.text(
+                Pos2::new(krect.center().x, krect.bottom() - 7.0),
+                Align2::CENTER_BOTTOM,
+                key_ch.to_ascii_uppercase().to_string(),
+                FontId::monospace(8.0),
+                if is_held {
+                    theme::BG_WELL
+                } else {
+                    theme::TEXT_MUTED
+                },
+            );
+        }
         // Subtle front bevel on black key
         if !is_held {
             painter.rect_filled(

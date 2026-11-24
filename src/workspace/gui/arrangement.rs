@@ -3,6 +3,7 @@
 //! locator/ruler header, clamped loop brace, and direct clip manipulation with live drag ghosts.
 
 use super::theme::{self, with_alpha};
+use super::widgets::preview_key;
 use super::widgets::{
     dbfs_meter_horizontal, horizontal_mini_slider, led_button, paint_dbfs_meter_vertical,
     pill_toggle, unavailable,
@@ -16,6 +17,8 @@ const HEADER_WIDTH: f32 = 236.0;
 pub(super) const RULER_HEIGHT: f32 = 42.0;
 const LOCATOR_BAND_H: f32 = 18.0;
 const BASE_LANE_HEIGHT: f32 = 64.0;
+/// Smallest lane height the arrangement shrinks to so all tracks fit the view.
+const MIN_FIT_LANE_HEIGHT: f32 = 52.0;
 /// Width of one projected activity column.
 const COLUMN_WIDTH: f32 = 2.0;
 const MAX_COLUMNS: usize = 4096;
@@ -33,6 +36,10 @@ pub(super) fn timeline(ui: &mut Ui, cx: &mut Cx<'_>) {
     };
 
     compact_toolbar(ui, cx, project);
+    // Material that could not be read (an unreadable sample) is the one thing worth saying.
+    if let Some(warning) = app.timeline_cache.warning() {
+        ui.label(RichText::new(warning).size(11.0).color(theme::SIG_CLIP));
+    }
 
     // Compact 1-line contextual selection bar at bottom
     egui::TopBottomPanel::bottom("crump-timeline-inspector")
@@ -81,11 +88,15 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                 {
                     cx.send(TimelineAction::ChangeGrid(-1));
                 }
-                ui.label(
-                    RichText::new(app.timeline_state.grid_label())
-                        .monospace()
-                        .size(11.5)
-                        .color(theme::TEXT_PRIMARY),
+                // Grid and zoom readouts sit in fixed slots, so changing either never moves
+                // the tools to their right.
+                let (grid_rect, _) = ui.allocate_exact_size(Vec2::new(52.0, 14.0), Sense::hover());
+                ui.painter().text(
+                    grid_rect.center(),
+                    Align2::CENTER_CENTER,
+                    app.timeline_state.grid_label(),
+                    FontId::monospace(11.5),
+                    theme::TEXT_PRIMARY,
                 );
                 if led_button(
                     ui,
@@ -121,15 +132,17 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                 {
                     cx.send(TimelineAction::Zoom(-1));
                 }
-                ui.label(
-                    RichText::new(if app.timeline_viewport.is_fit() {
+                let (zoom_rect, _) = ui.allocate_exact_size(Vec2::new(44.0, 14.0), Sense::hover());
+                ui.painter().text(
+                    zoom_rect.center(),
+                    Align2::CENTER_CENTER,
+                    if app.timeline_viewport.is_fit() {
                         "FIT".to_owned()
                     } else {
                         format!("{}×", app.timeline_viewport.zoom_factor())
-                    })
-                    .monospace()
-                    .size(11.0)
-                    .color(theme::TEXT_SECONDARY),
+                    },
+                    FontId::monospace(11.0),
+                    theme::TEXT_SECONDARY,
                 );
                 if led_button(
                     ui,
@@ -147,7 +160,6 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                     ui,
                     "Fit",
                     app.timeline_viewport.is_fit(),
-                    theme::ACCENT_CYAN,
                     "Fit whole Song · Home",
                 )
                 .clicked()
@@ -159,7 +171,6 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
                     ui,
                     "Follow",
                     app.timeline_state.follow_playhead(),
-                    theme::ACCENT_AMBER,
                     "Follow playhead · f",
                 )
                 .clicked()
@@ -169,118 +180,131 @@ fn compact_toolbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
 
                 ui.separator();
 
-                // Range / Loop tools (contextual when RANGE mode active)
-                if app.timeline_state.visual() {
-                    if pill_toggle(
-                        ui,
-                        "Loop Range",
-                        true,
-                        theme::ACCENT_AMBER,
-                        "Loop selected range · L",
-                    )
-                    .clicked()
-                    {
-                        cx.send(TimelineAction::ApplyRange { looping: true });
-                    }
-                    if pill_toggle(
-                        ui,
-                        "Play Range",
-                        false,
-                        theme::SIG_NOMINAL,
-                        "Play selected range once · Enter",
-                    )
-                    .clicked()
-                    {
-                        cx.send(TimelineAction::ApplyRange { looping: false });
-                    }
-                    if pill_toggle(
-                        ui,
-                        "Fit Range",
-                        false,
-                        theme::ACCENT_CYAN,
-                        "Zoom to range · zf",
-                    )
-                    .clicked()
-                    {
-                        cx.send(TimelineAction::FitRange);
-                    }
-                    if pill_toggle(
-                        ui,
-                        "Cancel",
-                        false,
-                        theme::SIG_CLIP,
-                        "Exit RANGE mode · Esc",
-                    )
-                    .clicked()
-                    {
-                        cx.send(Action::CancelMode);
-                    }
-                } else {
-                    if pill_toggle(
-                        ui,
-                        "Range",
-                        false,
-                        theme::SIG_NOMINAL,
-                        "Select a range on the Timeline · V",
-                    )
-                    .clicked()
-                    {
-                        cx.send(TimelineAction::BeginRange);
-                    }
-                    if pill_toggle(
-                        ui,
-                        "+ Locator",
-                        false,
-                        theme::SIG_HOT,
-                        "Create a Locator at cursor · M",
-                    )
-                    .clicked()
-                    {
-                        cx.send(TimelineAction::OpenLocator);
-                    }
-                    if pill_toggle(
-                        ui,
-                        "Search",
-                        false,
-                        theme::ACCENT_CYAN,
-                        "Search Tracks, Clips, Patterns, Locators · /",
-                    )
-                    .clicked()
-                    {
-                        cx.send(TimelineAction::OpenSearch);
-                    }
-                }
+                // Range / Loop tools (contextual when RANGE mode active). Both sets share one
+                // slot sized for the wider Range-mode set, so entering Range mode never moves the
+                // locator pills or drops some of them.
+                let pill_w = |ui: &Ui, label: &str| {
+                    (ui.painter()
+                        .layout_no_wrap(
+                            label.to_owned(),
+                            FontId::proportional(12.0),
+                            theme::TEXT_PRIMARY,
+                        )
+                        .size()
+                        .x
+                        + 18.0)
+                        .max(46.0)
+                };
+                let slot_w = ["Loop Range", "Play Range", "Fit Range", "Cancel"]
+                    .iter()
+                    .map(|label| pill_w(ui, label) + ui.spacing().item_spacing.x)
+                    .sum::<f32>();
+                ui.allocate_ui_with_layout(
+                    Vec2::new(slot_w, 24.0),
+                    Layout::left_to_right(Align::Center),
+                    |ui| {
+                        ui.set_min_width(slot_w);
+                        if app.timeline_state.visual() {
+                            if pill_toggle(ui, "Loop Range", true, "Loop selected range · L")
+                                .clicked()
+                            {
+                                cx.send(TimelineAction::ApplyRange { looping: true });
+                            }
+                            if pill_toggle(
+                                ui,
+                                "Play Range",
+                                false,
+                                "Play selected range once · Enter",
+                            )
+                            .clicked()
+                            {
+                                cx.send(TimelineAction::ApplyRange { looping: false });
+                            }
+                            if pill_toggle(ui, "Fit Range", false, "Zoom to range · zf").clicked()
+                            {
+                                cx.send(TimelineAction::FitRange);
+                            }
+                            if pill_toggle(ui, "Cancel", false, "Exit RANGE mode · Esc").clicked()
+                            {
+                                cx.send(Action::CancelMode);
+                            }
+                        } else {
+                            if pill_toggle(ui, "Range", false, "Select a range on the Timeline · V")
+                                .clicked()
+                            {
+                                cx.send(TimelineAction::BeginRange);
+                            }
+                            if pill_toggle(ui, "+ Locator", false, "Create a Locator at cursor · M")
+                                .clicked()
+                            {
+                                cx.send(TimelineAction::OpenLocator);
+                            }
+                            if pill_toggle(
+                                ui,
+                                "Search",
+                                false,
+                                "Search Tracks, Clips, Patterns, Locators · /",
+                            )
+                            .clicked()
+                            {
+                                cx.send(TimelineAction::OpenSearch);
+                            }
+                        }
+                    },
+                );
 
                 // Right-aligned cursor readout & working locator jump pills
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    let cursor_str =
-                        timeline_time_label(app.timeline_position().at, project.song.meter);
-                    ui.label(
-                        RichText::new(format!("CUR {cursor_str}"))
-                            .monospace()
-                            .size(11.0)
-                            .color(theme::SIG_NOMINAL),
-                    )
-                    .on_hover_text("Cursor position · click to go to exact bar (:)")
-                    .interact(Sense::click())
-                    .clicked()
-                    .then(|| cx.send(TimelineAction::OpenGoto));
+                    let cursor_str = theme::format_bar_beat(
+                        app.timeline_position().at.as_f64(),
+                        project.song.meter,
+                    );
+                    // Fixed slot, so the locator pills hold still as the cursor crosses bar 10.
+                    let (cur_rect, cur_resp) =
+                        ui.allocate_exact_size(Vec2::new(92.0, 14.0), Sense::click());
+                    ui.painter().text(
+                        cur_rect.right_center(),
+                        Align2::RIGHT_CENTER,
+                        format!("CUR {cursor_str}"),
+                        FontId::monospace(11.0),
+                        if cur_resp.hovered() {
+                            theme::TEXT_PRIMARY
+                        } else {
+                            theme::TEXT_SECONDARY
+                        },
+                    );
+                    cur_resp
+                        .on_hover_text("Cursor position · click to go to exact bar (:)")
+                        .clicked()
+                        .then(|| cx.send(TimelineAction::OpenGoto));
 
                     if !project.song.locators.is_empty() {
                         ui.separator();
                         let cur_at = app.timeline_position().at;
-                        for (idx, locator) in project.song.locators.iter().enumerate().take(5).rev()
+                        // As many locators as the toolbar has room for, rather than a fixed five.
+                        let pill_w =
+                            |name: &str| (name.len() as f32 * 6.5 + 14.0).clamp(42.0, 92.0);
+                        let room = ui.available_width() - 8.0;
+                        let fit = project
+                            .song
+                            .locators
+                            .iter()
+                            .scan(0.0, |used, locator| {
+                                *used += pill_w(&locator.name) + ui.spacing().item_spacing.x;
+                                Some(*used)
+                            })
+                            .take_while(|used| *used <= room)
+                            .count();
+                        for (idx, locator) in
+                            project.song.locators.iter().enumerate().take(fit).rev()
                         {
                             let at_here = locator.at == cur_at;
                             if led_button(
                                 ui,
                                 &locator.name,
                                 at_here,
-                                theme::SIG_HOT,
-                                Vec2::new(
-                                    (locator.name.len() as f32 * 6.5 + 14.0).clamp(42.0, 92.0),
-                                    20.0,
-                                ),
+                                theme::TEXT_SECONDARY,
+                                Vec2::new(pill_w(&locator.name), 20.0),
                                 &format!("Jump to locator {} ({})", locator.name, locator.at),
                             )
                             .clicked()
@@ -340,9 +364,11 @@ fn lanes(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
     let app = cx.app;
     let tracks = &project.song.tracks;
     let avail_h = ui.available_height().max(320.0);
-    // Give small arrangements generous track lane height so the workspace feels rich and balanced
-    let lane_height = if tracks.len() <= 5 {
-        ((avail_h - RULER_HEIGHT - 8.0) / tracks.len().max(1) as f32).clamp(BASE_LANE_HEIGHT, 92.0)
+    // Lanes share the view: small arrangements get generous lanes, and larger ones shrink (to a
+    // readable minimum) so every track is visible on load before scrolling is needed.
+    let fit = (avail_h - RULER_HEIGHT - 8.0) / tracks.len().max(1) as f32;
+    let lane_height = if fit >= MIN_FIT_LANE_HEIGHT {
+        fit.min(92.0)
     } else {
         BASE_LANE_HEIGHT
     };
@@ -407,7 +433,7 @@ fn lanes(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
             "{:.0} BPM · {} · END {}",
             project.song.tempo_bpm,
             project.song.meter,
-            timeline_time_label(project.song.end, project.song.meter)
+            theme::format_bar_beat(project.song.end.as_f64(), project.song.meter,)
         ),
         FontId::monospace(10.0),
         theme::TEXT_SECONDARY,
@@ -470,17 +496,19 @@ fn lanes(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
             y = next_y;
             row_i += 1;
         }
-        // Subtle studio hint in empty lower header bay
-        painter.text(
-            Pos2::new(
-                empty_hdr.center().x,
-                (empty_hdr.top() + 26.0).min(empty_hdr.center().y),
-            ),
-            Align2::CENTER_CENTER,
-            "Double-click lane to add Clip",
-            FontId::proportional(10.5),
-            with_alpha(theme::TEXT_MUTED, 0.65),
-        );
+        // Subtle studio hint in the empty lower header bay, only when there is room for it
+        if empty_hdr.height() >= 28.0 {
+            painter.text(
+                Pos2::new(
+                    empty_hdr.center().x,
+                    (empty_hdr.top() + 26.0).min(empty_hdr.center().y),
+                ),
+                Align2::CENTER_CENTER,
+                "Double-click lane to add Clip",
+                FontId::proportional(10.5),
+                with_alpha(theme::TEXT_MUTED, 0.65),
+            );
+        }
     }
 
     grid(&timed, &geometry, rect, app, project);
@@ -515,6 +543,8 @@ fn track_header(
     let is_selected = index == selected;
     let color = theme::track_color(index);
     let identity = format!("track/{}", track.id);
+    let mute_key = preview_key::channel_mute(&identity);
+    let muted = cx.state.flag(&mute_key, track.channel.mute);
     let is_solo = app.audition_plan.soloed_channels.contains(&identity);
     let is_armed = matches!(
         &app.audition_plan.target,
@@ -596,6 +626,8 @@ fn track_header(
             Vec2::new(name_w, 18.0),
             Layout::left_to_right(Align::Center),
             |ui| {
+                // Full width whatever the name, so M / S / A line up in columns down the tracks.
+                ui.set_min_width(name_w);
                 ui.label(
                     RichText::new(format!("{:02}", index + 1))
                         .monospace()
@@ -604,7 +636,7 @@ fn track_header(
                 );
                 ui.add(
                     egui::Label::new(RichText::new(&track.name).strong().size(12.5).color(
-                        if track.channel.mute {
+                        if muted {
                             theme::TEXT_MUTED
                         } else {
                             theme::TEXT_PRIMARY
@@ -618,13 +650,14 @@ fn track_header(
         if led_button(
             ui,
             "M",
-            track.channel.mute,
-            theme::SIG_CLIP,
+            muted,
+            theme::MUTE_LIT,
             Vec2::new(19.0, 17.0),
             "Mute Track (authored)",
         )
         .clicked()
         {
+            cx.state.hold_flag(&mute_key, !muted);
             cx.select(selected, index);
             cx.send(Action::ToggleChannelMute {
                 identity: identity.clone(),
@@ -665,7 +698,7 @@ fn track_header(
         ui.spacing_mut().item_spacing.x = 4.0;
         let pan_w = 56.0;
         let slider_w = (inner_rect.width() - pan_w - 4.0).max(70.0);
-        let drag_key = format!("tl-lvl-{}", track.id);
+        let drag_key = preview_key::channel_level(&format!("track/{}", track.id));
         let out = horizontal_mini_slider(
             ui,
             cx.state,
@@ -690,12 +723,12 @@ fn track_header(
             });
         }
 
-        let pan_key = format!("tl-pan-{}", track.id);
+        let pan_key = preview_key::channel_pan(&format!("track/{}", track.id));
         let pan_out = horizontal_mini_slider(
             ui,
             cx.state,
             &pan_key,
-            "P",
+            "Pan",
             track.channel.panner.primary_position(),
             -1.0,
             1.0,
@@ -874,16 +907,26 @@ fn grid(
 
     // Bar lines & clean unobstructed ruler numerals inside bottom band
     let bar_pixels = (bar * pixels_per_quarter).max(f64::EPSILON);
-    let label_every = (48.0 / bar_pixels).ceil().max(1.0) as u64;
+    let label_every = u64::from(theme::bar_label_interval(48.0 / bar_pixels as f32));
     let line_every = (5.0 / bar_pixels).ceil().max(1.0) as u64;
     let mut index = (geometry.start / bar).ceil() as u64;
     while (index as f64) * bar < end {
         let x = geometry.x_of(index as f64 * bar);
         if index.is_multiple_of(line_every) {
+            // At overview zoom only the labelled bars keep full weight; the rest recede so the
+            // grid reads as structure behind the clips rather than competing with them.
+            let major = index.is_multiple_of(label_every) || bar_pixels >= 24.0;
             painter.vline(
                 x,
                 geometry.full_canvas.y_range(),
-                Stroke::new(1.0_f32, theme::GRID_BAR),
+                Stroke::new(
+                    1.0_f32,
+                    if major {
+                        theme::GRID_BAR
+                    } else {
+                        theme::GRID_BEAT
+                    },
+                ),
             );
         }
         if index.is_multiple_of(label_every) {
@@ -958,10 +1001,26 @@ fn clips(
         if content_rect.height() >= 8.0
             && content_rect.width() >= 6.0
             && let Some(pattern) = project.song.patterns.iter().find(|p| p.id == clip.pattern)
-            && !pattern.events.is_empty()
         {
-            paint_clip_midi_preview(painter, geometry, content_rect, clip, pattern, color);
-            drew_any_midi = true;
+            // Pattern Variations carry lineage rather than Events; preview what they will play.
+            let materialized;
+            let pattern = if pattern.variation.is_some() {
+                materialized = crate::model::Pattern {
+                    events: crate::engine::schedule::materialized_pattern_events(
+                        project,
+                        &pattern.id,
+                    )
+                    .unwrap_or_default(),
+                    ..pattern.clone()
+                };
+                &materialized
+            } else {
+                pattern
+            };
+            if !pattern.events.is_empty() {
+                paint_clip_midi_preview(painter, geometry, content_rect, clip, pattern, color);
+                drew_any_midi = true;
+            }
         }
 
         // Visual fade-in / fade-out wedges when authored
@@ -974,7 +1033,7 @@ fn clips(
                     Pos2::new(fx, header_rect.bottom()),
                     Pos2::new(body.left(), body.bottom()),
                 ],
-                with_alpha(theme::BG_WELL, 0.45),
+                with_alpha(theme::BG_WELL, 0.55),
                 Stroke::NONE,
             ));
             painter.line_segment(
@@ -982,7 +1041,8 @@ fn clips(
                     Pos2::new(body.left(), body.bottom()),
                     Pos2::new(fx, header_rect.bottom()),
                 ],
-                Stroke::new(1.4_f32, theme::TEXT_PRIMARY),
+                // A fade is a gain curve in the clip's own color, never a white strike-through.
+                Stroke::new(1.0_f32, with_alpha(color, 0.8)),
             );
         }
         let fade_out_q = clip.fade_out.as_f64();
@@ -994,7 +1054,7 @@ fn clips(
                     Pos2::new(body.right(), header_rect.bottom()),
                     Pos2::new(body.right(), body.bottom()),
                 ],
-                with_alpha(theme::BG_WELL, 0.45),
+                with_alpha(theme::BG_WELL, 0.55),
                 Stroke::NONE,
             ));
             painter.line_segment(
@@ -1002,7 +1062,8 @@ fn clips(
                     Pos2::new(fx, header_rect.bottom()),
                     Pos2::new(body.right(), body.bottom()),
                 ],
-                Stroke::new(1.4_f32, theme::TEXT_PRIMARY),
+                // A fade is a gain curve in the clip's own color, never a white strike-through.
+                Stroke::new(1.0_f32, with_alpha(color, 0.8)),
             );
         }
 
@@ -1028,7 +1089,12 @@ fn clips(
                 .text(
                     Pos2::new(header_rect.left() + 5.0, header_rect.center().y),
                     Align2::LEFT_CENTER,
-                    &clip.pattern,
+                    super::widgets::ellipsize(
+                        painter,
+                        &clip.pattern,
+                        &FontId::proportional(10.0),
+                        header_rect.width() - 10.0,
+                    ),
                     FontId::proportional(10.0),
                     theme::BG_WELL,
                 );
@@ -1058,16 +1124,29 @@ fn paint_clip_midi_preview(
         color.b().saturating_add(55),
     );
 
-    // Loop repeat seam dividers inside long looped clips
-    for rep in 1..repeats.min(32) {
-        let seam_q = clip_start + rep as f64 * pat_len;
-        if seam_q < clip_start + clip_dur - 0.01 {
-            let sx = geometry.x_of(seam_q);
-            p.vline(
-                sx,
-                content_rect.y_range(),
-                Stroke::new(1.0_f32, with_alpha(theme::TEXT_PRIMARY, 0.22)),
-            );
+    // Only repeats that intersect the visible window are painted, so long clips preview to their
+    // end at any zoom without unbounded work.
+    let first_rep = ((geometry.start - clip_start) / pat_len).floor().max(0.0) as usize;
+    let last_rep = (((geometry.start + geometry.span - clip_start) / pat_len)
+        .ceil()
+        .max(0.0) as usize)
+        .min(repeats)
+        .min(first_rep + 512);
+
+    // Loop repeat seam dividers, quieter when repeats are packed tightly at overview zoom
+    let seam_px = geometry.x_of(clip_start + pat_len) - geometry.x_of(clip_start);
+    if seam_px >= 6.0 {
+        let seam_alpha = if seam_px < 28.0 { 0.10 } else { 0.20 };
+        for rep in first_rep.max(1)..last_rep {
+            let seam_q = clip_start + rep as f64 * pat_len;
+            if seam_q < clip_start + clip_dur - 0.01 {
+                let sx = geometry.x_of(seam_q);
+                p.vline(
+                    sx,
+                    content_rect.y_range(),
+                    Stroke::new(1.0_f32, with_alpha(theme::TEXT_PRIMARY, seam_alpha)),
+                );
+            }
         }
     }
 
@@ -1082,7 +1161,7 @@ fn paint_clip_midi_preview(
     }
     let pitch_span = (max_pitch.saturating_sub(min_pitch)).max(6) as f32;
 
-    for rep in 0..repeats.min(32) {
+    for rep in first_rep..last_rep {
         let offset = clip_start + rep as f64 * pat_len;
         if offset >= clip_start + clip_dur {
             break;
@@ -1316,29 +1395,62 @@ fn markers(
     }
 
     // Colored locator flag tags cleanly inside the dedicated top locator band (zero overlap with bar numbers!)
+    // Each flag ends before the next locator's line, so close locators never paint over
+    // one another; names that do not fit are ellipsized.
+    let mut locator_xs = project
+        .song
+        .locators
+        .iter()
+        .map(|locator| geometry.x_of(locator.at.as_f64()))
+        .collect::<Vec<_>>();
+    locator_xs.sort_by(f32::total_cmp);
     for locator in &project.song.locators {
         let at = locator.at.as_f64();
         if !geometry.visible(at) {
             continue;
         }
         let x = geometry.x_of(at);
+        let room = locator_xs
+            .iter()
+            .find(|next| **next > x + 0.5)
+            .map_or(f32::INFINITY, |next| next - x - 3.0);
         painter.vline(
             x,
             geometry.full_canvas.y_range(),
-            Stroke::new(1.0_f32, with_alpha(theme::SIG_HOT, 0.28)),
+            Stroke::new(1.0_f32, with_alpha(theme::TEXT_MUTED, 0.14)),
         );
-        let flag_w = (locator.name.len() as f32 * 5.8 + 10.0).clamp(32.0, 88.0);
+        let font = FontId::proportional(9.5);
+        let flag_w = (painter
+            .layout_no_wrap(locator.name.clone(), font.clone(), theme::TEXT_SECONDARY)
+            .size()
+            .x
+            + 12.0)
+            .clamp(32.0, 120.0)
+            .min(room.max(14.0));
+        let name = widgets::ellipsize(painter, &locator.name, &font, flag_w - 9.0);
+        // A flag that would run off the right edge hangs left of its line instead.
+        let flag_x = if x + flag_w > rect.right() - 2.0 {
+            x - flag_w
+        } else {
+            x
+        };
         let flag = Rect::from_min_size(
-            Pos2::new(x, rect.top() + 2.0),
+            Pos2::new(flag_x, rect.top() + 2.0),
             Vec2::new(flag_w, LOCATOR_BAND_H - 4.0),
         );
-        painter.rect_filled(flag, 2.5, with_alpha(theme::SIG_HOT, 0.92));
+        // Neutral chip and muted tick: resting locators stay quiet beside clips and curves.
+        painter.rect_filled(flag, 2.5, theme::BG_CARD);
+        painter.rect_filled(
+            Rect::from_min_size(flag.left_top(), Vec2::new(2.5, flag.height())),
+            1.0,
+            theme::TEXT_MUTED,
+        );
         painter.text(
-            Pos2::new(flag.left() + 4.0, flag.center().y),
+            Pos2::new(flag.left() + 6.0, flag.center().y),
             Align2::LEFT_CENTER,
-            &locator.name,
-            FontId::proportional(9.5),
-            theme::BG_WELL,
+            name,
+            font,
+            theme::TEXT_SECONDARY,
         );
     }
 
@@ -1714,39 +1826,22 @@ fn contextual_bar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project) {
 
         // Right-aligned quick studio view jumps for the selected track
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if pill_toggle(
-                ui,
-                "FX Chain",
-                false,
-                theme::ACCENT_CYAN,
-                "Open Processing · gp",
-            )
-            .clicked()
-            {
+            // Named as the window's tabs are.
+            if pill_toggle(ui, "FX Rack", false, "Open the FX Rack · gp").clicked() {
                 cx.send(TimelineAction::GoProcessing);
             }
-            if pill_toggle(
-                ui,
-                "Instrument",
-                false,
-                theme::ACCENT_AMBER,
-                "Open Instrument · gi",
-            )
-            .clicked()
-            {
+            if pill_toggle(ui, "Synth", false, "Open the Synth · gi").clicked() {
                 cx.send(TimelineAction::GoInstrument);
             }
-            if pill_toggle(ui, "Mixer", false, theme::SIG_NOMINAL, "Open Mixer · gm").clicked() {
+            if pill_toggle(ui, "Console", false, "Open the Console · gm").clicked() {
                 cx.send(TimelineAction::GoMixer);
             }
-            if active_clip.is_some()
-                && pill_toggle(
-                    ui,
-                    "Piano Roll",
-                    false,
-                    theme::ACCENT_VIOLET,
-                    "Open Pattern · gd",
-                )
+            // Always in place, disabled off a clip, so the meter beside it never jumps.
+            if ui
+                .add_enabled_ui(active_clip.is_some(), |ui| {
+                    pill_toggle(ui, "Piano Roll", false, "Open Pattern · gd")
+                })
+                .inner
                 .clicked()
             {
                 cx.send(TimelineAction::GoDefinition);

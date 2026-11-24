@@ -64,6 +64,14 @@ pub enum Action {
     OpenRestore,
     /// Show the source diff of the selected History entry.
     OpenHistoryDiff,
+    /// Show what restoring the selected History entry would change: the Active Revision's
+    /// source against the selected entry's.
+    CompareHistoryWithActive,
+    /// Audition a History version (by entry ID) in place of the Active Revision, or return to
+    /// the Active Revision with `None`. While playing, the transport position is kept.
+    PreviewHistoryVersion(Option<String>),
+    /// Play a History version (by entry ID) from the cursor; nothing starts if it cannot be read.
+    PlayHistoryVersion(String),
     /// Show or hide workspace performance diagnostics.
     TogglePerformanceDiagnostics,
 
@@ -638,11 +646,6 @@ impl Workspace {
         Ok(Some(source_path))
     }
 
-    /// Tells the workspace how many lines of help the client shows, bounding Help scrolling.
-    pub fn set_help_line_count(&mut self, lines: usize) {
-        self.help_line_count = lines;
-    }
-
     /// Finishes any durable Project mutation and releases the audio stream.
     ///
     /// Call this once after the event loop ends and before the session is dropped.
@@ -681,6 +684,9 @@ impl Workspace {
             Action::OpenPublish => self.open_publish(),
             Action::OpenRestore => self.open_restore(),
             Action::OpenHistoryDiff => self.open_history_diff(),
+            Action::CompareHistoryWithActive => self.compare_history_with_active(),
+            Action::PreviewHistoryVersion(entry) => self.preview_history_version(entry),
+            Action::PlayHistoryVersion(entry) => self.play_history_version(entry),
             Action::TogglePerformanceDiagnostics => {
                 let visible = self.performance.toggle();
                 self.status = format!(
@@ -701,7 +707,8 @@ impl Workspace {
             Action::EnterNoteMode => {
                 self.note_mode = true;
                 self.status =
-                    "NOTE mode · A W S E D F T G Y H U J K · Esc returns to Normal".to_owned();
+                    "Note keyboard on · A W S E D F T G Y H U J K play · M or Esc turns it off"
+                        .to_owned();
             }
             Action::NoteOn { key, pitch } => self.audition_note_on_velocity(key, pitch, 0.8),
             Action::NoteOnVelocity {
@@ -1548,7 +1555,8 @@ impl Workspace {
             self.status = "Nothing earlier in Project History to undo".to_owned();
             return;
         }
-        let entry_id = self.history[self.history.len() - 2].id.clone();
+        // History is newest first, so the entry before the latest is the second one.
+        let entry_id = self.history[1].id.clone();
         self.restore_history(&entry_id);
     }
 }

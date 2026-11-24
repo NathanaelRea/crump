@@ -9,7 +9,6 @@ pub(super) fn execute(cli: &Cli) -> Result<Success, Failure> {
         Some(Command::Publish(args)) => command_publish(cli, args),
         Some(Command::Check) => command_check(cli),
         Some(Command::Play(args)) => command_play(cli, args),
-        Some(Command::Workspace) => command_workspace(cli),
         Some(Command::Gui) => command_gui(cli),
         Some(Command::Render(args)) => command_render(cli, args),
         Some(Command::Qualify(args)) => command_qualify(cli, args),
@@ -18,11 +17,24 @@ pub(super) fn execute(cli: &Cli) -> Result<Success, Failure> {
         Some(Command::Asset(command)) => command_asset(cli, command),
         Some(Command::Module(command)) => command_module(cli, command),
         Some(Command::Doctor) => command_doctor(cli),
-        None if !cli.json && std::io::stdin().is_terminal() && std::io::stdout().is_terminal() => {
-            command_workspace(cli)
+        // A bare interactive `crump` opens the desktop window where a display exists, and
+        // `status` otherwise (scripts, `--json`, plain terminals).
+        None if !cli.json
+            && cfg!(feature = "gui")
+            && graphical_display_available()
+            && (std::io::stdin().is_terminal() || !workspace_needs_project_picker(cli)) =>
+        {
+            command_gui(cli)
         }
         None => command_status(cli),
     }
+}
+
+/// Whether a Wayland or X11 display is reachable, so a window can open.
+fn graphical_display_available() -> bool {
+    ["WAYLAND_DISPLAY", "DISPLAY"]
+        .iter()
+        .any(|name| std::env::var_os(name).is_some_and(|value| !value.is_empty()))
 }
 
 fn command_new(cli: &Cli, args: &NewArgs) -> Result<Success, Failure> {
@@ -368,27 +380,6 @@ fn command_check(cli: &Cli) -> Result<Success, Failure> {
     })
 }
 
-#[cfg(feature = "tui")]
-pub(super) fn play_stop_key(key: crossterm::event::KeyEvent) -> bool {
-    matches!(key.code, crossterm::event::KeyCode::Char('c'))
-        && key
-            .modifiers
-            .contains(crossterm::event::KeyModifiers::CONTROL)
-}
-
-/// Whether the user pressed the interactive playback stop key since the last check.
-#[cfg(feature = "tui")]
-fn play_stop_requested() -> bool {
-    crossterm::event::poll(std::time::Duration::ZERO).unwrap_or(false)
-        && matches!(crossterm::event::read(), Ok(crossterm::event::Event::Key(key)) if play_stop_key(key))
-}
-
-/// Without terminal support the terminal stays in cooked mode, so Ctrl-C interrupts the process.
-#[cfg(not(feature = "tui"))]
-fn play_stop_requested() -> bool {
-    false
-}
-
 fn audition_plan(args: &PlayArgs) -> Result<AuditionPlan, Failure> {
     let parts = args.target.split('/').collect::<Vec<_>>();
     let target = match parts.as_slice() {
@@ -593,7 +584,6 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
     }
     let mut player = Player::start(prepared.into_runtime())
         .map_err(|error| Failure::operational("play", "audio_unavailable", error))?;
-    let raw_mode = RawModeGuard::new(interactive);
     let started = std::time::Instant::now();
     let mut report;
     let mut stream_failure = None;
@@ -632,12 +622,8 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
         {
             break;
         }
-        if interactive && play_stop_requested() {
-            break;
-        }
         std::thread::sleep(std::time::Duration::from_millis(20));
     }
-    drop(raw_mode);
     player
         .shutdown()
         .map_err(|error| Failure::operational("play", "shutdown_failed", error))?;
@@ -667,52 +653,6 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
             "audition": audition_inspection,
             "telemetry": report,
         }),
-    })
-}
-
-fn command_workspace(cli: &Cli) -> Result<Success, Failure> {
-    if cli.json {
-        return Err(Failure::blocked(
-            "workspace",
-            "interactive_command",
-            "the Production Workspace is interactive and cannot use --json",
-            json!([]),
-        ));
-    }
-    if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
-        return Err(Failure::blocked(
-            "workspace",
-            "terminal_required",
-            "the Production Workspace requires an interactive terminal",
-            json!([]),
-        ));
-    }
-
-    let Some(project) = interactive_project(cli, "workspace")? else {
-        return Ok(Success {
-            command: "workspace",
-            human: "Project selection cancelled".to_owned(),
-            data: json!({ "closed": true, "opened": false }),
-        });
-    };
-
-    #[cfg(feature = "tui")]
-    crate::workspace::run(&project)
-        .map_err(|error| Failure::operational("workspace", "workspace_error", error))?;
-    #[cfg(not(feature = "tui"))]
-    return Err(Failure::operational(
-        "workspace",
-        "terminal_client_unavailable",
-        format!(
-            "this build has no terminal client and cannot open {}; rebuild with the `tui` feature",
-            project.display()
-        ),
-    ));
-    #[cfg(feature = "tui")]
-    Ok(Success {
-        command: "workspace",
-        human: "Production Workspace closed".to_owned(),
-        data: json!({ "closed": true, "opened": true, "project": project }),
     })
 }
 
@@ -3768,31 +3708,6 @@ fn valid_id(id: &str) -> bool {
         && id
             .chars()
             .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
-}
-
-#[cfg_attr(not(feature = "tui"), allow(dead_code))]
-struct RawModeGuard(bool);
-
-impl RawModeGuard {
-    #[cfg(feature = "tui")]
-    fn new(enable: bool) -> Self {
-        let enabled = enable && crossterm::terminal::enable_raw_mode().is_ok();
-        Self(enabled)
-    }
-
-    #[cfg(not(feature = "tui"))]
-    fn new(_enable: bool) -> Self {
-        Self(false)
-    }
-}
-
-impl Drop for RawModeGuard {
-    fn drop(&mut self) {
-        #[cfg(feature = "tui")]
-        if self.0 {
-            let _ = crossterm::terminal::disable_raw_mode();
-        }
-    }
 }
 
 fn read_module_file(path: &Path, command: &'static str) -> Result<Vec<u8>, Failure> {

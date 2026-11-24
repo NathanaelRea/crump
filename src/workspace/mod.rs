@@ -3,15 +3,12 @@
 //! [`Workspace`] is the client-independent session: it owns Candidate and Active Revision
 //! tracking, background reload, playback, audition, selection, and modal state, and it changes
 //! only through [`Workspace::dispatch`] and [`Workspace::tick`]. A client adapter translates its
-//! own input into [`Action`] values and draws the resulting state. The first-party adapter is the
-//! Ratatui terminal client in the `tui` submodule, compiled with the `tui` feature; the optional
-//! egui desktop client is the `gui` submodule behind the `gui` feature. Nothing outside those
-//! submodules depends on a terminal or windowing library, and both share the key bindings in
-//! the `keymap` submodule.
+//! own input into [`Action`] values and draws the resulting state. The client is the egui desktop
+//! window in the `gui` submodule, behind the `gui` feature. Nothing outside those submodules depends on a windowing library.
 
 // The read side of the session (projections, labels, timing statistics) is consumed only by a
 // client adapter, so a build without one would otherwise report it as dead.
-#![cfg_attr(not(feature = "tui"), allow(dead_code))]
+#![cfg_attr(not(feature = "gui"), allow(dead_code))]
 
 use std::{
     cell::RefCell,
@@ -66,13 +63,9 @@ mod background;
 mod gui;
 mod input;
 mod instrument;
-#[cfg(any(feature = "tui", feature = "gui"))]
-mod keymap;
 mod performance;
 mod reload;
 mod timeline;
-#[cfg(feature = "tui")]
-mod tui;
 mod watch;
 
 #[cfg(test)]
@@ -93,23 +86,7 @@ use instrument::{InstrumentSectionRow, instrument_section_views_with_assets};
 use performance::WorkspacePerformance;
 use reload::{CandidateReload, CandidateUpdate, HistoryReload, HistoryUpdate, ReloadBatch};
 use timeline::{TimelineCache, TimelinePosition, TimelineRange, TimelineState, TimelineViewport};
-#[cfg(feature = "tui")]
-pub use tui::run;
 use watch::WorkspaceWatch;
-
-fn timeline_ascii_fallback() -> bool {
-    if let Ok(value) = std::env::var("CRUMP_TIMELINE_ASCII") {
-        return matches!(
-            value.trim().to_ascii_lowercase().as_str(),
-            "1" | "true" | "yes" | "on"
-        );
-    }
-    let locale_is_ascii = ["LC_ALL", "LC_CTYPE", "LANG"]
-        .into_iter()
-        .find_map(|name| std::env::var(name).ok().filter(|value| !value.is_empty()))
-        .is_some_and(|locale| matches!(locale.as_str(), "C" | "POSIX"));
-    locale_is_ascii || std::env::var("TERM").is_ok_and(|term| term.eq_ignore_ascii_case("dumb"))
-}
 
 /// Graph View order: the order the runtime processes Nodes in. A graph that has no valid
 /// order (only possible for an unpublished candidate) falls back to declaration order.
@@ -187,26 +164,6 @@ pub enum View {
     History,
     /// Client help.
     Help,
-}
-
-impl View {
-    const fn title(self) -> &'static str {
-        match self {
-            Self::Timeline => "Timeline",
-            Self::Mixer => "Mixer",
-            Self::Processing => "Processing",
-            Self::EventGrid => "Event Grid",
-            Self::Faceplate => "Faceplate",
-            Self::Instrument => "Instrument",
-            Self::Parameters => "Parameters",
-            Self::Automation => "Automation",
-            Self::Graph => "Graph",
-            Self::Source => "Source",
-            Self::Diagnostics => "Diagnostics",
-            Self::History => "History",
-            Self::Help => "Help",
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -298,15 +255,23 @@ pub struct Workspace {
     active_revision: Option<RevisionId>,
     active_entry: Option<String>,
     active_bundle: Option<Arc<ProjectBundle>>,
+    /// A History version auditioned in place of the Active Revision, by entry ID. Playback
+    /// prepares from it while set; Stop or leaving History clears it.
+    history_preview: Option<(String, Arc<ProjectBundle>)>,
+    /// Projects rebuilt from History snapshots, most recent last, shared by History's view and
+    /// its playback preview so a scrub step never reads the same snapshot twice.
+    history_versions: RefCell<Vec<(String, Option<Arc<ProjectBundle>>)>>,
+    /// Projects parsed from History snapshots for viewing, loaded on background threads.
+    history_projects: RefCell<HistoryProjects>,
     audible_bundle: Option<Arc<ProjectBundle>>,
     pending_active_inspection: Option<PendingActiveInspection>,
+    /// Project History, newest entry first.
     history: Vec<HistoryEntry>,
     view: View,
     selected_track: usize,
     timeline_state: TimelineState,
     timeline_viewport: TimelineViewport,
     timeline_cache: TimelineCache,
-    timeline_ascii: bool,
     mixer_parameters: Vec<MixerParameterView>,
     selected_mixer_parameter: usize,
     selected_processor: usize,
@@ -321,8 +286,6 @@ pub struct Workspace {
     selected_graph_node: usize,
     selected_history: usize,
     selected_diagnostic: usize,
-    help_scroll: u16,
-    help_line_count: usize,
     selected_source: usize,
     source_scroll: usize,
     modal: Option<Modal>,
@@ -450,6 +413,71 @@ enum InputAction {
     Publish,
 }
 
+/// One History version parsed on a background thread: its entry ID and Project, if readable.
+type ParsedVersion = (String, Option<crate::model::Project>);
+
+/// History versions parsed for viewing: ready ones by entry ID (most recent last), and the ones
+/// still loading on background threads.
+#[derive(Default)]
+struct HistoryProjects {
+    ready: Vec<(String, Option<Arc<crate::model::Project>>)>,
+    loading: std::collections::BTreeSet<String>,
+    channel: Option<(
+        std::sync::mpsc::Sender<ParsedVersion>,
+        std::sync::mpsc::Receiver<ParsedVersion>,
+    )>,
+}
+
+impl HistoryProjects {
+    /// Versions kept parsed; each is a Project without media, so this stays small.
+    const KEEP: usize = 96;
+    /// Versions parsed at once (a version, its parent and now fit together), so a long scrub
+    /// cannot start a thread per tick.
+    const PARALLEL: usize = 4;
+
+    fn get(&mut self, id: &str) -> Option<Option<Arc<crate::model::Project>>> {
+        let position = self.ready.iter().position(|(entry, _)| entry == id)?;
+        let hit = self.ready.remove(position);
+        let project = hit.1.clone();
+        self.ready.push(hit);
+        Some(project)
+    }
+
+    fn request(&mut self, root: &Path, id: &str) {
+        if self.loading.contains(id) || self.loading.len() >= Self::PARALLEL {
+            return;
+        }
+        let (sender, _) = self.channel.get_or_insert_with(std::sync::mpsc::channel);
+        let sender = sender.clone();
+        let (root, entry) = (root.to_path_buf(), id.to_owned());
+        self.loading.insert(entry.clone());
+        std::thread::spawn(move || {
+            let project = HistoryStore::open(&root)
+                .and_then(|store| store.project_at(&entry))
+                .ok()
+                .flatten();
+            let _ = sender.send((entry, project));
+        });
+    }
+
+    fn collect(&mut self) {
+        let Some((_, receiver)) = &self.channel else {
+            return;
+        };
+        while let Ok((entry, project)) = receiver.try_recv() {
+            self.loading.remove(&entry);
+            self.ready.push((entry, project.map(Arc::new)));
+            if self.ready.len() > Self::KEEP {
+                self.ready.remove(0);
+            }
+        }
+    }
+
+    fn loading(&self) -> bool {
+        !self.loading.is_empty()
+    }
+}
+
 impl Workspace {
     #[cfg(test)]
     fn load(path: &Path) -> Result<Self, WorkspaceError> {
@@ -545,6 +573,9 @@ impl Workspace {
             active_revision,
             active_entry,
             active_bundle,
+            history_preview: None,
+            history_versions: RefCell::new(Vec::new()),
+            history_projects: RefCell::new(HistoryProjects::default()),
             audible_bundle: None,
             pending_active_inspection: None,
             history,
@@ -553,7 +584,6 @@ impl Workspace {
             timeline_state: TimelineState::default(),
             timeline_viewport: TimelineViewport::default(),
             timeline_cache,
-            timeline_ascii: timeline_ascii_fallback(),
             mixer_parameters,
             selected_mixer_parameter: 0,
             selected_processor: 0,
@@ -568,8 +598,6 @@ impl Workspace {
             selected_graph_node: 0,
             selected_history: 0,
             selected_diagnostic: 0,
-            help_scroll: 0,
-            help_line_count: 0,
             selected_source: 0,
             source_scroll: 0,
             modal: None,
@@ -796,7 +824,7 @@ impl Workspace {
         if !self.active_prepare_requested {
             return false;
         }
-        let Some(active) = self.active_bundle.clone() else {
+        let Some(active) = self.runtime_bundle() else {
             if self.history_reload_requested {
                 return false;
             }
@@ -804,7 +832,8 @@ impl Workspace {
             self.status = "Publish a valid Candidate before preparing an audition".to_owned();
             return false;
         };
-        if self.active_revision.as_ref() != Some(&active.revision) {
+        if self.history_preview.is_none() && self.active_revision.as_ref() != Some(&active.revision)
+        {
             if self.history_reload_requested {
                 return false;
             }
@@ -840,7 +869,19 @@ impl Workspace {
         let request = ActiveRequest {
             key: key.clone(),
             active,
-            plan: self.audition_plan.clone(),
+            // A past version plays the whole Song with none of today's monitoring overrides
+            // (target, Solo, cue, bypass), which may name things that version does not have.
+            plan: if self.history_preview.is_some() {
+                AuditionPlan {
+                    range: AuditionRange {
+                        looping: self.audition_plan.range.looping,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }
+            } else {
+                self.audition_plan.clone()
+            },
             telemetry: self.telemetry.engine,
             previous_status: self.audition_status.clone(),
             initial_frame,
@@ -1027,6 +1068,19 @@ impl Workspace {
             )
     }
 
+    /// Whether an edit or reload is still landing, so the Candidate and Active Revision may
+    /// briefly disagree while the session catches up.
+    fn publication_settling(&self) -> bool {
+        self.edits_pending()
+            || self.history_reload_requested
+            || self.history_verification.is_some()
+            || matches!(
+                self.work_in_flight,
+                Some(WorkspaceWorkKind::Reload { history: true, .. })
+                    | Some(WorkspaceWorkKind::HistoryVerification)
+            )
+    }
+
     fn finish_mutation(&mut self, result: MutationResult) -> bool {
         self.mutation_in_flight = false;
         match result.result {
@@ -1045,6 +1099,8 @@ impl Workspace {
                 if self.active_request_is_current(&key) {
                     if self.player.is_none() && self.playback_requested {
                         self.playback_requested = false;
+                        // A History version that failed to start is not being heard.
+                        self.history_preview = None;
                     }
                     self.status = format!(
                         "Active audition preparation failed; prior audible state retained: {error}"
@@ -1137,8 +1193,132 @@ impl Workspace {
         }
     }
 
+    /// The Project playback prepares from: a previewed History version, else the Active Revision.
+    fn runtime_bundle(&self) -> Option<Arc<ProjectBundle>> {
+        self.history_preview
+            .as_ref()
+            .map(|(_, bundle)| Arc::clone(bundle))
+            .or_else(|| self.active_bundle.clone())
+    }
+
+    /// The Project a History entry published, for viewing. Parsed without media on a background
+    /// thread; `None` while it loads (see [`Workspace::history_projects_loading`]) or if it cannot
+    /// be read.
+    fn history_project(&self, id: &str) -> Option<Arc<crate::model::Project>> {
+        let mut projects = self.history_projects.borrow_mut();
+        projects.collect();
+        if let Some(ready) = projects.get(id) {
+            return ready;
+        }
+        projects.request(&self.root, id);
+        None
+    }
+
+    /// A History version already parsed for viewing, without starting a load.
+    fn history_project_peek(&self, id: &str) -> Option<Arc<crate::model::Project>> {
+        let mut projects = self.history_projects.borrow_mut();
+        projects.collect();
+        projects.get(id).flatten()
+    }
+
+    /// Whether History is still loading versions to show.
+    fn history_projects_loading(&self) -> bool {
+        let mut projects = self.history_projects.borrow_mut();
+        projects.collect();
+        projects.loading()
+    }
+
+    /// The Project a History entry published, rebuilt from its snapshot. The last dozen are kept.
+    fn history_version(&self, id: &str) -> Option<Arc<ProjectBundle>> {
+        const KEEP: usize = 12;
+        let mut cache = self.history_versions.borrow_mut();
+        if let Some(position) = cache.iter().position(|(entry, _)| entry == id) {
+            let hit = cache.remove(position);
+            let bundle = hit.1.clone();
+            cache.push(hit);
+            return bundle;
+        }
+        let bundle = HistoryStore::open(&self.root)
+            .and_then(|store| store.bundle_at(id))
+            .ok()
+            .filter(|bundle| bundle.project.is_some())
+            .map(Arc::new);
+        cache.push((id.to_owned(), bundle.clone()));
+        if cache.len() > KEEP {
+            cache.remove(0);
+        }
+        bundle
+    }
+
+    /// After a History preview ends, rebuilds the current version's runtime state (mixer graph,
+    /// channel map) if the last prepared one came from the preview.
+    fn prepare_current_if_stale(&mut self) {
+        let stale = self
+            .audible_bundle
+            .as_ref()
+            .is_some_and(|bundle| Some(&bundle.revision) != self.active_revision.as_ref());
+        if stale && self.active_bundle.is_some() {
+            self.queue_active_preparation(false);
+        }
+    }
+
+    /// Auditions a History version in place of the Active Revision, or returns to it with `None`.
+    /// While playing, the swap keeps the transport position.
+    fn preview_history_version(&mut self, entry: Option<String>) {
+        let playing = self.player.is_some() || self.playback_requested;
+        match entry {
+            None => {
+                if self.history_preview.take().is_some() {
+                    if playing {
+                        self.queue_active_preparation(false);
+                    } else {
+                        self.prepare_current_if_stale();
+                    }
+                }
+            }
+            Some(id) => {
+                if self
+                    .history_preview
+                    .as_ref()
+                    .is_some_and(|(current, _)| *current == id)
+                {
+                    return;
+                }
+                match self.history_version(&id) {
+                    Some(bundle) if bundle.publishable().is_some() => {
+                        self.history_preview = Some((id, bundle));
+                        if playing {
+                            self.queue_active_preparation(false);
+                        }
+                    }
+                    _ => {
+                        self.status = "That version could not be read, so it cannot play".to_owned()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Plays a History version from the cursor: starts playback only once that version is ready
+    /// to be heard, and otherwise reports why it cannot play.
+    fn play_history_version(&mut self, entry: String) {
+        self.preview_history_version(Some(entry.clone()));
+        let ready = self
+            .history_preview
+            .as_ref()
+            .is_some_and(|(previewed, _)| *previewed == entry);
+        if ready && self.player.is_none() && !self.playback_requested {
+            self.toggle_playback();
+        }
+    }
+
     fn active_request_is_current(&self, key: &ActiveRequestKey) -> bool {
-        self.active_revision.as_ref() == Some(&key.active_revision)
+        let expected = self
+            .history_preview
+            .as_ref()
+            .map(|(_, bundle)| &bundle.revision)
+            .or(self.active_revision.as_ref());
+        expected == Some(&key.active_revision)
             && self.audition_epoch == key.audition_epoch
             && self.playback_epoch == key.playback_epoch
     }
@@ -1224,7 +1404,7 @@ impl Workspace {
             } else if self.candidate_is_active() {
                 self.status = "Published revision loaded".to_owned();
             } else {
-                self.status = "Valid external Candidate loaded · press P to publish".to_owned();
+                self.status = "Valid external Candidate loaded · Ctrl-S publishes".to_owned();
             }
         } else {
             self.status = "Candidate reload complete · no byte changes".to_owned();
@@ -1395,6 +1575,7 @@ impl Workspace {
         self.active_prepare_explicit_seek = false;
         self.active_prepare_initial_frame = None;
         self.held_notes.clear();
+        self.history_preview = None;
         let retired = (
             self.player.take(),
             self.pending_active_inspection.take(),
@@ -1795,10 +1976,11 @@ impl Workspace {
             self.playback_epoch = self.playback_epoch.saturating_add(1);
             self.active_prepare_requested = false;
             self.active_prepare_initial_frame = None;
+            self.history_preview = None;
             self.status = "Pending playback start cancelled".to_owned();
             return;
         }
-        if self.active_bundle.is_none() {
+        if self.runtime_bundle().is_none() {
             self.status = "Publish a valid Candidate before playback".to_owned();
             return;
         }
@@ -1839,6 +2021,10 @@ impl Workspace {
         self.playback_paused = false;
         self.telemetry = PlayerTelemetry::default();
         self.held_notes.clear();
+        // Stopping a History preview returns to the current version.
+        if self.history_preview.take().is_some() {
+            self.prepare_current_if_stale();
+        }
         self.status = "Audition stopped · target, range, and bypass state remain armed".to_owned();
     }
 
@@ -1900,11 +2086,11 @@ impl Workspace {
             }
             self.held_notes.clear();
             self.note_mode = false;
-            self.status = "NORMAL mode".to_owned();
+            self.status = "Note keyboard off".to_owned();
         } else if self.timeline_state.visual() {
             self.cancel_timeline_visual();
         } else {
-            self.status = "NORMAL mode · Ctrl-C exits".to_owned();
+            self.status.clear();
         }
     }
 
@@ -1936,9 +2122,7 @@ impl Workspace {
                 self.selected_diagnostic = edge(self.bundle.diagnostics.as_slice().len())
             }
             View::History => self.selected_history = edge(self.history.len()),
-            View::Help => {
-                self.help_scroll = u16::try_from(edge(self.help_line_count)).unwrap_or(u16::MAX)
-            }
+            View::Help => {}
         }
         self.status = if first {
             "Moved to first row"
@@ -2036,7 +2220,8 @@ impl Workspace {
     }
 
     fn timeline_frame_at(&self, at: crate::time::MusicalTime) -> Option<u64> {
-        let project = self.active_bundle.as_ref()?.publishable()?;
+        let runtime = self.runtime_bundle()?;
+        let project = runtime.publishable()?;
         let frame = at
             .to_frames(project.song.tempo_bpm, project.sample_rate)
             .ok()?;
@@ -2733,16 +2918,7 @@ impl Workspace {
                     delta,
                 )
             }
-            View::Help => {
-                self.help_scroll = self
-                    .help_scroll
-                    .saturating_add_signed(i16::try_from(delta).unwrap_or(if delta < 0 {
-                        i16::MIN
-                    } else {
-                        i16::MAX
-                    }))
-                    .min(u16::try_from(self.help_line_count.saturating_sub(1)).unwrap_or(u16::MAX))
-            }
+            View::Help => {}
         }
     }
 
@@ -3547,6 +3723,32 @@ impl Workspace {
         });
     }
 
+    fn compare_history_with_active(&mut self) {
+        let Some(entry) = self.history.get(self.selected_history) else {
+            return;
+        };
+        let Some(active) = self.active_entry.clone() else {
+            self.status = "Nothing is published yet to compare against".to_owned();
+            return;
+        };
+        let title = format!("What restoring {} would change", entry.summary);
+        let body = HistoryStore::open(&self.root)
+            .and_then(|store| store.diff_between(&active, &entry.id))
+            .map(|diff| {
+                if diff.trim().is_empty() {
+                    "No differences: this version matches the current one.".to_owned()
+                } else {
+                    diff
+                }
+            })
+            .unwrap_or_else(|error| format!("Unable to read diff: {error}"));
+        self.modal = Some(Modal::Text {
+            title,
+            body,
+            scroll: 0,
+        });
+    }
+
     fn commit_input(&mut self, value: String, action: InputAction) {
         match action {
             InputAction::Target { target } => self.apply_operation(
@@ -3955,6 +4157,8 @@ impl Workspace {
     }
 
     fn restore_history(&mut self, entry_id: &str) {
+        // A restore replaces what is current; stop hearing any earlier version.
+        self.preview_history_version(None);
         self.queue_mutation(
             ProductionViewRequest {
                 expected_revision: Some(self.bundle.revision.clone()),
@@ -4339,7 +4543,8 @@ type HistorySnapshot = (
 fn history_state(root: &Path) -> Result<HistorySnapshot, crate::history::HistoryError> {
     let store = HistoryStore::open(root)?;
     let state = store.active_state()?;
-    let history = store.list()?;
+    let mut history = store.list()?;
+    history.reverse();
     let active_bundle = store.active_bundle()?.map(Arc::new);
     Ok(if let Some(state) = state {
         (

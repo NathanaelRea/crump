@@ -47,7 +47,7 @@ pub(super) const TEXT_PRIMARY: Color32 = Color32::from_rgb(232, 236, 244);
 /// Secondary labels, units, inactive tabs.
 pub(super) const TEXT_SECONDARY: Color32 = Color32::from_rgb(154, 164, 182);
 /// Muted annotations, grid numbers, hints.
-pub(super) const TEXT_MUTED: Color32 = Color32::from_rgb(102, 112, 130);
+pub(super) const TEXT_MUTED: Color32 = Color32::from_rgb(118, 128, 147);
 
 // ── Semantic Studio Accents ─────────────────────────────────────────────────
 
@@ -57,18 +57,22 @@ pub(super) const ACCENT_AMBER: Color32 = Color32::from_rgb(255, 142, 48);
 pub(super) const ACCENT_CYAN: Color32 = Color32::from_rgb(56, 198, 217);
 /// Modulation / envelope / LFO violet.
 pub(super) const ACCENT_VIOLET: Color32 = Color32::from_rgb(169, 124, 248);
+/// The one selection outline used by every selectable card, strip, row and list item.
+pub(super) const SELECTION: Color32 = ACCENT_AMBER;
 /// Nominal signal / playing LED / Active Revision badge.
 pub(super) const SIG_NOMINAL: Color32 = Color32::from_rgb(52, 199, 123);
 /// Hot signal (-12..-3 dBFS) / Solo LED / GR / Candidate modified.
 pub(super) const SIG_HOT: Color32 = Color32::from_rgb(240, 180, 41);
 /// Clipping (>-3 dBFS) / Mute / Playhead / Error.
 pub(super) const SIG_CLIP: Color32 = Color32::from_rgb(240, 82, 82);
+/// Lit Mute: a neutral grey, since a muted channel is a choice, not a problem.
+pub(super) const MUTE_LIT: Color32 = Color32::from_rgb(170, 180, 198);
 
 // ── Deterministic 8-Color Track Palette ─────────────────────────────────────
 
 const TRACK_PALETTE: [Color32; 8] = [
-    Color32::from_rgb(224, 108, 117), // Coral (Drums)
-    Color32::from_rgb(255, 158, 68),  // Amber (Bass)
+    Color32::from_rgb(236, 122, 160), // Rose (Drums); kept clear of the error red
+    Color32::from_rgb(164, 204, 96),  // Lime (Bass); kept clear of the amber selection
     Color32::from_rgb(229, 192, 123), // Gold (Keys)
     Color32::from_rgb(86, 182, 139),  // Emerald (Lead)
     Color32::from_rgb(56, 198, 217),  // Cyan (Pad)
@@ -83,6 +87,18 @@ pub(super) const fn track_color(index: usize) -> Color32 {
 }
 
 /// Semantic accent color for a processor family.
+/// One fixed color per drum voice, matching the drum pad bank order (Kick, Snare, Hat, Clap) so a
+/// voice keeps its color in the grid, velocity lane and pads regardless of row order.
+pub(super) const fn drum_voice_color(voice: crate::model::DrumVoice) -> Color32 {
+    use crate::model::DrumVoice;
+    track_color(match voice {
+        DrumVoice::Kick => 0,
+        DrumVoice::Snare => 1,
+        DrumVoice::Hat => 2,
+        DrumVoice::Clap => 3,
+    })
+}
+
 pub(super) const fn processor_color(kind: ProcessorKind) -> Color32 {
     match kind {
         ProcessorKind::Eq => ACCENT_CYAN,
@@ -91,7 +107,7 @@ pub(super) const fn processor_color(kind: ProcessorKind) -> Color32 {
             ACCENT_VIOLET
         }
         ProcessorKind::Saturation | ProcessorKind::Crusher | ProcessorKind::Stutter => {
-            Color32::from_rgb(224, 108, 117)
+            Color32::from_rgb(236, 122, 160)
         }
         ProcessorKind::Utility | ProcessorKind::Latency => SIG_NOMINAL,
     }
@@ -141,7 +157,7 @@ pub(super) const fn node_color(kind: NodeKind) -> Color32 {
         | NodeKind::Reverb
         | NodeKind::DelayLine
         | NodeKind::Saturation
-        | NodeKind::Shaper => Color32::from_rgb(224, 108, 117),
+        | NodeKind::Shaper => Color32::from_rgb(236, 122, 160),
         NodeKind::Output => SIG_NOMINAL,
         NodeKind::Mixer
         | NodeKind::StereoMixer
@@ -203,6 +219,40 @@ pub(super) const fn node_kind_label(kind: NodeKind) -> &'static str {
     }
 }
 
+/// A gain in decibels with one decimal, a space before the unit, and no negative zero.
+pub(super) fn format_db(db: f64) -> String {
+    let rounded = (db * 10.0).round() / 10.0;
+    format!("{:.1} dB", if rounded == 0.0 { 0.0 } else { rounded })
+}
+
+/// A musical position as `bar.beat.sixteenth`, 1-based (`0qn` → `1.1.1`). Beats follow the
+/// meter's denominator, so a 6/8 bar counts six eighth-note beats of two sixteenths each.
+pub(super) fn format_bar_beat(quarters: f64, meter: crate::time::Meter) -> String {
+    let beat_q = 4.0 / f64::from(meter.denominator.max(1));
+    let bar_q = (beat_q * f64::from(meter.numerator.max(1))).max(0.25);
+    let q = quarters.max(0.0) + 1e-6;
+    let bar = (q / bar_q).floor();
+    let in_bar = q - bar * bar_q;
+    let beat = (in_bar / beat_q).floor();
+    let sixteenth = ((in_bar - beat * beat_q) / 0.25).floor();
+    format!(
+        "{}.{}.{}",
+        bar as u64 + 1,
+        beat as u64 + 1,
+        sixteenth as u64 + 1
+    )
+}
+
+/// The bar-label stride for rulers: the smallest musical power of two (1, 2, 4, 8, 16, …) that is
+/// at least `min_bars`, so labels land on phrase boundaries (1, 5, 9, 17 …) in every view.
+pub(super) fn bar_label_interval(min_bars: f32) -> u32 {
+    let mut stride = 1_u32;
+    while (stride as f32) < min_bars && stride < 1024 {
+        stride *= 2;
+    }
+    stride
+}
+
 /// Converts a quarter-note float position into an exact 1/32nd-snapped `MusicalTime`.
 pub(super) fn quarters_to_musical_time(quarters: f64) -> crate::time::MusicalTime {
     let ticks = (quarters.max(0.0) * 32.0).round() as i64;
@@ -220,8 +270,17 @@ pub(super) fn apply_theme(ctx: &egui::Context) {
         style.spacing.combo_width = 148.0;
         style.spacing.scroll = ScrollStyle {
             bar_width: 8.0,
-            floating: false,
-            ..ScrollStyle::default()
+            // Floating bars overlay the content instead of taking width from it, so content
+            // never reflows as a bar appears; a slim handle stays visible and widens on hover.
+            floating: true,
+            floating_width: 5.0,
+            floating_allocated_width: 0.0,
+            dormant_background_opacity: 0.0,
+            // A faint text-coloured handle: quiet at rest, but always visible enough to say the
+            // content scrolls (the widget-fill handle all but vanished on the dark canvas).
+            dormant_handle_opacity: 0.30,
+            foreground_color: true,
+            ..ScrollStyle::floating()
         };
 
         let mut visuals = egui::Visuals::dark();

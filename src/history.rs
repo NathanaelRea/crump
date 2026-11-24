@@ -396,6 +396,38 @@ impl HistoryStore {
         Ok(diff_snapshots(before.as_ref(), &after))
     }
 
+    /// The exact Project an entry published, rebuilt from its snapshot.
+    pub fn bundle_at(&self, id: &str) -> Result<ProjectBundle, HistoryError> {
+        let entry = self.entry_metadata(id)?;
+        let snapshot = self.snapshot_metadata(&entry.revision)?;
+        let asset_bytes = self.snapshot_asset_bytes(&snapshot)?;
+        Ok(load_project_sources_with_assets(
+            self.root.clone(),
+            snapshot.sources,
+            &asset_bytes,
+        ))
+    }
+
+    /// The Project an entry published, parsed from its snapshot without decoding media: enough to
+    /// show every value it held, far cheaper than [`HistoryStore::bundle_at`].
+    pub fn project_at(&self, id: &str) -> Result<Option<crate::model::Project>, HistoryError> {
+        let entry = self.entry_metadata(id)?;
+        let snapshot = self.snapshot_metadata(&entry.revision)?;
+        Ok(
+            load_project_sources_with_assets(self.root.clone(), snapshot.sources, &BTreeMap::new())
+                .project,
+        )
+    }
+
+    /// Produces an exact unified source diff from one entry's state to another's.
+    pub fn diff_between(&self, from_id: &str, to_id: &str) -> Result<String, HistoryError> {
+        let from = self.entry_metadata(from_id)?;
+        let to = self.entry_metadata(to_id)?;
+        let before = self.snapshot_metadata(&from.revision)?;
+        let after = self.snapshot_metadata(&to.revision)?;
+        Ok(diff_snapshots(Some(&before), &after))
+    }
+
     /// Restores an earlier exact state as a new append-only entry.
     pub fn restore(
         &self,

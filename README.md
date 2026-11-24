@@ -2,165 +2,51 @@
 
 # Crump
 
-Crump is a music production tool for making electronic music. It runs as a desktop window or in your terminal, and both clients are fully keyboard-driven. The song itself is stored as plain text files you can read, diff and commit.
-
-![Arrangement view of the deep-house reference Project in the desktop window](assets/screenshots/gui-timeline.png)
-
-Every sound is built from Crump's own synths, samplers and effects. There are no plug-ins. A project is a folder of `.crump` files plus any WAV samples it uses. You can edit it in the workspace, in your text editor, or through the `crump` CLI, and all three see the same files. That last part makes Crump work well with coding agents. Every command has a `--json` mode that returns one structured response.
-
-Crump runs on Linux and plays audio through PipeWire.
-
-## What's in it
-
-- **Arrangement:** tracks, clips, reusable patterns and pattern variations, locators, and groove templates.
-- **Sound:** virtual-analog, wavetable, sample, multisample, granular and spectral sources, all wired together as graphs you write yourself. There are also stock drums and a WAV-based sampler.
-- **Movement:** automation, per-step parameter locks, LFOs, and an envelope follower. Playback and offline rendering share the same sample-accurate evaluation, so they sound identical.
-- **Mixing:** groups, returns, sends and sidechains, with latency compensation. Built-in effects are EQ, compressor, delay, reverb, saturation, chorus/flanger, bitcrusher, stutter and limiter.
-- **Rendering:** deterministic 48 kHz stereo masters and stems, each with a manifest, a hash and audio analysis.
-- **History:** every edit and publish is recorded and can be diffed or restored.
-
-Crump does not do audio recording, third-party plug-ins, MPE, or playback on anything other than Linux. [docs/support.md](docs/support.md) lists the full set of limits.
-
-## How a project works
-
-You edit the files on disk, and Crump only plays a version once you've published it.
+Crump is a text-first DAW built for coding agents. A song is a folder of plain `.crump` files: an agent (or you, in any editor) writes the music, and Crump plays it, checks it, and keeps every version. When you want to fine-tune, open the window and turn a knob, nudge a note or drag a fader; each change is written straight back to the text.
 
 ```text
-edit files ──▶ validate ──▶ publish ──▶ play / render
-  (candidate)                 (active)
+song {
+  tempo 112bpm
+  pattern bass_a 1bar {
+    note 0beat E2 3/4beat 0.8
+    note 2beat B1 3/4beat 0.76
+  }
+}
 ```
 
-If you save a broken edit, playback keeps using the last good version. The error points to the file, line and column:
+![Arrangement view of the deep-house reference project](assets/screenshots/gui-timeline.png)
 
-```console
-$ crump validate
-crump: validation_failed: Candidate Revision is invalid
-instruments/dh-bass.crump:5:3: error[CRV024]: authored Parameter value is outside its legal domain
-```
+- **Agents first.** Every command has a `--json` mode, errors point to file, line and column, and edits refuse to apply to stale files. A broken edit never replaces the last version that played.
+- **Quick hands-on changes.** The window has the synth, FX rack, mixer, piano roll and automation, with normal DAW shortcuts. Mouse edits keep your formatting and comments.
+- **History you can see.** Every edit is saved. Scrub through versions to see the knobs, effects and notes as they were, play any version, and restore it.
+- **Everything built in.** Analog, wavetable, sample, granular and spectral synths, drums, effects, sends and sidechains. No plug-ins, and the offline render sounds exactly like playback.
 
-This is what makes it safe to have an editor, an agent and the workspace all open on the same project.
+Crump runs on Linux with PipeWire. It has no audio recording or third-party plug-ins ([limits](docs/support.md)).
 
-![Mixer console with channel strips, sends, pan, and meters](assets/screenshots/gui-mixer.png)
-
-## Install
-
-Crump targets Ubuntu 26.04 (amd64) with PipeWire 1.6 and Rust 1.88 or newer.
+## Try it
 
 ```bash
 sudo apt install build-essential dpkg-dev pkg-config libpipewire-0.3-dev libclang-dev
-git clone https://github.com/NathanaelRea/crump.git
-cd crump
-cargo install --path . --locked
-crump doctor
+git clone https://github.com/NathanaelRea/crump.git && cd crump
+cargo run --release -- --project fixtures/deep-house-reference
 ```
 
-To build without PipeWire, run `cargo build --release --no-default-features --features tui`. That build has no playback, but validation, history, rendering and the workspace still work. Leaving out `tui` as well drops the terminal client and its dependencies, keeping the library, the client-independent workspace session and every non-interactive CLI command. To build a `.deb` package, run `packaging/build-deb.sh dist`.
+Use `--release`; a debug build is too slow for realtime audio. To install, run `cargo install --path . --locked`, then `crump new my-sketch` and `crump` inside it.
 
-## Desktop window
-
-Crump has an optional desktop window. It shows the same views as the terminal workspace and takes the same keys, and adds full mouse editing: drag clips, faders, knobs and automation points, draw notes in the piano roll, and Ctrl-scroll to zoom. Every edit is saved, validated and recorded in History like any other.
-
-| | |
-|---|---|
-| ![FX rack with processor cards and inspector](assets/screenshots/gui-fx-rack.png) | ![Synth view with oscillator, filter and envelope displays](assets/screenshots/gui-synth.png) |
-| ![Patch graph of an instrument's voice](assets/screenshots/gui-patch-graph.png) | ![Piano roll with velocity lane and drum pads](assets/screenshots/gui-piano-roll.png) |
-
-The window is behind the `gui` Cargo feature, so it isn't in the default build:
-
-```sh
-cargo install --path . --locked --features gui
-crump gui --project path/to/project
-```
-
-To try it from a checkout without installing:
-
-```sh
-cargo run --release --features gui -- gui --project fixtures/deep-house-reference
-```
-
-Use `--release`: a debug build is too slow for the realtime audio thread, and the system kills the process when playback starts. It needs a Wayland or X11 session. Run from a terminal without `--project` and it offers the project picker. More in [docs/workspace.md](docs/workspace.md#desktop-window).
-
-## Quick start
-
-```bash
-crump new my-sketch --name "My Sketch"
-cd my-sketch
-crump
-```
-
-A new project starts out silent. For something to listen to, copy the reference project:
-
-```bash
-cp -R fixtures/reference neon-steps
-crump --project neon-steps publish --origin human --actor "$USER" \
-  --summary "Adopt reference sketch" --explanation "First publish"
-crump --project neon-steps play
-crump --project neon-steps render --output render/master
-crump --project neon-steps render --output render/stems --stem track/lead:post_fader
-```
-
-### Workspace keys
-
-| Key | |
-| --- | --- |
-| `1`–`9`, `0` | Timeline, Mixer, Processing, Event Grid, Faceplate, Instrument, Parameters, Automation, Graph, Source |
-| `Tab` / `Shift-Tab` | Next / previous view, including Diagnostics, History and Help |
-| `Space` / `S` | Play or pause / stop |
-| `j` `k` `h` `l` | Move around. In Timeline, `h`/`l` move by the current grid |
-| `V`, then `L` | Select a range in Timeline and loop it |
-| `:` | Jump to a bar, beat or locator |
-| `i` | Play the current instrument from the computer keyboard (`Esc` to leave) |
-| `P` | Publish the current edits |
-| `?` | Help |
-| `Ctrl-C` | Quit (`q` and `Esc` never quit) |
-
-The full keymap is in [docs/workspace.md](docs/workspace.md).
-
-## Examples
-
-- [`fixtures/reference/`](fixtures/reference/): a short three-track synth sketch.
-- [`fixtures/deep-house-reference/`](fixtures/deep-house-reference/): a 112-bar deep-house track that uses every kind of sound source. It's the project in the screenshots above.
-- [`fixtures/starter/`](fixtures/starter/): nine starter instruments with audition phrases.
-- [`examples/instruments/`](examples/instruments/README.md): 184 instruments you can copy, including house sounds, a 32-piece orchestra, drum machines and world instruments. The [instrument player](tools/instrument_player/README.md) lets you play all of them in a browser.
-- [`examples/waveguides/`](examples/waveguides/README.md): a plucked string, a sitar and a clarinet, each built from feedback loops in plain `.crump`.
-
-In each project, every instrument lives in its own `instruments/<id>.crump` file, and `project.crump` imports them. Copy the whole directory to keep the imports working.
-
-## CLI
-
-```text
-new  validate  inspect  status  publish  check  workspace  gui  play  render  qualify  doctor
-history  list | show | diff | restore
-edit     parameters, notes, clips, automation, locators, grooves, samples, ...
-asset    import | import-wavetable | collect | bounce | prepare | list
-module   export | install | list | inspect | preview | copy | collect
-```
-
-Add `--json` to any non-interactive command to get a single JSON response:
+An agent works through the CLI:
 
 ```console
 $ crump --json status
 {"command":"status","data":{"active_entry":"000000000001","candidate_valid":true,"state":"active",...},"ok":true,"schema_version":1}
+$ crump validate
+instruments/dh-bass.crump:5:3: error[CRV024]: authored Parameter value is outside its legal domain
+$ crump publish --summary "Darker bass" && crump render --output render/master
 ```
 
-Edits made through `edit` keep your formatting and comments. They also refuse to apply if the file has changed since you last read it.
+## More
 
-## Docs
+- [Examples](examples/instruments/README.md): 184 instruments to copy, plus the [reference projects](fixtures/)
+- [Workspace and shortcuts](docs/workspace.md) · [Project language](docs/language.md) · [CLI and agents](docs/cli-and-agents.md)
+- [History and rendering](docs/history-and-rendering.md) · [Cookbook](docs/cookbook/README.md) · [All docs](docs/README.md)
 
-- [Workspace](docs/workspace.md)
-- [Project language](docs/language.md)
-- [CLI and agents](docs/cli-and-agents.md)
-- [Cookbook](docs/cookbook/README.md)
-- [Audio and MIDI](docs/audio-and-midi.md)
-- [History and rendering](docs/history-and-rendering.md)
-- [Supported environment](docs/support.md)
-- [Architecture](docs/architecture/overview.md) and [glossary](CONTEXT.md)
-- [Everything else](docs/README.md)
-
-## Contributing
-
-Crump is developed in the open but does not accept external pull requests.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+Crump is developed in the open but does not accept external pull requests. MIT licensed; see [LICENSE](LICENSE).

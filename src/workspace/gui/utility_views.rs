@@ -1,62 +1,17 @@
-//! Studio utility views: token-highlighted Source IDE, Diagnostics Preflight Console,
-//! Revision History Timeline with Inline Inspector, and Searchable Two-Column Shortcut Reference.
+//! Studio utility views: token-highlighted Source IDE, Diagnostics list,
+//! History (see `history_view`), and Searchable Two-Column Shortcut Reference.
 
 use egui::text::{LayoutJob, TextFormat};
 
 use super::theme::{self, with_alpha};
-use super::widgets::{legible, pill_toggle, unavailable};
+use super::widgets::{self, section_header, unavailable};
 use super::*;
 use crate::diagnostic::Severity;
-use crate::history::SourceChangeKind;
-
-fn utility_subbar(ui: &mut Ui, cx: &mut Cx<'_>) {
-    let app = cx.app;
-    let diag_count = app.bundle.diagnostics.as_slice().len();
-    egui::Frame::new()
-        .fill(theme::BG_SURFACE)
-        .inner_margin(egui::Margin::symmetric(10, 5))
-        .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
-        .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 5.0;
-                for (view, label, key) in [
-                    (View::Source, "Source", "0"),
-                    (View::Diagnostics, "Diagnostics", "—"),
-                    (View::History, "History", "H"),
-                    (View::Help, "Shortcuts", "?"),
-                ] {
-                    let accent = if view == View::Diagnostics && app.bundle.diagnostics.has_errors()
-                    {
-                        theme::SIG_CLIP
-                    } else {
-                        theme::ACCENT_CYAN
-                    };
-                    let title = if view == View::Diagnostics && diag_count > 0 {
-                        format!("{label} ({diag_count})")
-                    } else {
-                        label.to_owned()
-                    };
-                    if pill_toggle(
-                        ui,
-                        &title,
-                        app.view == view,
-                        accent,
-                        &format!("{label} · Key {key}"),
-                    )
-                    .clicked()
-                    {
-                        cx.send(Action::ShowView(view));
-                    }
-                }
-            });
-        });
-}
 
 // ── 1. Two-Pane Token-Highlighted Source Viewer ──────────────────────────────────
 
 pub(super) fn source(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
-    utility_subbar(ui, cx);
 
     if app.bundle.sources.is_empty() {
         unavailable(ui, "No source files loaded");
@@ -78,7 +33,7 @@ pub(super) fn source(ui: &mut Ui, cx: &mut Cx<'_>) {
     // Left File Tree Sidebar
     egui::SidePanel::left("crump-source-files")
         .resizable(true)
-        .default_width(245.0)
+        .default_width(280.0)
         .min_width(180.0)
         .max_width(350.0)
         .frame(
@@ -89,12 +44,7 @@ pub(super) fn source(ui: &mut Ui, cx: &mut Cx<'_>) {
         )
         .show_inside(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("PROJECT FILES")
-                        .strong()
-                        .size(10.5)
-                        .color(theme::TEXT_SECONDARY),
-                );
+                section_header(ui, "PROJECT FILES", theme::BORDER_STRONG);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(
                         RichText::new(format!("{}", files.len()))
@@ -108,58 +58,89 @@ pub(super) fn source(ui: &mut Ui, cx: &mut Cx<'_>) {
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
+                    // Files are grouped under their directory, shown once, so rows show
+                    // filenames instead of repeating a long common prefix.
+                    let mut last_dir: Option<String> = None;
                     for (idx, (path, contents)) in files.iter().enumerate() {
                         let is_sel = idx == selected;
                         let line_count = contents.lines().count();
-                        let display = path.display().to_string();
+                        let full = path.display().to_string();
+                        let dir = path
+                            .parent()
+                            .map(|d| d.display().to_string())
+                            .filter(|d| !d.is_empty());
+                        if idx == 0 || last_dir != dir {
+                            if idx > 0 {
+                                ui.add_space(6.0);
+                            }
+                            ui.label(
+                                RichText::new(dir.as_deref().map_or_else(
+                                    || "project root".to_owned(),
+                                    |d| format!("{d}/"),
+                                ))
+                                .size(9.5)
+                                .color(theme::TEXT_MUTED),
+                            );
+                            ui.add_space(2.0);
+                            last_dir = dir;
+                        }
+                        let display = path
+                            .file_name()
+                            .map_or_else(|| full.clone(), |n| n.to_string_lossy().into_owned());
                         let frame = egui::Frame::new()
                             .fill(if is_sel {
-                                with_alpha(theme::ACCENT_CYAN, 0.16)
+                                with_alpha(theme::SELECTION, 0.12)
                             } else {
                                 Color32::TRANSPARENT
                             })
                             .stroke(Stroke::new(
                                 1.0_f32,
                                 if is_sel {
-                                    with_alpha(theme::ACCENT_CYAN, 0.55)
+                                    with_alpha(theme::SELECTION, 0.55)
                                 } else {
                                     Color32::TRANSPARENT
                                 },
                             ))
                             .corner_radius(4.0)
-                            .inner_margin(egui::Margin::symmetric(8, 5));
+                            .inner_margin(egui::Margin::symmetric(8, 0));
+                        // Compact editor-sidebar rows: name left, line count right, one line high.
                         let resp = frame.show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                    ui.label(
-                                        RichText::new(format!("{line_count}L"))
-                                            .monospace()
-                                            .size(9.5)
-                                            .color(theme::TEXT_MUTED),
-                                    );
-                                    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                                        ui.add(
-                                            egui::Label::new(
-                                                RichText::new(&display)
-                                                    .monospace()
-                                                    .size(11.0)
-                                                    .color(if is_sel {
-                                                        theme::TEXT_PRIMARY
-                                                    } else {
-                                                        theme::TEXT_SECONDARY
-                                                    }),
-                                            )
-                                            .truncate(),
-                                        )
-                                        .on_hover_text(&display);
-                                    });
-                                });
-                            });
+                            let (row, row_resp) = ui.allocate_exact_size(
+                                Vec2::new(ui.available_width(), 24.0),
+                                Sense::click(),
+                            );
+                            let painter = ui.painter();
+                            let count = format!("{line_count}L");
+                            painter.text(
+                                Pos2::new(row.right(), row.center().y),
+                                Align2::RIGHT_CENTER,
+                                &count,
+                                FontId::monospace(9.5),
+                                theme::TEXT_MUTED,
+                            );
+                            let name_font = FontId::monospace(11.0);
+                            let name = super::widgets::ellipsize(
+                                painter,
+                                &display,
+                                &name_font,
+                                row.width() - 40.0,
+                            );
+                            painter.text(
+                                Pos2::new(row.left(), row.center().y),
+                                Align2::LEFT_CENTER,
+                                name,
+                                name_font,
+                                if is_sel {
+                                    theme::TEXT_PRIMARY
+                                } else {
+                                    theme::TEXT_SECONDARY
+                                },
+                            );
+                            row_resp.on_hover_text(&full).clicked()
                         });
-                        if resp.response.interact(Sense::click()).clicked() {
+                        if resp.inner {
                             select_file = Some(idx);
                         }
-                        ui.add_space(2.0);
                     }
                 });
         });
@@ -225,7 +206,7 @@ pub(super) fn source(ui: &mut Ui, cx: &mut Cx<'_>) {
                                 .monospace()
                                 .size(11.5)
                                 .color(if is_target {
-                                    theme::ACCENT_AMBER
+                                    theme::TEXT_PRIMARY
                                 } else {
                                     theme::TEXT_MUTED
                                 }),
@@ -405,266 +386,14 @@ fn is_crump_numeric_literal(tok: &str) -> bool {
     false
 }
 
-// ── 2. Diagnostics Preflight Console ─────────────────────────────────────────────
+// ── 2. Diagnostics List ─────────────────────────────────────────────
 
 pub(super) fn diagnostics(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
-    utility_subbar(ui, cx);
 
+    // The window steps off this list once it is empty; see `settle_view`.
     let diagnostics = app.bundle.diagnostics.as_slice();
     if diagnostics.is_empty() {
-        egui::ScrollArea::vertical()
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                ui.add_space(28.0);
-                let avail_w = ui.available_width();
-                let card_w = (avail_w - 48.0).clamp(520.0, 740.0);
-                let side_pad = ((avail_w - card_w) * 0.5).max(16.0);
-
-                ui.horizontal(|ui| {
-                    ui.add_space(side_pad);
-                    ui.vertical(|ui| {
-                        ui.set_width(card_w);
-
-                        // Status Banner Card
-                        egui::Frame::new()
-                            .fill(theme::BG_SURFACE)
-                            .stroke(Stroke::new(1.0_f32, with_alpha(theme::SIG_NOMINAL, 0.48)))
-                            .corner_radius(10.0)
-                            .inner_margin(egui::Margin::same(24))
-                            .show(ui, |ui| {
-                                ui.vertical_centered(|ui| {
-                                    let (emblem, _) =
-                                        ui.allocate_exact_size(Vec2::splat(44.0), Sense::hover());
-                                    let p = ui.painter();
-                                    p.circle_filled(
-                                        emblem.center(),
-                                        20.0,
-                                        with_alpha(theme::SIG_NOMINAL, 0.18),
-                                    );
-                                    p.circle_stroke(
-                                        emblem.center(),
-                                        20.0,
-                                        Stroke::new(1.8_f32, theme::SIG_NOMINAL),
-                                    );
-                                    let c = emblem.center();
-                                    p.line_segment(
-                                        [Pos2::new(c.x - 7.0, c.y), Pos2::new(c.x - 1.5, c.y + 6.0)],
-                                        Stroke::new(2.4_f32, theme::SIG_NOMINAL),
-                                    );
-                                    p.line_segment(
-                                        [Pos2::new(c.x - 1.5, c.y + 6.0), Pos2::new(c.x + 8.5, c.y - 6.0)],
-                                        Stroke::new(2.4_f32, theme::SIG_NOMINAL),
-                                    );
-
-                                    ui.add_space(10.0);
-                                    ui.label(
-                                        RichText::new("Project Valid — Ready to Publish")
-                                            .strong()
-                                            .size(17.0)
-                                            .color(theme::TEXT_PRIMARY),
-                                    );
-                                    ui.add_space(4.0);
-                                    ui.label(
-                                        RichText::new(
-                                            "Zero compiler errors or warnings across all authoritative .crump files.",
-                                        )
-                                        .size(12.0)
-                                        .color(theme::TEXT_SECONDARY),
-                                    );
-                                    ui.add_space(14.0);
-
-                                    if let Some(project) = &app.bundle.project {
-                                        egui::Frame::new()
-                                            .fill(theme::BG_WELL)
-                                            .corner_radius(6.0)
-                                            .inner_margin(egui::Margin::symmetric(16, 10))
-                                            .show(ui, |ui| {
-                                                ui.horizontal(|ui| {
-                                                    ui.spacing_mut().item_spacing.x = 18.0;
-                                                    stat_pill(
-                                                        ui,
-                                                        "TRACKS",
-                                                        &project.song.tracks.len().to_string(),
-                                                    );
-                                                    ui.separator();
-                                                    stat_pill(
-                                                        ui,
-                                                        "INSTRUMENTS",
-                                                        &project.song.instruments.len().to_string(),
-                                                    );
-                                                    ui.separator();
-                                                    stat_pill(
-                                                        ui,
-                                                        "PATTERNS",
-                                                        &project.song.patterns.len().to_string(),
-                                                    );
-                                                    ui.separator();
-                                                    stat_pill(
-                                                        ui,
-                                                        "AUTOMATIONS",
-                                                        &project.song.automations.len().to_string(),
-                                                    );
-                                                    ui.separator();
-                                                    stat_pill(
-                                                        ui,
-                                                        "FILES",
-                                                        &app.bundle.sources.len().to_string(),
-                                                    );
-                                                });
-                                            });
-                                    }
-
-                                    if !app.candidate_is_active() {
-                                        ui.add_space(14.0);
-                                        if ui
-                                            .add(
-                                                egui::Button::new(
-                                                    RichText::new(
-                                                        "Publish Candidate as Active Revision",
-                                                    )
-                                                    .strong()
-                                                    .color(theme::BG_WELL),
-                                                )
-                                                .fill(theme::ACCENT_AMBER),
-                                            )
-                                            .clicked()
-                                        {
-                                            cx.send(Action::OpenPublish);
-                                        }
-                                    }
-                                });
-                            });
-
-                        ui.add_space(14.0);
-
-                        // Studio Preflight Health Checklist
-                        egui::Frame::new()
-                            .fill(theme::BG_SURFACE)
-                            .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
-                            .corner_radius(8.0)
-                            .inner_margin(egui::Margin::same(16))
-                            .show(ui, |ui| {
-                                ui.label(
-                                    RichText::new("STUDIO PREFLIGHT HEALTH CHECKLIST")
-                                        .strong()
-                                        .size(10.5)
-                                        .color(theme::TEXT_SECONDARY),
-                                );
-                                ui.add_space(10.0);
-
-                                let proc_count = app.bundle.project.as_ref().map_or(0, |p| {
-                                    p.song
-                                        .tracks
-                                        .iter()
-                                        .map(|t| t.channel.inserts.len())
-                                        .sum::<usize>()
-                                        + p.song
-                                            .groups
-                                            .iter()
-                                            .map(|g| g.channel.inserts.len())
-                                            .sum::<usize>()
-                                        + p.song
-                                            .returns
-                                            .iter()
-                                            .map(|r| r.channel.inserts.len())
-                                            .sum::<usize>()
-                                        + p.song
-                                            .master
-                                            .as_ref()
-                                            .map_or(0, |m| m.inserts.len())
-                                });
-                                let pdc_total: u32 = app.bundle.project.as_ref().map_or(0, |p| {
-                                    p.song
-                                        .tracks
-                                        .iter()
-                                        .flat_map(|t| t.channel.inserts.iter())
-                                        .chain(
-                                            p.song
-                                                .groups
-                                                .iter()
-                                                .flat_map(|g| g.channel.inserts.iter()),
-                                        )
-                                        .chain(
-                                            p.song
-                                                .returns
-                                                .iter()
-                                                .flat_map(|r| r.channel.inserts.iter()),
-                                        )
-                                        .chain(
-                                            p.song
-                                                .master
-                                                .iter()
-                                                .flat_map(|m| m.inserts.iter()),
-                                        )
-                                        .map(|pr| pr.latency_frames)
-                                        .sum()
-                                });
-                                let active_sync = if app.candidate_is_active() {
-                                    "Candidate matches Active Revision"
-                                } else {
-                                    "Unpublished Candidate edits pending"
-                                };
-
-                                ui.columns(2, |cols| {
-                                    preflight_check_row(
-                                        &mut cols[0],
-                                        true,
-                                        "Syntax & Semantics",
-                                        &format!(
-                                            "{} authoritative .crump files verified",
-                                            app.bundle.sources.len()
-                                        ),
-                                    );
-                                    cols[0].add_space(8.0);
-                                    preflight_check_row(
-                                        &mut cols[0],
-                                        true,
-                                        "Mix Graph Acyclicity",
-                                        "All Track, Group, Return, and Master buses DAG-verified",
-                                    );
-                                    cols[0].add_space(8.0);
-                                    preflight_check_row(
-                                        &mut cols[0],
-                                        true,
-                                        "PDC Latency Budget",
-                                        &format!(
-                                            "{proc_count} processors · {pdc_total} smp compensated"
-                                        ),
-                                    );
-
-                                    preflight_check_row(
-                                        &mut cols[1],
-                                        app.candidate_is_active(),
-                                        "Active Revision Sync",
-                                        active_sync,
-                                    );
-                                    cols[1].add_space(8.0);
-                                    preflight_check_row(
-                                        &mut cols[1],
-                                        true,
-                                        "History Audit Trail",
-                                        &format!(
-                                            "{} append-only revisions recorded",
-                                            app.history.len()
-                                        ),
-                                    );
-                                    cols[1].add_space(8.0);
-                                    preflight_check_row(
-                                        &mut cols[1],
-                                        true,
-                                        "DSP Callback Headroom",
-                                        &format!(
-                                            "{:.0}% utilization · zero xruns",
-                                            app.telemetry.callback_utilization * 100.0
-                                        ),
-                                    );
-                                });
-                            });
-                    });
-                });
-                ui.add_space(20.0);
-            });
         return;
     }
 
@@ -765,56 +494,10 @@ pub(super) fn diagnostics(ui: &mut Ui, cx: &mut Cx<'_>) {
     }
 }
 
-fn preflight_check_row(ui: &mut Ui, ok: bool, title: &str, detail: &str) {
-    let color = if ok {
-        theme::SIG_NOMINAL
-    } else {
-        theme::ACCENT_AMBER
-    };
-    egui::Frame::new()
-        .fill(theme::BG_WELL)
-        .stroke(Stroke::new(1.0_f32, with_alpha(color, 0.30)))
-        .corner_radius(5.0)
-        .inner_margin(egui::Margin::symmetric(10, 8))
-        .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                let (dot, _) = ui.allocate_exact_size(Vec2::splat(10.0), Sense::hover());
-                ui.painter().circle_filled(dot.center(), 4.0, color);
-                ui.vertical(|ui| {
-                    ui.label(
-                        RichText::new(title)
-                            .strong()
-                            .size(11.5)
-                            .color(theme::TEXT_PRIMARY),
-                    );
-                    ui.label(
-                        RichText::new(detail)
-                            .size(10.5)
-                            .color(theme::TEXT_SECONDARY),
-                    );
-                });
-            });
-        });
-}
-
-fn stat_pill(ui: &mut Ui, label: &str, value: &str) {
-    ui.vertical_centered(|ui| {
-        ui.label(
-            RichText::new(value)
-                .monospace()
-                .strong()
-                .size(15.0)
-                .color(theme::ACCENT_CYAN),
-        );
-        ui.label(RichText::new(label).size(9.0).color(theme::TEXT_MUTED));
-    });
-}
-
 // ── 3. Studio Revision History Timeline + Inline Inspector ───────────────────────
 
 pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
-    utility_subbar(ui, cx);
 
     egui::Frame::new()
         .fill(theme::BG_CANVAS)
@@ -824,49 +507,20 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new(format!(
-                        "APPEND-ONLY REVISION HISTORY · {} ENTRIES",
-                        app.history.len()
+                        "HISTORY · {} CHANGE{}",
+                        app.history.len(),
+                        if app.history.len() == 1 { "" } else { "S" }
                     ))
                     .strong()
                     .size(10.5)
                     .color(theme::TEXT_SECONDARY),
                 );
+                // Compare and Restore live in the inspector, next to the version they act on.
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if !app.history.is_empty() {
-                        if ui
-                            .add(egui::Button::new("Restore…").fill(theme::BG_CARD))
-                            .on_hover_text("Restore the selected revision as a new entry · R")
+                    // The empty state carries its own Publish action; don't repeat it here.
+                    if !app.history.is_empty()
+                        && widgets::publish_button(ui, "Publish Revision", needs_publish(app))
                             .clicked()
-                        {
-                            cx.send(Action::OpenRestore);
-                        }
-                        if ui
-                            .add(egui::Button::new("View Diff").fill(theme::BG_CARD))
-                            .on_hover_text("Inspect source diff · d")
-                            .clicked()
-                        {
-                            cx.send(Action::OpenHistoryDiff);
-                        }
-                    }
-                    if app.history.len() >= 2
-                        && ui
-                            .add(egui::Button::new("Undo Last").fill(theme::BG_CARD))
-                            .on_hover_text("Restore the previous History entry")
-                            .clicked()
-                    {
-                        cx.send(Action::UndoHistory);
-                    }
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                RichText::new("Publish Revision")
-                                    .strong()
-                                    .size(11.0)
-                                    .color(theme::BG_WELL),
-                            )
-                            .fill(theme::ACCENT_AMBER),
-                        )
-                        .clicked()
                     {
                         cx.send(Action::OpenPublish);
                     }
@@ -875,327 +529,44 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
         });
 
     if app.history.is_empty() {
-        unavailable(
-            ui,
-            "No published History entries yet — press Publish Revision to checkpoint",
-        );
+        // A centred empty state with an icon and the one action that fills this view.
+        ui.add_space((ui.available_height() * 0.28).max(24.0));
+        ui.vertical_centered(|ui| {
+            let (icon, _) = ui.allocate_exact_size(Vec2::splat(48.0), Sense::hover());
+            let p = ui.painter();
+            let c = icon.center();
+            p.circle_stroke(c, 20.0, Stroke::new(1.8_f32, theme::BORDER_STRONG));
+            p.line_segment(
+                [c, Pos2::new(c.x, c.y - 11.0)],
+                Stroke::new(2.0_f32, theme::TEXT_SECONDARY),
+            );
+            p.line_segment(
+                [c, Pos2::new(c.x + 8.0, c.y + 4.0)],
+                Stroke::new(2.0_f32, theme::TEXT_SECONDARY),
+            );
+            ui.add_space(12.0);
+            ui.label(
+                RichText::new("No History entries yet")
+                    .size(16.0)
+                    .color(theme::TEXT_PRIMARY),
+            );
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new(
+                    "Publish this version to save a revision you can compare or restore.",
+                )
+                .size(11.5)
+                .color(theme::TEXT_SECONDARY),
+            );
+            ui.add_space(14.0);
+            if widgets::publish_button(ui, "Publish Revision", needs_publish(app)).clicked() {
+                cx.send(Action::OpenPublish);
+            }
+        });
         return;
     }
 
-    let selected = clamp_index(app.selected_history, app.history.len());
-    let mut select_idx: Option<usize> = None;
-    let mut open_diff = false;
-    let mut open_restore = false;
-
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            ui.add_space(10.0);
-            egui::Frame::new()
-                .inner_margin(egui::Margin::symmetric(14, 2))
-                .show(ui, |ui| {
-                    // Revision Timeline List with vertical spine
-                    for (index, entry) in app.history.iter().enumerate() {
-                        let is_sel = index == selected;
-                        let is_active = app.active_entry.as_ref() == Some(&entry.id);
-                        let is_last = index + 1 == app.history.len();
-
-                        ui.horizontal(|ui| {
-                            // Vertical timeline connector rail + node dot
-                            let (rail_rect, _) =
-                                ui.allocate_exact_size(Vec2::new(20.0, 42.0), Sense::hover());
-                            let rp = ui.painter();
-                            let cx_x = rail_rect.center().x;
-                            if index > 0 {
-                                rp.vline(
-                                    cx_x,
-                                    rail_rect.top()..=rail_rect.center().y,
-                                    Stroke::new(1.5_f32, theme::BORDER_STRONG),
-                                );
-                            }
-                            if !is_last {
-                                rp.vline(
-                                    cx_x,
-                                    rail_rect.center().y..=rail_rect.bottom(),
-                                    Stroke::new(1.5_f32, theme::BORDER_STRONG),
-                                );
-                            }
-                            rp.circle_filled(
-                                rail_rect.center(),
-                                if is_active { 5.0 } else { 4.0 },
-                                if is_active {
-                                    theme::SIG_NOMINAL
-                                } else if is_sel {
-                                    theme::ACCENT_CYAN
-                                } else {
-                                    theme::BORDER_STRONG
-                                },
-                            );
-
-                            let card = egui::Frame::new()
-                                .fill(if is_sel {
-                                    theme::BG_CARD
-                                } else {
-                                    theme::BG_SURFACE
-                                })
-                                .stroke(Stroke::new(
-                                    1.0_f32,
-                                    if is_active {
-                                        with_alpha(theme::SIG_NOMINAL, 0.70)
-                                    } else if is_sel {
-                                        theme::ACCENT_CYAN
-                                    } else {
-                                        theme::BORDER_SUBTLE
-                                    },
-                                ))
-                                .corner_radius(6.0)
-                                .inner_margin(egui::Margin::symmetric(12, 9))
-                                .show(ui, |ui| {
-                                    ui.set_width((ui.available_width() - 26.0).max(260.0));
-                                    ui.horizontal(|ui| {
-                                        ui.label(
-                                            RichText::new(&entry.id)
-                                                .monospace()
-                                                .strong()
-                                                .size(11.5)
-                                                .color(if is_active {
-                                                    theme::SIG_NOMINAL
-                                                } else {
-                                                    theme::ACCENT_CYAN
-                                                }),
-                                        );
-                                        if is_active {
-                                            ui.label(
-                                                RichText::new("ACTIVE")
-                                                    .strong()
-                                                    .size(9.5)
-                                                    .color(theme::SIG_NOMINAL),
-                                            );
-                                        }
-                                        ui.label(
-                                            RichText::new(&entry.summary)
-                                                .size(12.0)
-                                                .color(theme::TEXT_PRIMARY),
-                                        );
-
-                                        ui.with_layout(
-                                            Layout::right_to_left(Align::Center),
-                                            |ui| {
-                                                ui.label(
-                                                    RichText::new(&entry.created_at)
-                                                        .monospace()
-                                                        .size(10.0)
-                                                        .color(theme::TEXT_MUTED),
-                                                );
-                                                ui.label(
-                                                    RichText::new(format!(
-                                                        "{} files · {}",
-                                                        entry.changes.len(),
-                                                        entry.origin.name
-                                                    ))
-                                                    .size(10.5)
-                                                    .color(theme::TEXT_SECONDARY),
-                                                );
-                                            },
-                                        );
-                                    });
-                                });
-                            let resp = card.response.interact(Sense::click());
-                            if resp.clicked() {
-                                select_idx = Some(index);
-                            }
-                            if resp.double_clicked() {
-                                select_idx = Some(index);
-                                open_diff = true;
-                            }
-                        });
-                        ui.add_space(4.0);
-                    }
-
-                    // Inline Selected Revision Inspector (fills lower space productively!)
-                    if let Some(entry) = app.history.get(selected) {
-                        ui.add_space(12.0);
-                        egui::Frame::new()
-                            .fill(theme::BG_SURFACE)
-                            .stroke(Stroke::new(1.0_f32, theme::BORDER_STRONG))
-                            .corner_radius(8.0)
-                            .inner_margin(egui::Margin::same(16))
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new(format!("REVISION INSPECTOR · {}", entry.id))
-                                            .strong()
-                                            .size(11.0)
-                                            .color(theme::ACCENT_AMBER),
-                                    );
-                                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                        if ui
-                                            .add(
-                                                egui::Button::new("Restore Revision…")
-                                                    .fill(theme::BG_CARD),
-                                            )
-                                            .clicked()
-                                        {
-                                            open_restore = true;
-                                        }
-                                        if ui
-                                            .add(
-                                                egui::Button::new(
-                                                    RichText::new("Open Full Source Diff")
-                                                        .color(theme::ACCENT_CYAN),
-                                                )
-                                                .fill(theme::BG_CARD),
-                                            )
-                                            .clicked()
-                                        {
-                                            open_diff = true;
-                                        }
-                                    });
-                                });
-                                ui.add_space(8.0);
-                                ui.label(
-                                    RichText::new(&entry.summary)
-                                        .strong()
-                                        .size(14.0)
-                                        .color(theme::TEXT_PRIMARY),
-                                );
-                                if !entry.explanation.is_empty() {
-                                    ui.add_space(3.0);
-                                    ui.add(
-                                        egui::Label::new(
-                                            RichText::new(&entry.explanation)
-                                                .size(11.5)
-                                                .color(theme::TEXT_SECONDARY),
-                                        )
-                                        .wrap(),
-                                    );
-                                }
-                                ui.add_space(10.0);
-
-                                // Metadata Strip
-                                egui::Frame::new()
-                                    .fill(theme::BG_WELL)
-                                    .corner_radius(5.0)
-                                    .inner_margin(egui::Margin::symmetric(12, 8))
-                                    .show(ui, |ui| {
-                                        ui.horizontal_wrapped(|ui| {
-                                            ui.spacing_mut().item_spacing.x = 18.0;
-                                            meta_kv(ui, "ORIGIN", &entry.origin.name);
-                                            meta_kv(ui, "CREATED", &entry.created_at);
-                                            meta_kv(
-                                                ui,
-                                                "PARENT",
-                                                entry.parent.as_deref().unwrap_or("root"),
-                                            );
-                                            if let Some(restored) = &entry.restored_from {
-                                                meta_kv(ui, "RESTORED FROM", restored);
-                                            }
-                                        });
-                                    });
-
-                                ui.add_space(12.0);
-                                ui.label(
-                                    RichText::new(format!(
-                                        "CHANGED FILES ({})",
-                                        entry.changes.len()
-                                    ))
-                                    .strong()
-                                    .size(10.0)
-                                    .color(theme::TEXT_SECONDARY),
-                                );
-                                ui.add_space(6.0);
-
-                                if entry.changes.is_empty() {
-                                    ui.label(
-                                        RichText::new("No file delta recorded.")
-                                            .size(11.0)
-                                            .color(theme::TEXT_MUTED),
-                                    );
-                                } else {
-                                    for ch in &entry.changes {
-                                        let (tag, color) = match ch.kind {
-                                            SourceChangeKind::Added => {
-                                                ("ADDED", theme::SIG_NOMINAL)
-                                            }
-                                            SourceChangeKind::Modified => {
-                                                ("MOD", theme::ACCENT_CYAN)
-                                            }
-                                            SourceChangeKind::Removed => ("DEL", theme::SIG_CLIP),
-                                        };
-                                        egui::Frame::new()
-                                            .fill(theme::BG_CANVAS)
-                                            .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
-                                            .corner_radius(4.0)
-                                            .inner_margin(egui::Margin::symmetric(10, 6))
-                                            .show(ui, |ui| {
-                                                ui.horizontal(|ui| {
-                                                    ui.label(
-                                                        RichText::new(tag)
-                                                            .monospace()
-                                                            .strong()
-                                                            .size(10.0)
-                                                            .color(color),
-                                                    );
-                                                    ui.label(
-                                                        RichText::new(
-                                                            ch.path.display().to_string(),
-                                                        )
-                                                        .monospace()
-                                                        .size(11.5)
-                                                        .color(theme::TEXT_PRIMARY),
-                                                    );
-                                                    ui.with_layout(
-                                                        Layout::right_to_left(Align::Center),
-                                                        |ui| {
-                                                            ui.label(
-                                                                RichText::new(format!(
-                                                                    "{} lines changed",
-                                                                    ch.changed_lines
-                                                                ))
-                                                                .monospace()
-                                                                .size(10.0)
-                                                                .color(theme::TEXT_MUTED),
-                                                            );
-                                                        },
-                                                    );
-                                                });
-                                            });
-                                        ui.add_space(4.0);
-                                    }
-                                }
-                            });
-                    }
-                });
-            ui.add_space(12.0);
-        });
-
-    if let Some(idx) = select_idx {
-        cx.select(selected, idx);
-    }
-    if open_diff {
-        cx.send(Action::OpenHistoryDiff);
-    }
-    if open_restore {
-        cx.send(Action::OpenRestore);
-    }
-}
-
-fn meta_kv(ui: &mut Ui, key: &str, value: &str) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 5.0;
-        ui.label(
-            RichText::new(key)
-                .strong()
-                .size(9.5)
-                .color(theme::TEXT_MUTED),
-        );
-        ui.label(
-            RichText::new(value)
-                .monospace()
-                .size(10.5)
-                .color(theme::TEXT_PRIMARY),
-        );
-    });
+    super::history_view::history(ui, cx);
 }
 
 // ── 4. Searchable Two-Column Studio Shortcut Reference ───────────────────────────
@@ -1252,15 +623,17 @@ const DIRECT_MANIPULATION_HELP: &[(&str, &str)] = &[
     ),
 ];
 
-pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
-    utility_subbar(ui, cx);
+/// One Help card: title, accent and the (keys, description) rows shown.
+type HelpCard<'a> = (&'a str, Color32, Vec<(&'a str, &'a str)>);
 
+pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
     // Search Filter Bar
     egui::Frame::new()
         .fill(theme::BG_CANVAS)
         .inner_margin(egui::Margin::symmetric(12, 6))
         .stroke(Stroke::new(1.0_f32, theme::SEAM_DARK))
         .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new("SEARCH SHORTCUTS")
@@ -1270,16 +643,65 @@ pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
                 );
                 ui.add(
                     egui::TextEdit::singleline(&mut cx.state.help_search)
-                        .hint_text("Filter shortcuts or actions (e.g. loop, split, piano, solo)…")
-                        .desired_width(310.0),
+                        .hint_text(
+                            RichText::new("Filter shortcuts — loop, split, solo…")
+                                .color(theme::TEXT_MUTED),
+                        )
+                        .font(FontId::proportional(12.0))
+                        .desired_width(320.0),
                 );
-                if !cx.state.help_search.is_empty() && ui.small_button("×").clicked() {
+                // Always in place, so the field holds still as typing starts and stops.
+                let has_query = !cx.state.help_search.is_empty();
+                if ui
+                    .add_enabled(has_query, egui::Button::new("×").small())
+                    .on_hover_text("Clear the filter")
+                    .clicked()
+                {
                     cx.state.help_search.clear();
                 }
             });
         });
 
     let query = cx.state.help_search.trim().to_lowercase();
+    let matches = |title: &str, (keys, desc): &(&str, &str)| {
+        query.is_empty()
+            || title.to_lowercase().contains(&query)
+            || keys.to_lowercase().contains(&query)
+            || desc.to_lowercase().contains(&query)
+    };
+    let mut cards: Vec<HelpCard<'_>> = Vec::new();
+    let mouse = "Mouse";
+    cards.push((
+        mouse,
+        theme::ACCENT_AMBER,
+        DIRECT_MANIPULATION_HELP
+            .iter()
+            .filter(|row| matches(mouse, row))
+            .copied()
+            .collect(),
+    ));
+    for (title, rows) in keymap::HELP {
+        cards.push((
+            title,
+            theme::ACCENT_CYAN,
+            rows.iter()
+                .filter(|row| matches(title, row))
+                .copied()
+                .collect(),
+        ));
+    }
+    cards.retain(|(_, _, rows)| !rows.is_empty());
+    if cards.is_empty() {
+        ui.add_space(40.0);
+        ui.vertical_centered(|ui| {
+            ui.label(
+                RichText::new("No shortcuts match")
+                    .size(14.0)
+                    .color(theme::TEXT_SECONDARY),
+            );
+        });
+        return;
+    }
 
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -1289,46 +711,23 @@ pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
                 .inner_margin(egui::Margin::symmetric(14, 4))
                 .show(ui, |ui| {
                     ui.columns(2, |cols| {
-                        // Column 0: Direct Manipulation + first half of keymap::HELP
-                        let filtered_dm: Vec<(&str, &str)> = DIRECT_MANIPULATION_HELP
-                            .iter()
-                            .copied()
-                            .filter(|(k, d)| {
-                                query.is_empty()
-                                    || k.to_lowercase().contains(&query)
-                                    || d.to_lowercase().contains(&query)
-                            })
-                            .collect();
-                        if !filtered_dm.is_empty() {
-                            help_card_pairs(
-                                &mut cols[0],
-                                "DIRECT MANIPULATION & STUDIO CONTROLS",
-                                theme::ACCENT_AMBER,
-                                &filtered_dm,
-                            );
-                            cols[0].add_space(10.0);
+                        // Balance the two columns by rows; cards keep their order.
+                        let rows = |card: &HelpCard<'_>| card.2.len() + 2;
+                        let total = cards.iter().map(rows).sum::<usize>();
+                        let mut left = 0;
+                        let mut mid = 0;
+                        for card in &cards {
+                            let next = left + rows(card);
+                            if mid > 0 && next.abs_diff(total - next) >= left.abs_diff(total - left)
+                            {
+                                break;
+                            }
+                            left = next;
+                            mid += 1;
                         }
-
-                        let mid = keymap::HELP.len().div_ceil(2);
-                        for (heading, lines) in &keymap::HELP[..mid] {
-                            help_card_lines(
-                                &mut cols[0],
-                                heading,
-                                theme::ACCENT_CYAN,
-                                lines,
-                                &query,
-                            );
-                        }
-
-                        // Column 1: second half of keymap::HELP
-                        for (heading, lines) in &keymap::HELP[mid..] {
-                            help_card_lines(
-                                &mut cols[1],
-                                heading,
-                                theme::ACCENT_VIOLET,
-                                lines,
-                                &query,
-                            );
+                        for (index, (title, accent, rows)) in cards.iter().enumerate() {
+                            let column = usize::from(index >= mid);
+                            help_card(&mut cols[column], title, *accent, rows);
                         }
                     });
                 });
@@ -1336,55 +735,18 @@ pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
         });
 }
 
-fn help_card_pairs(ui: &mut Ui, title: &str, accent: Color32, rows: &[(&str, &str)]) {
+fn help_card(ui: &mut Ui, title: &str, accent: Color32, rows: &[(&str, &str)]) {
     egui::Frame::new()
         .fill(theme::BG_SURFACE)
         .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
         .corner_radius(6.0)
         .inner_margin(egui::Margin::same(12))
         .show(ui, |ui| {
-            ui.label(RichText::new(title).strong().size(11.0).color(accent));
+            ui.set_min_width(ui.available_width());
+            section_header(ui, &title.to_uppercase(), accent);
             ui.add_space(7.0);
             for (key, desc) in rows {
                 help_aligned_row(ui, key, desc);
-                ui.add_space(4.0);
-            }
-        });
-}
-
-fn help_card_lines(ui: &mut Ui, title: &str, accent: Color32, lines: &[&str], query: &str) {
-    let matched: Vec<String> = lines
-        .iter()
-        .map(|line| legible(line).into_owned())
-        .filter(|text| {
-            query.is_empty()
-                || title.to_lowercase().contains(query)
-                || text.to_lowercase().contains(query)
-        })
-        .collect();
-    if matched.is_empty() {
-        return;
-    }
-
-    egui::Frame::new()
-        .fill(theme::BG_SURFACE)
-        .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
-        .corner_radius(6.0)
-        .inner_margin(egui::Margin::same(12))
-        .show(ui, |ui| {
-            ui.label(RichText::new(title).strong().size(11.0).color(accent));
-            ui.add_space(7.0);
-            for text in &matched {
-                if let Some((keys, desc)) = text.split_once("  ") {
-                    help_aligned_row(ui, keys.trim(), desc.trim());
-                } else {
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new(text).size(11.5).color(theme::TEXT_SECONDARY),
-                        )
-                        .wrap(),
-                    );
-                }
                 ui.add_space(4.0);
             }
         });
@@ -1397,9 +759,11 @@ fn help_aligned_row(ui: &mut Ui, key: &str, desc: &str) {
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = 10.0;
         ui.allocate_ui_with_layout(
-            Vec2::new(146.0, 20.0),
+            Vec2::new(176.0, 20.0),
             Layout::left_to_right(Align::Center),
             |ui| {
+                // Fixed keycap column so every description starts on the same x.
+                ui.set_min_width(176.0);
                 keycap_pill(ui, key);
             },
         );
