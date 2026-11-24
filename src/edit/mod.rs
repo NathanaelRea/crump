@@ -815,6 +815,34 @@ pub fn set_track_level(
     ))
 }
 
+/// Sets the source-backed live freeze directive for one Track.
+pub fn set_track_freeze(
+    bundle: &ProjectBundle,
+    track_id: &str,
+    frozen: bool,
+) -> Result<CheckedReplacement, EditError> {
+    let track = bundle
+        .project
+        .as_ref()
+        .ok_or(EditError::InvalidBase)?
+        .song
+        .tracks
+        .iter()
+        .find(|track| track.id == track_id)
+        .ok_or_else(|| EditError::UnknownTarget(format!("Track `{track_id}`")))?;
+    if let Some(site) = &track.freeze_site {
+        return Ok(CheckedReplacement::at(site, frozen.to_string()));
+    }
+    let (file, start, indentation) = block_insertion(bundle, &track.location, "Track")?;
+    Ok(CheckedReplacement {
+        file,
+        start,
+        end: start,
+        expected: String::new(),
+        replacement: format!("{indentation}freeze {frozen}\n"),
+    })
+}
+
 /// Builds a checked Track pan replacement.
 pub fn set_track_pan(
     bundle: &ProjectBundle,

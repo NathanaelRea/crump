@@ -7,6 +7,7 @@ pub mod control;
 mod drums;
 mod fft;
 mod follower;
+mod freeze;
 pub(crate) mod generated_audio;
 mod graph;
 mod lfo;
@@ -122,6 +123,15 @@ impl CompiledProject {
         inventory: &AssetInventory,
         profile: AdmissionProfile,
     ) -> Result<Self, EngineError> {
+        Self::compile_with_cache(project, inventory, profile, None)
+    }
+
+    fn compile_with_cache(
+        project: &Project,
+        inventory: &AssetInventory,
+        profile: AdmissionProfile,
+        cache_directory: Option<&std::path::Path>,
+    ) -> Result<Self, EngineError> {
         let (diagnostics, topology) = validate_project_with_topology(project, Some(inventory));
         if diagnostics.has_errors() {
             return Err(EngineError::Validation(diagnostics.into_vec()));
@@ -134,6 +144,11 @@ impl CompiledProject {
         {
             return Err(EngineError::Compile(diagnostic.message.clone()));
         }
+        let mut frozen = if profile == AdmissionProfile::Live {
+            freeze::prepare(project, inventory, &topology, cache_directory)?
+        } else {
+            BTreeMap::new()
+        };
         let schedules = compile_schedules(project)?;
         let controls = CompiledControlProgram::compile(project)?;
         let sample_library =
@@ -155,59 +170,65 @@ impl CompiledProject {
             .map(|instrument| (instrument.id.as_str(), instrument))
             .collect();
         let mut tracks = Vec::with_capacity(schedules.len());
-        for schedule in schedules {
+        for mut schedule in schedules {
             let instrument = instruments
                 .get(schedule.instrument_id.as_str())
                 .ok_or_else(|| {
                     EngineError::Compile(format!("missing instrument `{}`", schedule.instrument_id))
                 })?;
-            let program = match instrument.kind {
-                InstrumentKind::Graph => InstrumentProgram::Graph {
-                    // Voice and shared programs bind the same publication-owned
-                    // exact-asset derivative library before any callback exists.
-                    graph: Arc::new(CompiledGraph::compile_with_assets(
-                        instrument,
-                        project,
-                        project.sample_rate,
-                        &controls,
-                        &sample_library,
-                        &spectral_library,
-                        &wavetable_library,
-                    )?),
-                    shared_graph: CompiledGraph::compile_shared_with_assets(
-                        instrument,
-                        project,
-                        project.sample_rate,
-                        &controls,
-                        &sample_library,
-                        &spectral_library,
-                        &wavetable_library,
-                    )?
-                    .map(Arc::new),
-                    polyphony: usize::from(instrument.polyphony),
-                    voicing: CompiledVoicing::from_authored(&instrument.voicing),
-                },
-                InstrumentKind::StockDrums => InstrumentProgram::Drums {
-                    instrument: Box::new((*instrument).clone()),
-                    tone: controls.index(&crate::model::ParameterTarget::Instrument {
-                        instrument: instrument.id.clone(),
-                        parameter: "tone".to_owned(),
-                    }),
-                    punch: controls.index(&crate::model::ParameterTarget::Instrument {
-                        instrument: instrument.id.clone(),
-                        parameter: "punch".to_owned(),
-                    }),
-                },
-                InstrumentKind::Sampler => {
-                    InstrumentProgram::Sampler(Arc::new(CompiledSamplerProgram::compile(
-                        instrument,
-                        &sample_library,
-                        &controls,
-                        project.sample_rate,
-                    )?))
+            let mut semantic_hash = track_semantic_hash(&schedule, instrument, project)?;
+            let program = if let Some((key, frames)) = frozen.remove(&schedule.track_id) {
+                semantic_hash = key;
+                schedule.events = Vec::new();
+                InstrumentProgram::Frozen(frames)
+            } else {
+                match instrument.kind {
+                    InstrumentKind::Graph => InstrumentProgram::Graph {
+                        // Voice and shared programs bind the same publication-owned
+                        // exact-asset derivative library before any callback exists.
+                        graph: Arc::new(CompiledGraph::compile_with_assets(
+                            instrument,
+                            project,
+                            project.sample_rate,
+                            &controls,
+                            &sample_library,
+                            &spectral_library,
+                            &wavetable_library,
+                        )?),
+                        shared_graph: CompiledGraph::compile_shared_with_assets(
+                            instrument,
+                            project,
+                            project.sample_rate,
+                            &controls,
+                            &sample_library,
+                            &spectral_library,
+                            &wavetable_library,
+                        )?
+                        .map(Arc::new),
+                        polyphony: usize::from(instrument.polyphony),
+                        voicing: CompiledVoicing::from_authored(&instrument.voicing),
+                    },
+                    InstrumentKind::StockDrums => InstrumentProgram::Drums {
+                        instrument: Box::new((*instrument).clone()),
+                        tone: controls.index(&crate::model::ParameterTarget::Instrument {
+                            instrument: instrument.id.clone(),
+                            parameter: "tone".to_owned(),
+                        }),
+                        punch: controls.index(&crate::model::ParameterTarget::Instrument {
+                            instrument: instrument.id.clone(),
+                            parameter: "punch".to_owned(),
+                        }),
+                    },
+                    InstrumentKind::Sampler => {
+                        InstrumentProgram::Sampler(Arc::new(CompiledSamplerProgram::compile(
+                            instrument,
+                            &sample_library,
+                            &controls,
+                            project.sample_rate,
+                        )?))
+                    }
                 }
             };
-            let semantic_hash = track_semantic_hash(&schedule, instrument, project)?;
             tracks.push(CompiledTrack {
                 schedule: Arc::new(schedule),
                 program,
@@ -243,7 +264,7 @@ impl CompiledProject {
                         .as_ref()
                         .map_or(0, |graph| graph.allocation_bytes()),
                 ),
-                InstrumentProgram::Drums { .. } => 0,
+                InstrumentProgram::Drums { .. } | InstrumentProgram::Frozen(_) => 0,
                 InstrumentProgram::Sampler(program) => program.allocation_bytes(),
             })
             .fold(
@@ -341,8 +362,12 @@ impl CompiledProject {
                         track,
                         self.sample_rate,
                         index as u64,
-                        self.controls
-                            .track_parameter_lock_runtime(&track.schedule.track_id),
+                        if matches!(track.program, InstrumentProgram::Frozen(_)) {
+                            None
+                        } else {
+                            self.controls
+                                .track_parameter_lock_runtime(&track.schedule.track_id)
+                        },
                     )
                 })
                 .collect(),
@@ -456,6 +481,7 @@ impl CompiledVoicing {
 
 #[derive(Debug, Clone)]
 enum InstrumentProgram {
+    Frozen(Arc<[[f32; 2]]>),
     Graph {
         graph: Arc<CompiledGraph>,
         shared_graph: Option<Arc<CompiledGraph>>,
@@ -1564,11 +1590,10 @@ impl SongRuntime {
         pitch: u8,
         velocity: f32,
     ) -> bool {
-        let Some(track) = self
-            .tracks
-            .iter_mut()
-            .find(|track| track.schedule.instrument_id == instrument_id)
-        else {
+        let Some(track) = self.tracks.iter_mut().find(|track| {
+            track.schedule.instrument_id == instrument_id
+                && !matches!(track.instrument, InstrumentRuntime::Frozen(_))
+        }) else {
             return false;
         };
         let seed = note_id ^ (u64::from(pitch) << 32) ^ 0x6a09_e667_f3bc_c909;
@@ -1596,6 +1621,9 @@ impl SongRuntime {
         let Some(track) = self.tracks.get_mut(track_index) else {
             return false;
         };
+        if matches!(track.instrument, InstrumentRuntime::Frozen(_)) {
+            return false;
+        }
         let seed = note_id ^ (u64::from(pitch) << 32) ^ 0xbb67_ae85_84ca_a73b;
         track.instrument.dispatch(
             RuntimeEvent::NoteOn {
@@ -1623,11 +1651,10 @@ impl SongRuntime {
 
     /// Releases one transient audition note on the selected Instrument.
     pub fn audition_note_off(&mut self, instrument_id: &str, note_id: u64) -> bool {
-        let Some(track) = self
-            .tracks
-            .iter_mut()
-            .find(|track| track.schedule.instrument_id == instrument_id)
-        else {
+        let Some(track) = self.tracks.iter_mut().find(|track| {
+            track.schedule.instrument_id == instrument_id
+                && !matches!(track.instrument, InstrumentRuntime::Frozen(_))
+        }) else {
             return false;
         };
         track
@@ -1749,6 +1776,7 @@ impl TrackRuntime {
                 punch: *punch,
             },
             InstrumentProgram::Sampler(program) => InstrumentRuntime::Sampler(program.runtime()),
+            InstrumentProgram::Frozen(frames) => InstrumentRuntime::Frozen(frames.clone()),
         };
         Self {
             schedule: track.schedule.clone(),
@@ -2337,6 +2365,7 @@ struct SharedGraphInstance {
 }
 
 enum InstrumentRuntime {
+    Frozen(Arc<[[f32; 2]]>),
     Graph {
         graph: Arc<CompiledGraph>,
         voices: Vec<GraphVoiceSlot>,
@@ -2474,14 +2503,14 @@ impl InstrumentRuntime {
     fn sampler_mapping_index(&self, mapping_id: &str) -> Option<u16> {
         match self {
             Self::Sampler(sampler) => sampler.mapping_index(mapping_id),
-            Self::Graph { .. } | Self::Drums { .. } => None,
+            Self::Graph { .. } | Self::Drums { .. } | Self::Frozen(_) => None,
         }
     }
 
     fn sampler_mapping_on(&mut self, note_id: u64, mapping_index: u16, velocity: f32) -> bool {
         match self {
             Self::Sampler(sampler) => sampler.mapping_on(note_id, mapping_index, velocity),
-            Self::Graph { .. } | Self::Drums { .. } => false,
+            Self::Graph { .. } | Self::Drums { .. } | Self::Frozen(_) => false,
         }
     }
 
@@ -2612,7 +2641,7 @@ impl InstrumentRuntime {
                 voicing.reset();
             }
             Self::Sampler(sampler) => sampler.all_notes_off(),
-            Self::Drums { .. } => {}
+            Self::Drums { .. } | Self::Frozen(_) => {}
         }
     }
 
@@ -2621,6 +2650,7 @@ impl InstrumentRuntime {
             Self::Graph { voices, .. } => voices.iter().filter(|voice| voice.active()).count(),
             Self::Drums { synth, .. } => synth.active_voice_count(),
             Self::Sampler(sampler) => sampler.active_voice_count(),
+            Self::Frozen(_) => 0,
         }
     }
 
@@ -2684,6 +2714,14 @@ impl InstrumentRuntime {
                 let output = sampler.process(controls);
                 (output, sampler.active_voice_count())
             }
+            Self::Frozen(frames) => (
+                usize::try_from(song_frame)
+                    .ok()
+                    .and_then(|index| frames.get(index))
+                    .copied()
+                    .unwrap_or([0.0; 2]),
+                0,
+            ),
         }
     }
 }
@@ -3365,7 +3403,9 @@ mod tests {
                 super::InstrumentRuntime::Drums { synth, .. } => {
                     synth.allocated_voice_state_bytes()
                 }
-                super::InstrumentRuntime::Graph { .. } | super::InstrumentRuntime::Sampler(_) => 0,
+                super::InstrumentRuntime::Graph { .. }
+                | super::InstrumentRuntime::Sampler(_)
+                | super::InstrumentRuntime::Frozen(_) => 0,
             })
             .fold(0_u64, u64::saturating_add);
         let allocated_sampler_state = first
@@ -3373,9 +3413,9 @@ mod tests {
             .iter()
             .map(|track| match &track.instrument {
                 super::InstrumentRuntime::Sampler(sampler) => sampler.allocated_voice_state_bytes(),
-                super::InstrumentRuntime::Graph { .. } | super::InstrumentRuntime::Drums { .. } => {
-                    0
-                }
+                super::InstrumentRuntime::Graph { .. }
+                | super::InstrumentRuntime::Drums { .. }
+                | super::InstrumentRuntime::Frozen(_) => 0,
             })
             .fold(0_u64, u64::saturating_add);
         let allocated_graph_state = |runtime: &super::SongRuntime| {
@@ -3391,7 +3431,8 @@ mod tests {
                             .fold(0_u64, u64::saturating_add)
                     }
                     super::InstrumentRuntime::Sampler(_)
-                    | super::InstrumentRuntime::Drums { .. } => 0,
+                    | super::InstrumentRuntime::Drums { .. }
+                    | super::InstrumentRuntime::Frozen(_) => 0,
                 })
                 .fold(0_u64, u64::saturating_add)
         };
@@ -3499,7 +3540,8 @@ mod tests {
                     } => shared.runtime.allocation_bytes(),
                     super::InstrumentRuntime::Graph { shared: None, .. }
                     | super::InstrumentRuntime::Sampler(_)
-                    | super::InstrumentRuntime::Drums { .. } => 0,
+                    | super::InstrumentRuntime::Drums { .. }
+                    | super::InstrumentRuntime::Frozen(_) => 0,
                 })
                 .fold(0_u64, u64::saturating_add)
         };

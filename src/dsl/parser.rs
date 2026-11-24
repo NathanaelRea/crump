@@ -3113,7 +3113,26 @@ impl Parser<'_> {
             mute_site: None,
         };
         let mut clips = Vec::new();
+        let mut freeze = None;
         for child in &statement.children {
+            if child.keyword() == Some("freeze") {
+                match child.tokens.as_slice() {
+                    [_, value] if freeze.is_none() && child.children.is_empty() => {
+                        match value.value.parse::<bool>() {
+                            Ok(frozen) => freeze = Some((frozen, self.site(value))),
+                            Err(_) => {
+                                self.error_at("CRP190", "expected freeze true or false", child)
+                            }
+                        }
+                    }
+                    _ => self.error_at(
+                        "CRP190",
+                        "declare freeze true or false once per Track",
+                        child,
+                    ),
+                }
+                continue;
+            }
             if child.keyword() != Some("clip") {
                 if !self.parse_channel_directive(child, &mut channel) {
                     self.unknown("Track", child.keyword().unwrap_or(""), child);
@@ -3271,6 +3290,8 @@ impl Parser<'_> {
             name: statement.tokens[2].value.clone(),
             instrument: statement.tokens[4].value.clone(),
             channel,
+            frozen: freeze.as_ref().is_some_and(|(frozen, _)| *frozen),
+            freeze_site: freeze.map(|(_, site)| site),
             clips,
             location: statement.location(self.file, self.source),
         })

@@ -242,7 +242,7 @@ pub fn bounce_revision(
     )
 }
 
-fn capture_source(
+pub(super) fn capture_source(
     runtime: &super::SongRuntime,
     master: [f32; 2],
     source: &BounceSource,

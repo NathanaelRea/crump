@@ -2668,4 +2668,18 @@ fn live_work_budget_warning_allows_publication_and_offline_render() {
             .contains("work units/frame"),
         "{play}"
     );
+
+    for index in 0..8 {
+        let track = format!("hybrid-{index}");
+        let edit = invoke(&root, &["edit", "track-freeze", &track, "true"]);
+        assert!(edit.status.success(), "{}", response(&edit));
+    }
+    let play = invoke(&root, &["play", "--plan"]);
+    assert!(play.status.success(), "{}", response(&play));
+    assert!(root.path().join(".crump/freeze").is_dir());
+
+    let edit = invoke(&root, &["edit", "track-freeze", "hybrid-0", "false"]);
+    assert!(edit.status.success(), "{}", response(&edit));
+    let source = fs::read_to_string(root.path().join("project.crump")).unwrap();
+    assert!(source.contains("freeze false"));
 }

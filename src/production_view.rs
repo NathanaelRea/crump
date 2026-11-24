@@ -17,8 +17,8 @@ use crate::{
         set_instrument_route_bypass, set_instrument_route_depth, set_note_duration, set_note_pitch,
         set_parameter, set_parameter_target, set_processor_setting,
         set_sample_occurrence_direction, set_sample_occurrence_gain, set_sample_occurrence_loop,
-        set_sample_occurrence_pan, set_song_tempo, set_track_level, set_track_pan, split_clip,
-        trim_sample_occurrence,
+        set_sample_occurrence_pan, set_song_tempo, set_track_freeze, set_track_level,
+        set_track_pan, split_clip, trim_sample_occurrence,
     },
     history::{ChangeOrigin, HistoryEntry, HistoryError, HistoryStore, Publication},
     model::{
@@ -86,6 +86,8 @@ pub enum Operation {
         parameter: String,
         value: PhysicalValue,
     },
+    /// Set or clear live Track Freeze.
+    SetTrackFreeze { track: String, frozen: bool },
     /// Set a Track level.
     SetTrackLevel { track: String, value: PhysicalValue },
     /// Set a Track pan position.
@@ -537,6 +539,9 @@ fn plan(
                 parameter,
                 physical_value(value, unit)?,
             )?]
+        }
+        Operation::SetTrackFreeze { track, frozen } => {
+            vec![set_track_freeze(bundle, track, *frozen)?]
         }
         Operation::SetTrackLevel { track, value } => {
             vec![set_track_level(

@@ -3075,6 +3075,11 @@ pub struct Track {
     pub instrument: String,
     /// Fixed channel strip after the instrument post-sum chain.
     pub channel: ChannelStrip,
+    /// Render the pre-fader tap to a disposable cache for live playback.
+    #[serde(default)]
+    pub frozen: bool,
+    /// Source literal for the optional freeze directive.
+    pub freeze_site: Option<ValueSite>,
     /// Timeline Clips.
     pub clips: Vec<Clip>,
     /// Declaration location.

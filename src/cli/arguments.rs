@@ -329,6 +329,14 @@ pub(super) enum EditCommand {
         #[arg(long, default_value = "Change Instrument Parameter")]
         summary: String,
     },
+    /// Freeze or unfreeze a Track for live playback.
+    TrackFreeze {
+        track: String,
+        #[arg(action = clap::ArgAction::Set)]
+        frozen: bool,
+        #[arg(long, default_value = "Change Track Freeze")]
+        summary: String,
+    },
     /// Set one Track level in dB.
     TrackLevel {
         track: String,

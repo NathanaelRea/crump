@@ -541,7 +541,13 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
     })?;
     let audition_plan = audition_plan(args)?;
     let prepared = audition_plan
-        .prepare(&active.revision, project, &active.assets)
+        .prepare_with_cache(
+            &active.revision,
+            project,
+            &active.assets,
+            Default::default(),
+            Some(&active.root),
+        )
         .map_err(|error| {
             Failure::blocked(
                 "play",
@@ -1801,6 +1807,7 @@ fn command_edit(cli: &Cli, command: &EditCommand) -> Result<Success, Failure> {
     let (replacement, summary) = match command {
         EditCommand::Target { .. }
         | EditCommand::Parameter { .. }
+        | EditCommand::TrackFreeze { .. }
         | EditCommand::TrackLevel { .. }
         | EditCommand::TrackPan { .. }
         | EditCommand::ProcessorSetting { .. }
@@ -1973,6 +1980,18 @@ fn shared_edit_operation(
             },
             summary.as_str(),
             "edit.parameter",
+        ),
+        EditCommand::TrackFreeze {
+            track,
+            frozen,
+            summary,
+        } => (
+            ProductionViewOperation::SetTrackFreeze {
+                track: track.clone(),
+                frozen: *frozen,
+            },
+            summary.as_str(),
+            "edit.track_freeze",
         ),
         EditCommand::TrackLevel {
             track,

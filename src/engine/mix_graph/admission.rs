@@ -199,6 +199,12 @@ pub struct RuntimeResourceEstimate {
     pub schedule_program_bytes: u64,
     /// Arc-shared immutable graph programs used by runtime Tracks.
     pub instrument_program_bytes: u64,
+    /// Resident stereo audio for frozen Tracks.
+    #[serde(default)]
+    pub frozen_audio_bytes: u64,
+    /// Tracks whose source is one cached stereo lookup per frame.
+    #[serde(default)]
+    pub frozen_tracks: u64,
     /// Mutable mix-runtime container allocations not represented by DSP state.
     pub runtime_structure_bytes: u64,
     /// Complete Song-runtime structure and mutable control/Track container backing.
@@ -223,6 +229,28 @@ pub struct RuntimeResourceEstimate {
 impl RuntimeResourceEstimate {
     /// Produces a conservative estimate without allocating runtime DSP state.
     pub fn for_project(project: &Project, control_targets: usize) -> Result<Self, EngineError> {
+        Self::for_profile(project, control_targets, AdmissionProfile::Offline)
+    }
+
+    pub(super) fn for_profile(
+        project: &Project,
+        control_targets: usize,
+        profile: AdmissionProfile,
+    ) -> Result<Self, EngineError> {
+        let live = profile == AdmissionProfile::Live;
+        let frozen_count = project
+            .song
+            .tracks
+            .iter()
+            .filter(|track| live && track.frozen)
+            .count() as u64;
+        let frozen_bytes = if frozen_count == 0 {
+            0
+        } else {
+            super::super::freeze::frame_count(project)?
+                .saturating_mul(8)
+                .saturating_mul(frozen_count)
+        };
         let mut graph_voices = 0_u64;
         let mut graph_node_instances = 0_u64;
         let mut shared_graphs = 0_u64;
@@ -235,6 +263,9 @@ impl RuntimeResourceEstimate {
         let mut processor_work = 0_u64;
         let mut processors = 0_usize;
         for track in &project.song.tracks {
+            if live && track.frozen {
+                continue;
+            }
             let instrument = project
                 .song
                 .instruments
@@ -300,7 +331,7 @@ impl RuntimeResourceEstimate {
                     ));
             }
         }
-        for processor in channel_and_master_processors(project) {
+        for processor in channel_and_master_processors_for_profile(project, live) {
             processors = processors.saturating_add(1);
             let (bytes, work) =
                 authored_processor_estimate(processor, project.sample_rate, project.song.tempo_bpm);
@@ -363,13 +394,15 @@ impl RuntimeResourceEstimate {
             .saturating_add(meter_bytes)
             .saturating_add(processor_meter_bytes)
             .saturating_add(compensation_state_bytes)
-            .saturating_add(fixed_runtime_bytes);
+            .saturating_add(fixed_runtime_bytes)
+            .saturating_add(frozen_bytes);
         let publication_peak_bytes =
             runtime_bytes.saturating_mul(MAX_RESIDENT_PUBLICATION_RUNTIMES);
         let work_units_per_frame = graph_node_instances
             .saturating_add((channels as u64).saturating_mul(8))
             .saturating_add((routes as u64).saturating_mul(4))
             .saturating_add(processor_work)
+            .saturating_add(frozen_count)
             .saturating_add(control_targets as u64);
         let publication_transition_work_units_per_frame = publication_transition_work_units(
             work_units_per_frame,
@@ -406,6 +439,8 @@ impl RuntimeResourceEstimate {
             control_program_bytes: 0,
             schedule_program_bytes: 0,
             instrument_program_bytes: 0,
+            frozen_audio_bytes: frozen_bytes,
+            frozen_tracks: frozen_count,
             runtime_structure_bytes: fixed_runtime_bytes,
             song_runtime_structure_bytes: 0,
             runtime_bytes,
@@ -527,7 +562,8 @@ impl RuntimeResourceEstimate {
                     .map(|processor| processor.program.work_units())
                     .fold(0_u64, u64::saturating_add),
             )
-            .saturating_add(self.control_targets as u64);
+            .saturating_add(self.control_targets as u64)
+            .saturating_add(self.frozen_tracks);
         self.compiled_program_bytes = program.allocation_bytes();
         self.runtime_structure_bytes = program.runtime_structure_bytes();
         self.recalculate_memory_and_admission();
@@ -574,6 +610,7 @@ impl RuntimeResourceEstimate {
             .saturating_add(self.control_program_bytes)
             .saturating_add(self.schedule_program_bytes)
             .saturating_add(self.instrument_program_bytes)
+            .saturating_add(self.frozen_audio_bytes)
             .saturating_add(self.runtime_structure_bytes)
             .saturating_add(self.song_runtime_structure_bytes);
         self.publication_peak_bytes = self
@@ -592,10 +629,18 @@ impl RuntimeResourceEstimate {
 pub(in crate::engine) fn channel_and_master_processors(
     project: &Project,
 ) -> impl Iterator<Item = &crate::model::Processor> {
+    channel_and_master_processors_for_profile(project, false)
+}
+
+fn channel_and_master_processors_for_profile(
+    project: &Project,
+    live: bool,
+) -> impl Iterator<Item = &crate::model::Processor> {
     project
         .song
         .tracks
         .iter()
+        .filter(move |track| !(live && track.frozen))
         .flat_map(|track| &track.channel.inserts)
         .chain(
             project

@@ -78,6 +78,16 @@ publish, render, and bounce. Live playback and realtime qualification account
 for the memory and per-frame work of overlapping runtimes during publication.
 See [ADR 0030](adr/0030-live-and-offline-runtime-admission.md).
 
+## Track Freeze cache
+
+Track Freeze is a source edit and follows the normal History publication and
+Restore workflow. Live preparation can rebuild disposable pre-fader audio
+under `.crump/freeze/`. The cache is safe to delete between preparations and
+is excluded from source snapshots, Media Assets, and Revision identity.
+Offline render and bounce ignore Track Freeze. Comparing delivery WAVs across
+a freeze-only edit yields identical bytes. The manifest's Revision ID reflects
+the source edit.
+
 ## Render range
 
 The offline Render Range is explicit and finite:
