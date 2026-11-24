@@ -434,6 +434,7 @@ impl CompiledMixGraph {
         })
     }
 
+    #[cfg(test)]
     pub(crate) fn resource_estimate_for_validation(
         project: &Project,
         topology: &AuthoredTopology,
