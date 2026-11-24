@@ -69,10 +69,16 @@ fn prepare_cache(
     let frames = usize::try_from(frame_count(project)?)
         .map_err(|_| EngineError::Compile("freeze range exceeds host frame limits".into()))?;
     let schedules = super::compile_schedules(project)?;
-    for track in project.song.tracks.iter().filter(|track| track.frozen) {
+    let mut tracks = project.song.tracks.iter().collect::<Vec<_>>();
+    tracks.sort_by(|left, right| left.id.cmp(&right.id));
+    // Stable Track order gives each Track its own slot within the Track limit,
+    // including after presentation reordering.
+    for (slot, track) in tracks
+        .into_iter()
+        .enumerate()
+        .filter(|(_, track)| track.frozen)
+    {
         let key = cache_key(project, topology, &schedules, &track.id)?;
-        // A fixed set of slots bounds stale data, including files for deleted Tracks.
-        let slot = Sha256::digest(track.id.as_bytes())[0];
         let path = directory.map(|directory| directory.join(format!("{slot:02x}.pcm")));
         if let Some(audio) = path
             .as_deref()
@@ -111,9 +117,6 @@ fn prepare_cache(
     }
     let mut runtime = compiled.runtime();
     for frame in 0..frames as u64 {
-        if frame == compiled.arrangement_frames() {
-            runtime.begin_isolated_tail(frames as u64 - frame);
-        }
         let master = runtime.process_frame(ProcessingMode::Offline)?;
         for capture in &mut captures {
             let sample =
@@ -401,7 +404,7 @@ mod tests {
         let mut live = live.runtime();
         let mut reference = reference.runtime();
         let mut samples = Vec::new();
-        for _ in 0..100_000 {
+        for frame in 0..frame_count(&frozen).unwrap() {
             let expected = reference.process_frame(ProcessingMode::Offline).unwrap();
             let actual = live.process_frame(ProcessingMode::Offline).unwrap();
             let expected_tap = reference
@@ -412,7 +415,9 @@ mod tests {
                 Some(expected_tap)
             );
             assert_eq!(actual, expected);
-            samples.push(expected_tap);
+            if frame < 100_000 {
+                samples.push(expected_tap);
+            }
         }
         let first_sound = samples
             .iter()
