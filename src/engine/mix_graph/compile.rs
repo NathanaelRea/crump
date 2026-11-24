@@ -47,7 +47,13 @@ impl CompiledMixGraph {
         controls: &CompiledControlProgram,
     ) -> Result<Self, EngineError> {
         let topology = AuthoredTopology::compile(project);
-        Self::compile_with_topology(project, controls, &topology, Some(AdmissionProfile::Live))
+        Self::compile_with_topology(
+            project,
+            controls,
+            &topology,
+            Some(AdmissionProfile::Live),
+            ProcessorAssets::Unloaded,
+        )
     }
 
     pub(crate) fn compile_with_topology(
@@ -55,6 +61,7 @@ impl CompiledMixGraph {
         controls: &CompiledControlProgram,
         topology: &AuthoredTopology,
         admission: Option<AdmissionProfile>,
+        assets: ProcessorAssets<'_>,
     ) -> Result<Self, EngineError> {
         if let Some(finding) = topology.findings().first() {
             return Err(EngineError::Compile(routing_finding_message(&finding.kind)));
@@ -86,6 +93,7 @@ impl CompiledMixGraph {
                 project.song.tempo_bpm,
                 &processor_indexes,
                 &mut processor_inspection,
+                assets,
             )?;
             let inserts = compile_processor_chain(
                 &track.channel.inserts,
@@ -95,6 +103,7 @@ impl CompiledMixGraph {
                 project.song.tempo_bpm,
                 &processor_indexes,
                 &mut processor_inspection,
+                assets,
             )?;
             drafts.insert(
                 identity.clone(),
@@ -139,6 +148,7 @@ impl CompiledMixGraph {
                 project.song.tempo_bpm,
                 &processor_indexes,
                 &mut processor_inspection,
+                assets,
             )?;
             drafts.insert(
                 identity.clone(),
@@ -183,6 +193,7 @@ impl CompiledMixGraph {
                 project.song.tempo_bpm,
                 &processor_indexes,
                 &mut processor_inspection,
+                assets,
             )?;
             drafts.insert(
                 identity.clone(),
@@ -226,6 +237,7 @@ impl CompiledMixGraph {
                 project.song.tempo_bpm,
                 &processor_indexes,
                 &mut processor_inspection,
+                assets,
             )?
         } else {
             Vec::new()
@@ -426,9 +438,17 @@ impl CompiledMixGraph {
         project: &Project,
         topology: &AuthoredTopology,
     ) -> Result<RuntimeResourceEstimate, EngineError> {
+        Self::resource_estimate_with_processor_assets(project, topology, ProcessorAssets::Unloaded)
+    }
+
+    pub(crate) fn resource_estimate_with_processor_assets(
+        project: &Project,
+        topology: &AuthoredTopology,
+        assets: ProcessorAssets<'_>,
+    ) -> Result<RuntimeResourceEstimate, EngineError> {
         let schedules = compile_schedules(project)?;
         let controls = CompiledControlProgram::compile(project)?;
-        let mut graph = Self::compile_with_topology(project, &controls, topology, None)?;
+        let mut graph = Self::compile_with_topology(project, &controls, topology, None, assets)?;
         let envelope_followers = super::super::follower::CompiledEnvelopeFollowerProgram::compile(
             project,
             &controls,

@@ -246,6 +246,26 @@ pub(crate) fn validate_acoustic_profiles(project: &Project, diagnostics: &mut Di
 pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) -> Diagnostics {
     let mut diagnostics = Diagnostics::new();
     for declaration in &project.assets {
+        if declaration
+            .usages
+            .contains(&MediaAssetUsage::ImpulseResponse)
+        {
+            let result = inventory
+                .get(&declaration.id)
+                .ok_or_else(|| {
+                    "impulse response WAV is missing from the loaded inventory".to_owned()
+                })
+                .and_then(|asset| crate::engine::ir_frames(&asset.metadata(), project.sample_rate));
+            if let Err(message) = result {
+                located_error(
+                    &mut diagnostics,
+                    "CRV199",
+                    format!("asset `{}`: {message}", declaration.id),
+                    &declaration.location,
+                );
+            }
+        }
+
         if let Some(asset) = inventory.get(&declaration.id)
             && let Err(message) = crate::media::validate_finite_wav_samples(asset)
         {
@@ -497,11 +517,22 @@ pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) ->
                 inventory,
                 project.sample_rate,
             ),
-            crate::engine::mix_graph::CompiledMixGraph::resource_estimate_for_validation(
-                project, &topology,
+            crate::engine::mix_graph::CompiledMixGraph::resource_estimate_with_processor_assets(
+                project,
+                &topology,
+                crate::engine::ProcessorAssets::Metadata(inventory),
             ),
         ) {
-            let live_admitted_without_media = estimate.admitted;
+            let has_impulse_response = project
+                .assets
+                .iter()
+                .any(|asset| asset.usages.contains(&MediaAssetUsage::ImpulseResponse));
+            let live_admitted_without_media = estimate.admitted
+                || (has_impulse_response
+                    && crate::engine::mix_graph::CompiledMixGraph::resource_estimate_for_validation(
+                        project, &topology,
+                    )
+                    .is_ok_and(|source_estimate| source_estimate.admitted));
             estimate.include_additional_instrument_program_bytes(sample_bytes);
             push_admission_diagnostics(&estimate, live_admitted_without_media, &mut diagnostics);
         }
@@ -1003,7 +1034,7 @@ fn validate_media_assets(project: &Project, diagnostics: &mut Diagnostics) {
     }
 }
 
-fn valid_id(value: &str) -> bool {
+pub(crate) fn valid_id(value: &str) -> bool {
     let mut characters = value.chars();
     characters
         .next()

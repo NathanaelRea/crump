@@ -83,7 +83,7 @@ pub struct MediaAsset {
     pub location: SourceLocation,
 }
 
-/// Declared synthesis role for one Project-owned exact-byte asset.
+/// Declared processing role for one Project-owned exact-byte asset.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum MediaAssetUsage {
@@ -97,6 +97,8 @@ pub enum MediaAssetUsage {
     Granular,
     /// Offline-analyzed spectral source material.
     Spectral,
+    /// WAV impulse response for convolution.
+    ImpulseResponse,
 }
 
 /// Exact source-amplitude policy used before wavetable mip compilation.
@@ -1088,6 +1090,8 @@ pub enum ProcessorKind {
     Gate,
     /// Fractional stereo delay.
     Delay,
+    /// Zero-latency stereo impulse-response convolution.
+    Convolution,
     /// Shared stereo algorithmic reverberator.
     Reverb,
     /// Multi-phase soft saturation/clipper.
@@ -1115,6 +1119,7 @@ impl FromStr for ProcessorKind {
             "gate" | "expander" => Ok(Self::Gate),
             "delay" => Ok(Self::Delay),
             "reverb" => Ok(Self::Reverb),
+            "convolution" => Ok(Self::Convolution),
             "saturation" | "saturator" => Ok(Self::Saturation),
             "modulation_delay" => Ok(Self::ModulationDelay),
             "crusher" => Ok(Self::Crusher),

@@ -547,7 +547,7 @@ impl Parser<'_> {
                     if child.tokens.len() < 2 || !child.children.is_empty() {
                         self.error_at(
                             "CRP232",
-                            "asset usage requires one or more of wavetable, sample, multisample, granular, or spectral",
+                            "asset usage requires one or more of wavetable, sample, multisample, granular, spectral, or impulse_response",
                             child,
                         );
                         continue;
@@ -559,6 +559,7 @@ impl Parser<'_> {
                             "multisample" => MediaAssetUsage::Multisample,
                             "granular" => MediaAssetUsage::Granular,
                             "spectral" => MediaAssetUsage::Spectral,
+                            "impulse_response" => MediaAssetUsage::ImpulseResponse,
                             value => {
                                 self.token_error(
                                     "CRP232",
@@ -667,7 +668,7 @@ impl Parser<'_> {
         {
             self.error_at(
                 "CRP232",
-                "asset synthesis metadata requires source version 2",
+                "asset usage and wavetable metadata require source version 2",
                 statement,
             );
         }

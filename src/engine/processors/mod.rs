@@ -4,6 +4,7 @@
 //! delay line and detector buffer up front; one-sample processing performs no
 //! allocation, locking, graph construction, or source interpretation.
 
+mod convolution;
 mod crusher;
 mod delay;
 mod dynamics;
@@ -16,6 +17,7 @@ mod runtime;
 mod stutter;
 mod utility;
 
+use convolution::*;
 use crusher::*;
 use delay::*;
 use dynamics::*;
@@ -26,6 +28,7 @@ use reverb::*;
 use stutter::*;
 use utility::*;
 
+pub(crate) use convolution::ir_frames;
 pub(crate) use program::*;
 pub(crate) use runtime::ProcessorRuntime;
 

@@ -11,8 +11,9 @@ use crate::{
     media::AssetInventory,
     model::{
         Instrument, InstrumentKind, MediaAsset, MediaAssetUsage, NodeKind, PatternEvent,
-        PresentationItemKind, Project, SettingValue,
+        PresentationItemKind, ProcessorKind, Project, SettingValue,
     },
+    processor_semantics::setting_literal,
     time::MusicalTime,
     validate::validate_instrument_module,
 };
@@ -22,7 +23,7 @@ use crate::{
 pub(crate) struct ModuleAssetDependency {
     /// Durable Project asset ID required by the Instrument.
     pub(crate) asset_id: String,
-    /// Source-v2 usage declarations required by graph Nodes; empty for ordinary sampler/metadata use.
+    /// Source-v2 usage declarations required by Nodes or processors; empty for ordinary sampler/metadata use.
     pub(crate) usages: Vec<MediaAssetUsage>,
     /// Stable readable Instrument declarations that reference the asset.
     pub(crate) references: Vec<String>,
@@ -201,6 +202,17 @@ pub(crate) fn module_asset_dependencies(instrument: &Instrument) -> Vec<ModuleAs
                     );
                 }
             }
+        }
+    }
+    for processor in &instrument.post_processors {
+        if processor.kind == ProcessorKind::Convolution
+            && let Some(asset_id) = setting_literal(processor, "ir")
+        {
+            include(
+                asset_id,
+                Some(MediaAssetUsage::ImpulseResponse),
+                format!("processor {}", processor.id),
+            );
         }
     }
     for section in &instrument.presentation.sections {

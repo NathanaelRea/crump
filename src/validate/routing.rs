@@ -488,6 +488,38 @@ fn validate_processor(
             ),
         }
     }
+    if processor.kind == ProcessorKind::Convolution {
+        match crate::processor_semantics::setting_literal(processor, "ir") {
+            None => located_error(
+                diagnostics,
+                "CRV124",
+                format!(
+                    "convolution `{}` requires setting `ir` with a Media Asset ID",
+                    processor.id
+                ),
+                &processor.location,
+            ),
+            Some(id)
+                if !project.assets.iter().any(|asset| {
+                    asset.id == id
+                        && asset
+                            .usages
+                            .contains(&crate::model::MediaAssetUsage::ImpulseResponse)
+                }) =>
+            {
+                located_error(
+                    diagnostics,
+                    "CRV124",
+                    format!(
+                        "convolution `{}` requires Media Asset `{id}` declared with `usage impulse_response`",
+                        processor.id
+                    ),
+                    &processor.location,
+                )
+            }
+            Some(_) => {}
+        }
+    }
     for conflict in validate_relationships(processor) {
         if let Some(setting) = processor
             .settings
