@@ -4,7 +4,7 @@
 use egui::text::{LayoutJob, TextFormat};
 
 use super::theme::{self, with_alpha};
-use super::widgets::{self, legible, section_header, unavailable};
+use super::widgets::{self, section_header, unavailable};
 use super::*;
 use crate::diagnostic::Severity;
 
@@ -623,6 +623,9 @@ const DIRECT_MANIPULATION_HELP: &[(&str, &str)] = &[
     ),
 ];
 
+/// One Help card: title, accent and the (keys, description) rows shown.
+type HelpCard<'a> = (&'a str, Color32, Vec<(&'a str, &'a str)>);
+
 pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
     // Search Filter Bar
     egui::Frame::new()
@@ -660,19 +663,35 @@ pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
         });
 
     let query = cx.state.help_search.trim().to_lowercase();
-    let any_match = query.is_empty()
-        || DIRECT_MANIPULATION_HELP
+    let matches = |title: &str, (keys, desc): &(&str, &str)| {
+        query.is_empty()
+            || title.to_lowercase().contains(&query)
+            || keys.to_lowercase().contains(&query)
+            || desc.to_lowercase().contains(&query)
+    };
+    let mut cards: Vec<HelpCard<'_>> = Vec::new();
+    let mouse = "Mouse";
+    cards.push((
+        mouse,
+        theme::ACCENT_AMBER,
+        DIRECT_MANIPULATION_HELP
             .iter()
-            .any(|(k, d)| k.to_lowercase().contains(&query) || d.to_lowercase().contains(&query))
-        || keymap::HELP.iter().any(|(heading, lines)| {
-            heading.to_lowercase().contains(&query)
-                || lines.iter().any(|line| {
-                    desktop_help_text(&legible(line))
-                        .to_lowercase()
-                        .contains(&query)
-                })
-        });
-    if !any_match {
+            .filter(|row| matches(mouse, row))
+            .copied()
+            .collect(),
+    ));
+    for (title, rows) in keymap::HELP {
+        cards.push((
+            title,
+            theme::ACCENT_CYAN,
+            rows.iter()
+                .filter(|row| matches(title, row))
+                .copied()
+                .collect(),
+        ));
+    }
+    cards.retain(|(_, _, rows)| !rows.is_empty());
+    if cards.is_empty() {
         ui.add_space(40.0);
         ui.vertical_centered(|ui| {
             ui.label(
@@ -692,61 +711,23 @@ pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
                 .inner_margin(egui::Margin::symmetric(14, 4))
                 .show(ui, |ui| {
                     ui.columns(2, |cols| {
-                        // Column 0: Direct Manipulation + first half of keymap::HELP
-                        let filtered_dm: Vec<(&str, &str)> = DIRECT_MANIPULATION_HELP
-                            .iter()
-                            .copied()
-                            .filter(|(k, d)| {
-                                query.is_empty()
-                                    || k.to_lowercase().contains(&query)
-                                    || d.to_lowercase().contains(&query)
-                            })
-                            .collect();
-                        if !filtered_dm.is_empty() {
-                            help_card_pairs(
-                                &mut cols[0],
-                                "DIRECT MANIPULATION & STUDIO CONTROLS",
-                                theme::ACCENT_AMBER,
-                                &filtered_dm,
-                            );
-                            cols[0].add_space(10.0);
-                        }
-
-                        // Balance the columns by rows, counting the Direct Manipulation card
-                        // that already heads the first column.
-                        let rows = |lines: &[&str]| lines.len() + 2;
-                        let total = DIRECT_MANIPULATION_HELP.len()
-                            + 2
-                            + keymap::HELP.iter().map(|(_, l)| rows(l)).sum::<usize>();
-                        let mut left = DIRECT_MANIPULATION_HELP.len() + 2;
+                        // Balance the two columns by rows; cards keep their order.
+                        let rows = |card: &HelpCard<'_>| card.2.len() + 2;
+                        let total = cards.iter().map(rows).sum::<usize>();
+                        let mut left = 0;
                         let mut mid = 0;
-                        for (_, lines) in keymap::HELP {
-                            let next = left + rows(lines);
-                            if next.abs_diff(total - next) >= left.abs_diff(total - left) {
+                        for card in &cards {
+                            let next = left + rows(card);
+                            if mid > 0 && next.abs_diff(total - next) >= left.abs_diff(total - left)
+                            {
                                 break;
                             }
                             left = next;
                             mid += 1;
                         }
-                        for (heading, lines) in &keymap::HELP[..mid] {
-                            help_card_lines(
-                                &mut cols[0],
-                                heading,
-                                theme::ACCENT_CYAN,
-                                lines,
-                                &query,
-                            );
-                        }
-
-                        // Column 1: second half of keymap::HELP
-                        for (heading, lines) in &keymap::HELP[mid..] {
-                            help_card_lines(
-                                &mut cols[1],
-                                heading,
-                                theme::ACCENT_VIOLET,
-                                lines,
-                                &query,
-                            );
+                        for (index, (title, accent, rows)) in cards.iter().enumerate() {
+                            let column = usize::from(index >= mid);
+                            help_card(&mut cols[column], title, *accent, rows);
                         }
                     });
                 });
@@ -754,7 +735,7 @@ pub(super) fn help(ui: &mut Ui, cx: &mut Cx<'_>) {
         });
 }
 
-fn help_card_pairs(ui: &mut Ui, title: &str, accent: Color32, rows: &[(&str, &str)]) {
+fn help_card(ui: &mut Ui, title: &str, accent: Color32, rows: &[(&str, &str)]) {
     egui::Frame::new()
         .fill(theme::BG_SURFACE)
         .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
@@ -766,40 +747,6 @@ fn help_card_pairs(ui: &mut Ui, title: &str, accent: Color32, rows: &[(&str, &st
             ui.add_space(7.0);
             for (key, desc) in rows {
                 help_aligned_row(ui, key, desc);
-                ui.add_space(4.0);
-            }
-        });
-}
-
-fn help_card_lines(ui: &mut Ui, title: &str, accent: Color32, lines: &[&str], query: &str) {
-    let matched: Vec<String> = lines
-        .iter()
-        .map(|line| desktop_help_text(&legible(line)))
-        .filter(|text| {
-            query.is_empty()
-                || title.to_lowercase().contains(query)
-                || text.to_lowercase().contains(query)
-        })
-        .collect();
-    if matched.is_empty() {
-        return;
-    }
-
-    egui::Frame::new()
-        .fill(theme::BG_SURFACE)
-        .stroke(Stroke::new(1.0_f32, theme::BORDER_SUBTLE))
-        .corner_radius(6.0)
-        .inner_margin(egui::Margin::same(12))
-        .show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            section_header(ui, &title.to_uppercase(), accent);
-            ui.add_space(7.0);
-            for text in &matched {
-                if let Some((keys, desc)) = text.split_once("  ") {
-                    help_aligned_row(ui, keys.trim(), desc.trim());
-                } else {
-                    help_binding_flow(ui, text);
-                }
                 ui.add_space(4.0);
             }
         });
@@ -824,84 +771,6 @@ fn help_aligned_row(ui: &mut Ui, key: &str, desc: &str) {
             egui::Label::new(RichText::new(desc).size(11.5).color(theme::TEXT_SECONDARY)).wrap(),
         );
     });
-}
-
-/// One help line of `keys action · keys action` segments as keycap chips followed by their
-/// actions, wrapping as a flow. `Context:` prefixes are shown as labels and prose stays prose.
-fn help_binding_flow(ui: &mut Ui, line: &str) {
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing = Vec2::new(5.0, 6.0);
-        for (index, segment) in line.split(" · ").enumerate() {
-            if index > 0 {
-                ui.add_space(8.0);
-            }
-            let mut segment = segment.trim();
-            if let Some((context, rest)) = segment.split_once(": ")
-                && context.len() <= 24
-                && context.chars().next().is_some_and(char::is_uppercase)
-            {
-                // A new context mid-line starts its own row so sections never run together.
-                if index > 0 {
-                    ui.end_row();
-                }
-                ui.label(
-                    RichText::new(context)
-                        .size(11.5)
-                        .strong()
-                        .color(theme::TEXT_PRIMARY),
-                );
-                segment = rest;
-            }
-            match segment.split_once(' ') {
-                Some((keys, action)) if is_key_token(keys) => {
-                    keycap_pill(ui, keys);
-                    ui.label(
-                        RichText::new(action)
-                            .size(11.5)
-                            .color(theme::TEXT_SECONDARY),
-                    );
-                }
-                None if is_key_token(segment) => keycap_pill(ui, segment),
-                _ => {
-                    ui.label(
-                        RichText::new(segment)
-                            .size(11.5)
-                            .color(theme::TEXT_SECONDARY),
-                    );
-                }
-            }
-        }
-    });
-}
-
-/// The shared help text with terminal-only wording adapted for the desktop window.
-fn desktop_help_text(line: &str) -> String {
-    // The bundled monospace font draws the arrow glyphs poorly inside keycaps; spell them out.
-    line.replace("⬅/➡", "Left/Right")
-        .replace("←/→", "Left/Right")
-        .replace("⬆/⬇", "Up/Down")
-        .replace("↑/↓", "Up/Down")
-        .replace("Ctrl-C is the only exit", "Ctrl-C quits")
-        .replace("plays C4–C5", "plays one octave from the keyboard's C")
-        // The shared help names views as the terminal does; use the window's tab labels.
-        .replace("Event Grid", "Piano Roll")
-        .replace("Processing", "FX Rack")
-        .replace("Graph:", "Patch Graph:")
-        .replace("Instrument:", "Synth:")
-        .replace("gi Instrument", "gi Synth")
-        .replace("gm Mixer", "gm Console")
-        .replace("Instrument views", "Sound views")
-}
-
-/// Whether a help token names a key or chord rather than an ordinary word.
-fn is_key_token(token: &str) -> bool {
-    const NAMED: [&str; 6] = ["Space", "Enter", "Esc", "Tab", "Home", "Shift-Tab"];
-    if token.ends_with(',') || token.ends_with('.') {
-        return false;
-    }
-    NAMED.contains(&token)
-        || token.chars().count() <= 2
-        || token.chars().any(|c| !c.is_alphabetic())
 }
 
 fn keycap_pill(ui: &mut Ui, text: &str) {

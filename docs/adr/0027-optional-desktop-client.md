@@ -4,6 +4,7 @@ Status: Accepted
 Date: 2026-11-22
 Supersedes: the "no desktop or browser client" clause of [ADR 0007](0007-terminal-first-client-boundary.md)
 Amended: 2026-11-23, the desktop client is now default (see "Amendment" below)
+Superseded in part by: [ADR 0029](0029-desktop-window-is-the-only-client.md), which removes the terminal client and its shared key bindings
 
 Crump gains a second human client: an egui desktop window, compiled only with the opt-in `gui` Cargo feature and opened with `crump gui`. The Ratatui workspace stays the default and the reference client. Crump still has no browser client.
 

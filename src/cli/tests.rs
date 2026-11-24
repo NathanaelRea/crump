@@ -1,23 +1,5 @@
 use super::*;
 
-#[cfg(feature = "tui")]
-#[test]
-fn ctrl_c_is_the_only_interactive_playback_stop_key() {
-    let ctrl_c = crossterm::event::KeyEvent::new(
-        crossterm::event::KeyCode::Char('c'),
-        crossterm::event::KeyModifiers::CONTROL,
-    );
-    assert!(play_stop_key(ctrl_c));
-    assert!(!play_stop_key(crossterm::event::KeyEvent::new(
-        crossterm::event::KeyCode::Char('q'),
-        crossterm::event::KeyModifiers::NONE,
-    )));
-    assert!(!play_stop_key(crossterm::event::KeyEvent::new(
-        crossterm::event::KeyCode::Esc,
-        crossterm::event::KeyModifiers::NONE,
-    )));
-}
-
 #[test]
 fn project_slug_is_source_safe() {
     assert_eq!(slug_id("My First Track!"), "my-first-track");

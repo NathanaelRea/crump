@@ -809,15 +809,6 @@ impl TimelineWindow {
     }
 }
 
-/// Semantic grid line projected into one terminal column.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(super) enum TimelineGridMark {
-    #[default]
-    None,
-    Beat,
-    Bar,
-}
-
 /// Aggregated visual facts for one Track and terminal column.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(super) struct TimelineCell {
@@ -841,9 +832,6 @@ pub(super) struct TimelineLane {
 #[derive(Debug, Clone)]
 pub(super) struct TimelineProjection {
     pub(super) window: TimelineWindow,
-    pub(super) ruler: String,
-    pub(super) grid: Vec<TimelineGridMark>,
-    pub(super) locator_columns: BTreeSet<usize>,
     pub(super) lanes: Vec<TimelineLane>,
 }
 
@@ -1233,19 +1221,9 @@ fn project_timeline(
     window: TimelineWindow,
     columns: usize,
 ) -> TimelineProjection {
-    let (grid, ruler) = project_ruler(project, window, columns);
-    let locator_columns = project
-        .song
-        .locators
-        .iter()
-        .filter_map(|locator| time_column(locator.at, window, columns))
-        .collect();
     if columns == 0 || !window.is_valid() {
         return TimelineProjection {
             window,
-            ruler,
-            grid,
-            locator_columns,
             lanes: project
                 .song
                 .tracks
@@ -1403,13 +1381,7 @@ fn project_timeline(
         });
     }
 
-    TimelineProjection {
-        window,
-        ruler,
-        grid,
-        locator_columns,
-        lanes,
-    }
+    TimelineProjection { window, lanes }
 }
 
 fn source_progress(age: u64, source_rate: u32, project_rate: u32) -> u64 {
@@ -1697,65 +1669,6 @@ fn push_crossfade_alternate(
     });
 }
 
-fn project_ruler(
-    project: &Project,
-    window: TimelineWindow,
-    columns: usize,
-) -> (Vec<TimelineGridMark>, String) {
-    if columns == 0 || !window.is_valid() {
-        return (Vec::new(), String::new());
-    }
-    let bar_length = project
-        .song
-        .meter
-        .bar_length()
-        .unwrap_or_else(|_| MusicalTime::whole(4));
-    let beat_length = MusicalTime::new(4, i64::from(project.song.meter.denominator))
-        .unwrap_or_else(|_| MusicalTime::whole(1));
-    let mut grid = vec![TimelineGridMark::None; columns];
-    let mut labels = Vec::<Option<u64>>::with_capacity(columns);
-    for (column, mark) in grid.iter_mut().enumerate() {
-        let Some((left, right)) = column_time_span(window, column, columns) else {
-            labels.push(None);
-            continue;
-        };
-        let bar = unit_boundary_at_or_after(left, bar_length)
-            .filter(|(_, boundary)| *boundary < right)
-            .map(|(index, _)| index.saturating_add(1));
-        let beat = unit_boundary_at_or_after(left, beat_length)
-            .is_some_and(|(_, boundary)| boundary < right);
-        *mark = if bar.is_some() {
-            TimelineGridMark::Bar
-        } else if beat {
-            TimelineGridMark::Beat
-        } else {
-            TimelineGridMark::None
-        };
-        labels.push(bar);
-    }
-    // Labels stay ASCII and glyph-free so the terminal adapter can choose a
-    // Unicode or ASCII grid without invalidating semantic projection data.
-    let mut ruler = vec![' '; columns];
-    let mut occupied_until = 0_usize;
-    for (column, bar) in labels.into_iter().enumerate() {
-        let Some(bar) = bar else {
-            continue;
-        };
-        if column < occupied_until {
-            continue;
-        }
-        let label = bar.to_string();
-        if column + label.chars().count() > ruler.len() {
-            continue;
-        }
-        for (offset, character) in label.chars().enumerate() {
-            ruler[column + offset] = character;
-        }
-        occupied_until = column + label.len() + 1;
-    }
-    (grid, ruler.into_iter().collect())
-}
-
 pub(super) fn column_time_span(
     window: TimelineWindow,
     column: usize,
@@ -1776,20 +1689,6 @@ pub(super) fn column_time_span(
         )?)
         .ok()?;
     Some((left, right))
-}
-
-fn unit_boundary_at_or_after(value: MusicalTime, unit: MusicalTime) -> Option<(u64, MusicalTime)> {
-    if value < MusicalTime::ZERO || !unit.is_positive() {
-        return None;
-    }
-    let numerator = u128::try_from(value.numerator())
-        .ok()?
-        .checked_mul(u128::try_from(unit.denominator()).ok()?)?;
-    let denominator = u128::try_from(value.denominator())
-        .ok()?
-        .checked_mul(u128::try_from(unit.numerator()).ok()?)?;
-    let index = u64::try_from(numerator.div_ceil(denominator)).ok()?;
-    Some((index, unit.checked_mul(index).ok()?))
 }
 
 pub(super) fn time_column(
@@ -2084,30 +1983,6 @@ mod tests {
             sample_travelled(80, 0, 100, SampleDirection::Reverse, crossfaded_loop),
             64
         );
-    }
-
-    #[test]
-    fn ruler_uses_exact_meter_beat_and_bar_boundaries() {
-        let parsed = crate::dsl::parse_project(
-            std::path::Path::new("minimal.crump"),
-            include_str!("../../tests/fixtures/minimal.crump"),
-        );
-        assert!(!parsed.diagnostics.has_errors(), "{:?}", parsed.diagnostics);
-        let mut project = parsed.project.expect("Project");
-        project.song.meter = crate::time::Meter::new(6, 8).expect("6/8 meter");
-        let (grid, ruler) = project_ruler(
-            &project,
-            TimelineWindow {
-                start: MusicalTime::ZERO,
-                end: MusicalTime::whole(6),
-            },
-            12,
-        );
-        assert_eq!(grid[0], TimelineGridMark::Bar);
-        assert_eq!(grid[1], TimelineGridMark::Beat);
-        assert_eq!(grid[6], TimelineGridMark::Bar);
-        assert_eq!(ruler.chars().next(), Some('1'));
-        assert_eq!(ruler.chars().nth(6), Some('2'));
     }
 
     #[test]

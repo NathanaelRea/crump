@@ -54,24 +54,24 @@ cargo install --path . --locked
 crump doctor
 ```
 
-To build without PipeWire, run `cargo build --release --no-default-features --features tui`. That build has no playback, but validation, history, rendering and the workspace still work. Leaving out `tui` as well drops the terminal client and its dependencies, keeping the library, the client-independent workspace session and every non-interactive CLI command. To build a `.deb` package, run `packaging/build-deb.sh dist`.
+To build without PipeWire, run `cargo build --release --no-default-features --features gui`. That build has no playback, but validation, history, rendering and the workspace still work. Leaving out `gui` as well drops the window and its dependencies, keeping the library and every non-interactive CLI command. To build a `.deb` package, run `packaging/build-deb.sh dist`.
 
 ## Desktop window
 
-Crump opens a desktop window by default. It shows the same views as the terminal workspace and takes the same keys, and adds full mouse editing: drag clips, faders, knobs and automation points, draw notes in the piano roll, and Ctrl-scroll to zoom. Every edit is saved, validated and recorded in History like any other.
+Crump opens a desktop window. Everything works with the mouse: drag clips, faders, knobs and automation points, draw notes in the piano roll, and Ctrl-scroll to zoom. Every edit is saved, validated and recorded in History like any other.
 
 | | |
 |---|---|
 | ![FX rack with processor cards and inspector](assets/screenshots/gui-fx-rack.png) | ![Synth view with oscillator, filter and envelope displays](assets/screenshots/gui-synth.png) |
 | ![Patch graph of an instrument's voice](assets/screenshots/gui-patch-graph.png) | ![Piano roll with velocity lane and drum pads](assets/screenshots/gui-piano-roll.png) |
 
-Running `crump` with no command opens it whenever a Wayland or X11 display is available; on a plain terminal (SSH, a console) you get the terminal workspace instead, and `crump gui` / `crump workspace` pick one explicitly. To try it from a checkout:
+Running `crump` with no command opens it whenever a Wayland or X11 display is available, and `crump gui` opens it explicitly; on a plain terminal (SSH, a console) `crump` prints `status`. To try it from a checkout:
 
 ```sh
 cargo run --release -- --project fixtures/deep-house-reference
 ```
 
-Use `--release`: a debug build is too slow for the realtime audio thread, and the system kills the process when playback starts. Run from a terminal without `--project` and it offers the project picker. To build without the window, use `--no-default-features --features pipewire,tui`. More in [docs/workspace.md](docs/workspace.md#desktop-window).
+Use `--release`: a debug build is too slow for the realtime audio thread, and the system kills the process when playback starts. Run from a terminal without `--project` and it offers the project picker. To build without the window, use `--no-default-features --features pipewire`. More in [docs/workspace.md](docs/workspace.md).
 
 ## Quick start
 
@@ -96,18 +96,18 @@ crump --project neon-steps render --output render/stems --stem track/lead:post_f
 
 | Key | |
 | --- | --- |
-| `1`–`9`, `0` | Timeline, Mixer, Processing, Event Grid, Faceplate, Instrument, Parameters, Automation, Graph, Source |
-| `Tab` / `Shift-Tab` | Next / previous view, including Diagnostics, History and Help |
-| `Space` / `S` | Play or pause / stop |
-| `j` `k` `h` `l` | Move around. In Timeline, `h`/`l` move by the current grid |
-| `V`, then `L` | Select a range in Timeline and loop it |
-| `:` | Jump to a bar, beat or locator |
-| `i` | Play the current instrument from the computer keyboard (`Esc` to leave) |
-| `P` | Publish the current edits |
-| `?` | Help |
-| `Ctrl-C` | Quit (`q` and `Esc` never quit) |
+| `Ctrl-1` … `Ctrl-6` | Arrange, Mix, Edit, Sound, Source, History |
+| `Space` / `Shift-Space` | Play or pause / stop |
+| `Home` / `End` | Go to the start / end of the Song |
+| `L` | Loop on or off |
+| `Ctrl-Z` / `Ctrl-S` | Undo / publish |
+| Arrows | Select rows and step values; in Arrange, move in time (`Shift` selects a range) |
+| `Ctrl-G` | Go to a bar, beat or locator |
+| `M` | In Sound, play the instrument from the computer keyboard |
+| `F1` | Help, with every shortcut |
+| `Ctrl-Q` | Quit |
 
-The full keymap is in [docs/workspace.md](docs/workspace.md).
+All shortcuts are in [docs/workspace.md](docs/workspace.md#keyboard-shortcuts).
 
 ## Examples
 
@@ -122,7 +122,7 @@ In each project, every instrument lives in its own `instruments/<id>.crump` file
 ## CLI
 
 ```text
-new  validate  inspect  status  publish  check  workspace  gui  play  render  qualify  doctor
+new  validate  inspect  status  publish  check  gui  play  render  qualify  doctor
 history  list | show | diff | restore
 edit     parameters, notes, clips, automation, locators, grooves, samples, ...
 asset    import | import-wavetable | collect | bounce | prepare | list

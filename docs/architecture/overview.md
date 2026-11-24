@@ -3,7 +3,7 @@
 ## Fixed constraints
 
 - Rust is the implementation language.
-- Ratatui is the default human client and an optional egui window is a second adapter over the same session ([ADR 0027](../adr/0027-optional-desktop-client.md)), while Project, authoring, persistence, engine, realtime, and render modules remain terminal-independent ([ADR 0007](../adr/0007-terminal-first-client-boundary.md)).
+- The egui desktop window is the human client, an adapter over the workspace session ([ADR 0029](../adr/0029-desktop-window-is-the-only-client.md)), while Project, authoring, persistence, engine, realtime, and render modules remain client-independent ([ADR 0007](../adr/0007-terminal-first-client-boundary.md)).
 - The Linux baseline is native PipeWire, not a JACK compatibility layer ([ADR 0002](../adr/0002-native-pipewire-linux-baseline.md)).
 - Readable declarative source is authoritative ([ADR 0010](../adr/0010-small-declarative-project-language.md)); Production Views make checked structure-preserving replacements ([ADR 0001](../adr/0001-structure-preserving-source-edits.md)).
 - Invalid Candidate Revisions never partially or implicitly replace Active audio.
@@ -80,9 +80,7 @@ The Candidate is current source bytes. The Active Revision is an exact committed
 | `realtime` | one `Player` controller and callback (fixed queues, transitions, reclamation, recovery telemetry) behind two drivers: native PipeWire audio/MIDI streams, and an in-memory driver whose owner steps the callback explicitly |
 | `project_picker` | interactive nested-Project discovery with `fzf` and numbered terminal selection |
 | `workspace` | client-independent workspace session: Candidate/Active tracking, external-change observation, playback and audition control, selection and modal state, and the cached Timeline arrangement/waveform projection, changed only through `Workspace::dispatch(Action)` and `Workspace::tick` |
-| `workspace::tui` | the Ratatui client behind the default `tui` feature: key-to-`Action` bindings, rendering, and terminal lifecycle; the only code that depends on a terminal library |
-| `workspace::keymap` | client-neutral key events and the one key-to-`Action` binding table and keyboard help shared by both clients |
-| `workspace::gui` | the optional egui desktop client behind the `gui` feature ([ADR 0027](../adr/0027-optional-desktop-client.md)): window loop, key translation, painted Timeline with pointer navigation, and table views; the only code that depends on a windowing library |
+| `workspace::gui` | the egui desktop client behind the default `gui` feature ([ADR 0029](../adr/0029-desktop-window-is-the-only-client.md)): window loop, keyboard shortcuts (`gui::keymap`), painted pages with pointer editing, and the History time machine; the only code that depends on a windowing library |
 | `cli` | human and schema-versioned external-Agent boundary, with argument schema and command execution separated from adapter entry/response types |
 
 ## Deep seams

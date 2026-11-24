@@ -1,9 +1,8 @@
 //! egui desktop client over the client-independent [`Workspace`] session.
 //!
-//! This is the only part of the workspace that depends on a windowing library. Like the terminal
-//! client it draws the session without changing it, and every change it makes goes through
-//! [`Workspace::dispatch`]. Keys go through the shared keymap, so the window is keyboard-complete
-//! in the same way as the terminal; pointer input is layered on top as further [`Action`] values.
+//! This is the only part of the workspace that depends on a windowing library. It draws the
+//! session without changing it, and every change it makes goes through [`Workspace::dispatch`]:
+//! pointer input and the keyboard shortcuts in `keymap` both become [`Action`] values.
 
 use std::{
     collections::BTreeMap,
@@ -16,13 +15,12 @@ use eframe::egui::{
     Stroke, StrokeKind, Ui, Vec2,
 };
 
-use super::keymap::Keymap;
 use super::*;
 use widgets::TabPress;
 
 mod arrangement;
 mod history_view;
-mod input;
+mod keymap;
 mod mixer;
 mod processing;
 mod sequencer;
@@ -67,7 +65,6 @@ pub fn run(path: impl AsRef<Path>) -> Result<(), WorkspaceError> {
             style(&creation.egui_ctx);
             Ok(Box::new(Client {
                 app,
-                keymap: Keymap::default(),
                 state: UiState::default(),
                 next_refresh: Instant::now() + REFRESH_RATE,
             }))
@@ -298,7 +295,6 @@ impl Cx<'_> {
 
 struct Client {
     app: Workspace,
-    keymap: Keymap,
     state: UiState,
     next_refresh: Instant,
 }
@@ -312,13 +308,7 @@ pub(super) fn inline_text_focused(ctx: &egui::Context, app: &Workspace) -> bool 
 impl eframe::App for Client {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         let focused = inline_text_focused(ctx, &self.app);
-        input::take_keys(
-            raw_input,
-            &mut self.app,
-            &mut self.keymap,
-            &mut self.state.modal_submit,
-            focused,
-        );
+        keymap::take_keys(raw_input, &mut self.app, &mut self.state, focused);
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -332,7 +322,9 @@ impl eframe::App for Client {
         }
 
         settle_view(&mut self.app, &mut self.state);
+        let drawn = Instant::now();
         let actions = draw(ctx, &self.app, &mut self.state);
+        self.app.performance.observe_draw(drawn.elapsed());
         let acted = !actions.is_empty();
         for action in actions {
             self.app.dispatch(action);
@@ -575,25 +567,25 @@ fn mode_tabs(ui: &mut Ui, cx: &mut Cx<'_>, mode: PrimaryMode) {
                         PrimaryMode::Arrange,
                         "Arrange",
                         View::Timeline,
-                        "Timeline Arrangement · Key 1",
+                        "Arrange · Ctrl-1",
                     ),
                     (
                         PrimaryMode::Mix,
                         "Mix",
                         cx.state.last_mix_view,
-                        "Mixing Console & FX Rack · Key 2 / 3",
+                        "Console and FX rack · Ctrl-2",
                     ),
                     (
                         PrimaryMode::Edit,
                         "Edit",
                         cx.state.last_edit_view,
-                        "Piano Roll & Automation · Key 4 / 8",
+                        "Piano roll and automation · Ctrl-3",
                     ),
                     (
                         PrimaryMode::Sound,
                         "Sound",
                         cx.state.last_sound_view,
-                        "Faceplate, Synth, Graph & Params · Key 5-7, 9",
+                        "Faceplate, synth, graph and parameters · Ctrl-4",
                     ),
                 ] {
                     if widgets::pill_toggle(ui, label, mode == m, tip).tab_pressed() {
@@ -627,7 +619,7 @@ fn transport_deck(ui: &mut Ui, cx: &mut Cx<'_>) {
                     Vec2::new(24.0, 22.0),
                     false,
                     theme::TEXT_PRIMARY,
-                    "Return to Zero (Bar 1)",
+                    "Go to the start · Home",
                     theme::paint_rtz_icon,
                 )
                 .clicked()
@@ -665,7 +657,7 @@ fn transport_deck(ui: &mut Ui, cx: &mut Cx<'_>) {
                     Vec2::new(24.0, 22.0),
                     false,
                     theme::SIG_CLIP,
-                    "Stop · S",
+                    "Stop · Shift-Space",
                     theme::paint_stop_icon,
                 )
                 .clicked()
@@ -678,7 +670,7 @@ fn transport_deck(ui: &mut Ui, cx: &mut Cx<'_>) {
                     Vec2::new(24.0, 22.0),
                     looping,
                     theme::ACCENT_AMBER,
-                    "Toggle Loop · L",
+                    "Loop · L",
                     theme::paint_loop_icon,
                 )
                 .clicked()
@@ -825,7 +817,7 @@ fn transport_deck(ui: &mut Ui, cx: &mut Cx<'_>) {
                         .fill(theme::BG_SURFACE)
                         .min_size(Vec2::new(96.0, 20.0)),
                     )
-                    .on_hover_text("Click to choose Audition target · A")
+                    .on_hover_text("Click to choose what plays")
                     .clicked()
                 {
                     cx.send(Action::OpenAuditionTarget);
@@ -932,7 +924,7 @@ fn status_cluster(ui: &mut Ui, cx: &mut Cx<'_>, show_meter: bool) {
     let settling = app.publication_settling();
     let needs_publish = needs_publish(app);
     if widgets::publish_button(ui, "Publish", needs_publish)
-        .on_hover_text("Publish Candidate as Active Revision · P")
+        .on_hover_text("Publish Candidate as Active Revision · Ctrl-S")
         .clicked()
     {
         cx.send(Action::OpenPublish);
@@ -949,7 +941,7 @@ fn status_cluster(ui: &mut Ui, cx: &mut Cx<'_>, show_meter: bool) {
             }))
             .fill(theme::BG_CARD),
         )
-        .on_hover_text("Restore previous Revision History entry")
+        .on_hover_text("Undo the last change · Ctrl-Z")
         .clicked()
     {
         cx.send(Action::UndoHistory);

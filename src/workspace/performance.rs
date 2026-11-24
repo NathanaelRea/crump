@@ -86,8 +86,6 @@ fn micros_to_ms(micros: u64) -> f64 {
 pub(super) struct WorkspacePerformance {
     visible: bool,
     report_on_exit: bool,
-    pub(super) loop_iterations: u64,
-    pub(super) events: u64,
     pub(super) draws: u64,
     pub(super) refresh_checks: u64,
     pub(super) candidate_reloads: u64,
@@ -108,7 +106,6 @@ pub(super) struct WorkspacePerformance {
     background_commit_wait: TimingStats,
     background_apply: TimingStats,
     draw: TimingStats,
-    event_to_draw: TimingStats,
 }
 
 impl WorkspacePerformance {
@@ -179,18 +176,12 @@ impl WorkspacePerformance {
         self.draw.observe(elapsed);
     }
 
-    pub(super) fn observe_event_to_draw(&mut self, elapsed: Duration) {
-        self.event_to_draw.observe(elapsed);
-    }
-
     pub(super) fn footer(&self) -> Option<String> {
         self.visible.then(|| {
             format!(
-                "perf draw {:.2}/{:.2}ms · event {:.2}/{:.2}ms · check/reload {}/{}/{}",
+                "perf draw {:.2}/{:.2}ms · check/reload {}/{}/{}",
                 micros_to_ms(self.draw.last_micros),
                 micros_to_ms(self.draw.maximum_micros),
-                micros_to_ms(self.event_to_draw.last_micros),
-                micros_to_ms(self.event_to_draw.maximum_micros),
                 self.refresh_checks,
                 self.candidate_reloads,
                 self.history_reloads,
@@ -203,9 +194,7 @@ impl WorkspacePerformance {
             return None;
         }
         let mut report = format!(
-            "workspace-performance loops={} events={} draws={} refresh_checks={} candidate_reloads={} history_reloads={} candidate_changes={} active_changes={} derived_rebuilds={} active_preparations={} mutations={} unstable_retries={} coalesced_requests={}",
-            self.loop_iterations,
-            self.events,
+            "workspace-performance draws={} refresh_checks={} candidate_reloads={} history_reloads={} candidate_changes={} active_changes={} derived_rebuilds={} active_preparations={} mutations={} unstable_retries={} coalesced_requests={}",
             self.draws,
             self.refresh_checks,
             self.candidate_reloads,
@@ -231,7 +220,6 @@ impl WorkspacePerformance {
             ),
             ("background_apply", &self.background_apply),
             ("draw", &self.draw),
-            ("event_read_to_draw", &self.event_to_draw),
         ] {
             let _ = write!(
                 report,
@@ -277,7 +265,6 @@ mod tests {
         performance.observe_background_commit_wait(Duration::from_micros(30));
         performance.observe_background_apply(Duration::from_micros(50));
         performance.observe_draw(Duration::from_micros(400));
-        performance.observe_event_to_draw(Duration::from_micros(700));
 
         let report = performance.report().unwrap_or_default();
         for phase in [
@@ -290,7 +277,6 @@ mod tests {
             "background_completion_to_commit",
             "background_apply",
             "draw",
-            "event_read_to_draw",
         ] {
             assert!(report.contains(phase), "missing phase {phase}");
         }

@@ -5,10 +5,10 @@ use std::f32::consts::PI;
 
 use egui_extras::{Column, TableBuilder};
 
+use super::keymap::{DRUM_NOTES, KEYBOARD_NOTES};
 use super::theme::{self, with_alpha};
 use super::*;
 use crate::model::Unit;
-use crate::workspace::keymap::{DRUM_NOTES, KEYBOARD_NOTES};
 
 /// Workspace text with symbols egui's bundled fonts lack replaced by covered glyphs.
 pub(super) fn legible(text: &str) -> std::borrow::Cow<'_, str> {

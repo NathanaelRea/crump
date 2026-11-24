@@ -3,15 +3,12 @@
 //! [`Workspace`] is the client-independent session: it owns Candidate and Active Revision
 //! tracking, background reload, playback, audition, selection, and modal state, and it changes
 //! only through [`Workspace::dispatch`] and [`Workspace::tick`]. A client adapter translates its
-//! own input into [`Action`] values and draws the resulting state. The first-party adapter is the
-//! Ratatui terminal client in the `tui` submodule, compiled with the `tui` feature; the optional
-//! egui desktop client is the `gui` submodule behind the `gui` feature. Nothing outside those
-//! submodules depends on a terminal or windowing library, and both share the key bindings in
-//! the `keymap` submodule.
+//! own input into [`Action`] values and draws the resulting state. The client is the egui desktop
+//! window in the `gui` submodule, behind the `gui` feature. Nothing outside those submodules depends on a windowing library.
 
 // The read side of the session (projections, labels, timing statistics) is consumed only by a
 // client adapter, so a build without one would otherwise report it as dead.
-#![cfg_attr(not(feature = "tui"), allow(dead_code))]
+#![cfg_attr(not(feature = "gui"), allow(dead_code))]
 
 use std::{
     cell::RefCell,
@@ -66,13 +63,9 @@ mod background;
 mod gui;
 mod input;
 mod instrument;
-#[cfg(any(feature = "tui", feature = "gui"))]
-mod keymap;
 mod performance;
 mod reload;
 mod timeline;
-#[cfg(feature = "tui")]
-mod tui;
 mod watch;
 
 #[cfg(test)]
@@ -93,23 +86,7 @@ use instrument::{InstrumentSectionRow, instrument_section_views_with_assets};
 use performance::WorkspacePerformance;
 use reload::{CandidateReload, CandidateUpdate, HistoryReload, HistoryUpdate, ReloadBatch};
 use timeline::{TimelineCache, TimelinePosition, TimelineRange, TimelineState, TimelineViewport};
-#[cfg(feature = "tui")]
-pub use tui::run;
 use watch::WorkspaceWatch;
-
-fn timeline_ascii_fallback() -> bool {
-    if let Ok(value) = std::env::var("CRUMP_TIMELINE_ASCII") {
-        return matches!(
-            value.trim().to_ascii_lowercase().as_str(),
-            "1" | "true" | "yes" | "on"
-        );
-    }
-    let locale_is_ascii = ["LC_ALL", "LC_CTYPE", "LANG"]
-        .into_iter()
-        .find_map(|name| std::env::var(name).ok().filter(|value| !value.is_empty()))
-        .is_some_and(|locale| matches!(locale.as_str(), "C" | "POSIX"));
-    locale_is_ascii || std::env::var("TERM").is_ok_and(|term| term.eq_ignore_ascii_case("dumb"))
-}
 
 /// Graph View order: the order the runtime processes Nodes in. A graph that has no valid
 /// order (only possible for an unpublished candidate) falls back to declaration order.
@@ -187,26 +164,6 @@ pub enum View {
     History,
     /// Client help.
     Help,
-}
-
-impl View {
-    const fn title(self) -> &'static str {
-        match self {
-            Self::Timeline => "Timeline",
-            Self::Mixer => "Mixer",
-            Self::Processing => "Processing",
-            Self::EventGrid => "Event Grid",
-            Self::Faceplate => "Faceplate",
-            Self::Instrument => "Instrument",
-            Self::Parameters => "Parameters",
-            Self::Automation => "Automation",
-            Self::Graph => "Graph",
-            Self::Source => "Source",
-            Self::Diagnostics => "Diagnostics",
-            Self::History => "History",
-            Self::Help => "Help",
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -315,7 +272,6 @@ pub struct Workspace {
     timeline_state: TimelineState,
     timeline_viewport: TimelineViewport,
     timeline_cache: TimelineCache,
-    timeline_ascii: bool,
     mixer_parameters: Vec<MixerParameterView>,
     selected_mixer_parameter: usize,
     selected_processor: usize,
@@ -330,8 +286,6 @@ pub struct Workspace {
     selected_graph_node: usize,
     selected_history: usize,
     selected_diagnostic: usize,
-    help_scroll: u16,
-    help_line_count: usize,
     selected_source: usize,
     source_scroll: usize,
     modal: Option<Modal>,
@@ -630,7 +584,6 @@ impl Workspace {
             timeline_state: TimelineState::default(),
             timeline_viewport: TimelineViewport::default(),
             timeline_cache,
-            timeline_ascii: timeline_ascii_fallback(),
             mixer_parameters,
             selected_mixer_parameter: 0,
             selected_processor: 0,
@@ -645,8 +598,6 @@ impl Workspace {
             selected_graph_node: 0,
             selected_history: 0,
             selected_diagnostic: 0,
-            help_scroll: 0,
-            help_line_count: 0,
             selected_source: 0,
             source_scroll: 0,
             modal: None,
@@ -1453,7 +1404,7 @@ impl Workspace {
             } else if self.candidate_is_active() {
                 self.status = "Published revision loaded".to_owned();
             } else {
-                self.status = "Valid external Candidate loaded · press P to publish".to_owned();
+                self.status = "Valid external Candidate loaded · Ctrl-S publishes".to_owned();
             }
         } else {
             self.status = "Candidate reload complete · no byte changes".to_owned();
@@ -2135,11 +2086,11 @@ impl Workspace {
             }
             self.held_notes.clear();
             self.note_mode = false;
-            self.status = "NORMAL mode".to_owned();
+            self.status = "Note keyboard off".to_owned();
         } else if self.timeline_state.visual() {
             self.cancel_timeline_visual();
         } else {
-            self.status = "NORMAL mode · Ctrl-C exits".to_owned();
+            self.status.clear();
         }
     }
 
@@ -2171,9 +2122,7 @@ impl Workspace {
                 self.selected_diagnostic = edge(self.bundle.diagnostics.as_slice().len())
             }
             View::History => self.selected_history = edge(self.history.len()),
-            View::Help => {
-                self.help_scroll = u16::try_from(edge(self.help_line_count)).unwrap_or(u16::MAX)
-            }
+            View::Help => {}
         }
         self.status = if first {
             "Moved to first row"
@@ -2969,16 +2918,7 @@ impl Workspace {
                     delta,
                 )
             }
-            View::Help => {
-                self.help_scroll = self
-                    .help_scroll
-                    .saturating_add_signed(i16::try_from(delta).unwrap_or(if delta < 0 {
-                        i16::MIN
-                    } else {
-                        i16::MAX
-                    }))
-                    .min(u16::try_from(self.help_line_count.saturating_sub(1)).unwrap_or(u16::MAX))
-            }
+            View::Help => {}
         }
     }
 

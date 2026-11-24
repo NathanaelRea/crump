@@ -6,13 +6,9 @@
 
 A Linux-first terminal Guided Production Instrument in which text is the durable medium for authoring complete electronic tracks.
 
-### Terminal-First
-
-The Ratatui workspace is the reference human client, and the Project model, engine, and authoring operations do not depend on terminal rendering. The Desktop Client offers the same workspace in a window and is what a bare interactive `crump` opens when a display is available; no browser client exists.
-
 ### Desktop Client
 
-The egui window over the same workspace session as the terminal client, built by the default `gui` feature and opened with `crump gui` or a bare interactive `crump` when a Wayland or X11 display is available. It shares the terminal's key bindings and adds pointer input; it owns no Project state and is not a separate product or project format.
+The egui window over the workspace session, and the only human client: built by the default `gui` feature and opened with `crump gui` or a bare interactive `crump` when a Wayland or X11 display is available. It owns no Project state and is not a separate product or project format. The Project model, engine, and authoring operations do not depend on it; no terminal or browser client exists.
 
 ### Guided Production Instrument
 
@@ -78,7 +74,7 @@ The transition for a valid topology change: Crump publishes the new graph with a
 
 ### Structured Source Edit
 
-A source change initiated by a structured TUI operation. It targets a known source construct, preserves unrelated source material where practical, and participates in the same Project History as direct source edits.
+A source change initiated by a structured workspace operation. It targets a known source construct, preserves unrelated source material where practical, and participates in the same Project History as direct source edits.
 
 ### Production View
 

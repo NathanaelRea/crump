@@ -28,15 +28,13 @@ fn sound_subbar(ui: &mut Ui, cx: &mut Cx<'_>, project: &Project, instrument: &In
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 5.0;
-                for (view, label, key) in [
-                    (View::Faceplate, "Faceplate", "5"),
-                    (View::Instrument, "Synth", "6"),
-                    (View::Graph, "Patch Graph", "9"),
-                    (View::Parameters, "Parameters", "7"),
+                for (view, label) in [
+                    (View::Faceplate, "Faceplate"),
+                    (View::Instrument, "Synth"),
+                    (View::Graph, "Patch Graph"),
+                    (View::Parameters, "Parameters"),
                 ] {
-                    if pill_toggle(ui, label, app.view == view, &format!("{label} · Key {key}"))
-                        .tab_pressed()
-                    {
+                    if pill_toggle(ui, label, app.view == view, label).tab_pressed() {
                         cx.send(Action::ShowView(view));
                     }
                 }

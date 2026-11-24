@@ -646,11 +646,6 @@ impl Workspace {
         Ok(Some(source_path))
     }
 
-    /// Tells the workspace how many lines of help the client shows, bounding Help scrolling.
-    pub fn set_help_line_count(&mut self, lines: usize) {
-        self.help_line_count = lines;
-    }
-
     /// Finishes any durable Project mutation and releases the audio stream.
     ///
     /// Call this once after the event loop ends and before the session is dropped.
@@ -712,7 +707,8 @@ impl Workspace {
             Action::EnterNoteMode => {
                 self.note_mode = true;
                 self.status =
-                    "NOTE mode · A W S E D F T G Y H U J K · Esc returns to Normal".to_owned();
+                    "Note keyboard on · A W S E D F T G Y H U J K play · M or Esc turns it off"
+                        .to_owned();
             }
             Action::NoteOn { key, pitch } => self.audition_note_on_velocity(key, pitch, 0.8),
             Action::NoteOnVelocity {

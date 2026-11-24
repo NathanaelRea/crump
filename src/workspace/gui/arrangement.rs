@@ -36,6 +36,10 @@ pub(super) fn timeline(ui: &mut Ui, cx: &mut Cx<'_>) {
     };
 
     compact_toolbar(ui, cx, project);
+    // Material that could not be read (an unreadable sample) is the one thing worth saying.
+    if let Some(warning) = app.timeline_cache.warning() {
+        ui.label(RichText::new(warning).size(11.0).color(theme::SIG_CLIP));
+    }
 
     // Compact 1-line contextual selection bar at bottom
     egui::TopBottomPanel::bottom("crump-timeline-inspector")

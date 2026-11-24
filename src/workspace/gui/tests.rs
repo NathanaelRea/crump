@@ -3,7 +3,6 @@ use std::fs;
 use eframe::egui::{Event, Key, Modifiers, PointerButton, RawInput};
 
 use super::*;
-use crate::workspace::keymap::{KeyCode, KeyPhase};
 
 const SCREEN: Vec2 = Vec2::new(1280.0, 800.0);
 
@@ -18,7 +17,6 @@ fn workspace(fixture: &str) -> (tempfile::TempDir, Workspace) {
 struct Window {
     ctx: egui::Context,
     state: UiState,
-    keymap: Keymap,
     time: f64,
 }
 
@@ -29,7 +27,6 @@ impl Window {
         Self {
             ctx,
             state: UiState::default(),
-            keymap: Keymap::default(),
             time: 0.0,
         }
     }
@@ -45,13 +42,7 @@ impl Window {
             ..Default::default()
         };
         let focused = inline_text_focused(&self.ctx, app);
-        input::take_keys(
-            &mut input,
-            app,
-            &mut self.keymap,
-            &mut self.state.modal_submit,
-            focused,
-        );
+        keymap::take_keys(&mut input, app, &mut self.state, focused);
         settle_view(app, &mut self.state);
         let mut actions = Vec::new();
         let output = self.ctx.run(input, |ctx| {
@@ -221,21 +212,25 @@ fn table_rows_select_on_click_and_view_tabs_switch_views() {
     app.shutdown();
 }
 
-#[test]
-fn keys_reach_the_shared_keymap_and_never_egui() {
-    let (_root, mut app) = workspace(include_str!("../../../tests/fixtures/minimal.crump"));
-    let mut window = Window::new();
-    let key = |key, modifiers| Event::Key {
+fn key_event(key: Key, modifiers: Modifiers) -> Event {
+    Event::Key {
         key,
         physical_key: None,
         pressed: true,
         repeat: false,
         modifiers,
-    };
+    }
+}
 
-    window.frame(&mut app, vec![Event::Text("2".to_owned())]);
+#[test]
+fn shortcuts_reach_the_workspace_and_never_egui() {
+    let (_root, mut app) = workspace(include_str!("../../../tests/fixtures/minimal.crump"));
+    let mut window = Window::new();
+    let key = key_event;
+
+    window.frame(&mut app, vec![key(Key::Num2, Modifiers::CTRL)]);
     assert_eq!(app.view, View::Mixer);
-    window.frame(&mut app, vec![key(Key::Tab, Modifiers::SHIFT)]);
+    window.frame(&mut app, vec![key(Key::Num1, Modifiers::CTRL)]);
     assert_eq!(app.view, View::Timeline);
     // A printable key arrives as both a key and a text event and must act once.
     window.frame(
@@ -243,11 +238,14 @@ fn keys_reach_the_shared_keymap_and_never_egui() {
         vec![key(Key::Plus, Modifiers::NONE), Event::Text("+".to_owned())],
     );
     assert_eq!(app.timeline_viewport.zoom_factor(), 2);
-    window.frame(&mut app, vec![key(Key::Home, Modifiers::NONE)]);
+    window.frame(&mut app, vec![key(Key::Num0, Modifiers::CTRL)]);
     assert!(app.timeline_viewport.is_fit());
+    // Plain digits are not shortcuts.
+    window.frame(&mut app, vec![key(Key::Num2, Modifiers::NONE)]);
+    assert_eq!(app.view, View::Timeline);
 
-    // The exact-entry prompt opens with its value selected, so typing replaces it.
-    window.frame(&mut app, vec![Event::Text(":".to_owned())]);
+    // The exact-position prompt opens with its value selected, so typing replaces it.
+    window.frame(&mut app, vec![key(Key::G, Modifiers::CTRL)]);
     assert!(matches!(app.modal, Some(Modal::Input { .. })));
     window.frame(&mut app, Vec::new());
     window.frame(&mut app, vec![Event::Text("1:3".to_owned())]);
@@ -267,36 +265,90 @@ fn keys_reach_the_shared_keymap_and_never_egui() {
         crate::time::MusicalTime::whole(2)
     );
 
-    window.frame(&mut app, vec![Event::Copy]);
+    // Ctrl-C is copy, not quit; Ctrl-Q quits.
+    window.frame(&mut app, vec![Event::Copy, key(Key::C, Modifiers::CTRL)]);
+    assert!(!app.quit_requested());
+    window.frame(&mut app, vec![key(Key::Q, Modifiers::CTRL)]);
     assert!(app.quit_requested());
     app.shutdown();
 }
 
 #[test]
-fn window_keys_translate_to_client_neutral_keys() {
-    let control = Modifiers::CTRL;
-    let code = |key, pressed, modifiers| input::key_input(key, pressed, modifiers);
-    assert_eq!(
-        code(Key::Enter, true, Modifiers::NONE).map(|key| key.code),
-        Some(KeyCode::Enter)
-    );
-    assert_eq!(
-        code(Key::Tab, true, Modifiers::SHIFT).map(|key| key.code),
-        Some(KeyCode::BackTab)
-    );
-    let chord = code(Key::O, true, control).expect("Ctrl-O");
-    assert_eq!(chord.code, KeyCode::Char('o'));
-    assert!(chord.modifiers.control);
-    assert_eq!(
-        code(Key::OpenBracket, true, control).map(|key| key.code),
-        Some(KeyCode::Char('['))
-    );
-    assert_eq!(code(Key::A, true, Modifiers::NONE), None);
-    assert_eq!(code(Key::Space, true, Modifiers::NONE), None);
-    let release = code(Key::A, false, Modifiers::NONE).expect("release");
-    assert_eq!(release.code, KeyCode::Char('a'));
-    assert_eq!(release.phase, KeyPhase::Release);
-    assert_eq!(code(Key::Enter, false, Modifiers::NONE), None);
+fn shortcuts_follow_desktop_conventions() {
+    let (_root, mut app) = workspace(include_str!("../../../tests/fixtures/minimal.crump"));
+    let pages = [
+        View::Timeline,
+        View::Mixer,
+        View::EventGrid,
+        View::Faceplate,
+        View::Source,
+        View::History,
+    ];
+    let press = |app: &Workspace, key, modifiers| {
+        keymap::actions(app, &pages, keymap::KeyPress::new(key, modifiers))
+    };
+    let only = |actions: Vec<Action>| {
+        assert_eq!(actions.len(), 1, "{actions:?}");
+        actions.into_iter().next().expect("one action")
+    };
+    assert!(matches!(
+        only(press(&app, Key::Space, Modifiers::NONE)),
+        Action::TogglePlayback
+    ));
+    assert!(matches!(
+        only(press(&app, Key::Space, Modifiers::SHIFT)),
+        Action::StopPlayback
+    ));
+    assert!(matches!(
+        only(press(&app, Key::Z, Modifiers::CTRL)),
+        Action::UndoHistory
+    ));
+    assert!(matches!(
+        only(press(&app, Key::S, Modifiers::CTRL)),
+        Action::OpenPublish
+    ));
+    assert!(matches!(
+        only(press(&app, Key::Num6, Modifiers::CTRL)),
+        Action::ShowView(View::History)
+    ));
+    // Vim keys are gone.
+    for key in [Key::J, Key::K, Key::G, Key::H] {
+        assert!(press(&app, key, Modifiers::NONE).is_empty(), "{key:?}");
+    }
+    // Shift-arrows select a range on the Timeline.
+    let range = press(&app, Key::ArrowRight, Modifiers::SHIFT);
+    assert!(matches!(
+        range.as_slice(),
+        [
+            Action::Timeline(TimelineAction::BeginRange),
+            Action::Timeline(TimelineAction::MoveGrid(1))
+        ]
+    ));
+
+    // The note keyboard: M turns it on in Sound views, letters play and release notes.
+    app.dispatch(Action::ShowView(View::Faceplate));
+    assert!(matches!(
+        only(press(&app, Key::M, Modifiers::NONE)),
+        Action::EnterNoteMode
+    ));
+    app.dispatch(Action::EnterNoteMode);
+    assert!(matches!(
+        only(press(&app, Key::A, Modifiers::NONE)),
+        Action::NoteOn { key: 'a', .. }
+    ));
+    let release = keymap::KeyPress {
+        pressed: false,
+        ..keymap::KeyPress::new(Key::A, Modifiers::NONE)
+    };
+    assert!(matches!(
+        only(keymap::actions(&app, &pages, release)),
+        Action::NoteOff { key: 'a' }
+    ));
+    assert!(matches!(
+        only(press(&app, Key::M, Modifiers::NONE)),
+        Action::CancelMode
+    ));
+    app.shutdown();
 }
 
 #[test]
@@ -737,7 +789,7 @@ fn the_footer_names_only_problems() {
         "Saved and published history entry 000000000004",
         "Published revision loaded",
         "Edit queued · 2 pending",
-        "Valid external Candidate loaded · press P to publish",
+        "Valid external Candidate loaded · Ctrl-S publishes",
         "Opened Instrument `error-bass`",
         "Restored 000000000003 as new entry",
     ] {

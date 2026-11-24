@@ -36,9 +36,8 @@ pub(super) enum Command {
     Check,
     /// Play the exact Active Revision through native PipeWire.
     Play(PlayArgs),
-    /// Open the keyboard-complete Ratatui Production Workspace.
-    Workspace,
     /// Open the Production Workspace in a desktop window (builds with the `gui` feature).
+    #[command(alias = "workspace")]
     Gui,
     /// Render the exact Active Revision to an atomic float-WAV bundle.
     Render(RenderArgs),
