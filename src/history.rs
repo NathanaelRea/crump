@@ -408,6 +408,17 @@ impl HistoryStore {
         ))
     }
 
+    /// The Project an entry published, parsed from its snapshot without decoding media: enough to
+    /// show every value it held, far cheaper than [`HistoryStore::bundle_at`].
+    pub fn project_at(&self, id: &str) -> Result<Option<crate::model::Project>, HistoryError> {
+        let entry = self.entry_metadata(id)?;
+        let snapshot = self.snapshot_metadata(&entry.revision)?;
+        Ok(
+            load_project_sources_with_assets(self.root.clone(), snapshot.sources, &BTreeMap::new())
+                .project,
+        )
+    }
+
     /// Produces an exact unified source diff from one entry's state to another's.
     pub fn diff_between(&self, from_id: &str, to_id: &str) -> Result<String, HistoryError> {
         let from = self.entry_metadata(from_id)?;

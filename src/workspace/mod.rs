@@ -304,6 +304,8 @@ pub struct Workspace {
     /// Projects rebuilt from History snapshots, most recent last, shared by History's view and
     /// its playback preview so a scrub step never reads the same snapshot twice.
     history_versions: RefCell<Vec<(String, Option<Arc<ProjectBundle>>)>>,
+    /// Projects parsed from History snapshots for viewing, loaded on background threads.
+    history_projects: RefCell<HistoryProjects>,
     audible_bundle: Option<Arc<ProjectBundle>>,
     pending_active_inspection: Option<PendingActiveInspection>,
     /// Project History, newest entry first.
@@ -457,6 +459,71 @@ enum InputAction {
     Publish,
 }
 
+/// One History version parsed on a background thread: its entry ID and Project, if readable.
+type ParsedVersion = (String, Option<crate::model::Project>);
+
+/// History versions parsed for viewing: ready ones by entry ID (most recent last), and the ones
+/// still loading on background threads.
+#[derive(Default)]
+struct HistoryProjects {
+    ready: Vec<(String, Option<Arc<crate::model::Project>>)>,
+    loading: std::collections::BTreeSet<String>,
+    channel: Option<(
+        std::sync::mpsc::Sender<ParsedVersion>,
+        std::sync::mpsc::Receiver<ParsedVersion>,
+    )>,
+}
+
+impl HistoryProjects {
+    /// Versions kept parsed; each is a Project without media, so this stays small.
+    const KEEP: usize = 96;
+    /// Versions parsed at once (a version, its parent and now fit together), so a long scrub
+    /// cannot start a thread per tick.
+    const PARALLEL: usize = 4;
+
+    fn get(&mut self, id: &str) -> Option<Option<Arc<crate::model::Project>>> {
+        let position = self.ready.iter().position(|(entry, _)| entry == id)?;
+        let hit = self.ready.remove(position);
+        let project = hit.1.clone();
+        self.ready.push(hit);
+        Some(project)
+    }
+
+    fn request(&mut self, root: &Path, id: &str) {
+        if self.loading.contains(id) || self.loading.len() >= Self::PARALLEL {
+            return;
+        }
+        let (sender, _) = self.channel.get_or_insert_with(std::sync::mpsc::channel);
+        let sender = sender.clone();
+        let (root, entry) = (root.to_path_buf(), id.to_owned());
+        self.loading.insert(entry.clone());
+        std::thread::spawn(move || {
+            let project = HistoryStore::open(&root)
+                .and_then(|store| store.project_at(&entry))
+                .ok()
+                .flatten();
+            let _ = sender.send((entry, project));
+        });
+    }
+
+    fn collect(&mut self) {
+        let Some((_, receiver)) = &self.channel else {
+            return;
+        };
+        while let Ok((entry, project)) = receiver.try_recv() {
+            self.loading.remove(&entry);
+            self.ready.push((entry, project.map(Arc::new)));
+            if self.ready.len() > Self::KEEP {
+                self.ready.remove(0);
+            }
+        }
+    }
+
+    fn loading(&self) -> bool {
+        !self.loading.is_empty()
+    }
+}
+
 impl Workspace {
     #[cfg(test)]
     fn load(path: &Path) -> Result<Self, WorkspaceError> {
@@ -554,6 +621,7 @@ impl Workspace {
             active_bundle,
             history_preview: None,
             history_versions: RefCell::new(Vec::new()),
+            history_projects: RefCell::new(HistoryProjects::default()),
             audible_bundle: None,
             pending_active_inspection: None,
             history,
@@ -1180,6 +1248,33 @@ impl Workspace {
             .as_ref()
             .map(|(_, bundle)| Arc::clone(bundle))
             .or_else(|| self.active_bundle.clone())
+    }
+
+    /// The Project a History entry published, for viewing. Parsed without media on a background
+    /// thread; `None` while it loads (see [`Workspace::history_projects_loading`]) or if it cannot
+    /// be read.
+    fn history_project(&self, id: &str) -> Option<Arc<crate::model::Project>> {
+        let mut projects = self.history_projects.borrow_mut();
+        projects.collect();
+        if let Some(ready) = projects.get(id) {
+            return ready;
+        }
+        projects.request(&self.root, id);
+        None
+    }
+
+    /// A History version already parsed for viewing, without starting a load.
+    fn history_project_peek(&self, id: &str) -> Option<Arc<crate::model::Project>> {
+        let mut projects = self.history_projects.borrow_mut();
+        projects.collect();
+        projects.get(id).flatten()
+    }
+
+    /// Whether History is still loading versions to show.
+    fn history_projects_loading(&self) -> bool {
+        let mut projects = self.history_projects.borrow_mut();
+        projects.collect();
+        projects.loading()
     }
 
     /// The Project a History entry published, rebuilt from its snapshot. The last dozen are kept.

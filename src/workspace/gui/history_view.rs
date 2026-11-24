@@ -268,7 +268,7 @@ pub(super) fn describe(app: &Workspace, summary: &str) -> (Kind, String, String)
             }
             let value = summary
                 .split_once(" = ")
-                .map(|(_, v)| format!(" to {v}"))
+                .map(|(_, v)| format!(" to {}", readable_literal(v)))
                 .unwrap_or_default();
             let name = processor_name(app, owner).unwrap_or_else(|| owner.to_owned());
             return (Kind::Fx, name, format!("{}{value}", title(key)));
@@ -494,115 +494,151 @@ fn kind_chip(ui: &mut Ui, kind: Kind) {
 
 /// Draws History once it has entries; the caller draws the empty state.
 ///
-/// A scrub rail across the top holds every version; the page below shows the sound as it was at
-/// the playhead, rebuilt from that version's snapshot: the instrument's dials, its track and its
-/// effects, each changed control showing where it came from. Play auditions that version in
-/// place of the current one, Then / Now swaps view and sound between them, and Restore brings it
-/// back for good.
+/// A scrub rail across the top holds every version; below it, every part of the project that
+/// version changed, as it was: instrument dials, channel strips, effect chains and patterns, each
+/// changed control showing where it came from. Versions are parsed on background threads and
+/// not at all while the rail is being dragged, so scrubbing stays smooth. Play auditions that
+/// version in place of the current one, Then / Now swaps view and sound between them, and
+/// Restore brings it back for good.
 pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
     let app = cx.app;
     let items = items(app);
     let selected = clamp_index(app.selected_history, items.len());
     let item = &items[selected];
-    let this = version_project(cx, &item.entry.id);
-    let previous = item
-        .entry
-        .parent
-        .as_ref()
-        .and_then(|parent| version_project(cx, parent));
-    let now = app
-        .active_entry
-        .clone()
-        .and_then(|id| version_project(cx, &id));
+    let dragging = cx.state.history_dragging;
+    // While the rail is dragged only versions already parsed are shown; the rest load on release.
+    let load = |id: &str| {
+        if dragging {
+            app.history_project_peek(id)
+        } else {
+            app.history_project(id)
+        }
+    };
+    let this = load(&item.entry.id);
+    let previous = item.entry.parent.as_deref().and_then(load);
+    let now = app.active_entry.as_deref().and_then(load);
+    if app.history_projects_loading() {
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(16));
+    }
     let mut pick: Option<usize> = None;
 
-    // While playing, what you hear follows the page: Then plays the version at the playhead,
-    // Now plays the current one.
+    // While playing, what you hear follows the page once the playhead settles: Then plays the
+    // version at the playhead, Now the current one.
     let playing = app.player.is_some() || app.playback_requested;
     let heard = app.history_preview.as_ref().map(|(id, _)| id);
-    if playing {
-        if cx.state.history_show_now {
+    if playing && !dragging {
+        if cx.state.history_show_now || is_current(app, item.entry) {
             if heard.is_some() {
                 cx.send(Action::PreviewHistoryVersion(None));
             }
         } else if heard != Some(&item.entry.id) && this.is_some() {
-            // The current version plays as itself; an unreadable one is not retried.
-            if is_current(app, item.entry) {
-                if heard.is_some() {
-                    cx.send(Action::PreviewHistoryVersion(None));
-                }
-            } else {
-                cx.send(Action::PreviewHistoryVersion(Some(item.entry.id.clone())));
-            }
+            cx.send(Action::PreviewHistoryVersion(Some(item.entry.id.clone())));
         }
     }
 
     egui::Frame::new()
         .inner_margin(egui::Margin::symmetric(22, 14))
         .show(ui, |ui| {
-            scrub_rail(ui, &items, selected, &mut pick);
+            scrub_rail(ui, cx, &items, selected, &mut pick);
             ui.add_space(10.0);
             transport(ui, cx, &items, item);
-            ui.add_space(14.0);
+            ui.add_space(12.0);
             // The rail and transport stay put; the version below scrolls.
             egui::ScrollArea::vertical()
                 .id_salt("history-version")
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    header(ui, &items, item, items.len() - selected, items.len());
-                    ui.add_space(14.0);
-
-                    let Some(this) = this.as_ref().and_then(|bundle| bundle.project.as_ref())
-                    else {
+                    let Some(this) = this.as_deref() else {
+                        header(ui, &items, item, None, items.len() - selected, items.len());
+                        ui.add_space(12.0);
                         ui.label(
-                            RichText::new("This version's snapshot could not be read.")
-                                .color(theme::TEXT_MUTED),
+                            RichText::new(if dragging {
+                                "Release to show this version"
+                            } else {
+                                "Loading this version…"
+                            })
+                            .color(theme::TEXT_MUTED),
                         );
                         return;
                     };
-                    let previous = previous.as_ref().and_then(|bundle| bundle.project.as_ref());
-                    let now = now.as_ref().and_then(|bundle| bundle.project.as_ref());
-                    let this_edit = value_changes(previous, this);
-                    let since = now
-                        .map(|now| value_changes(Some(this), now))
-                        .unwrap_or_default();
-                    // The sound this change belongs to: from what it moved, else from what it names,
-                    // and only then from what differs from now.
-                    let focus = focus_of(this, &this_edit)
-                        .or_else(|| focus_named(this, item))
-                        .or_else(|| focus_of(this, &since));
-
-                    // Narrow windows stack the lists under the sound panel instead of squeezing it.
+                    let this_edit = cached_changes(
+                        cx,
+                        item.entry.parent.as_deref(),
+                        previous.as_deref(),
+                        &item.entry.id,
+                        this,
+                    );
+                    header(
+                        ui,
+                        &items,
+                        item,
+                        this_edit.first(),
+                        items.len() - selected,
+                        items.len(),
+                    );
+                    ui.add_space(12.0);
+                    let since = match (&app.active_entry, now.as_deref()) {
+                        (Some(active), Some(now)) => {
+                            cached_changes(cx, Some(&item.entry.id), Some(this), active, now)
+                        }
+                        _ => Vec::new(),
+                    };
+                    // Narrow windows stack the lists under the sound instead of beside it.
                     let stacked = ui.available_width() < 980.0;
                     let showing_now = cx.state.history_show_now;
                     let view = SoundView {
                         shown: if showing_now {
-                            now.unwrap_or(this)
+                            now.as_deref().unwrap_or(this)
                         } else {
                             this
                         },
-                        previous: if showing_now { None } else { previous },
-                        other: if showing_now { Some(this) } else { now },
+                        previous: if showing_now {
+                            None
+                        } else {
+                            previous.as_deref()
+                        },
+                        other: if showing_now {
+                            Some(this)
+                        } else {
+                            now.as_deref()
+                        },
                         other_word: if showing_now { "then" } else { "now" },
                     };
-                    let panel = |ui: &mut Ui| match &focus {
-                        Some(focus) => sound_panel(ui, &view, focus),
-                        None => {
-                            ui.label(
-                                RichText::new("This change has no dials to show.")
-                                    .color(theme::TEXT_MUTED),
-                            );
-                        }
-                    };
+                    let mut areas = touched_areas(&this_edit);
+                    if areas.is_empty() {
+                        areas = named_areas(this, item);
+                    }
+                    let panel = |ui: &mut Ui| sound_panel(ui, &view, &areas, &this_edit);
                     let lists = |ui: &mut Ui| {
-                        change_list(ui, "THIS EDIT", &this_edit, "No values moved.");
+                        let waiting = item.entry.parent.is_some() && previous.is_none();
+                        change_list(
+                            ui,
+                            "THIS EDIT",
+                            &this_edit,
+                            if waiting {
+                                "Loading…"
+                            } else {
+                                "No values moved."
+                            },
+                        );
                         ui.add_space(14.0);
                         let title = if since.is_empty() {
                             "SINCE THIS VERSION".to_owned()
                         } else {
                             format!("SINCE THIS VERSION · {}", plural(since.len(), "difference"))
                         };
-                        change_list(ui, &title, &since, "This is the version you hear now.");
+                        let now_loading = app.active_entry.is_some() && now.is_none();
+                        change_list(
+                            ui,
+                            &title,
+                            &since,
+                            if now_loading {
+                                "Loading…"
+                            } else {
+                                "This is the version you hear now."
+                            },
+                        );
                     };
                     if stacked {
                         panel(ui);
@@ -632,176 +668,380 @@ pub(super) fn history(ui: &mut Ui, cx: &mut Cx<'_>) {
 
 const SIDE_WIDTH: f32 = 340.0;
 
-/// The Project a History entry published, from the workspace's shared cache of snapshots.
-fn version_project(
+/// Differences between two versions, computed once per pair.
+fn cached_changes(
     cx: &mut Cx<'_>,
-    id: &str,
-) -> Option<std::sync::Arc<crate::project::ProjectBundle>> {
-    cx.app.history_version(id)
+    from_id: Option<&str>,
+    from: Option<&Project>,
+    to_id: &str,
+    to: &Project,
+) -> Vec<ValueChange> {
+    let key = (from_id.unwrap_or("").to_owned(), to_id.to_owned());
+    if let Some(changes) = cx.state.history_diffs.get(&key) {
+        return changes.clone();
+    }
+    let changes = value_changes(from, to);
+    // Cache only a real comparison: an earlier version still loading is not "no change".
+    if from_id.is_some() && from.is_none() {
+        return changes;
+    }
+    if cx.state.history_diffs.len() > 256 {
+        cx.state.history_diffs.clear();
+    }
+    cx.state.history_diffs.insert(key, changes.clone());
+    changes
 }
 
-/// Where a value change landed.
-#[derive(Clone, PartialEq)]
-enum Area {
+/// What part of the project a change landed in.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum Area {
     Tempo,
     Instrument(String),
     Track(String),
-    Processor(String),
+    Group(String),
+    Return(String),
+    Master,
     Pattern(String),
+    Other(String),
 }
 
 /// One value that differs between two versions.
-#[derive(Clone)]
-struct ValueChange {
+#[derive(Clone, Debug)]
+pub(super) struct ValueChange {
     area: Area,
     owner: String,
     label: String,
     before: String,
     after: String,
+    /// The changed control's path inside its area (`parameters/drive/value`), to light it.
+    path: Vec<String>,
 }
 
-/// Every value that differs from `before` to `after`, in plain words.
+/// Every value that differs from `before` to `after`, in plain words. The comparison walks the
+/// whole Project, so it covers anything a version can change; source positions are ignored.
 fn value_changes(before: Option<&Project>, after: &Project) -> Vec<ValueChange> {
-    use crate::model::Unit;
-    let mut out = Vec::new();
     let Some(before) = before else {
-        return out;
+        return Vec::new();
     };
-    let mut push = |area: Area, owner: &str, label: &str, before: String, after: String| {
-        if before != after {
-            out.push(ValueChange {
-                area,
-                owner: owner.to_owned(),
-                label: label.to_owned(),
-                before,
-                after,
-            });
-        }
+    let (Ok(a), Ok(b)) = (serde_json::to_value(before), serde_json::to_value(after)) else {
+        return Vec::new();
     };
-    push(
-        Area::Tempo,
-        "Song",
-        "Tempo",
-        format!("{:.1} BPM", before.song.tempo_bpm),
-        format!("{:.1} BPM", after.song.tempo_bpm),
-    );
-    for inst in &after.song.instruments {
-        let Some(old) = before.song.instruments.iter().find(|i| i.id == inst.id) else {
-            continue;
-        };
-        for param in &inst.parameters {
-            if let Some(prev) = old.parameters.iter().find(|p| p.key == param.key) {
-                push(
-                    Area::Instrument(inst.id.clone()),
-                    &inst.name,
-                    &param.name,
-                    theme::format_compact_value(prev.value, param.unit),
-                    theme::format_compact_value(param.value, param.unit),
-                );
-            }
-        }
-    }
-    for track in &after.song.tracks {
-        let Some(old) = before.song.tracks.iter().find(|t| t.id == track.id) else {
-            continue;
-        };
-        push(
-            Area::Track(track.id.clone()),
-            &track.name,
-            "Level",
-            theme::format_compact_value(old.channel.level_db, Unit::Decibels),
-            theme::format_compact_value(track.channel.level_db, Unit::Decibels),
-        );
-        push(
-            Area::Track(track.id.clone()),
-            &track.name,
-            "Pan",
-            theme::format_compact_value(old.channel.panner.primary_position(), Unit::Pan),
-            theme::format_compact_value(track.channel.panner.primary_position(), Unit::Pan),
-        );
-    }
-    let old_processors = processors(before);
-    for (host, processor) in processors(after) {
-        let Some((_, old)) = old_processors.iter().find(|(_, p)| p.id == processor.id) else {
-            continue;
-        };
-        let owner = format!("{} on {host}", theme::processor_title(processor.kind));
-        for setting in &processor.settings {
-            if let Some(prev) = old.settings.iter().find(|s| s.key == setting.key) {
-                push(
-                    Area::Processor(processor.id.clone()),
-                    &owner,
-                    &title(&setting.key),
-                    prev.value.clone(),
-                    setting.value.clone(),
-                );
-            }
-        }
-        push(
-            Area::Processor(processor.id.clone()),
-            &owner,
-            "Bypass",
-            if old.bypass { "on" } else { "off" }.to_owned(),
-            if processor.bypass { "on" } else { "off" }.to_owned(),
-        );
-    }
-    for pattern in &after.song.patterns {
-        if let Some(old) = before.song.patterns.iter().find(|p| p.id == pattern.id)
-            && musical_events(old) != musical_events(pattern)
-        {
-            let (was, is) = (musical_events(old), musical_events(pattern));
-            // Same number of events: say how many changed rather than "4 to 4".
-            let (before, after) = if was.len() == is.len() {
-                let changed = was.iter().zip(&is).filter(|(a, b)| a != b).count();
-                (
-                    String::new(),
-                    format!("{changed} of {} changed", plural(is.len(), "event")),
-                )
-            } else {
-                (plural(was.len(), "event"), plural(is.len(), "event"))
-            };
-            out.push(ValueChange {
-                area: Area::Pattern(pattern.id.clone()),
-                owner: pattern.id.clone(),
-                label: "Notes".to_owned(),
-                before,
-                after,
-            });
-        }
-    }
-    out
+    let mut raw = Vec::new();
+    diff_json(&mut Vec::new(), &a, &b, &mut raw);
+    raw.into_iter()
+        .map(|(path, old, new)| describe_change(before, after, &path, old, new))
+        .collect()
 }
 
-/// A pattern's events as music only (time, pitch or voice, length, velocity), ignoring where
-/// they sit in the source, which shifts whenever a file is edited.
-fn musical_events(pattern: &crate::model::Pattern) -> Vec<String> {
-    use crate::model::PatternEvent;
-    pattern
-        .events
+type RawChange = (
+    Vec<String>,
+    Option<serde_json::Value>,
+    Option<serde_json::Value>,
+);
+
+/// Source bookkeeping that moves whenever a file is edited, never a musical value.
+fn is_bookkeeping(key: &str) -> bool {
+    key == "location" || key == "locations" || key.ends_with("site") || key.ends_with("sites")
+}
+
+fn element_id(value: &serde_json::Value) -> Option<&str> {
+    value
+        .get("id")
+        .or_else(|| value.get("key"))
+        .and_then(serde_json::Value::as_str)
+}
+
+fn diff_json(
+    path: &mut Vec<String>,
+    a: &serde_json::Value,
+    b: &serde_json::Value,
+    out: &mut Vec<RawChange>,
+) {
+    use serde_json::Value;
+    const MAX: usize = 400;
+    if a == b || out.len() >= MAX {
+        return;
+    }
+    match (a, b) {
+        (Value::Object(x), Value::Object(y)) => {
+            let keys = y.keys().chain(x.keys().filter(|k| !y.contains_key(*k)));
+            for key in keys.cloned().collect::<Vec<_>>() {
+                if is_bookkeeping(&key) {
+                    continue;
+                }
+                path.push(key.clone());
+                match (x.get(&key), y.get(&key)) {
+                    (Some(l), Some(r)) => diff_json(path, l, r, out),
+                    (l, r) => out.push((path.clone(), l.cloned(), r.cloned())),
+                }
+                path.pop();
+            }
+        }
+        (Value::Array(x), Value::Array(y))
+            if x.iter().chain(y).all(|v| element_id(v).is_some()) =>
+        {
+            for r in y {
+                let id = element_id(r).unwrap_or_default().to_owned();
+                path.push(id.clone());
+                match x.iter().find(|l| element_id(l) == Some(&id)) {
+                    Some(l) => diff_json(path, l, r, out),
+                    None => out.push((path.clone(), None, Some(r.clone()))),
+                }
+                path.pop();
+            }
+            for l in x {
+                let id = element_id(l).unwrap_or_default();
+                if !y.iter().any(|r| element_id(r) == Some(id)) {
+                    path.push(id.to_owned());
+                    out.push((path.clone(), Some(l.clone()), None));
+                    path.pop();
+                }
+            }
+        }
+        (Value::Array(x), Value::Array(y)) if x.len() == y.len() => {
+            for (index, (l, r)) in x.iter().zip(y).enumerate() {
+                path.push(format!("#{}", index + 1));
+                diff_json(path, l, r, out);
+                path.pop();
+            }
+        }
+        _ => out.push((path.clone(), Some(a.clone()), Some(b.clone()))),
+    }
+}
+
+/// A raw difference read as owner, control and values in the Project's own words and units.
+fn describe_change(
+    before: &Project,
+    after: &Project,
+    path: &[String],
+    old: Option<serde_json::Value>,
+    new: Option<serde_json::Value>,
+) -> ValueChange {
+    use crate::model::Unit;
+    let song = &after.song;
+    let seg = |i: usize| path.get(i).map(String::as_str).unwrap_or("");
+    let rest = |from: usize| path.get(from..).map(<[String]>::to_vec).unwrap_or_default();
+    let fmt = |value: &Option<serde_json::Value>| match value {
+        None => String::new(),
+        Some(v) => json_text(v),
+    };
+    let (mut before_text, mut after_text) = match (&old, &new) {
+        (None, Some(_)) => (String::new(), "added".to_owned()),
+        (Some(_), None) => (String::new(), "removed".to_owned()),
+        _ => (fmt(&old), fmt(&new)),
+    };
+    let unit_text = |unit: Unit, v: &Option<serde_json::Value>| {
+        v.as_ref()
+            .and_then(serde_json::Value::as_f64)
+            .map(|v| theme::format_compact_value(v, unit))
+    };
+    let mut retext = |unit: Unit| {
+        if let (Some(a), Some(b)) = (unit_text(unit, &old), unit_text(unit, &new)) {
+            before_text = a;
+            after_text = b;
+        }
+    };
+    let (area, owner, inner) = match (seg(0), seg(1)) {
+        ("song", "tempo_bpm") => {
+            let bpm = |v: &Option<serde_json::Value>| {
+                v.as_ref()
+                    .and_then(serde_json::Value::as_f64)
+                    .map(|v| format!("{v:.1} BPM"))
+            };
+            if let (Some(a), Some(b)) = (bpm(&old), bpm(&new)) {
+                before_text = a;
+                after_text = b;
+            }
+            (Area::Tempo, "Song".to_owned(), vec!["Tempo".to_owned()])
+        }
+        ("song", "instruments") => {
+            let id = seg(2).to_owned();
+            let inst = song
+                .instruments
+                .iter()
+                .find(|i| i.id == id)
+                .or_else(|| before.song.instruments.iter().find(|i| i.id == id));
+            let inner = rest(3);
+            if inner.len() == 3
+                && inner[0] == "parameters"
+                && inner[2] == "value"
+                && let Some(param) =
+                    inst.and_then(|i| i.parameters.iter().find(|p| p.key == inner[1]))
+            {
+                retext(param.unit);
+            }
+            let owner = inst.map_or_else(|| id.clone(), |i| i.name.clone());
+            (Area::Instrument(id), owner, inner)
+        }
+        (scope @ ("tracks" | "groups" | "returns"), _)
+        | ("song", scope @ ("tracks" | "groups" | "returns")) => {
+            let id = seg(2).to_owned();
+            let name = match scope {
+                "tracks" => song
+                    .tracks
+                    .iter()
+                    .find(|t| t.id == id)
+                    .map(|t| t.name.clone()),
+                "groups" => song
+                    .groups
+                    .iter()
+                    .find(|g| g.id == id)
+                    .map(|g| g.name.clone()),
+                _ => song
+                    .returns
+                    .iter()
+                    .find(|r| r.id == id)
+                    .map(|r| r.name.clone()),
+            };
+            let inner = rest(3);
+            if inner.last().is_some_and(|k| k == "level_db") {
+                retext(Unit::Decibels);
+            } else if inner.first().is_some_and(|k| k == "channel")
+                && inner.get(1).is_some_and(|k| k == "panner")
+            {
+                retext(Unit::Pan);
+            }
+            let area = match scope {
+                "tracks" => Area::Track(id.clone()),
+                "groups" => Area::Group(id.clone()),
+                _ => Area::Return(id.clone()),
+            };
+            (area, name.unwrap_or(id), inner)
+        }
+        ("song", "master") => {
+            let inner = rest(2);
+            if inner.last().is_some_and(|k| k == "level_db") {
+                retext(Unit::Decibels);
+            }
+            (Area::Master, "Master".to_owned(), inner)
+        }
+        ("song", "patterns") => (Area::Pattern(seg(2).to_owned()), seg(2).to_owned(), rest(3)),
+        ("song", collection) => (
+            Area::Other(collection.to_owned()),
+            title(&collection.replace('_', " ")),
+            rest(2),
+        ),
+        (top, _) => (Area::Other(top.to_owned()), title(top), rest(1)),
+    };
+    ValueChange {
+        label: control_label(after, &area, &inner),
+        area,
+        owner,
+        before: before_text,
+        after: after_text,
+        path: inner,
+    }
+}
+
+/// A path inside an area as words: `channel/inserts/bass-color/settings/drive/value` reads
+/// "Saturator · Drive".
+fn control_label(project: &Project, area: &Area, path: &[String]) -> String {
+    const NOISE: [&str; 7] = [
+        "channel",
+        "settings",
+        "value",
+        "inserts",
+        "post_processors",
+        "panner",
+        "graph",
+    ];
+    // Instrument parameters by their names.
+    if let (Area::Instrument(id), ["parameters", key, ..]) = (
+        area,
+        path.iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) && let Some(param) = project
+        .song
+        .instruments
         .iter()
-        .map(|event| match event {
-            PatternEvent::Note {
-                at,
-                pitch,
-                duration,
-                velocity,
-                ..
-            } => format!("note {at} {pitch} {duration} {velocity}"),
-            PatternEvent::Hit {
-                at,
-                voice,
-                velocity,
-                ..
-            } => format!("hit {at} {voice:?} {velocity}"),
-            PatternEvent::Sample {
-                at,
-                mapping,
-                duration,
-                velocity,
-                ..
-            } => format!("sample {at} {mapping} {duration} {velocity}"),
-        })
-        .collect()
+        .find(|i| i.id == *id)
+        .and_then(|i| i.parameters.iter().find(|p| p.key == *key))
+    {
+        return param.name.clone();
+    }
+    let mut words: Vec<String> = Vec::new();
+    for (i, segment) in path.iter().enumerate() {
+        if NOISE.contains(&segment.as_str()) {
+            continue;
+        }
+        // An effect by its kind name.
+        if i > 0
+            && matches!(path[i - 1].as_str(), "inserts" | "post_processors")
+            && let Some((_, processor)) = processors(project)
+                .into_iter()
+                .find(|(_, p)| p.id == *segment)
+        {
+            words.push(theme::processor_title(processor.kind).to_owned());
+            continue;
+        }
+        let word = match segment.as_str() {
+            "level_db" => "Level".to_owned(),
+            "position" => "Pan".to_owned(),
+            "left" => "Pan left".to_owned(),
+            "right" => "Pan right".to_owned(),
+            other => title(&other.replace('_', " ")),
+        };
+        if words.last() != Some(&word) {
+            words.push(word);
+        }
+    }
+    if words.is_empty() {
+        "Value".to_owned()
+    } else {
+        words.join(" · ")
+    }
+}
+
+fn json_text(value: &serde_json::Value) -> String {
+    use serde_json::Value;
+    match value {
+        Value::Number(n) => n
+            .as_f64()
+            .map(|f| {
+                let text = format!("{f:.3}");
+                text.trim_end_matches('0').trim_end_matches('.').to_owned()
+            })
+            .unwrap_or_else(|| n.to_string()),
+        Value::String(s) => readable_literal(s),
+        Value::Bool(b) => if *b { "on" } else { "off" }.to_owned(),
+        Value::Null => "none".to_owned(),
+        Value::Array(items) => plural(items.len(), "item"),
+        Value::Object(_) => "changed".to_owned(),
+    }
+}
+
+/// Each area a set of changes touched, in order, once.
+fn touched_areas(changes: &[ValueChange]) -> Vec<Area> {
+    let mut areas: Vec<Area> = Vec::new();
+    for change in changes {
+        if !areas.contains(&change.area) {
+            areas.push(change.area.clone());
+        }
+    }
+    areas
+}
+
+/// The area a change names, for edits that moved no value (structure, arrangement).
+fn named_areas(project: &Project, item: &Item<'_>) -> Vec<Area> {
+    let song = &project.song;
+    let area = match item.kind {
+        Kind::Instrument => song
+            .instruments
+            .iter()
+            .find(|i| i.name == item.subject)
+            .map(|i| Area::Instrument(i.id.clone())),
+        Kind::Mix | Kind::Arrangement => song
+            .tracks
+            .iter()
+            .find(|t| t.name == item.subject)
+            .map(|t| Area::Track(t.id.clone())),
+        Kind::Pattern => Some(Area::Pattern(item.subject.clone())),
+        Kind::Song => Some(Area::Tempo),
+        _ => None,
+    };
+    area.into_iter().collect()
 }
 
 /// Every effect chain with the name of what it sits on: tracks, groups, returns, the Master and
@@ -837,127 +1077,12 @@ fn chains(project: &Project) -> Vec<(String, &[crate::model::Processor])> {
     out
 }
 
-/// The effect chain on the named host in a version.
-fn chain_named<'a>(
-    project: Option<&'a Project>,
-    host: &str,
-) -> Option<&'a [crate::model::Processor]> {
-    chains(project?)
-        .into_iter()
-        .find(|(name, _)| name == host)
-        .map(|(_, chain)| chain)
-}
-
-/// One effect in a chain, by ID.
-fn processor_in<'a>(
-    chain: Option<&'a [crate::model::Processor]>,
-    id: &str,
-) -> Option<&'a crate::model::Processor> {
-    chain?.iter().find(|p| p.id == id)
-}
-
 /// Every effect with the name of what it sits on.
 fn processors(project: &Project) -> Vec<(String, &crate::model::Processor)> {
     chains(project)
         .into_iter()
         .flat_map(|(host, chain)| chain.iter().map(move |p| (host.clone(), p)))
         .collect()
-}
-
-/// The sound a set of changes belongs to: an instrument and the track playing it, or a pattern.
-#[derive(Default, Clone)]
-struct Focus {
-    instrument: Option<String>,
-    track: Option<String>,
-    pattern: Option<String>,
-    tempo: bool,
-    /// An effect chain off any track (a group, return, the Master, an instrument), by host name.
-    effects_on: Option<String>,
-}
-
-fn focus_of(project: &Project, changes: &[ValueChange]) -> Option<Focus> {
-    let song = &project.song;
-    let track_playing = |instrument: &str| {
-        song.tracks
-            .iter()
-            .find(|t| t.instrument == instrument)
-            .map(|t| t.id.clone())
-    };
-    let change = changes.first()?;
-    let mut focus = Focus::default();
-    match &change.area {
-        Area::Tempo => focus.tempo = true,
-        Area::Instrument(id) => {
-            focus.instrument = Some(id.clone());
-            focus.track = track_playing(id);
-        }
-        Area::Track(track) => {
-            focus.track = Some(track.clone());
-            focus.instrument = song
-                .tracks
-                .iter()
-                .find(|t| t.id == *track)
-                .map(|t| t.instrument.clone());
-        }
-        Area::Pattern(pattern) => {
-            focus.pattern = Some(pattern.clone());
-            if let Some(track) = song
-                .tracks
-                .iter()
-                .find(|t| t.clips.iter().any(|c| c.pattern == *pattern))
-            {
-                focus.track = Some(track.id.clone());
-                focus.instrument = Some(track.instrument.clone());
-            }
-        }
-        Area::Processor(id) => {
-            if let Some(track) = song
-                .tracks
-                .iter()
-                .find(|t| t.channel.inserts.iter().any(|p| p.id == *id))
-            {
-                focus.track = Some(track.id.clone());
-                focus.instrument = Some(track.instrument.clone());
-            } else {
-                // A group, return, Master or instrument effect: show that chain.
-                focus.effects_on = chains(project)
-                    .into_iter()
-                    .find(|(_, chain)| chain.iter().any(|p| p.id == *id))
-                    .map(|(host, _)| host);
-            }
-        }
-    }
-    Some(focus)
-}
-
-/// The sound a change names, found in its own version: for edits whose values did not move
-/// (structure, arrangement) or that the value comparison does not cover.
-fn focus_named(project: &Project, item: &Item<'_>) -> Option<Focus> {
-    let song = &project.song;
-    let mut focus = Focus::default();
-    match item.kind {
-        Kind::Instrument => {
-            let instrument = song.instruments.iter().find(|i| i.name == item.subject)?;
-            focus.instrument = Some(instrument.id.clone());
-            focus.track = song
-                .tracks
-                .iter()
-                .find(|t| t.instrument == instrument.id)
-                .map(|t| t.id.clone());
-        }
-        Kind::Mix | Kind::Arrangement => {
-            let track = song.tracks.iter().find(|t| t.name == item.subject)?;
-            focus.track = Some(track.id.clone());
-            focus.instrument = Some(track.instrument.clone());
-        }
-        Kind::Pattern => {
-            let pattern = song.patterns.iter().find(|p| p.id == item.subject)?;
-            focus.pattern = Some(pattern.id.clone());
-        }
-        Kind::Song => focus.tempo = true,
-        _ => return None,
-    }
-    Some(focus)
 }
 
 /// Which version the sound panel shows and what it compares against.
@@ -1016,7 +1141,12 @@ fn dial(
             let a = start + sweep * t;
             Pos2::new(center.x + r * a.cos(), center.y + r * a.sin())
         };
+        // An arc with no length (a centred pan, an unmoved value) draws nothing: a line whose
+        // points all coincide has no direction and tessellates into garbage.
         let arc = |from: f32, to: f32| {
+            if (to - from).abs() < 1e-4 {
+                return Vec::new();
+            }
             (0..=32)
                 .map(|i| point(from + (to - from) * i as f32 / 32.0, radius))
                 .collect::<Vec<_>>()
@@ -1096,9 +1226,14 @@ fn dial(
                 Some(Mark::Differs(other)) => {
                     format!("{other_word} {}", text(other))
                 }
-                None => " ".to_owned(),
+                None => String::new(),
             };
-            ui.label(RichText::new(note).size(10.0).color(theme::TEXT_MUTED));
+            // An unmarked control keeps the note's line, empty, so rows stay aligned.
+            if note.is_empty() {
+                ui.add_space(ui.text_style_height(&egui::TextStyle::Body));
+            } else {
+                ui.label(RichText::new(note).size(10.0).color(theme::TEXT_MUTED));
+            }
         });
     });
 }
@@ -1173,11 +1308,26 @@ fn fader(ui: &mut Ui, db: f64, mark: Option<Mark>, other_word: &str) {
                         theme::format_compact_value(other, Unit::Decibels)
                     )
                 }
-                None => " ".to_owned(),
+                None => String::new(),
             };
-            ui.label(RichText::new(note).size(10.0).color(theme::TEXT_MUTED));
+            // An unmarked control keeps the note's line, empty, so rows stay aligned.
+            if note.is_empty() {
+                ui.add_space(ui.text_style_height(&egui::TextStyle::Body));
+            } else {
+                ui.label(RichText::new(note).size(10.0).color(theme::TEXT_MUTED));
+            }
         });
     });
+}
+
+/// The pan dials a panner shows: one, or one per side for a stereo panner.
+fn pan_dials(panner: &crate::model::Panner) -> Vec<(&'static str, f64)> {
+    match panner {
+        crate::model::Panner::StereoPan { left, right, .. } => {
+            vec![("Pan left", *left), ("Pan right", *right)]
+        }
+        other => vec![("Pan", other.primary_position())],
+    }
 }
 
 /// A pattern drawn small: notes or hits over its span.
@@ -1238,6 +1388,8 @@ fn section(ui: &mut Ui, kind: Kind, name: &str, body: impl FnOnce(&mut Ui)) {
         .corner_radius(8.0)
         .inner_margin(egui::Margin::same(12))
         .show(ui, |ui| {
+            // One card per row, as wide as the column: wrapping inside, never past the edge.
+            ui.set_width(ui.available_width());
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
                     kind_chip(ui, kind);
@@ -1254,18 +1406,28 @@ fn section(ui: &mut Ui, kind: Kind, name: &str, body: impl FnOnce(&mut Ui)) {
         });
 }
 
-/// The sound a version belongs to: synth dials, its track's level and pan, its effects and its
-/// pattern, as `view.shown` has them.
-fn sound_panel(ui: &mut Ui, view: &SoundView<'_>, focus: &Focus) {
+/// Every area a version changed, one card per row so nothing runs off the side: instrument
+/// dials, channel strips with their effects, patterns, and any other change as a chip, all as
+/// `view.shown` has them.
+fn sound_panel(ui: &mut Ui, view: &SoundView<'_>, areas: &[Area], changes: &[ValueChange]) {
     use crate::model::Unit;
     let song = &view.shown.song;
     let prev_song = view.previous.map(|p| &p.song);
     let other_song = view.other.map(|p| &p.song);
     let word = view.other_word;
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing = Vec2::new(16.0, 16.0);
-        if focus.tempo {
-            section(ui, Kind::Song, "Song", |ui| {
+    if areas.is_empty() {
+        ui.label(
+            RichText::new("This change has nothing to show as controls.").color(theme::TEXT_MUTED),
+        );
+        return;
+    }
+    for area in areas {
+        let in_area = changes
+            .iter()
+            .filter(|c| c.area == *area)
+            .collect::<Vec<_>>();
+        match area {
+            Area::Tempo => section(ui, Kind::Song, "Song", |ui| {
                 dial(
                     ui,
                     "Tempo",
@@ -1282,142 +1444,254 @@ fn sound_panel(ui: &mut Ui, view: &SoundView<'_>, focus: &Focus) {
                     word,
                     theme::TEXT_PRIMARY,
                 );
-            });
-        }
-        let track = focus
-            .track
-            .as_ref()
-            .and_then(|id| song.tracks.iter().find(|t| t.id == *id));
-        if let Some(inst) = focus
-            .instrument
-            .as_ref()
-            .and_then(|id| song.instruments.iter().find(|i| i.id == *id))
-        {
-            let find = |s: Option<&crate::model::Song>, key: &str| {
-                s.and_then(|s| s.instruments.iter().find(|i| i.id == inst.id))
-                    .and_then(|i| i.parameters.iter().find(|p| p.key == key))
-                    .map(|p| p.value)
-            };
-            let name = match track {
-                Some(track) => format!("{} on {}", inst.name, track.name),
-                None => inst.name.clone(),
-            };
-            section(ui, Kind::Instrument, &name, |ui| {
-                // Instruments with many parameters wrap rather than running off the panel.
-                ui.horizontal_wrapped(|ui| {
-                    for param in &inst.parameters {
-                        dial(
-                            ui,
-                            &param.name,
-                            param.value,
-                            param.minimum,
-                            param.maximum,
-                            param.unit,
-                            &|v| theme::format_compact_value(v, param.unit),
-                            mark(
+            }),
+            Area::Instrument(id) => {
+                let Some(inst) = song.instruments.iter().find(|i| i.id == *id) else {
+                    continue;
+                };
+                let param_of = |s: Option<&crate::model::Song>, key: &str| {
+                    s.and_then(|s| s.instruments.iter().find(|i| i.id == inst.id))
+                        .and_then(|i| i.parameters.iter().find(|p| p.key == key))
+                        .map(|p| p.value)
+                };
+                let name = match song.tracks.iter().find(|t| t.instrument == inst.id) {
+                    Some(track) => format!("{} on {}", inst.name, track.name),
+                    None => inst.name.clone(),
+                };
+                section(ui, Kind::Instrument, &name, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        for param in &inst.parameters {
+                            dial(
+                                ui,
+                                &param.name,
                                 param.value,
-                                find(prev_song, &param.key),
-                                find(other_song, &param.key),
+                                param.minimum,
+                                param.maximum,
+                                param.unit,
+                                &|v| theme::format_compact_value(v, param.unit),
+                                mark(
+                                    param.value,
+                                    param_of(prev_song, &param.key),
+                                    param_of(other_song, &param.key),
+                                ),
+                                word,
+                                Kind::Instrument.color(),
+                            );
+                        }
+                    });
+                    let old_inst = |s: Option<&'_ crate::model::Song>| {
+                        s.and_then(|s| s.instruments.iter().find(|i| i.id == inst.id).cloned())
+                    };
+                    let (prev_inst, other_inst) = (old_inst(prev_song), old_inst(other_song));
+                    for processor in &inst.post_processors {
+                        effect_settings(
+                            ui,
+                            processor,
+                            prev_inst.as_ref().and_then(|i| {
+                                i.post_processors.iter().find(|p| p.id == processor.id)
+                            }),
+                            other_inst.as_ref().and_then(|i| {
+                                i.post_processors.iter().find(|p| p.id == processor.id)
+                            }),
+                            word,
+                        );
+                    }
+                    // Inside the synth: oscillator, filter and envelope settings, routes, and so on.
+                    let inner = in_area
+                        .iter()
+                        .filter(|c| {
+                            c.path
+                                .first()
+                                .is_none_or(|p| p != "parameters" && p != "post_processors")
+                        })
+                        .copied()
+                        .collect::<Vec<_>>();
+                    change_chips(ui, &inner);
+                });
+            }
+            Area::Track(_) | Area::Group(_) | Area::Return(_) => {
+                let Some((name, channel)) = channel_strip(song, area) else {
+                    continue;
+                };
+                let prev = prev_song
+                    .and_then(|s| channel_strip(s, area))
+                    .map(|(_, c)| c);
+                let other = other_song
+                    .and_then(|s| channel_strip(s, area))
+                    .map(|(_, c)| c);
+                section(ui, Kind::Mix, &name, |ui| {
+                    ui.horizontal_top(|ui| {
+                        fader(
+                            ui,
+                            channel.level_db,
+                            mark(
+                                channel.level_db,
+                                prev.map(|c| c.level_db),
+                                other.map(|c| c.level_db),
                             ),
                             word,
-                            Kind::Instrument.color(),
+                        );
+                        // A stereo panner places each side, so it gets a dial per side.
+                        for (side, (label, pan)) in
+                            pan_dials(&channel.panner).into_iter().enumerate()
+                        {
+                            let at = |c: &crate::model::ChannelStrip| {
+                                pan_dials(&c.panner).get(side).map(|(_, v)| *v)
+                            };
+                            dial(
+                                ui,
+                                label,
+                                pan,
+                                -1.0,
+                                1.0,
+                                Unit::Pan,
+                                &|v| theme::format_compact_value(v, Unit::Pan),
+                                mark(pan, prev.and_then(at), other.and_then(at)),
+                                word,
+                                Kind::Mix.color(),
+                            );
+                        }
+                    });
+                    for processor in &channel.inserts {
+                        effect_settings(
+                            ui,
+                            processor,
+                            prev.and_then(|c| c.inserts.iter().find(|p| p.id == processor.id)),
+                            other.and_then(|c| c.inserts.iter().find(|p| p.id == processor.id)),
+                            word,
+                        );
+                    }
+                    // Sends, clips and anything else on this channel.
+                    let inner = in_area
+                        .iter()
+                        .filter(|c| {
+                            !matches!(c.label.as_str(), "Level" | "Pan" | "Pan left" | "Pan right")
+                                && c.path.get(1).is_none_or(|p| p != "inserts")
+                        })
+                        .copied()
+                        .collect::<Vec<_>>();
+                    change_chips(ui, &inner);
+                });
+            }
+            Area::Master => {
+                let Some(master) = &song.master else {
+                    continue;
+                };
+                let prev = prev_song.and_then(|s| s.master.as_ref());
+                let other = other_song.and_then(|s| s.master.as_ref());
+                section(ui, Kind::Mix, "Master", |ui| {
+                    fader(
+                        ui,
+                        master.level_db,
+                        mark(
+                            master.level_db,
+                            prev.map(|m| m.level_db),
+                            other.map(|m| m.level_db),
+                        ),
+                        word,
+                    );
+                    for processor in &master.inserts {
+                        effect_settings(
+                            ui,
+                            processor,
+                            prev.and_then(|m| m.inserts.iter().find(|p| p.id == processor.id)),
+                            other.and_then(|m| m.inserts.iter().find(|p| p.id == processor.id)),
+                            word,
                         );
                     }
                 });
-            });
-        }
-        if let Some(track) = track {
-            let prev = prev_song.and_then(|s| s.tracks.iter().find(|t| t.id == track.id));
-            let other = other_song.and_then(|s| s.tracks.iter().find(|t| t.id == track.id));
-            section(ui, Kind::Mix, &track.name, |ui| {
-                ui.horizontal_top(|ui| {
-                    fader(
-                        ui,
-                        track.channel.level_db,
-                        mark(
-                            track.channel.level_db,
-                            prev.map(|t| t.channel.level_db),
-                            other.map(|t| t.channel.level_db),
-                        ),
-                        word,
-                    );
-                    let pan = track.channel.panner.primary_position();
-                    dial(
-                        ui,
-                        "Pan",
-                        pan,
-                        -1.0,
-                        1.0,
-                        Unit::Pan,
-                        &|v| theme::format_compact_value(v, Unit::Pan),
-                        mark(
-                            pan,
-                            prev.map(|t| t.channel.panner.primary_position()),
-                            other.map(|t| t.channel.panner.primary_position()),
-                        ),
-                        word,
-                        Kind::Mix.color(),
-                    );
-                });
-            });
-            if !track.channel.inserts.is_empty() {
-                section(ui, Kind::Fx, &format!("Effects on {}", track.name), |ui| {
-                    for processor in &track.channel.inserts {
-                        let prev_p = prev
-                            .and_then(|t| t.channel.inserts.iter().find(|p| p.id == processor.id));
-                        let other_p = other
-                            .and_then(|t| t.channel.inserts.iter().find(|p| p.id == processor.id));
-                        effect_settings(ui, processor, prev_p, other_p, word);
-                    }
+            }
+            Area::Pattern(id) => {
+                let Some(pattern) = song.patterns.iter().find(|p| p.id == *id) else {
+                    continue;
+                };
+                section(ui, Kind::Pattern, &pattern.id, |ui| {
+                    let width = ui.available_width().min(420.0);
+                    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, 96.0), Sense::hover());
+                    pattern_thumb(ui.painter(), rect, pattern, Kind::Pattern.color());
+                    change_chips(ui, &in_area);
                 });
             }
+            Area::Other(_) => {
+                let owner = in_area.first().map_or("Project", |c| c.owner.as_str());
+                section(ui, Kind::Other, owner, |ui| change_chips(ui, &in_area));
+            }
         }
-        if let Some(host) = &focus.effects_on
-            && let Some(chain) = chain_named(Some(view.shown), host)
-        {
-            let prev_chain = chain_named(view.previous, host);
-            let other_chain = chain_named(view.other, host);
-            section(ui, Kind::Fx, &format!("Effects on {host}"), |ui| {
-                for processor in chain {
-                    effect_settings(
-                        ui,
-                        processor,
-                        processor_in(prev_chain, &processor.id),
-                        processor_in(other_chain, &processor.id),
-                        word,
-                    );
-                }
-            });
-        }
-        if let Some(pattern) = focus
-            .pattern
-            .as_ref()
-            .and_then(|id| song.patterns.iter().find(|p| p.id == *id))
-        {
-            section(ui, Kind::Pattern, &pattern.id, |ui| {
-                let (rect, _) = ui.allocate_exact_size(Vec2::new(300.0, 96.0), Sense::hover());
-                pattern_thumb(ui.painter(), rect, pattern, Kind::Pattern.color());
-            });
+        ui.add_space(12.0);
+    }
+}
+
+/// A track, group or return's name and channel strip in a version.
+fn channel_strip<'a>(
+    song: &'a crate::model::Song,
+    area: &Area,
+) -> Option<(String, &'a crate::model::ChannelStrip)> {
+    match area {
+        Area::Track(id) => song
+            .tracks
+            .iter()
+            .find(|t| t.id == *id)
+            .map(|t| (t.name.clone(), &t.channel)),
+        Area::Group(id) => song
+            .groups
+            .iter()
+            .find(|g| g.id == *id)
+            .map(|g| (g.name.clone(), &g.channel)),
+        Area::Return(id) => song
+            .returns
+            .iter()
+            .find(|r| r.id == *id)
+            .map(|r| (r.name.clone(), &r.channel)),
+        _ => None,
+    }
+}
+
+/// Changes with no control of their own, as lit chips: "Filter · Cutoff 420 Hz → 520 Hz".
+fn change_chips(ui: &mut Ui, changes: &[&ValueChange]) {
+    if changes.is_empty() {
+        return;
+    }
+    ui.add_space(6.0);
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = Vec2::new(6.0, 6.0);
+        for change in changes {
+            let text = if change.before.is_empty() {
+                format!("{} {}", change.label, change.after)
+            } else {
+                format!(
+                    "{} {} (previous {})",
+                    change.label, change.after, change.before
+                )
+            };
+            setting_chip(ui, &text, true, false);
         }
     });
 }
 
 /// A setting literal as people read it: `-25db` as `-25 dB`, `105ms` as `105 ms`.
 fn readable_literal(value: &str) -> String {
+    // Edits from dragging carry every digit (0.6625022888183594); three decimals read fine.
+    let short = |number: &str| {
+        number.parse::<f64>().ok().map(|n| {
+            let text = format!("{n:.3}");
+            text.trim_end_matches('0').trim_end_matches('.').to_owned()
+        })
+    };
     for (suffix, unit) in [
         ("db", " dB"),
         ("khz", " kHz"),
         ("hz", " Hz"),
         ("ms", " ms"),
         ("st", " st"),
+        ("s", " s"),
     ] {
         if let Some(number) = value.strip_suffix(suffix)
-            && number.parse::<f64>().is_ok()
+            && let Some(number) = short(number)
         {
             return format!("{number}{unit}");
         }
     }
-    value.replace('_', " ")
+    short(value).unwrap_or_else(|| value.replace('_', " "))
 }
 
 /// One effect's settings as chips; edited ones lit with their previous value, ones that differ
@@ -1592,7 +1866,13 @@ fn change_list(ui: &mut Ui, title: &str, changes: &[ValueChange], empty: &str) {
 
 /// Every version as a tick, oldest on the left and Now at the right end, sessions as bands.
 /// Ticks for the selected sound stand out; restores are diamonds. Drag anywhere to scrub.
-fn scrub_rail(ui: &mut Ui, items: &[Item<'_>], selected: usize, pick: &mut Option<usize>) {
+fn scrub_rail(
+    ui: &mut Ui,
+    cx: &mut Cx<'_>,
+    items: &[Item<'_>],
+    selected: usize,
+    pick: &mut Option<usize>,
+) {
     let n = items.len().max(1);
     let height = 58.0;
     let (rect, response) = ui.allocate_exact_size(
@@ -1700,6 +1980,8 @@ fn scrub_rail(ui: &mut Ui, items: &[Item<'_>], selected: usize, pick: &mut Optio
             clock(hovered.at)
         ));
     }
+    // While dragging, versions not yet parsed wait for the release (see `history`).
+    cx.state.history_dragging = response.dragged();
     if (response.dragged() || response.clicked())
         && let Some(pos) = response.interact_pointer_pos()
     {
@@ -1842,10 +2124,22 @@ fn transport(ui: &mut Ui, cx: &mut Cx<'_>, items: &[Item<'_>], item: &Item<'_>) 
     });
 }
 
-fn header(ui: &mut Ui, items: &[Item<'_>], item: &Item<'_>, number: usize, total: usize) {
-    // A restore reads as where it went back to.
+fn header(
+    ui: &mut Ui,
+    items: &[Item<'_>],
+    item: &Item<'_>,
+    measured: Option<&ValueChange>,
+    number: usize,
+    total: usize,
+) {
+    // A restore reads as where it went back to; a summary not recognised reads as what it
+    // measurably changed.
+    let named = match (item.kind, measured) {
+        (Kind::Other, Some(change)) => format!("{} — {}", change.owner, change.label),
+        _ => format!("{} — {}", item.subject, item.action),
+    };
     let headline = restore_target(items, item).map_or_else(
-        || format!("{} — {}", item.subject, item.action),
+        || named.clone(),
         |target| {
             format!(
                 "Went back to {} — {} ({})",
@@ -1895,43 +2189,62 @@ pub(super) mod tests {
         let root =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/deep-house-reference");
         let (_dir, mut app) = super::super::tests::seed_real_history(&root);
-        let drive = app
-            .history
-            .iter()
-            .find(|entry| entry.summary.contains("dh-bass.drive"))
-            .expect("the drive edit")
-            .clone();
         let store = crate::history::HistoryStore::open(&app.root).unwrap();
-        let after = store.bundle_at(&drive.id).unwrap();
-        let before = store.bundle_at(drive.parent.as_ref().unwrap()).unwrap();
-        let changes = value_changes(before.project.as_ref(), after.project.as_ref().unwrap());
-        let read = changes
-            .iter()
-            .map(|c| format!("{} · {}: {} to {}", c.owner, c.label, c.before, c.after))
-            .collect::<Vec<_>>();
-        assert_eq!(read, ["Deep House Bass · Drive: 20% to 42%"]);
-        let focus = focus_of(after.project.as_ref().unwrap(), &changes).unwrap();
-        assert_eq!(focus.instrument.as_deref(), Some("dh-bass"));
-        assert_eq!(focus.track.as_deref(), Some("bass"));
+        let read = |summary: &str| {
+            let entry = app
+                .history
+                .iter()
+                .find(|entry| entry.summary.contains(summary))
+                .expect("the edit")
+                .clone();
+            let after = store.project_at(&entry.id).unwrap().unwrap();
+            let before = store.project_at(entry.parent.as_ref().unwrap()).unwrap();
+            value_changes(before.as_ref(), &after)
+                .iter()
+                .map(|c| format!("{} · {}: {} to {}", c.owner, c.label, c.before, c.after))
+                .collect::<Vec<_>>()
+        };
+        // The values each edit set; what they replaced depends on the copied Project.
+        let set = |summary: &str| {
+            read(summary)
+                .into_iter()
+                .map(|line| {
+                    let (what, rest) = line.split_once(": ").unwrap_or((&line, ""));
+                    let to = rest.rsplit_once(" to ").map_or(rest, |(_, to)| to);
+                    format!("{what} to {to}")
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(set("dh-bass.drive"), ["Deep House Bass · Drive to 42%"]);
+        assert_eq!(
+            set("bass-color.drive"),
+            ["Sub and Analog Bass · Saturator · Drive to 1.4"],
+            "an effect on a track"
+        );
+        assert_eq!(
+            set("track/bass/level"),
+            ["Sub and Analog Bass · Level to -9.0 dB"]
+        );
         app.shutdown();
     }
 
     #[test]
-    fn an_effect_off_any_track_shows_its_own_chain() {
+    fn a_change_anywhere_lands_in_its_area() {
         let root =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/deep-house-reference");
-        let bundle = crate::project::load_project(&root).unwrap();
-        let project = bundle.project.as_ref().unwrap();
-        let change = ValueChange {
-            area: Area::Processor("music-color".to_owned()),
-            owner: String::new(),
-            label: String::new(),
-            before: String::new(),
-            after: String::new(),
-        };
-        let focus = focus_of(project, &[change]).unwrap();
-        assert_eq!(focus.effects_on.as_deref(), Some("Music"), "the group's chain");
-        assert!(chain_named(Some(project), "Music").is_some_and(|c| !c.is_empty()));
+        let before = crate::project::load_project(&root)
+            .unwrap()
+            .project
+            .unwrap();
+        let mut after = before.clone();
+        after.song.groups[0].channel.level_db -= 2.0;
+        let processor = &mut after.song.groups[0].channel.inserts[0];
+        processor.bypass = !processor.bypass;
+        let changes = value_changes(Some(&before), &after);
+        let group = Area::Group(after.song.groups[0].id.clone());
+        assert!(changes.len() >= 2, "{changes:?}");
+        assert!(changes.iter().all(|c| c.area == group), "{changes:?}");
+        assert_eq!(touched_areas(&changes), [group]);
     }
 
     #[test]

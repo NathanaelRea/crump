@@ -162,6 +162,10 @@ struct UiState {
     drawn_view: Option<View>,
     /// History shows (and, while previewing, plays) the current version instead of the picked one.
     history_show_now: bool,
+    /// The History rail is being dragged: show only versions already parsed.
+    history_dragging: bool,
+    /// Differences between History versions by (from, to) entry ID, computed once.
+    history_diffs: BTreeMap<(String, String), Vec<history_view::ValueChange>>,
 }
 
 impl Default for UiState {
@@ -212,6 +216,8 @@ impl Default for UiState {
             before_diagnostics: View::Timeline,
             drawn_view: None,
             history_show_now: false,
+            history_dragging: false,
+            history_diffs: BTreeMap::new(),
         }
     }
 }
