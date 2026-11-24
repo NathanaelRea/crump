@@ -137,9 +137,15 @@ fn validate_admission(
     diagnostics: &mut Diagnostics,
 ) {
     let estimate = (|| {
+        let processor_assets = inventory.map_or(
+            crate::engine::ProcessorAssets::Unloaded,
+            crate::engine::ProcessorAssets::Metadata,
+        );
         let mut estimate =
-            crate::engine::mix_graph::CompiledMixGraph::resource_estimate_for_validation(
-                project, topology,
+            crate::engine::mix_graph::CompiledMixGraph::resource_estimate_with_processor_assets(
+                project,
+                topology,
+                processor_assets,
             )?;
         if let Some(inventory) = inventory {
             let sample_rate = project.sample_rate;
@@ -329,6 +335,26 @@ pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) ->
 fn validate_asset_contents(project: &Project, inventory: &AssetInventory) -> Diagnostics {
     let mut diagnostics = Diagnostics::new();
     for declaration in &project.assets {
+        if declaration
+            .usages
+            .contains(&MediaAssetUsage::ImpulseResponse)
+        {
+            let result = inventory
+                .get(&declaration.id)
+                .ok_or_else(|| {
+                    "impulse response WAV is missing from the loaded inventory".to_owned()
+                })
+                .and_then(|asset| crate::engine::ir_frames(&asset.metadata(), project.sample_rate));
+            if let Err(message) = result {
+                located_error(
+                    &mut diagnostics,
+                    "CRV199",
+                    format!("asset `{}`: {message}", declaration.id),
+                    &declaration.location,
+                );
+            }
+        }
+
         if let Some(asset) = inventory.get(&declaration.id)
             && let Err(message) = crate::media::validate_finite_wav_samples(asset)
         {
@@ -1069,7 +1095,7 @@ fn validate_media_assets(project: &Project, diagnostics: &mut Diagnostics) {
     }
 }
 
-fn valid_id(value: &str) -> bool {
+pub(crate) fn valid_id(value: &str) -> bool {
     let mut characters = value.chars();
     characters
         .next()

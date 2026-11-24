@@ -32,6 +32,7 @@ pub(super) fn processor_telemetry_indices(
         .collect())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn compile_processor_chain(
     processors: &[crate::model::Processor],
     owner: &str,
@@ -40,11 +41,13 @@ pub(super) fn compile_processor_chain(
     tempo_bpm: f64,
     processor_indexes: &BTreeMap<(String, String), usize>,
     inspection: &mut Vec<CompiledProcessorInspection>,
+    assets: ProcessorAssets<'_>,
 ) -> Result<Vec<CompiledProcessorInstance>, EngineError> {
     processors
         .iter()
         .map(|processor| {
-            let program = ProcessorProgram::compile(processor, controls, sample_rate, tempo_bpm)?;
+            let program =
+                ProcessorProgram::compile(processor, controls, sample_rate, tempo_bpm, assets)?;
             let tail_frames_upper_bound = program.tail_frames_upper_bound();
             let tail_policy = if program.uses_project_render_tail() {
                 ProcessorTailPolicy::ProjectRenderTail

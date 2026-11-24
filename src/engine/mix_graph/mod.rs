@@ -4,6 +4,7 @@
 //! runtime state and admission accounting remain shared by playback and rendering.
 
 mod admission;
+pub(super) use admission::channel_and_master_processors;
 mod compile;
 mod inspection;
 mod lowering;
@@ -38,7 +39,9 @@ use super::{
         authored_shared_graph_state_bytes, authored_shared_graph_work_units,
     },
     graph_voice_slot_overhead_bytes,
-    processors::{ProcessorProgram, ProcessorRuntime, authored_processor_estimate},
+    processors::{
+        ProcessorAssets, ProcessorProgram, ProcessorRuntime, authored_processor_estimate,
+    },
     sampler::sampler_voice_state_bytes,
     schedule::{MAX_RUNTIME_TRACKS, compile_schedules},
 };

@@ -51,6 +51,7 @@ fn runtime_program_is_a_direct_lowering_of_the_canonical_authored_topology() {
         &controls,
         &topology,
         Some(AdmissionProfile::Live),
+        ProcessorAssets::Unloaded,
     )
     .expect("canonical topology lowers");
     let topology_channels = topology
@@ -346,6 +347,7 @@ fn production_fixture_compiles_every_slice_two_route_role() {
             &controls,
             project.sample_rate,
             project.song.tempo_bpm,
+            ProcessorAssets::Unloaded,
         )
         .expect("DSP");
         assert_eq!(
@@ -712,6 +714,7 @@ fn inspection_resolves_defaults_for_every_processor_kind() {
         &controls,
         project.sample_rate,
         project.song.tempo_bpm,
+        ProcessorAssets::Unloaded,
     )
     .expect("Delay DSP");
     assert_eq!(
@@ -724,6 +727,7 @@ fn inspection_resolves_defaults_for_every_processor_kind() {
         &controls,
         project.sample_rate,
         project.song.tempo_bpm,
+        ProcessorAssets::Unloaded,
     )
     .expect("Reverb DSP");
     assert_eq!(

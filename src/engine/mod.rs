@@ -5,6 +5,7 @@ pub mod audition;
 pub mod bounce;
 pub mod control;
 mod drums;
+mod fft;
 mod follower;
 pub(crate) mod generated_audio;
 mod graph;
@@ -12,6 +13,7 @@ mod lfo;
 pub mod mix_graph;
 mod oversampling;
 mod processors;
+pub(crate) use processors::{ProcessorAssets, ir_frames};
 pub(crate) mod qualification;
 mod render;
 pub mod sample;
@@ -212,8 +214,13 @@ impl CompiledProject {
                 semantic_hash,
             });
         }
-        let mut mix_graph =
-            CompiledMixGraph::compile_with_topology(project, &controls, &topology, Some(profile))?;
+        let mut mix_graph = CompiledMixGraph::compile_with_topology(
+            project,
+            &controls,
+            &topology,
+            Some(profile),
+            processors::ProcessorAssets::Samples(&sample_library),
+        )?;
         let envelope_followers = Arc::new(CompiledEnvelopeFollowerProgram::compile(
             project,
             &controls,

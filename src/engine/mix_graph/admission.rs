@@ -589,7 +589,7 @@ impl RuntimeResourceEstimate {
     }
 }
 
-pub(super) fn channel_and_master_processors(
+pub(in crate::engine) fn channel_and_master_processors(
     project: &Project,
 ) -> impl Iterator<Item = &crate::model::Processor> {
     project

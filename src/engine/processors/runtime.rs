@@ -22,6 +22,7 @@ pub(super) enum ProcessorState {
     Compressor(CompressorState),
     Gate(GateState),
     Delay(DelayState),
+    Convolution(Box<ConvolutionState>),
     Reverb(ReverbState),
     Saturation(SaturationState),
     ModulationDelay(ModulationDelayState),
@@ -45,6 +46,9 @@ impl ProcessorRuntime {
             ProcessorConfig::Delay { maximum_frames, .. } => {
                 ProcessorState::Delay(DelayState::new(*maximum_frames))
             }
+            ProcessorConfig::Convolution(config) => ProcessorState::Convolution(Box::new(
+                ConvolutionState::new(config.frames, program.sample_rate),
+            )),
             ProcessorConfig::Reverb { .. } => {
                 ProcessorState::Reverb(ReverbState::new(program.sample_rate))
             }
@@ -204,6 +208,9 @@ impl ProcessorRuntime {
                 *maximum_frames,
                 self.program.sample_rate,
             ),
+            (ProcessorConfig::Convolution(config), ProcessorState::Convolution(state)) => {
+                state.process(sample, config, controls, self.program.sample_rate)
+            }
             (
                 ProcessorConfig::Reverb {
                     pre_delay,
@@ -389,6 +396,7 @@ impl ProcessorRuntime {
             ProcessorState::Compressor(state) => state.reset(),
             ProcessorState::Gate(state) => state.reset(),
             ProcessorState::Delay(state) => state.reset(),
+            ProcessorState::Convolution(state) => state.reset(),
             ProcessorState::Reverb(state) => state.reset(),
             ProcessorState::Saturation(state) => state.reset(),
             ProcessorState::ModulationDelay(state) => state.reset(),
@@ -422,6 +430,11 @@ impl ProcessorRuntime {
             self.bypass_delay.buffer.capacity(),
         );
         match &self.state {
+            ProcessorState::Convolution(state) => {
+                for (pointer, capacity) in state.storage() {
+                    fingerprint = include(fingerprint, pointer, capacity);
+                }
+            }
             ProcessorState::Eq(states) => {
                 fingerprint = include(fingerprint, states.as_ptr().cast(), states.capacity());
             }

@@ -703,7 +703,7 @@ fn preview_axes(kind: ProcessorKind) -> Option<(&'static str, &'static str, &'st
         Delay => ("ECHO TAPS", "0", ""),
         Reverb => ("REVERB TAIL", "0", "2 s"),
         ModulationDelay => ("DELAY MODULATION", "0", "1 s"),
-        Utility | Stutter | Latency => return None,
+        Utility | Convolution | Stutter | Latency => return None,
     })
 }
 
