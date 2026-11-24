@@ -251,6 +251,9 @@ pub struct Workspace {
     playback_epoch: u64,
     next_publication_generation: u64,
     playback_requested: bool,
+    /// Play was pressed on a valid Candidate that was not yet Active: playback starts once its
+    /// publication (or an in-flight edit's) has settled.
+    play_after_publish: bool,
     performance: WorkspacePerformance,
     active_revision: Option<RevisionId>,
     active_entry: Option<String>,
@@ -569,6 +572,7 @@ impl Workspace {
             playback_epoch: 0,
             next_publication_generation: 0,
             playback_requested: false,
+            play_after_publish: false,
             performance,
             active_revision,
             active_entry,
@@ -950,7 +954,7 @@ impl Workspace {
                 };
                 self.performance.observe_background_apply(started.elapsed());
                 self.dispatch_work();
-                changed
+                changed | self.resume_play_after_publish()
             }
             BackgroundPoll::Failed(error) => {
                 self.recover_failed_work();
@@ -1088,7 +1092,23 @@ impl Workspace {
                 self.status = format!("{} {entry}", result.success);
                 self.queue_reload(true, true);
             }
-            Err(error) => self.status = format!("{}: {error}", result.failure),
+            Err(error) => {
+                self.play_after_publish = false;
+                self.status = format!("{}: {error}", result.failure);
+            }
+        }
+        true
+    }
+
+    /// Starts the playback a Play press deferred, once the publication it waited on has landed.
+    fn resume_play_after_publish(&mut self) -> bool {
+        if !self.play_after_publish || self.publication_settling() {
+            return false;
+        }
+        self.play_after_publish = false;
+        // Re-entering Play publishes whatever is still unpublished, or starts the Active Revision.
+        if self.player.is_none() && !self.playback_requested {
+            self.toggle_playback();
         }
         true
     }
@@ -1980,6 +2000,37 @@ impl Workspace {
             self.status = "Pending playback start cancelled".to_owned();
             return;
         }
+        if self.play_after_publish {
+            self.play_after_publish = false;
+            self.status = "Pending playback start cancelled".to_owned();
+            return;
+        }
+        // Play hears what is on screen: a valid Candidate that is not yet Active publishes first.
+        if self.history_preview.is_none()
+            && !self.candidate_is_active()
+            && self.bundle.project.is_some()
+            && !self.bundle.diagnostics.has_errors()
+        {
+            self.play_after_publish = true;
+            // An in-flight edit publishes itself; only an unpublished Candidate needs one here.
+            if !self.publication_settling() {
+                self.queue_mutation(
+                    ProductionViewRequest {
+                        expected_revision: Some(self.bundle.revision.clone()),
+                        operation: ProductionViewOperation::PublishCandidate,
+                        provenance: ProductionViewProvenance::human(
+                            "workspace",
+                            "Publish on play",
+                            "Candidate published by pressing Play in the Production Workspace",
+                        ),
+                    },
+                    "Published as history entry",
+                    "Publication failed",
+                );
+            }
+            self.status = "Publishing Candidate before playback · Space cancels".to_owned();
+            return;
+        }
         if self.runtime_bundle().is_none() {
             self.status = "Publish a valid Candidate before playback".to_owned();
             return;
@@ -2002,6 +2053,10 @@ impl Workspace {
     }
 
     fn stop_playback(&mut self) {
+        if std::mem::take(&mut self.play_after_publish) && self.player.is_none() {
+            self.status = "Pending playback start cancelled".to_owned();
+            return;
+        }
         let player = self.player.take();
         if player.is_none() && !self.playback_requested {
             self.status = "Audition is already stopped".to_owned();

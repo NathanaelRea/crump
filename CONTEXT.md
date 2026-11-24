@@ -66,7 +66,7 @@ The most recent valid project revision published to the runtime and responsible 
 
 ### Project Publication
 
-The successful whole-Project validation that records a Candidate Revision in Project History and schedules it for safe runtime publication. Workspace edits publish automatically; an external file edit requires an explicit machine-readable `crump` CLI command, with Agent origin and explanation when applicable.
+The successful whole-Project validation that records a Candidate Revision in Project History and schedules it for safe runtime publication. Workspace edits publish automatically, and pressing Play in the Desktop Client publishes a valid unpublished Candidate before starting; otherwise an external file edit requires an explicit machine-readable `crump` CLI command, with Agent origin and explanation when applicable.
 
 ### Affected Instrument Restart
 

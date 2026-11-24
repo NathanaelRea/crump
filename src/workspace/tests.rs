@@ -943,6 +943,46 @@ fn history_stamp_change_does_not_reload_unchanged_candidate() {
 }
 
 #[test]
+fn play_on_an_unpublished_candidate_publishes_then_starts() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    workspace.playback_backend = PlaybackBackend::InMemory;
+    settle_background(&mut workspace);
+    assert!(workspace.active_revision.is_none());
+
+    workspace.toggle_playback();
+    assert!(workspace.status.starts_with("Publishing Candidate before playback"));
+    settle_background(&mut workspace);
+    assert!(workspace.candidate_is_active(), "{}", workspace.status);
+    assert_eq!(workspace.history[0].summary, "Publish on play");
+    assert!(workspace.player.is_some(), "{}", workspace.status);
+}
+
+#[test]
+fn stopping_before_publication_lands_cancels_the_deferred_play() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    workspace.playback_backend = PlaybackBackend::InMemory;
+    settle_background(&mut workspace);
+
+    workspace.toggle_playback();
+    workspace.stop_playback();
+    settle_background(&mut workspace);
+    assert!(workspace.candidate_is_active(), "{}", workspace.status);
+    assert!(workspace.player.is_none());
+}
+
+#[test]
 fn in_memory_playback_publishes_edits_through_the_callback_and_promotes_inspection() {
     let root = tempfile::tempdir().expect("temporary Project");
     let original = include_str!("../../tests/fixtures/minimal.crump");
