@@ -77,6 +77,8 @@ pub enum Action {
 
     /// Start, pause, or resume playback.
     TogglePlayback,
+    /// Start or pause the Active Revision without publishing the Candidate first.
+    PlayActiveRevision,
     /// Stop playback and release the audio stream.
     StopPlayback,
     /// Arm the selected Timeline or Event Grid item as the audition target.
@@ -701,6 +703,7 @@ impl Workspace {
             }
 
             Action::TogglePlayback => self.toggle_playback(),
+            Action::PlayActiveRevision => self.play_active_revision(),
             Action::StopPlayback => self.stop_playback(),
             Action::ArmSelectedAudition => self.arm_selected_audition(),
             Action::CycleAuditionPath => self.cycle_audition_path(),

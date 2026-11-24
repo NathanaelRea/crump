@@ -808,6 +808,23 @@ fn stopped_stream_is_terminal_even_before_the_first_callback() {
 }
 
 #[test]
+fn an_overloaded_callback_ends_playback_even_while_the_stream_runs() {
+    let streaming = PlayerTelemetry {
+        stream_state: StreamStatus::Streaming,
+        ..PlayerTelemetry::default()
+    };
+    assert!(playback_failure_message(&streaming).is_none());
+    let overloaded = PlayerTelemetry {
+        overloaded: true,
+        ..streaming
+    };
+    assert_eq!(
+        playback_failure_message(&overloaded),
+        Some(OVERLOAD_MESSAGE)
+    );
+}
+
+#[test]
 fn result_changed_before_ui_acceptance_never_replaces_stable_candidate() {
     let root = tempfile::tempdir().expect("temporary Project");
     let path = root.path().join("project.crump");
@@ -940,6 +957,111 @@ fn history_stamp_change_does_not_reload_unchanged_candidate() {
     assert_eq!(workspace.performance.history_reloads, history_reloads + 1);
     assert_eq!(workspace.performance.derived_rebuilds, derived_rebuilds);
     assert_eq!(workspace.active_revision.as_ref(), Some(&revision));
+}
+
+#[test]
+fn play_on_an_unpublished_candidate_publishes_then_starts() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    workspace.playback_backend = PlaybackBackend::InMemory;
+    settle_background(&mut workspace);
+    assert!(workspace.active_revision.is_none());
+
+    workspace.toggle_playback();
+    assert!(
+        workspace
+            .status
+            .starts_with("Publishing Candidate before playback")
+    );
+    settle_background(&mut workspace);
+    assert!(workspace.candidate_is_active(), "{}", workspace.status);
+    assert_eq!(workspace.history[0].summary, "Publish on play");
+    assert!(workspace.player.is_some(), "{}", workspace.status);
+}
+
+#[test]
+fn stopping_before_publication_lands_cancels_the_deferred_play() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/minimal.crump"),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    workspace.playback_backend = PlaybackBackend::InMemory;
+    settle_background(&mut workspace);
+
+    workspace.toggle_playback();
+    workspace.stop_playback();
+    settle_background(&mut workspace);
+    assert!(workspace.candidate_is_active(), "{}", workspace.status);
+    assert!(workspace.player.is_none());
+}
+
+#[test]
+fn resuming_a_paused_audition_publishes_an_external_edit_first() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    let original = include_str!("../../tests/fixtures/minimal.crump");
+    let project_path = root.path().join("project.crump");
+    fs::write(&project_path, original).expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    workspace.playback_backend = PlaybackBackend::InMemory;
+    workspace.toggle_playback();
+    settle_background(&mut workspace);
+    workspace.toggle_playback();
+    assert!(workspace.playback_paused, "{}", workspace.status);
+
+    fs::write(
+        &project_path,
+        original.replace(
+            "track lead \"Lead\" instrument lead level -9db",
+            "track lead \"Lead\" instrument lead level -12db",
+        ),
+    )
+    .expect("write level edit");
+    workspace.refresh();
+    settle_background(&mut workspace);
+    assert!(!workspace.candidate_is_active());
+
+    workspace.toggle_playback();
+    assert!(workspace.playback_paused, "stays paused until published");
+    settle_background(&mut workspace);
+    assert!(workspace.candidate_is_active(), "{}", workspace.status);
+    assert!(!workspace.playback_paused, "{}", workspace.status);
+}
+
+#[test]
+fn playing_the_active_revision_leaves_an_unpublished_candidate_alone() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    let original = include_str!("../../tests/fixtures/minimal.crump");
+    let project_path = root.path().join("project.crump");
+    fs::write(&project_path, original).expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    workspace.playback_backend = PlaybackBackend::InMemory;
+    workspace.commit_input("Initial".to_owned(), InputAction::Publish);
+    settle_background(&mut workspace);
+    fs::write(
+        &project_path,
+        original.replace(
+            "track lead \"Lead\" instrument lead level -9db",
+            "track lead \"Lead\" instrument lead level -12db",
+        ),
+    )
+    .expect("write level edit");
+    workspace.refresh();
+    settle_background(&mut workspace);
+    let history = workspace.history.len();
+
+    workspace.play_active_revision();
+    settle_background(&mut workspace);
+    assert!(workspace.player.is_some(), "{}", workspace.status);
+    assert!(!workspace.candidate_is_active());
+    assert_eq!(workspace.history.len(), history);
 }
 
 #[test]

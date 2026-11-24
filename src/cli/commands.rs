@@ -608,6 +608,15 @@ fn command_play(cli: &Cli, args: &PlayArgs) -> Result<Success, Failure> {
     let mut stream_failure = None;
     loop {
         report = player.poll();
+        if report.overloaded {
+            stream_failure = Some((
+                "audio_overload",
+                "playback stopped because this Project cannot be computed in real time on this \
+                 machine (CPU overload); see `crump qualify`, or use `crump render`"
+                    .to_owned(),
+            ));
+            break;
+        }
         if report.stream_state == StreamStatus::Error {
             stream_failure = Some((
                 "pipewire_stream_error",
