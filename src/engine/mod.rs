@@ -5,6 +5,7 @@ pub mod audition;
 pub mod bounce;
 pub mod control;
 mod drums;
+mod executable;
 mod fft;
 mod follower;
 mod freeze;
@@ -12,6 +13,7 @@ pub(crate) mod generated_audio;
 mod graph;
 mod lfo;
 pub mod mix_graph;
+mod offline;
 mod oversampling;
 mod processors;
 pub(crate) use processors::{ProcessorAssets, ir_frames};
@@ -68,6 +70,7 @@ use self::{
 pub use analysis::FinalizedAudioAnalysis;
 pub(crate) use generated_audio::GeneratedAudioArtifact;
 pub use mix_graph::AdmissionProfile;
+pub use offline::OfflineThreads;
 pub use qualification::{
     QualificationHost, QualificationOptions, QualificationReport, qualify_project,
 };
@@ -931,8 +934,21 @@ impl SongRuntime {
             return Ok([0.0, 0.0]);
         }
         let voices = self.process_track_sources(false);
+        self.finish_frame(mode, self.tracks.len(), voices.total())
+    }
+
+    /// Routes this frame's Track sources through the mix graph and records the result.
+    ///
+    /// `process_frame` and the offline driver share this step, so a frame is mixed, checked and
+    /// metered identically wherever its Track sources were produced.
+    fn finish_frame(
+        &mut self,
+        mode: ProcessingMode,
+        track_count: usize,
+        active_voices: usize,
+    ) -> Result<[f32; 2], EngineError> {
         let routed = self.mix.process(
-            &self.track_sources[..self.tracks.len()],
+            &self.track_sources[..track_count],
             self.controls.values(),
             mode == ProcessingMode::Monitoring,
         );
@@ -963,7 +979,7 @@ impl SongRuntime {
                 *channel = monitor_sample(*channel);
             }
         }
-        self.record_output(self.frame, master, voices.total());
+        self.record_output(self.frame, master, active_voices);
         self.frame += 1;
         Ok(master)
     }
@@ -2959,6 +2975,12 @@ pub enum EngineError {
     NonFinite {
         /// First failing absolute frame.
         frame: u64,
+    },
+    /// A termination signal stopped offline work before it published anything.
+    #[error("interrupted by {signal}")]
+    Interrupted {
+        /// The signal that asked the process to stop.
+        signal: crate::interrupt::Signal,
     },
     /// WAV or publication I/O failed.
     #[error(transparent)]

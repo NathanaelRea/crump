@@ -26,7 +26,7 @@ use super::super::{
 #[cfg(test)]
 use super::nodes::{FilterState, slew_frequency};
 use super::nodes::{
-    MAX_RELEASE_SECONDS, NodeCompileContext, NodeInputs, NodeProgram, NodeState, Signal,
+    MAX_RELEASE_SECONDS, NodeCompileContext, NodeProgram, NodeState, Signal,
     authored_node_heap_bytes, authored_node_work_units,
 };
 
@@ -498,15 +498,6 @@ impl CompiledGraph {
             nodes.push(CompiledNode {
                 transition_identity: stable_modulation_identity(&authored.id),
                 ports: PortSources::resolve(&inputs),
-                has_key: inputs.contains_key("key"),
-                has_velocity: inputs.contains_key("velocity"),
-                has_gain: inputs.contains_key("gain"),
-                has_modulation: inputs.contains_key("mod"),
-                has_frequency_modulation: inputs.contains_key("fm"),
-                has_phase_modulation: inputs.contains_key("pm"),
-                has_sync: inputs.contains_key("sync"),
-                has_amplitude_modulation: inputs.contains_key("am"),
-                has_time_modulation: inputs.contains_key("time_mod"),
                 inputs,
                 program,
             });
@@ -1636,7 +1627,7 @@ fn compile_voice_operations(
 
 /// Single-source input ports a Node program reads, in [`PortSources::NAMES`] order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Port {
+pub(super) enum Port {
     Pitch,
     Key,
     Gate,
@@ -1657,7 +1648,7 @@ enum Port {
 /// Every Node input resolved at compile time, so the per-sample path indexes fixed slots
 /// instead of searching authored port names.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct PortSources {
+pub(super) struct PortSources {
     /// First source of each single-source port.
     single: [Option<SignalSource>; PortSources::NAMES.len()],
     /// Every source of a summing Node's `inputs` port.
@@ -1670,7 +1661,7 @@ impl PortSources {
         "b", "time_mod", "control",
     ];
 
-    fn resolve(inputs: &BTreeMap<String, Vec<SignalSource>>) -> Self {
+    pub(super) fn resolve(inputs: &BTreeMap<String, Vec<SignalSource>>) -> Self {
         Self {
             single: Self::NAMES.map(|name| {
                 inputs
@@ -1697,15 +1688,6 @@ struct CompiledNode {
     /// The same connections resolved for the per-sample path.
     ports: PortSources,
     program: NodeProgram,
-    has_key: bool,
-    has_velocity: bool,
-    has_gain: bool,
-    has_modulation: bool,
-    has_frequency_modulation: bool,
-    has_phase_modulation: bool,
-    has_sync: bool,
-    has_amplitude_modulation: bool,
-    has_time_modulation: bool,
 }
 
 impl CompiledNode {
@@ -1717,7 +1699,7 @@ impl CompiledNode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SignalSource {
+pub(super) enum SignalSource {
     Pitch,
     Gate,
     Velocity,
@@ -1726,12 +1708,137 @@ enum SignalSource {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct VoiceNodeContext {
-    song_frame: u64,
-    pitch_hz: f32,
-    gate: bool,
-    velocity: f32,
-    voice_sum: [f32; 2],
+pub(super) struct VoiceNodeContext {
+    pub(super) song_frame: u64,
+    pub(super) pitch_hz: f32,
+    pub(super) gate: bool,
+    pub(super) velocity: f32,
+    pub(super) voice_sum: [f32; 2],
+}
+
+/// One Node's inputs for the current frame, read on demand.
+///
+/// Every connection was resolved to a fixed slot at compile time. A Node program asks only for
+/// the ports it declares, so the per-sample path does no work for the ports it never reads.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct NodeInputs<'a> {
+    ports: &'a PortSources,
+    signals: &'a [Signal],
+    context: VoiceNodeContext,
+}
+
+macro_rules! node_input_ports {
+    ($($(#[$meta:meta])* $name:ident => $port:ident),+ $(,)?) => {
+        $(
+            $(#[$meta])*
+            #[inline]
+            pub(super) fn $name(&self) -> Signal {
+                self.port(Port::$port)
+            }
+        )+
+    };
+}
+
+macro_rules! node_input_presence {
+    ($($name:ident => $port:ident),+ $(,)?) => {
+        $(
+            /// True when the authored graph connects this optional port.
+            #[inline]
+            pub(super) const fn $name(&self) -> bool {
+                self.ports.get(Port::$port).is_some()
+            }
+        )+
+    };
+}
+
+impl<'a> NodeInputs<'a> {
+    pub(super) const fn new(
+        ports: &'a PortSources,
+        signals: &'a [Signal],
+        context: VoiceNodeContext,
+    ) -> Self {
+        Self {
+            ports,
+            signals,
+            context,
+        }
+    }
+
+    /// Absolute Song frame being processed.
+    pub(super) const fn song_frame(&self) -> u64 {
+        self.context.song_frame
+    }
+
+    #[inline]
+    fn port(&self, port: Port) -> Signal {
+        match self.ports.get(port) {
+            Some(source) => self.source(source),
+            None => Signal::None,
+        }
+    }
+
+    #[inline]
+    fn source(&self, source: SignalSource) -> Signal {
+        match source {
+            SignalSource::Pitch => Signal::Control(self.context.pitch_hz),
+            SignalSource::Gate => Signal::Control(f32::from(self.context.gate)),
+            SignalSource::Velocity => Signal::Control(self.context.velocity),
+            SignalSource::VoiceSum => Signal::Stereo(self.context.voice_sum),
+            SignalSource::Node(index) => self.signals[index],
+        }
+    }
+
+    node_input_ports! {
+        pitch => Pitch,
+        key => Key,
+        gate => Gate,
+        velocity => Velocity,
+        audio => Audio,
+        gain => Gain,
+        modulation => Modulation,
+        frequency_modulation => FrequencyModulation,
+        phase_modulation => PhaseModulation,
+        sync => Sync,
+        amplitude_modulation => AmplitudeModulation,
+        input_a => InputA,
+        input_b => InputB,
+        time_modulation => TimeModulation,
+        control => Control,
+    }
+
+    node_input_presence! {
+        has_key => Key,
+        has_velocity => Velocity,
+        has_gain => Gain,
+        has_modulation => Modulation,
+        has_frequency_modulation => FrequencyModulation,
+        has_phase_modulation => PhaseModulation,
+        has_sync => Sync,
+        has_amplitude_modulation => AmplitudeModulation,
+        has_time_modulation => TimeModulation,
+    }
+
+    /// Sums a summing Node's `inputs`; Bus typing makes them all mono or all stereo.
+    pub(super) fn summed_audio(&self) -> Signal {
+        let mut mono = None;
+        let mut stereo = None;
+        for source in &self.ports.summed {
+            match self.source(*source) {
+                Signal::Mono(value) => *mono.get_or_insert(0.0) += value,
+                value => {
+                    let sum = stereo.get_or_insert([0.0_f32; 2]);
+                    let value = value.stereo();
+                    sum[0] += value[0];
+                    sum[1] += value[1];
+                }
+            }
+        }
+        match (mono, stereo) {
+            (Some(value), None) => Signal::Mono(value),
+            (_, Some(value)) => Signal::Stereo(value),
+            (None, None) => Signal::None,
+        }
+    }
 }
 
 fn process_compiled_node(
@@ -1758,124 +1865,28 @@ fn evaluate_compiled_node(
 ) -> Signal {
     // A topological program guarantees every referenced signal was written before this Node;
     // a feedback-breaking Node reads them after the whole frame.
-    let input = |port| {
-        resolve_input_values(
-            node.ports.get(port),
-            signals,
-            context.pitch_hz,
-            context.gate,
-            context.velocity,
-            context.voice_sum,
-        )
-    };
-    let inputs = NodeInputs {
-        song_frame: context.song_frame,
-        pitch: input(Port::Pitch),
-        key: input(Port::Key),
-        gate: input(Port::Gate),
-        velocity: input(Port::Velocity),
-        audio: input(Port::Audio),
-        gain: input(Port::Gain),
-        modulation: input(Port::Modulation),
-        frequency_modulation: input(Port::FrequencyModulation),
-        phase_modulation: input(Port::PhaseModulation),
-        sync: input(Port::Sync),
-        amplitude_modulation: input(Port::AmplitudeModulation),
-        input_a: input(Port::InputA),
-        input_b: input(Port::InputB),
-        time_modulation: input(Port::TimeModulation),
-        control: input(Port::Control),
-        summed_audio: resolve_summed_values(
-            node,
-            signals,
-            context.pitch_hz,
-            context.gate,
-            context.velocity,
-            context.voice_sum,
-        ),
-        has_key: node.has_key,
-        has_velocity: node.has_velocity,
-        has_gain: node.has_gain,
-        has_modulation: node.has_modulation,
-        has_frequency_modulation: node.has_frequency_modulation,
-        has_phase_modulation: node.has_phase_modulation,
-        has_sync: node.has_sync,
-        has_amplitude_modulation: node.has_amplitude_modulation,
-        has_time_modulation: node.has_time_modulation,
-    };
-    node.program
-        .process(&mut states[index], inputs, controls, sample_rate)
-}
-
-fn resolve_input_values(
-    source: Option<SignalSource>,
-    signals: &[Signal],
-    pitch_hz: f32,
-    gate: bool,
-    velocity: f32,
-    voice_sum: [f32; 2],
-) -> Signal {
-    source.map_or(Signal::None, |source| {
-        resolve_source_values(source, signals, pitch_hz, gate, velocity, voice_sum)
-    })
+    node.program.process(
+        &mut states[index],
+        NodeInputs::new(&node.ports, signals, context),
+        controls,
+        sample_rate,
+    )
 }
 
 #[cfg(test)]
 fn resolve_stereo_sum(node: &CompiledNode, voice: &GraphVoice) -> Signal {
-    resolve_summed_values(
-        node,
+    NodeInputs::new(
+        &node.ports,
         &voice.signals,
-        voice.pitch_hz,
-        voice.gate,
-        voice.velocity,
-        [0.0, 0.0],
+        VoiceNodeContext {
+            song_frame: 0,
+            pitch_hz: voice.pitch_hz,
+            gate: voice.gate,
+            velocity: voice.velocity,
+            voice_sum: [0.0, 0.0],
+        },
     )
-}
-
-/// Sums a summing Node's `inputs`; Bus typing makes them all mono or all stereo.
-fn resolve_summed_values(
-    node: &CompiledNode,
-    signals: &[Signal],
-    pitch_hz: f32,
-    gate: bool,
-    velocity: f32,
-    voice_sum: [f32; 2],
-) -> Signal {
-    let mut mono = None;
-    let mut stereo = None;
-    for source in &node.ports.summed {
-        match resolve_source_values(*source, signals, pitch_hz, gate, velocity, voice_sum) {
-            Signal::Mono(value) => *mono.get_or_insert(0.0) += value,
-            value => {
-                let sum = stereo.get_or_insert([0.0_f32; 2]);
-                let value = value.stereo();
-                sum[0] += value[0];
-                sum[1] += value[1];
-            }
-        }
-    }
-    match (mono, stereo) {
-        (Some(value), None) => Signal::Mono(value),
-        (_, Some(value)) => Signal::Stereo(value),
-        (None, None) => Signal::None,
-    }
-}
-
-fn resolve_source_values(
-    source: SignalSource,
-    signals: &[Signal],
-    pitch_hz: f32,
-    gate: bool,
-    velocity: f32,
-    voice_sum: [f32; 2],
-) -> Signal {
-    match source {
-        SignalSource::Pitch => Signal::Control(pitch_hz),
-        SignalSource::Gate => Signal::Control(f32::from(gate)),
-        SignalSource::Velocity => Signal::Control(velocity),
-        SignalSource::VoiceSum => Signal::Stereo(voice_sum),
-        SignalSource::Node(index) => signals[index],
-    }
+    .summed_audio()
 }
 
 fn validate_runtime_graph(graph: &Graph) -> Result<(), EngineError> {

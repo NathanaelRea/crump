@@ -43,6 +43,7 @@ The desktop `gui` command (alias `workspace`), present in default builds, is int
 | `1` | Operational failure: I/O, PipeWire, compilation, render, or host failure |
 | `2` | Request blocked or invalid: diagnostics, unsupported value, missing rationale, or failed check |
 | `3` | Conflict: stale checked edit, existing destination, or already-Active publication |
+| `128 + N` | `render` was stopped by termination signal `N`: `130` for `SIGINT`, `143` for `SIGTERM`, `129` for `SIGHUP` |
 
 Clap usage errors also use status `2`. With `--json`, usage errors and help/version requests use the same single-response JSON discipline (`usage_error` for invalid syntax); without it, Clap writes normal human-facing help. Agents should construct commands from `--help`, not probe invalid syntax.
 
@@ -314,6 +315,10 @@ fails.
 Every stem is stereo float WAV with the same start, frame count, tail policy, and sample rate as Master. Both taps include upstream main routing and processing through the selected owner's inserts. `post_fader` additionally includes that owner's gain, panner, and Mute. Neither tap folds in outgoing Sends or downstream Group, Return, or Master processing. Deterministic zero padding aligns the tap with compiled Master output latency, and under `tail_policy: "wrap"` Master and every stem fold rendered frames past `arrangement_frames` modulo `arrangement_frames` back onto frame `0` onward so aligned stems reconstruct Master at exact loop length. Arbitrary selected stems are not claimed to reconstruct Master when omitted branches or downstream processing make that impossible.
 
 Rendering reports Candidate identity, rendered Active identity, whether they match, and the complete schema-3 manifest. Wrap renders additionally record `pre_wrap_peak` and `wrap_peak_exceeded`, and human output warns when tail wrapping raised the sample peak above the pre-wrap peak (such as past a Master limiter ceiling). Master and every stem carry independent hashes and nested finalized-WAV analysis (analysis schema 3). Each `analysis` object includes sample/true peak, integrated and maximum short-term loudness, loudness range, full-file `rms_dbfs`, active-block `active_rms_dbfs` (400 ms blocks at 100 ms steps gated at `-60.0 dBFS`), DC offset, clipping counts, non-finite count, analyzed frames, and algorithm identities; inapplicable loudness values are JSON `null`. If the Candidate differs or is invalid, the exact prior Active Revision is still rendered. `--no-replace` turns an existing destination into a conflict instead of replacing it.
+
+`--threads COUNT` caps the threads a render uses, counting the one that runs the mix graph; the default is one per available CPU and `1` keeps everything on one thread. Every value produces the same bytes. Each Track's Instrument renders on a worker thread, so a multi-Track Project scales with the Track count up to the thread count; a Project with an Envelope Follower always renders on one thread. A script that already runs one `render` per CPU should pass `--threads 1`.
+
+Renders are safe to run at the same time, in one Project or many. A `render` that receives `SIGINT`, `SIGTERM`, or `SIGHUP` stops at the next block, removes its staging directory, publishes nothing, and reports `error.code: "interrupted"` with the `128 + N` exit status; a second signal terminates it immediately. A process that exits with no response and no diagnostic was killed from outside with a signal it cannot catch, such as `SIGKILL`.
 
 ## Offline workload qualification
 

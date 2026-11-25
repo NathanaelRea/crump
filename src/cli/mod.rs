@@ -32,7 +32,8 @@ use crate::{
         update_parameter_lock, update_pattern_variation,
     },
     engine::{
-        CompiledProject, EngineError, QualificationOptions, RenderOptions, RenderStemRequest,
+        CompiledProject, EngineError, OfflineThreads, QualificationOptions, RenderOptions,
+        RenderStemRequest,
         audition::{
             AuditionPath, AuditionPlan, AuditionRange, AuditionTarget, inspection_from_parts,
         },
@@ -51,6 +52,7 @@ use crate::{
     instrument_module::{
         catalog_entry, catalog_matches, render_module_preview, validate_module_source,
     },
+    interrupt::Interrupt,
     model::{
         AutomationInterpolation, ChannelRef, ClipMode, ParameterTarget, RenderTailPolicy, TapPoint,
         WavetableMorph, WavetableNormalization, parse_pitch,
@@ -196,6 +198,21 @@ impl Failure {
             message: message.into(),
             exit_code: 2,
             diagnostics,
+        }
+    }
+
+    /// A termination signal stopped the command; the exit status is the shell's `128 + signal`.
+    fn interrupted(
+        command: &'static str,
+        signal: crate::interrupt::Signal,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            command,
+            code: "interrupted",
+            message: message.into(),
+            exit_code: signal.exit_code(),
+            diagnostics: json!([]),
         }
     }
 

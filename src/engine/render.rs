@@ -9,18 +9,21 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+use fs2::FileExt;
 use rustix::fs::{RenameFlags, renameat_with};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::{
+    interrupt::Interrupt,
     model::{ChannelRef, RenderTailPolicy, TapPoint},
     project::{ProjectBundle, RevisionId},
 };
 
 use super::{
-    AdmissionProfile, CompiledProject, EngineError, FinalizedAudioAnalysis, ProcessingMode,
+    AdmissionProfile, CompiledProject, EngineError, FinalizedAudioAnalysis, OfflineThreads,
     analysis::{ACTIVE_RMS_METHOD, ANALYSIS_SCHEMA, analyze_finalized_wav},
+    executable,
     mix_graph::{ChannelRole, MAX_MIX_CHANNELS},
 };
 
@@ -47,6 +50,10 @@ pub struct RenderOptions {
     pub stems: Vec<RenderStemRequest>,
     /// Optional override for the Project's authored `render_tail` policy.
     pub tail_policy_override: Option<RenderTailPolicy>,
+    /// Threads the render may use; output is identical for every value.
+    pub threads: OfflineThreads,
+    /// Stops the render before publication when a termination signal arrives.
+    pub interrupt: Interrupt,
     #[cfg(test)]
     fail_after_stem_spool: bool,
 }
@@ -60,6 +67,8 @@ impl RenderOptions {
             replace: true,
             stems: Vec::new(),
             tail_policy_override: None,
+            threads: OfflineThreads::available(),
+            interrupt: Interrupt::never(),
             #[cfg(test)]
             fail_after_stem_spool: false,
         }
@@ -675,32 +684,37 @@ pub fn render_project(
         )
     })?;
     fs::create_dir_all(parent)?;
-    match fs::symlink_metadata(&destination) {
-        Ok(metadata) => {
-            if !metadata.file_type().is_dir() {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::AlreadyExists,
-                    format!(
-                        "render output {} exists and is not a real directory",
-                        destination.display()
-                    ),
-                )
-                .into());
+    {
+        let _publication = lock_publication(parent)?;
+        match fs::symlink_metadata(&destination) {
+            Ok(metadata) => {
+                if !metadata.file_type().is_dir() {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::AlreadyExists,
+                        format!(
+                            "render output {} exists and is not a real directory",
+                            destination.display()
+                        ),
+                    )
+                    .into());
+                }
+                if !options.replace {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::AlreadyExists,
+                        format!("render bundle {} already exists", destination.display()),
+                    )
+                    .into());
+                }
+                validate_existing_render_bundle(&destination)?;
             }
-            if !options.replace {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::AlreadyExists,
-                    format!("render bundle {} already exists", destination.display()),
-                )
-                .into());
-            }
-            validate_existing_render_bundle(&destination)?;
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error.into()),
     }
-    let staging = staging_path(&destination)?;
-    fs::create_dir(&staging)?;
+    // Fail before rendering, not after it, if this build cannot be identified.
+    let executable_sha256 = executable::sha256_hex()?;
+    remove_abandoned_staging(&destination);
+    let (staging, _staging_lock) = create_staging(&destination)?;
     #[cfg(test)]
     let fail_after_stem_spool = options.fail_after_stem_spool;
     #[cfg(not(test))]
@@ -709,11 +723,18 @@ pub fn render_project(
         bundle,
         &compiled,
         &staging,
-        &options.stems,
-        tail_policy,
-        fail_after_stem_spool,
+        StagingRequest {
+            stems: &options.stems,
+            tail_policy,
+            threads: options.threads,
+            interrupt: &options.interrupt,
+            executable_sha256,
+            fail_after_stem_spool,
+        },
     )
     .and_then(|manifest| {
+        // Publication is atomic and brief; once it starts it runs to completion.
+        check_interrupt(&options.interrupt)?;
         publish_directory(&staging, &destination, options.replace)?;
         let manifest_bytes = fs::read(destination.join(MANIFEST_FILE))?;
         let stems = manifest
@@ -736,14 +757,74 @@ pub fn render_project(
     result
 }
 
+struct StagingRequest<'a> {
+    stems: &'a [RenderStemRequest],
+    tail_policy: RenderTailPolicy,
+    threads: OfflineThreads,
+    interrupt: &'a Interrupt,
+    executable_sha256: String,
+    fail_after_stem_spool: bool,
+}
+
+fn check_interrupt(interrupt: &Interrupt) -> Result<(), EngineError> {
+    match interrupt.requested() {
+        Some(signal) => Err(EngineError::Interrupted { signal }),
+        None => Ok(()),
+    }
+}
+
+/// Master and stem audio being written into a staging directory, one block at a time.
+struct StagedAudio {
+    direct_writer: Option<hound::WavWriter<BufWriter<File>>>,
+    master_spool: Option<BufWriter<File>>,
+    stem_spools: Vec<BufWriter<File>>,
+    encoded_frames: Vec<u8>,
+}
+
+impl StagedAudio {
+    fn write_block(
+        &mut self,
+        master: &[[f32; 2]],
+        stems: &[Vec<[f32; 2]>],
+    ) -> Result<(), EngineError> {
+        if let Some(writer) = self.direct_writer.as_mut() {
+            for frame in master {
+                writer.write_sample(frame[0])?;
+                writer.write_sample(frame[1])?;
+            }
+        }
+        if let Some(spool) = self.master_spool.as_mut() {
+            encode_stem_frames(master, &mut self.encoded_frames);
+            spool.write_all(&self.encoded_frames)?;
+        }
+        for (spool, stem_chunk) in self
+            .stem_spools
+            .iter_mut()
+            .zip(stems.chunks(STEMS_PER_SPOOL))
+        {
+            for stem_block in stem_chunk {
+                encode_stem_frames(&stem_block[..master.len()], &mut self.encoded_frames);
+                spool.write_all(&self.encoded_frames)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 fn render_staging(
     bundle: &ProjectBundle,
     compiled: &CompiledProject,
     staging: &Path,
-    requests: &[RenderStemRequest],
-    tail_policy: RenderTailPolicy,
-    fail_after_stem_spool: bool,
+    request: StagingRequest<'_>,
 ) -> Result<RenderManifest, EngineError> {
+    let StagingRequest {
+        stems: requests,
+        tail_policy,
+        threads,
+        interrupt,
+        executable_sha256,
+        fail_after_stem_spool,
+    } = request;
     let prepared_stems = prepare_render_stems(compiled, requests)?;
     let wav_path = staging.join(WAV_FILE);
     let specification = hound::WavSpec {
@@ -753,67 +834,59 @@ fn render_staging(
         sample_format: hound::SampleFormat::Float,
     };
     let master_spool_path = staging.join(MASTER_SPOOL_FILE);
-    let mut direct_writer = match tail_policy {
-        RenderTailPolicy::Append => Some(hound::WavWriter::create(&wav_path, specification)?),
-        RenderTailPolicy::Wrap => None,
-    };
-    let mut master_spool = match tail_policy {
-        RenderTailPolicy::Append => None,
-        RenderTailPolicy::Wrap => Some(BufWriter::new(File::create(&master_spool_path)?)),
-    };
     let stem_spool_paths = (0..prepared_stems.len().div_ceil(STEMS_PER_SPOOL))
         .map(|index| stem_spool_path(staging, index))
         .collect::<Vec<_>>();
-    let mut stem_spools = stem_spool_paths
-        .iter()
-        .map(|path| File::create(path).map(BufWriter::new))
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut staged = StagedAudio {
+        direct_writer: match tail_policy {
+            RenderTailPolicy::Append => Some(hound::WavWriter::create(&wav_path, specification)?),
+            RenderTailPolicy::Wrap => None,
+        },
+        master_spool: match tail_policy {
+            RenderTailPolicy::Append => None,
+            RenderTailPolicy::Wrap => Some(BufWriter::new(File::create(&master_spool_path)?)),
+        },
+        stem_spools: stem_spool_paths
+            .iter()
+            .map(|path| File::create(path).map(BufWriter::new))
+            .collect::<Result<Vec<_>, _>>()?,
+        encoded_frames: Vec::with_capacity(RENDER_BLOCK_FRAMES * FRAME_BYTES),
+    };
     let mut runtime = compiled.runtime();
     let mut block = vec![[0.0_f32, 0.0_f32]; RENDER_BLOCK_FRAMES];
     let mut stem_blocks = vec![vec![[0.0_f32, 0.0_f32]; block.len()]; prepared_stems.len()];
-    let mut encoded_frames = Vec::with_capacity(RENDER_BLOCK_FRAMES * FRAME_BYTES);
     let mut pre_wrap_peak = 0.0_f64;
-    while !runtime.finished() {
-        let mut count = 0_usize;
-        while count < block.len() && !runtime.finished() {
-            let sample = runtime.process_frame(ProcessingMode::Offline)?;
-            pre_wrap_peak = pre_wrap_peak
-                .max(f64::from(sample[0].abs()))
-                .max(f64::from(sample[1].abs()));
-            block[count] = sample;
-            for (prepared, stem_block) in prepared_stems.iter().zip(&mut stem_blocks) {
-                let sample = runtime
-                    .channel_tap_sample(prepared.channel_index, prepared.plan.tap)
-                    .ok_or_else(|| {
-                        EngineError::Compile(format!(
-                            "compiled stem `{}` has no runtime channel tap",
-                            prepared.plan.owner
-                        ))
-                    })?;
-                stem_block[count] = sample;
-            }
-            count += 1;
+    let mut count = 0_usize;
+    runtime.process_offline(threads, |runtime, sample| {
+        pre_wrap_peak = pre_wrap_peak
+            .max(f64::from(sample[0].abs()))
+            .max(f64::from(sample[1].abs()));
+        block[count] = sample;
+        for (prepared, stem_block) in prepared_stems.iter().zip(&mut stem_blocks) {
+            stem_block[count] = runtime
+                .channel_tap_sample(prepared.channel_index, prepared.plan.tap)
+                .ok_or_else(|| {
+                    EngineError::Compile(format!(
+                        "compiled stem `{}` has no runtime channel tap",
+                        prepared.plan.owner
+                    ))
+                })?;
         }
-        if let Some(writer) = direct_writer.as_mut() {
-            for frame in &block[..count] {
-                writer.write_sample(frame[0])?;
-                writer.write_sample(frame[1])?;
-            }
+        count += 1;
+        if count == block.len() {
+            staged.write_block(&block, &stem_blocks)?;
+            count = 0;
+            check_interrupt(interrupt)?;
         }
-        if let Some(spool) = master_spool.as_mut() {
-            encode_stem_frames(&block[..count], &mut encoded_frames);
-            spool.write_all(&encoded_frames)?;
-        }
-        for (spool, stem_chunk) in stem_spools
-            .iter_mut()
-            .zip(stem_blocks.chunks(STEMS_PER_SPOOL))
-        {
-            for stem_block in stem_chunk {
-                encode_stem_frames(&stem_block[..count], &mut encoded_frames);
-                spool.write_all(&encoded_frames)?;
-            }
-        }
-    }
+        Ok(())
+    })?;
+    staged.write_block(&block[..count], &stem_blocks)?;
+    let StagedAudio {
+        direct_writer,
+        master_spool,
+        stem_spools,
+        ..
+    } = staged;
     let feedback_mutes = runtime.telemetry().feedback_mutes;
     if let Some(writer) = direct_writer {
         writer.finalize()?;
@@ -872,6 +945,7 @@ fn render_staging(
             arrangement_frames
         }
     };
+    check_interrupt(interrupt)?;
     let analysis = analyze_finalized_wav(&wav_path)?;
     validate_finalized_analysis(&analysis, output_frames)?;
     let peak = analysis.sample_peak as f32;
@@ -881,6 +955,7 @@ fn render_staging(
     let mut stems = Vec::with_capacity(prepared_stems.len());
     for prepared in prepared_stems {
         let path = staging.join(&prepared.plan.file);
+        check_interrupt(interrupt)?;
         let stem_analysis = analyze_finalized_wav(&path)?;
         validate_finalized_analysis(&stem_analysis, output_frames)?;
         stems.push(RenderStemManifest {
@@ -894,8 +969,6 @@ fn render_staging(
             wav_sha256: hash_file(&path)?,
         });
     }
-    let executable_path = std::env::current_exe()?;
-    let executable_sha256 = hash_file(&executable_path)?;
     let host_os_release = host_os_release();
     let host_kernel_release = fs::read_to_string("/proc/sys/kernel/osrelease")
         .ok()
@@ -947,6 +1020,18 @@ fn render_staging(
     Ok(manifest)
 }
 
+/// Opens `parent` and holds its lock while bundles beside a destination are inspected or swapped.
+///
+/// Renders publishing to one destination at the same time would otherwise both find it missing,
+/// or validate a bundle halfway through another render's swap. Only these brief steps hold the
+/// lock; rendering itself never does.
+fn lock_publication(parent: &Path) -> Result<File, std::io::Error> {
+    let directory = File::open(parent)?;
+    // A filesystem without directory locks keeps the unserialized behavior.
+    let _ = directory.lock_exclusive();
+    Ok(directory)
+}
+
 fn publish_directory(staging: &Path, destination: &Path, replace: bool) -> Result<(), EngineError> {
     let parent = destination.parent().ok_or_else(|| {
         std::io::Error::new(
@@ -954,7 +1039,7 @@ fn publish_directory(staging: &Path, destination: &Path, replace: bool) -> Resul
             "render destination has no parent",
         )
     })?;
-    let directory = File::open(parent)?;
+    let directory = lock_publication(parent)?;
     let staging_name = staging.file_name().ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::InvalidInput, "staging path has no name")
     })?;
@@ -1365,7 +1450,8 @@ fn invalid_render_bundle(message: impl Into<String>) -> EngineError {
     std::io::Error::new(std::io::ErrorKind::InvalidData, message.into()).into()
 }
 
-fn staging_path(destination: &Path) -> Result<PathBuf, std::io::Error> {
+/// `.NAME.rendering-` prefix shared by every staging directory beside one destination.
+fn staging_prefix(destination: &Path) -> Result<(&Path, String), std::io::Error> {
     let parent = destination.parent().ok_or_else(|| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
@@ -1381,20 +1467,82 @@ fn staging_path(destination: &Path) -> Result<PathBuf, std::io::Error> {
                 "render output name is not UTF-8",
             )
         })?;
+    Ok((parent, format!(".{name}.rendering-")))
+}
+
+/// Creates this render's private staging directory and holds its lock.
+///
+/// The name carries the process ID and a per-process counter, so concurrent renders never share
+/// one, in this process or another. The exclusive lock lasts until the returned handle drops and
+/// tells [`remove_abandoned_staging`] in other processes that the directory is in use.
+fn create_staging(destination: &Path) -> Result<(PathBuf, File), std::io::Error> {
+    let (parent, prefix) = staging_prefix(destination)?;
     for _ in 0..100 {
         let counter = RENDER_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let path = parent.join(format!(
-            ".{name}.rendering-{}-{counter}",
-            std::process::id()
-        ));
-        if !path.exists() {
-            return Ok(path);
+        let path = parent.join(format!("{prefix}{}-{counter}", std::process::id()));
+        match fs::create_dir(&path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+        let lock = File::open(&path)?;
+        // A filesystem without directory locks only loses abandoned-staging cleanup.
+        let _ = lock.lock_exclusive();
+        // A sweeper that locked the directory first has removed it; allocate another.
+        if path.is_dir() {
+            return Ok((path, lock));
         }
     }
     Err(std::io::Error::new(
         std::io::ErrorKind::AlreadyExists,
         "could not allocate a render staging directory",
     ))
+}
+
+/// Removes staging directories that killed renders left beside `destination`.
+///
+/// A render stopped by `SIGKILL`, a crash or power loss cannot clean up, and its spools can be
+/// hundreds of megabytes. A directory is removed only when its name is a staging name, the
+/// process that created it no longer exists, and nothing holds its lock. Cleanup is best effort:
+/// any doubt or failure leaves the directory in place.
+fn remove_abandoned_staging(destination: &Path) {
+    let Ok((parent, prefix)) = staging_prefix(destination) else {
+        return;
+    };
+    let Ok(entries) = fs::read_dir(parent) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(owner) = name
+            .to_str()
+            .and_then(|name| name.strip_prefix(&prefix))
+            .and_then(|suffix| suffix.split_once('-'))
+            .and_then(|(process, counter)| {
+                counter.parse::<u64>().ok()?;
+                process.parse::<u32>().ok()
+            })
+        else {
+            continue;
+        };
+        let path = entry.path();
+        let is_directory = fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_dir());
+        if !is_directory || owner == std::process::id() || !process_has_exited(owner) {
+            continue;
+        }
+        let Ok(lock) = File::open(&path) else {
+            continue;
+        };
+        if lock.try_lock_exclusive().is_ok() {
+            let _ = fs::remove_dir_all(&path);
+        }
+    }
+}
+
+/// True only when this host can prove that process `id` is gone.
+fn process_has_exited(id: u32) -> bool {
+    let processes = Path::new("/proc");
+    processes.join("self").exists() && !processes.join(id.to_string()).exists()
 }
 
 fn host_os_release() -> Option<String> {
@@ -1539,6 +1687,227 @@ project "Maximum Stems" {
                 .filter_map(Result::ok)
                 .all(|entry| !entry.file_name().to_string_lossy().contains(".rendering-"))
         );
+    }
+
+    fn staging_entries(root: &Path) -> Vec<String> {
+        let mut names = fs::read_dir(root)
+            .expect("Project root entries")
+            .map(|entry| {
+                entry
+                    .expect("entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .filter(|name| name.contains(".rendering-"))
+            .collect::<Vec<_>>();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn thread_count_does_not_change_any_bundle_byte() {
+        let directory = tempdir().unwrap();
+        fs::write(
+            directory.path().join("project.crump"),
+            include_str!("../../tests/fixtures/minimal.crump"),
+        )
+        .unwrap();
+        let bundle = load_project(directory.path()).unwrap();
+        for tail_policy in [RenderTailPolicy::Append, RenderTailPolicy::Wrap] {
+            let mut reference = None;
+            for threads in [1, 2, 3, 16] {
+                let output = directory.path().join(format!("{tail_policy}-{threads}"));
+                let mut options = RenderOptions::new(&output);
+                options.threads = OfflineThreads::at_most(threads);
+                options.tail_policy_override = Some(tail_policy);
+                for owner in ["lead", "drums"] {
+                    options.stems.push(RenderStemRequest {
+                        owner: ChannelRef::Track(owner.to_owned()),
+                        tap: TapPoint::PostFader,
+                    });
+                }
+                let rendered = render_project(&bundle, &options).unwrap();
+                assert!(rendered.manifest.analysis.sample_peak > 0.0);
+                let bytes = directory_bytes(&output);
+                assert_eq!(bytes.len(), 4, "master, manifest and two stems");
+                match &reference {
+                    None => reference = Some(bytes),
+                    Some(reference) => assert!(
+                        &bytes == reference,
+                        "{threads} threads changed a {tail_policy} bundle"
+                    ),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn an_interrupt_ends_the_render_unpublished_with_staging_removed() {
+        let directory = tempdir().unwrap();
+        fs::write(
+            directory.path().join("project.crump"),
+            include_str!("../../tests/fixtures/minimal.crump"),
+        )
+        .unwrap();
+        let bundle = load_project(directory.path()).unwrap();
+        let output = directory.path().join("master");
+        render_project(&bundle, &RenderOptions::new(&output)).unwrap();
+        let before = directory_bytes(&output);
+
+        for (threads, destination) in [(1, "master"), (3, "master"), (3, "never-published")] {
+            let output = directory.path().join(destination);
+            let mut options = RenderOptions::new(&output);
+            options.threads = OfflineThreads::at_most(threads);
+            options.interrupt.raise(signal_hook::consts::SIGTERM);
+            let error = render_project(&bundle, &options).expect_err("interrupted render");
+            assert!(
+                matches!(error, EngineError::Interrupted { signal } if signal.exit_code() == 143),
+                "{error}"
+            );
+            assert_eq!(error.to_string(), "interrupted by SIGTERM");
+            assert_eq!(staging_entries(directory.path()), Vec::<String>::new());
+        }
+        assert_eq!(directory_bytes(&output), before);
+        assert!(!directory.path().join("never-published").exists());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn staging_abandoned_by_a_dead_process_is_removed_and_everything_else_is_kept() {
+        let directory = tempdir().unwrap();
+        let root = directory.path();
+        fs::write(
+            root.join("project.crump"),
+            include_str!("../../tests/fixtures/minimal.crump"),
+        )
+        .unwrap();
+        let bundle = load_project(root).unwrap();
+        let mut finished = std::process::Command::new(std::env::current_exe().unwrap())
+            .arg("--list")
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let dead = finished.id();
+        finished.wait().unwrap();
+        let own = std::process::id();
+
+        let abandoned = format!(".master.rendering-{dead}-0");
+        let locked = format!(".master.rendering-{dead}-1");
+        let kept = [
+            locked.clone(),
+            // This process and PID 1 are alive.
+            format!(".master.rendering-{own}-900"),
+            ".master.rendering-1-0".to_owned(),
+            // Another destination's staging, and names that only resemble staging.
+            format!(".other.rendering-{dead}-0"),
+            format!(".master.rendering-{dead}"),
+            format!(".master.rendering-{dead}-x"),
+        ];
+        for name in kept.iter().chain([&abandoned]) {
+            fs::create_dir(root.join(name)).unwrap();
+            fs::write(root.join(name).join(".master-spool.raw"), [0_u8; 64]).unwrap();
+        }
+        let file = root.join(format!(".master.rendering-{dead}-2"));
+        fs::write(&file, b"not a directory").unwrap();
+        let held = File::open(root.join(&locked)).unwrap();
+        held.lock_exclusive().unwrap();
+
+        render_project(&bundle, &RenderOptions::new(root.join("master"))).unwrap();
+
+        assert!(!root.join(&abandoned).exists(), "abandoned staging remains");
+        for name in &kept {
+            assert!(
+                root.join(name).join(".master-spool.raw").is_file(),
+                "{name}"
+            );
+        }
+        assert!(file.is_file());
+        drop(held);
+    }
+
+    #[test]
+    fn concurrent_renders_of_one_destination_each_publish_a_complete_bundle() {
+        let directory = tempdir().unwrap();
+        // A few hundred frames: renders finish within milliseconds of each other, so their
+        // publications collide.
+        fs::write(
+            directory.path().join("project.crump"),
+            maximum_stem_source(),
+        )
+        .unwrap();
+        let bundle = load_project(directory.path()).unwrap();
+        let reference = directory.path().join("reference");
+        render_project(&bundle, &RenderOptions::new(&reference)).unwrap();
+        let expected = directory_bytes(&reference);
+
+        for round in 0..8 {
+            let shared = directory.path().join(format!("shared-{round}"));
+            std::thread::scope(|scope| {
+                let renders = (0..6)
+                    .map(|index| {
+                        let (bundle, shared, root) = (&bundle, &shared, directory.path());
+                        scope.spawn(move || {
+                            let own = root.join(format!("own-{round}-{index}"));
+                            let own_result = render_project(bundle, &RenderOptions::new(&own));
+                            let shared_result = render_project(bundle, &RenderOptions::new(shared));
+                            (own, own_result, shared_result)
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                for render in renders {
+                    let (own, own_result, shared_result) = render.join().unwrap();
+                    own_result.expect("render to a private destination");
+                    shared_result.expect("render to the shared destination");
+                    assert!(directory_bytes(&own) == expected);
+                }
+            });
+            assert!(directory_bytes(&shared) == expected);
+        }
+        assert_eq!(staging_entries(directory.path()), Vec::<String>::new());
+    }
+
+    #[test]
+    fn simultaneous_publications_to_one_destination_all_succeed() {
+        let directory = tempdir().unwrap();
+        let root = directory.path();
+        fs::write(root.join("project.crump"), maximum_stem_source()).unwrap();
+        let bundle = load_project(root).unwrap();
+        let reference = root.join("reference");
+        render_project(&bundle, &RenderOptions::new(&reference)).unwrap();
+        let expected = directory_bytes(&reference);
+
+        for round in 0..40 {
+            let destination = root.join(format!("shared-{round}"));
+            let staged = (0..8)
+                .map(|index| {
+                    let staging = root.join(format!(".staged-{round}-{index}"));
+                    fs::create_dir(&staging).unwrap();
+                    for (name, bytes) in &expected {
+                        fs::write(staging.join(name), bytes).unwrap();
+                    }
+                    staging
+                })
+                .collect::<Vec<_>>();
+            let start = std::sync::Barrier::new(staged.len());
+            std::thread::scope(|scope| {
+                let publications = staged
+                    .iter()
+                    .map(|staging| {
+                        let (start, destination) = (&start, &destination);
+                        scope.spawn(move || {
+                            start.wait();
+                            publish_directory(staging, destination, true)
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                for publication in publications {
+                    publication.join().unwrap().expect("publication");
+                }
+            });
+            assert!(directory_bytes(&destination) == expected);
+            assert!(staged.iter().all(|staging| !staging.exists()));
+        }
     }
 
     #[test]

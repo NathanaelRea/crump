@@ -10,6 +10,7 @@ pub mod engine;
 mod graph_schedule;
 pub mod history;
 pub(crate) mod instrument_module;
+pub mod interrupt;
 pub mod media;
 pub mod model;
 mod node_definition;

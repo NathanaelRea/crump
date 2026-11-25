@@ -846,8 +846,23 @@ fn command_render(cli: &Cli, args: &RenderArgs) -> Result<Success, Failure> {
     options.replace = !args.no_replace;
     options.stems.clone_from(&args.stems);
     options.tail_policy_override = args.tail.map(RenderTailPolicy::from);
-    let result = render_project(&active, &options)
-        .map_err(|error| Failure::operational("render", "render_failed", error))?;
+    if let Some(threads) = args.threads {
+        options.threads = OfflineThreads::at_most(threads);
+    }
+    // A long render that is told to stop reports that, and removes its staging, instead of dying
+    // silently with partial files left behind.
+    options.interrupt = Interrupt::on_termination_signals()
+        .map_err(|error| Failure::operational("render", "signal_handling", error))?;
+    let result = render_project(&active, &options).map_err(|error| match error {
+        EngineError::Interrupted { signal } => Failure::interrupted(
+            "render",
+            signal,
+            format!(
+                "render interrupted by {signal}; nothing was published and staging was removed"
+            ),
+        ),
+        error => Failure::operational("render", "render_failed", error),
+    })?;
     Ok(Success {
         command: "render",
         human: {

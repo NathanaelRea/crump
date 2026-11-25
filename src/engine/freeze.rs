@@ -5,7 +5,7 @@ use std::{
     fs::{self, File},
     io::{self, BufReader, BufWriter, Read, Write},
     path::{Path, PathBuf},
-    sync::{Arc, OnceLock},
+    sync::Arc,
 };
 
 use serde_json::Value;
@@ -236,26 +236,7 @@ fn strip_source_sites(value: &mut Value) {
 }
 
 fn build_hash() -> Result<Key, EngineError> {
-    static BUILD: OnceLock<Result<Key, String>> = OnceLock::new();
-    BUILD
-        .get_or_init(|| {
-            let hash = || -> io::Result<Key> {
-                let mut file = File::open(std::env::current_exe()?)?;
-                let mut digest = Sha256::new();
-                let mut buffer = [0; 64 * 1024];
-                loop {
-                    let count = file.read(&mut buffer)?;
-                    if count == 0 {
-                        break;
-                    }
-                    digest.update(&buffer[..count]);
-                }
-                Ok(digest.finalize().into())
-            };
-            hash().map_err(|error| error.to_string())
-        })
-        .clone()
-        .map_err(|error| EngineError::Compile(format!("cannot hash Crump executable: {error}")))
+    super::executable::sha256().map_err(|error| EngineError::Compile(error.to_string()))
 }
 
 fn read_cache(path: &Path, key: Key, frames: usize) -> io::Result<Audio> {

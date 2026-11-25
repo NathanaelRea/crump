@@ -158,11 +158,21 @@ Crump first rejects destinations that overlap Project source/history, symbolic-l
 
 A reader therefore sees the old complete bundle or the new complete bundle. It does not see a new WAV paired with an old manifest, and Crump never recursively deletes an unrecognized destination. Staging remains on the same filesystem so directory exchange remains atomic. `--no-replace` fails if a destination already exists and leaves it unchanged.
 
-A crash after an exchange can leave an unreferenced sibling `.rendering-*` directory containing the old complete bundle. This is safe residue, not a partial published master, and can be removed after checking the named destination.
+A crash after an exchange can leave an unreferenced sibling `.rendering-*` directory containing the old complete bundle. This is safe residue, not a partial published master.
+
+### Concurrent and interrupted renders
+
+Any number of renders may run at once, in separate processes or threads, for one Project or many. Each stages into its own `.NAME.rendering-PID-COUNTER` directory beside its destination and holds an exclusive lock on that directory for as long as it runs. Checking an existing bundle and swapping a new one into place both happen under a lock on the destination's parent directory, so renders that finish together for one destination publish one after another; the last one wins and each reports success. Rendering itself holds no shared lock.
+
+A render stopped by `SIGINT`, `SIGTERM`, or `SIGHUP` ends at the next block: it publishes nothing, removes its staging directory, and reports an `interrupted` failure. A render killed without the chance to clean up (`SIGKILL`, a crash, power loss) leaves its staging directory behind. The next render to the same destination removes such a directory when its name matches the staging pattern, the process named in it no longer exists, and nothing holds its lock; anything else is left alone.
+
+The manifest's `executable_sha256` identifies the executable image the process is running, read once before rendering starts. Rebuilding or reinstalling Crump while a render is in progress therefore neither fails that render nor mislabels it with the new build.
 
 ## Determinism domain
 
 Playback and render use the same semantic schedule and DSP implementation. Stable Event identities and random seeds derive from semantic Project/Event content; authored Track presentation order does not alter those identities. Event sorting, graph topology, voice stealing, drum/noise generation, sampler decode/resampling, finalized-file analysis, and WAV/manifest serialization are deterministic. Durable processor order, settings, and bypass are Authoritative Source and therefore affect both Active playback and render after publication. Audition target/path/range/loop, Solo, cue, pause, and transient processor bypass remain session-only monitoring state and are ignored by offline processing; repeated render tests prove that these overrides do not enter artifact identity. Playback and rendering support portable media identity/History, forward/reverse bounded-loop sampler playback, exact-Revision bounce, and exact-frame offline duration/pitch preparation. Media Tracks, realtime routed pitch, and formant preservation are unsupported.
+
+Offline rendering uses several threads without changing a byte. A Track's source depends only on that Track's state and the frame's control values, so each Track's Instrument runs ahead on a worker thread while the calling thread runs the mix graph over the results in frame order. An Envelope Follower makes control values depend on mixed audio, so a Project that has one renders every frame on one thread. Tests compare every frame's Master, channel taps, and telemetry between the threaded and frame-by-frame paths, and compare whole bundles across thread counts.
 
 The byte-identity promise is intentionally bounded. Repeated unchanged renders are expected to produce byte-identical WAV and manifest files only for the same:
 

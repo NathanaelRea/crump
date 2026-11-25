@@ -276,6 +276,10 @@ pub(super) struct RenderArgs {
     /// Fail rather than atomically replace an existing complete bundle.
     #[arg(long)]
     pub(super) no_replace: bool,
+    /// Threads the render may use, counting the one that mixes. Output is identical for every
+    /// value; `1` renders on a single thread. Defaults to one per available CPU.
+    #[arg(long, value_name = "COUNT")]
+    pub(super) threads: Option<usize>,
 }
 
 #[derive(Debug, Subcommand)]
