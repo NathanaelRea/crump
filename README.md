@@ -31,7 +31,7 @@ git clone https://github.com/NathanaelRea/crump.git && cd crump
 cargo run --release -- --project fixtures/deep-house-reference
 ```
 
-Use `--release`; a debug build is too slow for realtime audio. To install, run `cargo install --path . --locked`, then `crump new my-sketch` and `crump` inside it.
+Use `--release`; a debug build is too slow for realtime audio. To install, run `./install.sh`, then `crump new my-sketch` and `crump` inside it. The script checks build prerequisites and prints the package command for your distro if any are missing. It builds with `cargo install` into `~/.cargo/bin` and adds a desktop entry so the window gets its name and icon. It never uses `sudo`; `./install.sh --uninstall` removes everything it added.
 
 An agent works through the CLI:
 
