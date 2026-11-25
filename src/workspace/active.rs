@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{
     engine::{
-        RuntimeTelemetry, SongRuntime,
+        FreezeJob, RuntimeTelemetry, SongRuntime,
         audition::{AuditionPlan, AuditionPrepareOptions, AuditionStatus, range_offset},
         control::ControlInspector,
         mix_graph::MixGraphInspection,
@@ -48,6 +48,8 @@ pub(super) struct PreparedActiveInspection {
     pub(super) range_moved: bool,
     pub(super) requested_initial_frame: Option<u64>,
     pub(super) requested_explicit_seek: bool,
+    /// Frozen Tracks this preparation plays live because their capture is missing.
+    pub(super) pending_freeze: Option<FreezeJob>,
 }
 
 pub(super) enum PreparedActiveMode {
@@ -111,7 +113,7 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
             )
         })
     };
-    let prepared = match plan.prepare_with_cache(
+    let mut prepared = match plan.prepare_with_cache(
         &active.revision,
         project,
         &active.assets,
@@ -120,6 +122,7 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
             initial_range_offset,
             explicit_seek,
             cleared_seek: true,
+            defer_freeze: true,
         },
         Some(&active.root),
     ) {
@@ -131,6 +134,7 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
             };
         }
     };
+    let pending_freeze = prepared.take_pending_freeze();
     let status = prepared.status().clone();
     let processing_graph = prepared.mix_graph_inspection().clone();
     let mix_channel_indexes = processing_graph
@@ -149,6 +153,7 @@ pub(super) fn prepare_active(request: ActiveRequest) -> ActiveResult {
         mix_channel_indexes,
         requested_initial_frame: initial_frame,
         requested_explicit_seek: explicit_seek,
+        pending_freeze,
     };
     let runtime = prepared.into_runtime();
     let mode = match mode {

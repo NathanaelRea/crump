@@ -1303,3 +1303,63 @@ fn back_to_back_edits_queue_instead_of_being_dropped() {
     assert!((level("bass") - -9.0).abs() < 1e-9);
     assert!((level("keys") - -13.0).abs() < 1e-9);
 }
+
+#[test]
+fn play_with_a_missing_freeze_capture_starts_live_and_captures_in_the_background() {
+    let root = tempfile::tempdir().expect("temporary Project");
+    fs::write(
+        root.path().join("project.crump"),
+        include_str!("../../tests/fixtures/production_mix.crump").replace(
+            "      processor drum_latency",
+            "      freeze true\n      processor drum_latency",
+        ),
+    )
+    .expect("write fixture");
+    let mut workspace = Workspace::load(root.path()).expect("load workspace");
+    workspace.playback_backend = PlaybackBackend::InMemory;
+    settle_background(&mut workspace);
+
+    workspace.toggle_playback();
+    settle_background(&mut workspace);
+    assert!(workspace.player.is_some(), "{}", workspace.status);
+    assert!(
+        workspace
+            .status
+            .contains("Track Freeze capturing drums in the background"),
+        "{}",
+        workspace.status
+    );
+
+    let deadline = Instant::now() + Duration::from_secs(120);
+    while workspace.freeze_builder.busy() {
+        workspace.poll_background_work();
+        assert!(Instant::now() < deadline, "freeze capture timed out");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(
+        workspace
+            .status
+            .starts_with("Track Freeze audio ready for drums"),
+        "{}",
+        workspace.status
+    );
+    assert_eq!(
+        fs::read_dir(root.path().join(".crump/freeze"))
+            .expect("freeze cache")
+            .filter(|entry| entry.as_ref().unwrap().path().is_file())
+            .count(),
+        1
+    );
+
+    // The next start finds the capture and has nothing left to render.
+    workspace.stop_playback();
+    workspace.toggle_playback();
+    settle_background(&mut workspace);
+    assert!(workspace.player.is_some(), "{}", workspace.status);
+    assert!(!workspace.freeze_builder.busy());
+    assert!(
+        !workspace.status.contains("Track Freeze"),
+        "{}",
+        workspace.status
+    );
+}

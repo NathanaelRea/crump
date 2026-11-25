@@ -656,8 +656,8 @@ Within a Track block, `freeze true` enables Track Freeze for live playback.
 Omit the directive or use `freeze false` to run the Instrument and inserts
 live. The cached tap is taken before level, panner, and Mute. Those controls
 and Sends remain live and automatable. You can still edit a frozen Track's
-Instrument, inserts, or arrangement. The next live preparation rebuilds the
-cache when its inputs change. Offline render and bounce evaluate the authored
+Instrument, inserts, or arrangement. The workspace recaptures a Track in the
+background when its captured inputs change, without delaying playback. Offline render and bounce evaluate the authored
 Project in full.
 
 Groups and Returns use the same channel directives; Master owns an ordered processor chain and final level:
