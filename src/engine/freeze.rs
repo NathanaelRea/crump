@@ -952,7 +952,7 @@ mod tests {
         }
         for (path, project, assets) in projects {
             let topology = AuthoredTopology::compile(&project);
-            let frames = u64::from(project.sample_rate) * 3;
+            let frames = u64::from(project.sample_rate) / 4;
             let ids = project
                 .song
                 .tracks
