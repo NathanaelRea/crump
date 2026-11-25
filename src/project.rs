@@ -17,7 +17,7 @@ use crate::{
         AssetInventory, load_asset_inventory, load_asset_inventory_from_bytes, valid_asset_path,
     },
     model::{Project, SOURCE_VERSION_V1},
-    validate::{validate_project, validate_project_assets},
+    validate::validate_project_with_topology,
 };
 
 /// Conventional root source filename.
@@ -133,7 +133,7 @@ impl CandidateAssembly {
                 }
             }
             project.song.instruments.extend(module.instruments);
-            project.acoustic_profiles.extend(module.acoustic_profiles);
+            merge_acoustic_profiles(&mut project.acoustic_profiles, module.acoustic_profiles);
             project.assets.extend(module.assets);
         }
         self.canonical_imports.push(path.to_path_buf());
@@ -144,6 +144,30 @@ impl CandidateAssembly {
             project.imports = self.canonical_imports;
         }
         (self.project, self.diagnostics)
+    }
+}
+
+/// Merges imported acoustic profiles into a Project, deduplicating profiles
+/// that share an ID and semantically identical parsed body across distinct
+/// source files.
+///
+/// The first declaration in stable import order is retained. Same-ID profiles
+/// with differing bodies — or repeated within the same source file — are kept
+/// so semantic validation can report every conflict with exact locations.
+fn merge_acoustic_profiles(
+    existing: &mut Vec<crate::model::AcousticProfile>,
+    incoming: Vec<crate::model::AcousticProfile>,
+) {
+    for profile in incoming {
+        let duplicate_from_other_source = existing
+            .iter()
+            .find(|prior| prior.id == profile.id)
+            .is_some_and(|first| {
+                first.location.file != profile.location.file && first.body == profile.body
+            });
+        if !duplicate_from_other_source {
+            existing.push(profile);
+        }
     }
 }
 
@@ -174,8 +198,7 @@ fn finish_candidate_reconstruction(
             }
         };
         diagnostics.extend(asset_diagnostics);
-        diagnostics.extend(validate_project(candidate));
-        diagnostics.extend(validate_project_assets(candidate, &assets));
+        diagnostics.extend(validate_project_with_topology(candidate, Some(&assets)).0);
         assets
     } else {
         AssetInventory::default()

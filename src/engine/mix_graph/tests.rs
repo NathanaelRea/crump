@@ -46,8 +46,14 @@ fn runtime_program_is_a_direct_lowering_of_the_canonical_authored_topology() {
     assert!(topology.is_valid(), "{:?}", topology.findings());
 
     let controls = CompiledControlProgram::compile(&project).expect("controls");
-    let graph = CompiledMixGraph::compile_with_topology(&project, &controls, &topology, true)
-        .expect("canonical topology lowers");
+    let graph = CompiledMixGraph::compile_with_topology(
+        &project,
+        &controls,
+        &topology,
+        Some(AdmissionProfile::Live),
+        ProcessorAssets::Unloaded,
+    )
+    .expect("canonical topology lowers");
     let topology_channels = topology
         .order()
         .iter()
@@ -306,6 +312,18 @@ fn estimate_includes_voice_nodes_buffers_and_transition_headroom() {
         !near_budget.admitted,
         "two-runtime publication work must be admitted, not only steady-state work"
     );
+    assert!(near_budget.admits(AdmissionProfile::Offline));
+
+    near_budget.processors = MAX_PROCESSOR_INSTANCES + 1;
+    near_budget.graph_voice_state_bytes = MAX_PUBLICATION_RUNTIME_BYTES + 1;
+    near_budget.recalculate_memory_and_admission();
+    let diagnostic = crate::validate::admission_diagnostic(
+        AdmissionProfile::Offline,
+        &near_budget.admission_failures(AdmissionProfile::Offline),
+    );
+    assert_eq!(diagnostic.code, "CRV092");
+    assert!(diagnostic.message.contains("processors"));
+    assert!(diagnostic.message.contains("runtime bytes"));
 }
 
 #[test]
@@ -329,6 +347,7 @@ fn production_fixture_compiles_every_slice_two_route_role() {
             &controls,
             project.sample_rate,
             project.song.tempo_bpm,
+            ProcessorAssets::Unloaded,
         )
         .expect("DSP");
         assert_eq!(
@@ -695,6 +714,7 @@ fn inspection_resolves_defaults_for_every_processor_kind() {
         &controls,
         project.sample_rate,
         project.song.tempo_bpm,
+        ProcessorAssets::Unloaded,
     )
     .expect("Delay DSP");
     assert_eq!(
@@ -707,6 +727,7 @@ fn inspection_resolves_defaults_for_every_processor_kind() {
         &controls,
         project.sample_rate,
         project.song.tempo_bpm,
+        ProcessorAssets::Unloaded,
     )
     .expect("Reverb DSP");
     assert_eq!(

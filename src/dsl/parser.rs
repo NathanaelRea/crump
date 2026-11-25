@@ -22,11 +22,12 @@ use crate::{
         OutputTarget, Panner, Parameter, ParameterLock, ParameterLockSites, ParameterTarget,
         Pattern, PatternEvent, PatternVariation, PatternVariationSites, PresentationItem,
         PresentationItemKind, PresentationSection, PresentationSectionKind, Processor,
-        ProcessorKind, ProcessorSetting, Project, RetriggerPolicy, Return, SOURCE_VERSION_V1,
-        SOURCE_VERSION_V2, SampleDirection, SampleEventSites, SampleLoopRegion, SampleMapping,
-        SamplePlayback, SampleTransformQuality, SamplerDefinition, Send, SettingValue,
-        SidechainRoute, Song, StealPriority, TapPoint, Track, Unit, ValueSite, Voicing,
-        VoicingMode, WavetableAssetDefinition, WavetableMorph, WavetableNormalization, parse_pitch,
+        ProcessorKind, ProcessorSetting, Project, RenderTailPolicy, RetriggerPolicy, Return,
+        SOURCE_VERSION_V1, SOURCE_VERSION_V2, SampleDirection, SampleEventSites, SampleLoopRegion,
+        SampleMapping, SamplePlayback, SampleTransformQuality, SamplerDefinition, Send,
+        SettingValue, SidechainRoute, Song, StealPriority, TapPoint, Track, Unit, ValueSite,
+        Voicing, VoicingMode, WavetableAssetDefinition, WavetableMorph, WavetableNormalization,
+        parse_pitch,
     },
     time::{Meter, MusicalTime, parse_musical_time, parse_seconds},
 };
@@ -432,6 +433,7 @@ impl Parser<'_> {
         let mut seed = None;
         let mut sample_rate = None;
         let mut render_tail_seconds = None;
+        let mut render_tail_policy = RenderTailPolicy::Append;
         let mut assets = Vec::new();
         let mut song = None;
 
@@ -441,15 +443,32 @@ impl Parser<'_> {
                 Some("seed") => seed = self.parse_u64_value(child, "seed"),
                 Some("sample_rate") => sample_rate = self.parse_u32_value(child, "sample_rate"),
                 Some("render_tail") => {
-                    render_tail_seconds = self
-                        .single_argument(child, "CRP112", "render_tail requires a duration")
-                        .and_then(|token| match parse_seconds(&token.value) {
-                            Ok(value) => Some(value),
+                    if !child.children.is_empty() || !(2..=3).contains(&child.tokens.len()) {
+                        self.error_at(
+                            "CRP112",
+                            "render_tail syntax is `render_tail DURATION [append|wrap]`",
+                            child,
+                        );
+                    } else {
+                        match parse_seconds(&child.tokens[1].value) {
+                            Ok(value) => render_tail_seconds = Some(value),
                             Err(error) => {
-                                self.token_error("CRP113", error.to_string(), token);
-                                None
+                                self.token_error("CRP113", error.to_string(), &child.tokens[1]);
                             }
-                        });
+                        }
+                        render_tail_policy = match child.tokens.get(2) {
+                            None => RenderTailPolicy::Append,
+                            Some(policy_token) => {
+                                match policy_token.value.parse::<RenderTailPolicy>() {
+                                    Ok(policy) => policy,
+                                    Err(error) => {
+                                        self.token_error("CRP112", error, policy_token);
+                                        RenderTailPolicy::Append
+                                    }
+                                }
+                            }
+                        };
+                    }
                 }
                 Some("asset") => {
                     if let Some(asset) = self.parse_media_asset(child) {
@@ -500,6 +519,7 @@ impl Parser<'_> {
             seed,
             sample_rate,
             render_tail_seconds,
+            render_tail_policy,
             assets,
             acoustic_profiles: Vec::new(),
             song,
@@ -547,7 +567,7 @@ impl Parser<'_> {
                     if child.tokens.len() < 2 || !child.children.is_empty() {
                         self.error_at(
                             "CRP232",
-                            "asset usage requires one or more of wavetable, sample, multisample, granular, or spectral",
+                            "asset usage requires one or more of wavetable, sample, multisample, granular, spectral, or impulse_response",
                             child,
                         );
                         continue;
@@ -559,6 +579,7 @@ impl Parser<'_> {
                             "multisample" => MediaAssetUsage::Multisample,
                             "granular" => MediaAssetUsage::Granular,
                             "spectral" => MediaAssetUsage::Spectral,
+                            "impulse_response" => MediaAssetUsage::ImpulseResponse,
                             value => {
                                 self.token_error(
                                     "CRP232",
@@ -667,7 +688,7 @@ impl Parser<'_> {
         {
             self.error_at(
                 "CRP232",
-                "asset synthesis metadata requires source version 2",
+                "asset usage and wavetable metadata require source version 2",
                 statement,
             );
         }
@@ -3112,7 +3133,26 @@ impl Parser<'_> {
             mute_site: None,
         };
         let mut clips = Vec::new();
+        let mut freeze = None;
         for child in &statement.children {
+            if child.keyword() == Some("freeze") {
+                match child.tokens.as_slice() {
+                    [_, value] if freeze.is_none() && child.children.is_empty() => {
+                        match value.value.parse::<bool>() {
+                            Ok(frozen) => freeze = Some((frozen, self.site(value))),
+                            Err(_) => {
+                                self.error_at("CRP190", "expected freeze true or false", child)
+                            }
+                        }
+                    }
+                    _ => self.error_at(
+                        "CRP190",
+                        "declare freeze true or false once per Track",
+                        child,
+                    ),
+                }
+                continue;
+            }
             if child.keyword() != Some("clip") {
                 if !self.parse_channel_directive(child, &mut channel) {
                     self.unknown("Track", child.keyword().unwrap_or(""), child);
@@ -3270,6 +3310,8 @@ impl Parser<'_> {
             name: statement.tokens[2].value.clone(),
             instrument: statement.tokens[4].value.clone(),
             channel,
+            frozen: freeze.as_ref().is_some_and(|(frozen, _)| *frozen),
+            freeze_site: freeze.map(|(_, site)| site),
             clips,
             location: statement.location(self.file, self.source),
         })
@@ -4616,6 +4658,43 @@ instrument module-lead "Module Lead" graph {
                 && diagnostic
                     .message
                     .contains("`revision` is declared more than once")
+        }));
+    }
+
+    #[test]
+    fn parses_render_tail_policy_and_rejects_unknown_policy() {
+        let default_doc = parse_project(Path::new("project.crump"), PROJECT);
+        assert!(!default_doc.diagnostics.has_errors());
+        assert_eq!(
+            default_doc.project.as_ref().unwrap().render_tail_policy,
+            RenderTailPolicy::Append
+        );
+
+        let wrapped = parse_project(
+            Path::new("project.crump"),
+            &PROJECT.replacen("render_tail 2s", "render_tail 8s wrap", 1),
+        );
+        assert!(!wrapped.diagnostics.has_errors());
+        let project = wrapped.project.as_ref().unwrap();
+        assert_eq!(project.render_tail_seconds, 8.0);
+        assert_eq!(project.render_tail_policy, RenderTailPolicy::Wrap);
+
+        let appended = parse_project(
+            Path::new("project.crump"),
+            &PROJECT.replacen("render_tail 2s", "render_tail 1.5s append", 1),
+        );
+        assert!(!appended.diagnostics.has_errors());
+        let project = appended.project.as_ref().unwrap();
+        assert_eq!(project.render_tail_seconds, 1.5);
+        assert_eq!(project.render_tail_policy, RenderTailPolicy::Append);
+
+        let invalid = parse_project(
+            Path::new("project.crump"),
+            &PROJECT.replacen("render_tail 2s", "render_tail 2s loop", 1),
+        );
+        assert!(invalid.diagnostics.as_slice().iter().any(|diagnostic| {
+            diagnostic.code == "CRP112"
+                && diagnostic.message.contains("expected `append` or `wrap`")
         }));
     }
 

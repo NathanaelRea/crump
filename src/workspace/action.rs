@@ -148,6 +148,11 @@ pub enum Action {
         /// Channel identity string (`track/<id>`, `group/<id>`, `return/<id>`).
         identity: String,
     },
+    /// Toggle durable Track Freeze.
+    ToggleTrackFreeze {
+        /// Track identity.
+        track: String,
+    },
     /// Toggle transient Solo on one specific channel.
     ToggleChannelSolo {
         /// Channel identity string (`track/<id>`, `group/<id>`, `return/<id>`).
@@ -759,6 +764,26 @@ impl Workspace {
                 );
             }
             Action::ToggleChannelMute { identity } => self.toggle_channel_mute_by_id(&identity),
+            Action::ToggleTrackFreeze { track } => {
+                if let Some(authored) = self.bundle.project.as_ref().and_then(|project| {
+                    project
+                        .song
+                        .tracks
+                        .iter()
+                        .find(|candidate| candidate.id == track)
+                }) {
+                    let frozen = !authored.frozen;
+                    let summary = if frozen {
+                        format!("Freeze Track {track}")
+                    } else {
+                        format!("Unfreeze Track {track}")
+                    };
+                    self.apply_operation(
+                        ProductionViewOperation::SetTrackFreeze { track, frozen },
+                        summary,
+                    );
+                }
+            }
             Action::ToggleChannelSolo { identity } => self.toggle_channel_solo_by_id(&identity),
             Action::ToggleChannelCue { identity, tap } => {
                 self.toggle_channel_cue_by_id(&identity, tap);

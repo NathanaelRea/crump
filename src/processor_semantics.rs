@@ -45,6 +45,8 @@ pub(crate) enum SettingContract {
     },
     /// A tempo-relative Delay division.
     DelayDivision { default: &'static str },
+    /// Required structural Media Asset reference.
+    AssetReference,
 }
 
 impl SettingContract {
@@ -234,6 +236,19 @@ const DELAY_SETTINGS: &[SettingDescriptor] = &[
     choice("mode", DELAY_MODE_CHOICES, "stereo"),
 ];
 
+const CONVOLUTION_SETTINGS: &[SettingDescriptor] = &[
+    SettingDescriptor {
+        key: "ir",
+        contract: SettingContract::AssetReference,
+    },
+    continuous("mix", Unit::Ratio, 0.0, 1.0, 0.25),
+    continuous("pre_delay", Unit::Seconds, 0.0, 1.0, 0.0),
+    continuous("level", Unit::Decibels, -96.0, 24.0, 0.0),
+    structural_numeric("low_cut", Unit::Hertz, 0.0, 23_520.0, 0.0),
+    structural_numeric("high_cut", Unit::Hertz, 0.0, 23_520.0, 0.0),
+    continuous("width", Unit::Ratio, 0.0, 1.0, 1.0),
+];
+
 const REVERB_SETTINGS: &[SettingDescriptor] = &[
     continuous("pre_delay", Unit::Seconds, 0.0, 1.0, 0.0),
     continuous("diffusion", Unit::Ratio, 0.0, 1.0, 0.7),
@@ -300,6 +315,7 @@ pub(crate) const fn descriptors(kind: ProcessorKind) -> &'static [SettingDescrip
         ProcessorKind::Gate => GATE_SETTINGS,
         ProcessorKind::Delay => DELAY_SETTINGS,
         ProcessorKind::Reverb => REVERB_SETTINGS,
+        ProcessorKind::Convolution => CONVOLUTION_SETTINGS,
         ProcessorKind::Saturation => SATURATION_SETTINGS,
         ProcessorKind::ModulationDelay => MODULATION_DELAY_SETTINGS,
         ProcessorKind::Crusher => CRUSHER_SETTINGS,
@@ -367,6 +383,10 @@ impl ProcessorSettingError {
                 "processor `{}` `{key}` must be within {minimum}..={maximum} {unit:?}",
                 processor.id
             ),
+            Self::Conflict(ProcessorSettingConflict::MissingImpulseResponse) => format!(
+                "convolution `{}` requires setting `ir` with a Media Asset ID",
+                processor.id
+            ),
             Self::Conflict(ProcessorSettingConflict::DelayTimeWithTempoSync) => format!(
                 "delay `{}` cannot author `time` while tempo sync is enabled",
                 processor.id
@@ -412,6 +432,7 @@ impl std::error::Error for ProcessorSettingError {}
 /// A relationship violation between otherwise valid authored settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProcessorSettingConflict {
+    MissingImpulseResponse,
     DelayTimeWithTempoSync,
     DelayDivisionWithoutTempoSync,
 }
@@ -420,6 +441,7 @@ impl ProcessorSettingConflict {
     /// The setting whose source value receives the diagnostic.
     pub(crate) const fn key(self) -> &'static str {
         match self {
+            Self::MissingImpulseResponse => "ir",
             Self::DelayTimeWithTempoSync => "time",
             Self::DelayDivisionWithoutTempoSync => "division",
         }
@@ -429,6 +451,7 @@ impl ProcessorSettingConflict {
 impl fmt::Display for ProcessorSettingConflict {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
+            Self::MissingImpulseResponse => "requires setting `ir` with a Media Asset ID",
             Self::DelayTimeWithTempoSync => "cannot author `time` while tempo sync is enabled",
             Self::DelayDivisionWithoutTempoSync => {
                 "cannot author `division` unless tempo sync is enabled"
@@ -515,12 +538,15 @@ pub(crate) fn validate_authored_setting(
                 key: key.to_owned(),
                 literal: literal.to_owned(),
             }),
-        SettingContract::Choice { .. } | SettingContract::DelayDivision { .. } => {
-            Err(ProcessorSettingError::Unsupported {
-                key: key.to_owned(),
-                literal: literal.to_owned(),
-            })
+        SettingContract::AssetReference if crate::validate::valid_id(literal) => {
+            Ok(ResolvedSettingValue::Choice(literal.to_owned()))
         }
+        SettingContract::AssetReference
+        | SettingContract::Choice { .. }
+        | SettingContract::DelayDivision { .. } => Err(ProcessorSettingError::Unsupported {
+            key: key.to_owned(),
+            literal: literal.to_owned(),
+        }),
     }
 }
 
@@ -540,6 +566,9 @@ pub(crate) fn has_setting(processor: &Processor, key: &str) -> bool {
 
 /// Returns every relationship violation in deterministic diagnostic order.
 pub(crate) fn validate_relationships(processor: &Processor) -> Vec<ProcessorSettingConflict> {
+    if processor.kind == ProcessorKind::Convolution && !has_setting(processor, "ir") {
+        return vec![ProcessorSettingConflict::MissingImpulseResponse];
+    }
     if processor.kind != ProcessorKind::Delay {
         return Vec::new();
     }
@@ -613,6 +642,7 @@ impl ResolvedProcessorSettings {
 
 fn default_value(contract: SettingContract) -> ResolvedSettingValue {
     match contract {
+        SettingContract::AssetReference => unreachable!("required asset reference"),
         SettingContract::Continuous { default, .. }
         | SettingContract::StructuralNumeric { default, .. } => {
             ResolvedSettingValue::Numeric(default)
@@ -770,6 +800,11 @@ pub(crate) fn resolve_settings(
                 push_descriptor(&mut resolved, processor, key)?;
             }
         }
+        ProcessorKind::Convolution => {
+            for descriptor in CONVOLUTION_SETTINGS {
+                push_descriptor(&mut resolved, processor, descriptor.key)?;
+            }
+        }
         ProcessorKind::Reverb => {
             for key in [
                 "pre_delay",
@@ -902,6 +937,7 @@ mod tests {
             ProcessorKind::Gate,
             ProcessorKind::Delay,
             ProcessorKind::Reverb,
+            ProcessorKind::Convolution,
             ProcessorKind::Saturation,
             ProcessorKind::ModulationDelay,
             ProcessorKind::Crusher,
@@ -943,6 +979,9 @@ mod tests {
                                 validate_authored_setting(kind, descriptor.key, choice).is_ok()
                             );
                         }
+                    }
+                    SettingContract::AssetReference => {
+                        assert!(validate_authored_setting(kind, descriptor.key, "hall_ir").is_ok());
                     }
                     SettingContract::DelayDivision { default } => {
                         assert!(validate_authored_setting(kind, descriptor.key, default).is_ok())

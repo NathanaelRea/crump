@@ -40,6 +40,8 @@ No page grants hidden Agent authority. Human and Agent work both produce ordinar
 | 48 Split Delays | complementary filtered Returns | [page](recipes/48-split-delays.md) | [`fixtures/cookbook/48-split-delays`](../../fixtures/cookbook/48-split-delays/) |
 | 84 Club Toilet | Master EQ and Reverb | [page](recipes/84-club-toilet.md) | [`fixtures/cookbook/84-club-toilet`](../../fixtures/cookbook/84-club-toilet/) |
 
+The [convolution hall recipe](recipes/convolution-hall.md) shows how to reuse a WAV impulse response on a filtered Return.
+
 Fixtures are short runnable examples. They validate, compile, render deterministically, and exercise current source syntax. Tests publish only disposable copies; checked-in fixture directories contain no History state.
 
 ## Reuse boundary

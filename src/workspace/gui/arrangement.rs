@@ -680,6 +680,20 @@ fn track_header(
         }
         if led_button(
             ui,
+            "F",
+            track.frozen,
+            theme::SIG_NOMINAL,
+            Vec2::new(19.0, 17.0),
+            "Track Freeze (authored)",
+        )
+        .clicked()
+        {
+            cx.send(Action::ToggleTrackFreeze {
+                track: track.id.clone(),
+            });
+        }
+        if led_button(
+            ui,
             "A",
             is_armed,
             theme::SIG_NOMINAL,

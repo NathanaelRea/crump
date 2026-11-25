@@ -68,7 +68,7 @@ fn maximum_profile_is_admitted_deterministic_grouping_independent_and_rebuildabl
         57_458
     );
     // Publication state is compiled into every build, so the size no longer depends on PipeWire.
-    let expected_runtime_bytes = 1_727_000;
+    let expected_runtime_bytes = 1_736_104;
     assert_eq!(resources.runtime_bytes, expected_runtime_bytes);
     assert_eq!(
         resources.publication_peak_bytes,

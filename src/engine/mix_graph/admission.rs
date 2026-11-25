@@ -13,6 +13,118 @@ pub const MAX_WORK_UNITS_PER_FRAME: u64 = 65_536;
 /// Maximum shared processor instances with fixed-capacity callback telemetry.
 pub const MAX_PROCESSOR_INSTANCES: usize = 512;
 
+/// Which runtime a Project is being admitted for.
+///
+/// Live playback runs inside a realtime callback and overlaps an old and a replacement runtime
+/// during publication, so it is held to the per-frame work budget and to two resident runtimes.
+/// Offline processing (render and bounce) never swaps runtimes and has no deadline: it keeps every
+/// structural capacity and the memory budget for one runtime, but no per-frame work budget.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AdmissionProfile {
+    /// Realtime playback with guarded publication transitions.
+    Live,
+    /// Offline render and bounce.
+    Offline,
+}
+
+impl AdmissionProfile {
+    /// Human-readable name used in diagnostics.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Live => "live playback",
+            Self::Offline => "offline render",
+        }
+    }
+}
+
+/// One named runtime limit.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AdmissionLimit {
+    /// Timeline Tracks.
+    Tracks,
+    /// Tracks, Groups, Returns, and Master.
+    Channels,
+    /// Shared processor instances.
+    Processors,
+    /// Graph voice-pool instances.
+    GraphVoices,
+    /// Dense effective Parameter targets.
+    ControlTargets,
+    /// Resident runtime bytes.
+    RuntimeBytes,
+    /// Abstract callback work per frame.
+    WorkUnitsPerFrame,
+}
+
+impl AdmissionLimit {
+    /// Stable diagnostic name.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Tracks => "tracks",
+            Self::Channels => "mix channels",
+            Self::Processors => "processors",
+            Self::GraphVoices => "graph voices",
+            Self::ControlTargets => "control targets",
+            Self::RuntimeBytes => "runtime bytes",
+            Self::WorkUnitsPerFrame => "work units/frame",
+        }
+    }
+
+    /// What an author can change to fit this limit.
+    #[must_use]
+    pub const fn help(self) -> &'static str {
+        match self {
+            Self::Tracks | Self::Channels => "reduce Tracks, Groups, or Returns",
+            Self::Processors => "reduce processors or Instrument post-chains used by many Tracks",
+            Self::GraphVoices => "reduce Instrument polyphony or the Tracks that use it",
+            Self::ControlTargets => "reduce exposed Parameters, Automation, or Modulation targets",
+            Self::RuntimeBytes => {
+                "reduce referenced sample duration, polyphony, delay or reverb state, or Track count"
+            }
+            Self::WorkUnitsPerFrame => {
+                "lower polyphony on lines that need few voices, simplify graphs, or render offline"
+            }
+        }
+    }
+}
+
+/// One limit a Project exceeds under an [`AdmissionProfile`].
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AdmissionFailure {
+    /// Exceeded limit.
+    pub limit: AdmissionLimit,
+    /// Estimated value compared against the budget.
+    pub actual: u64,
+    /// Named budget.
+    pub budget: u64,
+}
+
+impl std::fmt::Display for AdmissionFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "{} {} (budget {})",
+            self.actual,
+            self.limit.label(),
+            self.budget
+        )
+    }
+}
+
+/// Formats failures as one sentence fragment, for example `140000 work units/frame (budget 65536)`.
+#[must_use]
+pub fn describe_admission_failures(failures: &[AdmissionFailure]) -> String {
+    failures
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 fn publication_transition_work_units(
     steady_state: u64,
     tracks: usize,
@@ -87,6 +199,12 @@ pub struct RuntimeResourceEstimate {
     pub schedule_program_bytes: u64,
     /// Arc-shared immutable graph programs used by runtime Tracks.
     pub instrument_program_bytes: u64,
+    /// Resident stereo audio for frozen Tracks.
+    #[serde(default)]
+    pub frozen_audio_bytes: u64,
+    /// Tracks whose source is one cached stereo lookup per frame.
+    #[serde(default)]
+    pub frozen_tracks: u64,
     /// Mutable mix-runtime container allocations not represented by DSP state.
     pub runtime_structure_bytes: u64,
     /// Complete Song-runtime structure and mutable control/Track container backing.
@@ -101,13 +219,38 @@ pub struct RuntimeResourceEstimate {
     pub publication_budget_bytes: u64,
     /// Named abstract callback work budget.
     pub work_budget_per_frame: u64,
-    /// Whether every named structural, memory, and work budget admits the Project.
+    /// Whether every live-playback structural, memory, and work budget admits the Project.
     pub admitted: bool,
+    /// Whether every offline-render structural and memory budget admits the Project.
+    #[serde(default)]
+    pub offline_admitted: bool,
 }
 
 impl RuntimeResourceEstimate {
     /// Produces a conservative estimate without allocating runtime DSP state.
     pub fn for_project(project: &Project, control_targets: usize) -> Result<Self, EngineError> {
+        Self::for_profile(project, control_targets, AdmissionProfile::Offline)
+    }
+
+    pub(super) fn for_profile(
+        project: &Project,
+        control_targets: usize,
+        profile: AdmissionProfile,
+    ) -> Result<Self, EngineError> {
+        let live = profile == AdmissionProfile::Live;
+        let frozen_count = project
+            .song
+            .tracks
+            .iter()
+            .filter(|track| live && track.frozen)
+            .count() as u64;
+        let frozen_bytes = if frozen_count == 0 {
+            0
+        } else {
+            super::super::freeze::frame_count(project)?
+                .saturating_mul(8)
+                .saturating_mul(frozen_count)
+        };
         let mut graph_voices = 0_u64;
         let mut graph_node_instances = 0_u64;
         let mut shared_graphs = 0_u64;
@@ -120,6 +263,9 @@ impl RuntimeResourceEstimate {
         let mut processor_work = 0_u64;
         let mut processors = 0_usize;
         for track in &project.song.tracks {
+            if live && track.frozen {
+                continue;
+            }
             let instrument = project
                 .song
                 .instruments
@@ -185,7 +331,7 @@ impl RuntimeResourceEstimate {
                     ));
             }
         }
-        for processor in channel_and_master_processors(project) {
+        for processor in channel_and_master_processors_for_profile(project, live) {
             processors = processors.saturating_add(1);
             let (bytes, work) =
                 authored_processor_estimate(processor, project.sample_rate, project.song.tempo_bpm);
@@ -248,13 +394,15 @@ impl RuntimeResourceEstimate {
             .saturating_add(meter_bytes)
             .saturating_add(processor_meter_bytes)
             .saturating_add(compensation_state_bytes)
-            .saturating_add(fixed_runtime_bytes);
+            .saturating_add(fixed_runtime_bytes)
+            .saturating_add(frozen_bytes);
         let publication_peak_bytes =
             runtime_bytes.saturating_mul(MAX_RESIDENT_PUBLICATION_RUNTIMES);
         let work_units_per_frame = graph_node_instances
             .saturating_add((channels as u64).saturating_mul(8))
             .saturating_add((routes as u64).saturating_mul(4))
             .saturating_add(processor_work)
+            .saturating_add(frozen_count)
             .saturating_add(control_targets as u64);
         let publication_transition_work_units_per_frame = publication_transition_work_units(
             work_units_per_frame,
@@ -262,14 +410,7 @@ impl RuntimeResourceEstimate {
             channels,
             control_targets,
         );
-        let admitted = tracks <= MAX_RUNTIME_TRACKS
-            && channels <= MAX_MIX_CHANNELS
-            && processors <= MAX_PROCESSOR_INSTANCES
-            && graph_voices <= u64::from(MAX_GRAPH_VOICES)
-            && control_targets <= MAX_CONTROL_TARGETS
-            && publication_peak_bytes <= MAX_PUBLICATION_RUNTIME_BYTES
-            && publication_transition_work_units_per_frame <= MAX_WORK_UNITS_PER_FRAME;
-        Ok(Self {
+        let mut estimate = Self {
             sample_rate: project.sample_rate,
             supported_quanta: SUPPORTED_QUANTA,
             tracks,
@@ -298,6 +439,8 @@ impl RuntimeResourceEstimate {
             control_program_bytes: 0,
             schedule_program_bytes: 0,
             instrument_program_bytes: 0,
+            frozen_audio_bytes: frozen_bytes,
+            frozen_tracks: frozen_count,
             runtime_structure_bytes: fixed_runtime_bytes,
             song_runtime_structure_bytes: 0,
             runtime_bytes,
@@ -305,8 +448,87 @@ impl RuntimeResourceEstimate {
             publication_peak_bytes,
             publication_budget_bytes: MAX_PUBLICATION_RUNTIME_BYTES,
             work_budget_per_frame: MAX_WORK_UNITS_PER_FRAME,
-            admitted,
-        })
+            admitted: false,
+            offline_admitted: false,
+        };
+        estimate.refresh_admission();
+        Ok(estimate)
+    }
+
+    /// Every limit this estimate exceeds under `profile`, in a stable order.
+    #[must_use]
+    pub fn admission_failures(&self, profile: AdmissionProfile) -> Vec<AdmissionFailure> {
+        let mut failures = Vec::new();
+        let mut check = |limit, actual: u64, budget: u64| {
+            if actual > budget {
+                failures.push(AdmissionFailure {
+                    limit,
+                    actual,
+                    budget,
+                });
+            }
+        };
+        check(
+            AdmissionLimit::Tracks,
+            self.tracks as u64,
+            MAX_RUNTIME_TRACKS as u64,
+        );
+        check(
+            AdmissionLimit::Channels,
+            self.channels as u64,
+            MAX_MIX_CHANNELS as u64,
+        );
+        check(
+            AdmissionLimit::Processors,
+            self.processors as u64,
+            MAX_PROCESSOR_INSTANCES as u64,
+        );
+        check(
+            AdmissionLimit::GraphVoices,
+            self.graph_voices,
+            u64::from(MAX_GRAPH_VOICES),
+        );
+        check(
+            AdmissionLimit::ControlTargets,
+            self.control_targets as u64,
+            MAX_CONTROL_TARGETS as u64,
+        );
+        match profile {
+            AdmissionProfile::Live => {
+                check(
+                    AdmissionLimit::RuntimeBytes,
+                    self.publication_peak_bytes,
+                    self.publication_budget_bytes,
+                );
+                check(
+                    AdmissionLimit::WorkUnitsPerFrame,
+                    self.publication_transition_work_units_per_frame,
+                    self.work_budget_per_frame,
+                );
+            }
+            AdmissionProfile::Offline => check(
+                AdmissionLimit::RuntimeBytes,
+                self.runtime_bytes,
+                self.publication_budget_bytes,
+            ),
+        }
+        failures
+    }
+
+    /// Whether every limit for `profile` admits the Project.
+    #[must_use]
+    pub fn admits(&self, profile: AdmissionProfile) -> bool {
+        match profile {
+            AdmissionProfile::Live => self.admitted,
+            AdmissionProfile::Offline => self.offline_admitted,
+        }
+    }
+
+    fn refresh_admission(&mut self) {
+        self.admitted = self.admission_failures(AdmissionProfile::Live).is_empty();
+        self.offline_admitted = self
+            .admission_failures(AdmissionProfile::Offline)
+            .is_empty();
     }
 
     pub(super) fn include_compiled_state(&mut self, program: &CompiledMixProgram) {
@@ -340,7 +562,8 @@ impl RuntimeResourceEstimate {
                     .map(|processor| processor.program.work_units())
                     .fold(0_u64, u64::saturating_add),
             )
-            .saturating_add(self.control_targets as u64);
+            .saturating_add(self.control_targets as u64)
+            .saturating_add(self.frozen_tracks);
         self.compiled_program_bytes = program.allocation_bytes();
         self.runtime_structure_bytes = program.runtime_structure_bytes();
         self.recalculate_memory_and_admission();
@@ -387,6 +610,7 @@ impl RuntimeResourceEstimate {
             .saturating_add(self.control_program_bytes)
             .saturating_add(self.schedule_program_bytes)
             .saturating_add(self.instrument_program_bytes)
+            .saturating_add(self.frozen_audio_bytes)
             .saturating_add(self.runtime_structure_bytes)
             .saturating_add(self.song_runtime_structure_bytes);
         self.publication_peak_bytes = self
@@ -398,23 +622,25 @@ impl RuntimeResourceEstimate {
             self.channels,
             self.control_targets,
         );
-        self.admitted = self.tracks <= MAX_RUNTIME_TRACKS
-            && self.channels <= MAX_MIX_CHANNELS
-            && self.processors <= MAX_PROCESSOR_INSTANCES
-            && self.graph_voices <= u64::from(MAX_GRAPH_VOICES)
-            && self.control_targets <= MAX_CONTROL_TARGETS
-            && self.publication_peak_bytes <= self.publication_budget_bytes
-            && self.publication_transition_work_units_per_frame <= self.work_budget_per_frame;
+        self.refresh_admission();
     }
 }
 
-pub(super) fn channel_and_master_processors(
+pub(in crate::engine) fn channel_and_master_processors(
     project: &Project,
+) -> impl Iterator<Item = &crate::model::Processor> {
+    channel_and_master_processors_for_profile(project, false)
+}
+
+fn channel_and_master_processors_for_profile(
+    project: &Project,
+    live: bool,
 ) -> impl Iterator<Item = &crate::model::Processor> {
     project
         .song
         .tracks
         .iter()
+        .filter(move |track| !(live && track.frozen))
         .flat_map(|track| &track.channel.inserts)
         .chain(
             project

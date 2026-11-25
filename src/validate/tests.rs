@@ -823,7 +823,7 @@ fn rejects_fixed_processor_telemetry_capacity_before_runtime_allocation() {
         .find(|diagnostic| diagnostic.code == "CRV092")
         .cloned()
         .expect("processor telemetry capacity diagnostic");
-    assert!(diagnostic.message.contains("fixed telemetry capacity"));
+    assert!(diagnostic.message.contains("processors"));
 }
 
 #[test]
@@ -885,8 +885,7 @@ fn repeated_instrument_post_chains_count_as_runtime_processor_instances() {
             .as_slice()
             .iter()
             .any(|diagnostic| {
-                diagnostic.code == "CRV092"
-                    && diagnostic.message.contains("fixed telemetry capacity")
+                diagnostic.code == "CRV092" && diagnostic.message.contains("processors")
             })
     );
 }
@@ -927,11 +926,11 @@ fn graph_voice_effect_state_survives_compiled_resource_recalculation() {
         .find(|diagnostic| diagnostic.code == "CRV092")
         .cloned()
         .unwrap_or_else(|| panic!("graph voice state budget diagnostic: {diagnostics:?}"));
-    assert!(diagnostic.message.contains("bytes at publication"));
+    assert!(diagnostic.message.contains("runtime bytes"));
 }
 
 #[test]
-fn rejects_named_mix_runtime_budget_before_allocation() {
+fn warns_about_live_mix_runtime_memory_before_allocation() {
     let processors = (0..360)
         .map(|index| {
             format!("      processor delay_{index} delay {{\n        setting time 1s\n      }}\n")
@@ -951,10 +950,10 @@ fn rejects_named_mix_runtime_budget_before_allocation() {
     let diagnostic = diagnostics
         .as_slice()
         .iter()
-        .find(|diagnostic| diagnostic.code == "CRV092")
+        .find(|diagnostic| diagnostic.code == "CRV093")
         .expect("named runtime budget diagnostic");
-    assert!(diagnostic.message.contains("bytes at publication"));
-    assert!(diagnostic.message.contains("budget"));
+    assert!(diagnostic.message.contains("runtime bytes"));
+    assert!(!diagnostics.has_errors());
 }
 
 #[test]
@@ -1018,4 +1017,113 @@ fn follower_and_stutter_contracts_reject_ambiguous_bounds() {
     assert!(diagnostics.as_slice().iter().any(|diagnostic| {
         diagnostic.code == "CRV092" && diagnostic.message.contains("interval must be at least")
     }));
+}
+
+#[test]
+fn validates_acoustic_profile_invalid_id_and_conflicts_separately() {
+    let base_body = crate::acoustics::Profile {
+        version: crate::acoustics::PROFILE_VERSION,
+        root_hz: 261.625_565,
+        modes: vec![crate::acoustics::Mode {
+            frequency_hz: 1329.0,
+            decay_seconds: 0.018,
+            gain: 0.8,
+            after_decay_seconds: 0.04,
+            after_gain: 0.08,
+        }],
+    };
+    let mut other_body = base_body.clone();
+    other_body.modes[0].frequency_hz = 1430.0;
+
+    let location = |file: &str, line: usize| SourceLocation {
+        file: file.into(),
+        start: 0,
+        end: 0,
+        line,
+        column: 1,
+    };
+
+    // Invalid ID gets its own clear CRV210 message separate from conflicts.
+    let mut project = parse_project(Path::new("project.crump"), VALID)
+        .project
+        .expect("Project");
+    project.acoustic_profiles = vec![crate::model::AcousticProfile {
+        id: "123-invalid".to_owned(),
+        body: base_body.clone(),
+        location: location("bad.crump", 4),
+    }];
+    let diagnostics = validate_project(&project);
+    let invalid = diagnostics
+        .as_slice()
+        .iter()
+        .find(|diagnostic| diagnostic.code == "CRV210")
+        .expect("expected CRV210 for invalid profile ID");
+    assert!(
+        invalid.message.contains("123-invalid") && invalid.message.contains("invalid"),
+        "unexpected invalid-ID message: {}",
+        invalid.message
+    );
+    assert!(!invalid.message.contains("conflicting"));
+
+    // Conflicting bodies across files report both file:line:column locations and rename help.
+    project.acoustic_profiles = vec![
+        crate::model::AcousticProfile {
+            id: "cello-body".to_owned(),
+            body: base_body.clone(),
+            location: location("instruments/cello.crump", 85),
+        },
+        crate::model::AcousticProfile {
+            id: "cello-body".to_owned(),
+            body: other_body,
+            location: location("instruments/cello-legato.crump", 92),
+        },
+    ];
+    let diagnostics = validate_project(&project);
+    let conflict = diagnostics
+        .as_slice()
+        .iter()
+        .find(|diagnostic| diagnostic.code == "CRV210")
+        .expect("expected CRV210 for conflicting profiles");
+    assert!(
+        conflict.message.contains("instruments/cello.crump:85:1")
+            && conflict
+                .message
+                .contains("instruments/cello-legato.crump:92:1"),
+        "expected both conflicting locations: {}",
+        conflict.message
+    );
+    assert!(
+        conflict
+            .help
+            .as_deref()
+            .is_some_and(|help| help.contains("rename")),
+        "expected rename suggestion in help: {:?}",
+        conflict.help
+    );
+
+    // Same-file identical duplicates are rejected with both locations.
+    project.acoustic_profiles = vec![
+        crate::model::AcousticProfile {
+            id: "cello-body".to_owned(),
+            body: base_body.clone(),
+            location: location("instruments/cello.crump", 85),
+        },
+        crate::model::AcousticProfile {
+            id: "cello-body".to_owned(),
+            body: base_body,
+            location: location("instruments/cello.crump", 110),
+        },
+    ];
+    let diagnostics = validate_project(&project);
+    let same_file = diagnostics
+        .as_slice()
+        .iter()
+        .find(|diagnostic| diagnostic.code == "CRV210")
+        .expect("expected CRV210 for same-file duplicate");
+    assert!(
+        same_file.message.contains("instruments/cello.crump:85:1")
+            && same_file.message.contains("instruments/cello.crump:110:1"),
+        "expected both locations in same-file duplicate: {}",
+        same_file.message
+    );
 }

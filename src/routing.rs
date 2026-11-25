@@ -69,7 +69,7 @@ impl ChannelIdentity {
         }
     }
 
-    fn from_ref(reference: &ChannelRef) -> Self {
+    pub(crate) fn from_ref(reference: &ChannelRef) -> Self {
         match reference {
             ChannelRef::Track(id) => Self::Track(id.clone()),
             ChannelRef::Group(id) => Self::Group(id.clone()),

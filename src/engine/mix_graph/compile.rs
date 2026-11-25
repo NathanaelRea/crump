@@ -5,6 +5,8 @@ use super::*;
 pub struct CompiledMixGraph {
     pub(super) program: Arc<CompiledMixProgram>,
     pub(super) inspection: MixGraphInspection,
+    /// Profile enforced while compiling, or `None` for estimate-only compilation.
+    pub(super) admission: Option<AdmissionProfile>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,14 +47,39 @@ impl CompiledMixGraph {
         controls: &CompiledControlProgram,
     ) -> Result<Self, EngineError> {
         let topology = AuthoredTopology::compile(project);
-        Self::compile_with_topology(project, controls, &topology, true)
+        Self::compile_with_topology(
+            project,
+            controls,
+            &topology,
+            Some(AdmissionProfile::Live),
+            ProcessorAssets::Unloaded,
+        )
     }
 
     pub(crate) fn compile_with_topology(
         project: &Project,
         controls: &CompiledControlProgram,
         topology: &AuthoredTopology,
-        enforce_admission: bool,
+        admission: Option<AdmissionProfile>,
+        assets: ProcessorAssets<'_>,
+    ) -> Result<Self, EngineError> {
+        Self::compile_mix(
+            project,
+            controls,
+            topology,
+            admission,
+            assets,
+            admission.unwrap_or(AdmissionProfile::Offline),
+        )
+    }
+
+    fn compile_mix(
+        project: &Project,
+        controls: &CompiledControlProgram,
+        topology: &AuthoredTopology,
+        admission: Option<AdmissionProfile>,
+        assets: ProcessorAssets<'_>,
+        profile: AdmissionProfile,
     ) -> Result<Self, EngineError> {
         if let Some(finding) = topology.findings().first() {
             return Err(EngineError::Compile(routing_finding_message(&finding.kind)));
@@ -84,6 +111,7 @@ impl CompiledMixGraph {
                 project.song.tempo_bpm,
                 &processor_indexes,
                 &mut processor_inspection,
+                assets,
             )?;
             let inserts = compile_processor_chain(
                 &track.channel.inserts,
@@ -93,6 +121,7 @@ impl CompiledMixGraph {
                 project.song.tempo_bpm,
                 &processor_indexes,
                 &mut processor_inspection,
+                assets,
             )?;
             drafts.insert(
                 identity.clone(),
@@ -137,6 +166,7 @@ impl CompiledMixGraph {
                 project.song.tempo_bpm,
                 &processor_indexes,
                 &mut processor_inspection,
+                assets,
             )?;
             drafts.insert(
                 identity.clone(),
@@ -181,6 +211,7 @@ impl CompiledMixGraph {
                 project.song.tempo_bpm,
                 &processor_indexes,
                 &mut processor_inspection,
+                assets,
             )?;
             drafts.insert(
                 identity.clone(),
@@ -224,6 +255,7 @@ impl CompiledMixGraph {
                 project.song.tempo_bpm,
                 &processor_indexes,
                 &mut processor_inspection,
+                assets,
             )?
         } else {
             Vec::new()
@@ -382,6 +414,27 @@ impl CompiledMixGraph {
             });
         }
         compile_latency(&mut channels, &mut routes)?;
+        if profile == AdmissionProfile::Live {
+            let frozen = project
+                .song
+                .tracks
+                .iter()
+                .filter(|track| track.frozen)
+                .map(|track| format!("track/{}", track.id))
+                .collect::<BTreeSet<_>>();
+            for channel in &mut channels {
+                if frozen.contains(&channel.identity) {
+                    channel.source_processors = Vec::new();
+                    channel.inserts = Vec::new();
+                    channel.source_compensation_frames = 0;
+                }
+            }
+            for route in &mut routes {
+                if frozen.contains(&channels[route.owner].identity) {
+                    route.compensation_frames = 0;
+                }
+            }
+        }
         let track_count = project.song.tracks.len();
         let mut track_channels = vec![0_usize; track_count];
         for (index, channel) in channels.iter().enumerate() {
@@ -401,16 +454,11 @@ impl CompiledMixGraph {
             auxiliary_slots,
             solo_masks,
         });
-        let mut resources = RuntimeResourceEstimate::for_project(project, controls.target_count())?;
+        let mut resources =
+            RuntimeResourceEstimate::for_profile(project, controls.target_count(), profile)?;
         resources.include_compiled_state(&program);
-        if enforce_admission && !resources.admitted {
-            return Err(EngineError::Compile(format!(
-                "runtime resource estimate exceeds a named budget: {} bytes peak (budget {}), {} work units/frame (budget {})",
-                resources.publication_peak_bytes,
-                resources.publication_budget_bytes,
-                resources.work_units_per_frame,
-                resources.work_budget_per_frame
-            )));
+        if let Some(profile) = admission {
+            enforce_admission(&resources, profile)?;
         }
         let inspection = compile_inspection(
             &program.channels,
@@ -422,16 +470,40 @@ impl CompiledMixGraph {
         Ok(Self {
             program,
             inspection,
+            admission,
         })
     }
 
+    #[cfg(test)]
     pub(crate) fn resource_estimate_for_validation(
         project: &Project,
         topology: &AuthoredTopology,
     ) -> Result<RuntimeResourceEstimate, EngineError> {
+        Self::resource_estimate_with_processor_assets(
+            project,
+            topology,
+            ProcessorAssets::Unloaded,
+            AdmissionProfile::Offline,
+        )
+    }
+
+    pub(crate) fn resource_estimate_with_processor_assets(
+        project: &Project,
+        topology: &AuthoredTopology,
+        assets: ProcessorAssets<'_>,
+        profile: AdmissionProfile,
+    ) -> Result<RuntimeResourceEstimate, EngineError> {
         let schedules = compile_schedules(project)?;
         let controls = CompiledControlProgram::compile(project)?;
-        let mut graph = Self::compile_with_topology(project, &controls, topology, false)?;
+        let mut graph = Self::compile_mix(project, &controls, topology, None, assets, profile)?;
+        let is_frozen = |id: &str| {
+            profile == AdmissionProfile::Live
+                && project
+                    .song
+                    .tracks
+                    .iter()
+                    .any(|track| track.id == id && track.frozen)
+        };
         let envelope_followers = super::super::follower::CompiledEnvelopeFollowerProgram::compile(
             project,
             &controls,
@@ -450,6 +522,9 @@ impl CompiledMixGraph {
             .fold(0_u64, u64::saturating_add);
         let mut instrument_program_bytes = 0_u64;
         for schedule in &schedules {
+            if is_frozen(&schedule.track_id) {
+                continue;
+            }
             let instrument = instruments
                 .get(schedule.instrument_id.as_str())
                 .ok_or_else(|| {
@@ -475,6 +550,7 @@ impl CompiledMixGraph {
         }
         let graph_track_count = schedules
             .iter()
+            .filter(|schedule| !is_frozen(&schedule.track_id))
             .filter(|schedule| {
                 instruments
                     .get(schedule.instrument_id.as_str())
@@ -503,6 +579,7 @@ impl CompiledMixGraph {
         );
         let voicing_work_units_per_frame = schedules
             .iter()
+            .filter(|schedule| !is_frozen(&schedule.track_id))
             .filter_map(|schedule| instruments.get(schedule.instrument_id.as_str()))
             .filter(|instrument| {
                 instrument.kind == InstrumentKind::Graph
@@ -519,6 +596,13 @@ impl CompiledMixGraph {
         Ok(graph.inspection.resources)
     }
 
+    fn enforce_admission(&self) -> Result<(), EngineError> {
+        match self.admission {
+            Some(profile) => enforce_admission(&self.inspection.resources, profile),
+            None => Ok(()),
+        }
+    }
+
     pub(crate) fn include_additional_callback_work(
         &mut self,
         work_units_per_frame: u64,
@@ -526,14 +610,7 @@ impl CompiledMixGraph {
         self.inspection
             .resources
             .include_additional_callback_work(work_units_per_frame);
-        if !self.inspection.resources.admitted {
-            return Err(EngineError::Compile(format!(
-                "runtime callback work exceeds the named budget: {} work units/frame (budget {})",
-                self.inspection.resources.work_units_per_frame,
-                self.inspection.resources.work_budget_per_frame
-            )));
-        }
-        Ok(())
+        self.enforce_admission()
     }
 
     pub(crate) fn include_song_runtime_state(
@@ -549,17 +626,7 @@ impl CompiledMixGraph {
             instrument_program_bytes,
             song_runtime_structure_bytes,
         );
-        let resources = &self.inspection.resources;
-        if !resources.admitted {
-            return Err(EngineError::Compile(format!(
-                "runtime resource estimate exceeds a named budget: {} bytes peak (budget {}), {} work units/frame (budget {})",
-                resources.publication_peak_bytes,
-                resources.publication_budget_bytes,
-                resources.work_units_per_frame,
-                resources.work_budget_per_frame
-            )));
-        }
-        Ok(())
+        self.enforce_admission()
     }
 
     /// Creates fully allocated mutable state for one playback/render runtime.
@@ -670,4 +737,20 @@ fn routing_finding_message(finding: &RoutingFindingKind) -> String {
         }
         RoutingFindingKind::Cycle => "compiled channel graph contains a route cycle".to_owned(),
     }
+}
+
+/// Rejects an estimate that exceeds any limit of `profile`, naming each failed limit.
+pub(super) fn enforce_admission(
+    resources: &RuntimeResourceEstimate,
+    profile: AdmissionProfile,
+) -> Result<(), EngineError> {
+    let failures = resources.admission_failures(profile);
+    if failures.is_empty() {
+        return Ok(());
+    }
+    Err(EngineError::Compile(format!(
+        "Project exceeds the {} budget: {}",
+        profile.label(),
+        describe_admission_failures(&failures)
+    )))
 }

@@ -754,7 +754,7 @@ fn independent_granular_and_spectral_maxima_hit_caps_and_admission_boundary() {
     let rejection = validate_project(&rejected);
     assert!(
         rejection.as_slice().iter().any(|diagnostic| {
-            diagnostic.code == "CRV092" && diagnostic.message.contains("work units/frame")
+            diagnostic.code == "CRV093" && diagnostic.message.contains("work units/frame")
         }),
         "unexpected rejection: {rejection:?}"
     );

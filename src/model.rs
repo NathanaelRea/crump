@@ -18,6 +18,49 @@ pub const LATEST_SOURCE_VERSION: u32 = SOURCE_VERSION_V2;
 /// Backward-compatible name for the original source-language version.
 pub const SOURCE_VERSION: u32 = SOURCE_VERSION_V1;
 
+/// How the explicit Render Tail is combined with the arrangement during offline rendering.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RenderTailPolicy {
+    /// Keep the tail appended after the arrangement end (`frame_count = arrangement + tail`).
+    #[default]
+    Append,
+    /// Fold frames after the arrangement end back onto frame 0 onward for a seamless loop
+    /// (`frame_count = arrangement`).
+    Wrap,
+}
+
+impl RenderTailPolicy {
+    /// Canonical source and manifest keyword for this policy.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Append => "append",
+            Self::Wrap => "wrap",
+        }
+    }
+}
+
+impl fmt::Display for RenderTailPolicy {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for RenderTailPolicy {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "append" => Ok(Self::Append),
+            "wrap" => Ok(Self::Wrap),
+            other => Err(format!(
+                "unknown render_tail policy `{other}`; expected `append` or `wrap`"
+            )),
+        }
+    }
+}
+
 /// A fully parsed Project candidate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
@@ -33,6 +76,9 @@ pub struct Project {
     pub sample_rate: u32,
     /// Explicit effect/release tail after the arrangement end.
     pub render_tail_seconds: f64,
+    /// How the explicit Render Tail is combined with the arrangement during offline rendering.
+    #[serde(default)]
+    pub render_tail_policy: RenderTailPolicy,
     /// Portable exact-byte WAV declarations owned by this Project.
     pub assets: Vec<MediaAsset>,
     /// Numerical acoustic profiles imported as authoritative source.
@@ -83,7 +129,7 @@ pub struct MediaAsset {
     pub location: SourceLocation,
 }
 
-/// Declared synthesis role for one Project-owned exact-byte asset.
+/// Declared processing role for one Project-owned exact-byte asset.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum MediaAssetUsage {
@@ -97,6 +143,8 @@ pub enum MediaAssetUsage {
     Granular,
     /// Offline-analyzed spectral source material.
     Spectral,
+    /// WAV impulse response for convolution.
+    ImpulseResponse,
 }
 
 /// Exact source-amplitude policy used before wavetable mip compilation.
@@ -1088,6 +1136,8 @@ pub enum ProcessorKind {
     Gate,
     /// Fractional stereo delay.
     Delay,
+    /// Zero-latency stereo impulse-response convolution.
+    Convolution,
     /// Shared stereo algorithmic reverberator.
     Reverb,
     /// Multi-phase soft saturation/clipper.
@@ -1115,6 +1165,7 @@ impl FromStr for ProcessorKind {
             "gate" | "expander" => Ok(Self::Gate),
             "delay" => Ok(Self::Delay),
             "reverb" => Ok(Self::Reverb),
+            "convolution" => Ok(Self::Convolution),
             "saturation" | "saturator" => Ok(Self::Saturation),
             "modulation_delay" => Ok(Self::ModulationDelay),
             "crusher" => Ok(Self::Crusher),
@@ -3070,6 +3121,11 @@ pub struct Track {
     pub instrument: String,
     /// Fixed channel strip after the instrument post-sum chain.
     pub channel: ChannelStrip,
+    /// Render the pre-fader tap to a disposable cache for live playback.
+    #[serde(default)]
+    pub frozen: bool,
+    /// Source literal for the optional freeze directive.
+    pub freeze_site: Option<ValueSite>,
     /// Timeline Clips.
     pub clips: Vec<Clip>,
     /// Declaration location.

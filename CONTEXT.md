@@ -68,6 +68,13 @@ The most recent valid project revision published to the runtime and responsible 
 
 The successful whole-Project validation that records a Candidate Revision in Project History and schedules it for safe runtime publication. Workspace edits publish automatically, and pressing Play in the Desktop Client publishes a valid unpublished Candidate before starting; otherwise an external file edit requires an explicit machine-readable `crump` CLI command, with Agent origin and explanation when applicable.
 
+### Runtime Admission Profile
+
+The limits that apply when compiling a Project. Live admission budgets callback
+work and memory during overlapping runtime publication. Offline admission keeps
+structural limits and budgets the memory of one runtime. Project Publication
+requires Offline admission and warns when Live admission fails.
+
 ### Affected Instrument Restart
 
 The transition for a valid topology change: Crump publishes the new graph with a short protective fade, resets the changed Instrument's voices and effect state, and leaves transport and unchanged Tracks running. The workspace reports the restart; incompatible state is not migrated.
@@ -165,6 +172,13 @@ An arranged occurrence of a pattern on a track, carrying an explicit source ID t
 ### Track
 
 A stable timeline lane with an explicit source ID that survives rename, reorder, reload, and restart. Authored track order controls presentation and navigation only and cannot affect sound. A track's clips emit typed events into an assigned processing chain; overlapping clips contribute additively and their events are merged deterministically without implicit precedence. The exception is Parameter locking: Clips sharing one Instrument cannot overlap when either carries locks, because an absolute lock must never acquire hidden precedence. Tracks do not have fixed MIDI, audio, or instrument kinds; validation determines whether their events and assigned devices are compatible. Groups and Returns are separate routing-only channels, while Buses are explicit typed signal paths rather than channels.
+
+### Track Freeze
+
+An authored Track setting that replaces its Instrument and inserts during
+live playback with a disposable, absolute-frame cache of its pre-fader tap.
+Downstream mixer controls and routing remain live. History records the
+setting as source. Offline render and bounce evaluate the full authored graph.
 
 ### Group
 

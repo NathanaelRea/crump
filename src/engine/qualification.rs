@@ -5,14 +5,11 @@
 
 use std::{
     fs,
-    fs::File,
-    io::Read,
     path::Path,
     time::{Duration, Instant},
 };
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 use crate::project::{ProjectBundle, RevisionId};
 
@@ -251,7 +248,7 @@ fn qualify_compiled_with_timer(
         project_id: runtime.project_id().to_owned(),
         project_revision: bundle.revision.clone(),
         crump_version: env!("CARGO_PKG_VERSION").to_owned(),
-        executable_sha256: hash_file(&std::env::current_exe()?)?,
+        executable_sha256: super::executable::sha256_hex()?,
         host: qualification_host(),
         sample_rate: compiled.sample_rate(),
         requested_quantum_frames: options.quantum_frames,
@@ -397,24 +394,6 @@ fn os_release_identity(source: &str) -> Option<String> {
             None => id,
         },
     )
-}
-
-fn hash_file(path: &Path) -> Result<String, std::io::Error> {
-    let mut file = File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0_u8; 64 * 1_024];
-    loop {
-        let count = file.read(&mut buffer)?;
-        if count == 0 {
-            break;
-        }
-        hasher.update(&buffer[..count]);
-    }
-    Ok(hasher
-        .finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect())
 }
 
 #[cfg(test)]

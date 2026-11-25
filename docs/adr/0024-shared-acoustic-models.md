@@ -6,7 +6,7 @@ Status: accepted.
 
 Crump provides a shared Rust acoustic DSP module and two native graph Nodes, `exciter` and `modal_bank`. Offline rendering adapters use that same DSP. Instruments compose existing graph Nodes and expose physical controls; numerical resonant-body data belongs in versioned Acoustic Profiles.
 
-A `crump-profile 1` file declares one named profile through the existing normalized source import seam. Source-v2 Instrument Modules can embed profiles, and module export includes the bodies an Instrument requires. Profiles participate in revision identity, publication, recovery and History. They contain frequencies, gains and two decay constants per mode, without recorded waveforms, phases or spectral frames.
+A `crump-profile 1` file declares one named profile through the existing normalized source import seam. Source-v2 Instrument Modules can embed profiles, and module export includes the bodies an Instrument requires. Because self-contained modules carry the profiles they depend on, multiple imported sources declaring the same profile ID with semantically identical parsed bodies deduplicate deterministically in import order, while differing bodies fail validation (`CRV210`) naming both source locations. Profiles participate in revision identity, publication, recovery and History. They contain frequencies, gains and two decay constants per mode, without recorded waveforms, phases or spectral frames.
 
 ## Rationale
 

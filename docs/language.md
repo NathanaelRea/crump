@@ -113,8 +113,10 @@ A Project declares:
 | `id` | Stable source-safe Project ID |
 | `seed` | Deterministic unsigned random seed |
 | `sample_rate` | fixed at `48000` |
-| `render_tail` | Explicit finite effect/release tail, at most 30 seconds |
+| `render_tail` | Explicit finite effect/release tail (`render_tail DURATION [append|wrap]`), at most 30 seconds; defaults to `append` |
 | `asset` | Optional portable Project-owned WAV identity, described below; an imported module may also own assets |
+
+`render_tail` accepts an optional tail policy keyword: `append` (default) appends tail frames after Song end; `wrap` renders the full arrangement plus tail and sums every frame past Song end modulo the arrangement length back onto frame 0 onward so seamless loops preserve reverb and delay tails at exact arrangement duration.
 
 ### Portable WAV assets, sampler sources, and wavetables
 
@@ -521,7 +523,7 @@ A graph `lfo` supports sine, triangle, saw, square, sample-and-hold, or a bounde
 
 `unison` owns 1–8 deterministic subvoices, equal-power stereo placement, bounded semitone spread/drift, power normalization, optional envelope gain and velocity response, and bounded Control-port pitch movement. `width 0` collapses placement to a mono-compatible center. Oscillator `glide` is a deterministic note-to-note exponential frequency slew in seconds. Unison subvoice work and the preallocated short graph-voice replacement tail are included in runtime admission. For tempo-synchronized global or per-voice movement, bind these scalar settings to Parameters and use authored Modulation routes rather than inventing callback state. The curated readable modules and their frozen abstract CPU/memory costs are documented in [Expressive native Instrument Modules](expressive-instruments.md).
 
-`exciter` and `modal_bank` compose finite contact gestures and profile-driven resonant bodies. Their numerical data may live in separate imported `crump-profile 1` sources; Instrument Module export includes required profiles. Physical controls latch on note onset. Acoustic graphs and graphs with one-shot sample sources have a 30-second release ceiling with a terminal 50 ms fade; gated graph release limits are unchanged. See [Native acoustic models](native-acoustics.md) for the complete profile grammar, physical domains, admission and tail contracts.
+`exciter` and `modal_bank` compose finite contact gestures and profile-driven resonant bodies. Their numerical data may live in separate imported `crump-profile 1` sources or embedded in `crump-module 2` Instrument Modules; Instrument Module export includes required profiles. Profiles share one Project-wide namespace: multiple imported sources declaring the same profile ID with semantically identical parsed bodies deduplicate deterministically (keeping the first in import order), while differing bodies or same-file duplicates fail with `CRV210` naming both locations. Physical controls latch on note onset. Acoustic graphs and graphs with one-shot sample sources have a 30-second release ceiling with a terminal 50 ms fade; gated graph release limits are unchanged. See [Native acoustic models](native-acoustics.md) for the complete profile grammar, physical domains, admission and tail contracts.
 
 ### Feedback loops
 
@@ -650,6 +652,14 @@ track lead "Lead" instrument lead level -9db pan -0.1 {
 
 `tap pre|post` is accepted shorthand for the explicit `pre_fader|post_fader` model. A Clip references one Pattern, starts on the linear Timeline, has positive duration, and uses `once` or `loop`. `once` traverses a Pattern no more than once; `loop` repeats it until the Clip's half-open end. The optional source offset is Pattern-local and half-open. Whole-semitone transpose, event-excitation gain, left/right fades, and a Groove assignment remain placement-local, so repeated material can share one Pattern while retaining explicit local treatment. Note Offs are clipped safely to the Clip/Song boundary.
 
+Within a Track block, `freeze true` enables Track Freeze for live playback.
+Omit the directive or use `freeze false` to run the Instrument and inserts
+live. The cached tap is taken before level, panner, and Mute. Those controls
+and Sends remain live and automatable. You can still edit a frozen Track's
+Instrument, inserts, or arrangement. The next live preparation rebuilds the
+cache when its inputs change. Offline render and bounce evaluate the authored
+Project in full.
+
 Groups and Returns use the same channel directives; Master owns an ordered processor chain and final level:
 
 ```crump
@@ -673,7 +683,25 @@ locator chorus "Chorus" at 9bar
 
 A Locator is a Song-wide durable ID, human-facing label, and exact time in `0…end`. Locators name navigation and audition boundaries and can be supplied to checked CLI time operands; moving one does not implicitly move Clips or Automation.
 
-Native processor kinds are `utility`, `eq`, `compressor`, `gate`, `delay`, `reverb`, `saturation`, `modulation_delay`, `crusher`, `stutter`, `limiter`, and the testing/compensation `latency` kind. A processor may declare `bypass true|false`, `setting KEY VALUE`, and deterministic `latency FRAMES`; `compressor` and `gate` may each declare at most one `sidechain input NAME`. Omitted bypass is exactly `false`. Durable bypass is a source-backed, automatable step Parameter at `processor/ID/bypass`; a checked edit inserts the directive when absent. It affects playback and rendering identically, switches at the exact authored step frame, preserves complete output latency through an aligned dry path, and continues running wet state silently so tails and detector state survive re-enable. Monitoring-only transient bypass uses the same stable ID and a fixed 64-frame click guard, but is not source or render state. The compressor is linked stereo and feed-forward: `peak` detects the larger absolute channel, `rms` detects the instantaneous stereo RMS, and a deterministic one-pole amplitude envelope applies the authored attack/release before the threshold/ratio/soft-knee curve. An external sidechain replaces program Audio only as the detector source; makeup applies to the compressed wet path before the exact parallel `mix`. Every declared sidechain input requires exactly one route, and every sidechain route targets exactly one declared `processor/ID/INPUT`; disconnected declarations and undeclared destinations are rejected by both validation and compilation.
+Native processor kinds are `utility`, `eq`, `compressor`, `gate`, `delay`, `reverb`, `convolution`, `saturation`, `modulation_delay`, `crusher`, `stutter`, `limiter`, and the testing/compensation `latency` kind. A processor may declare `bypass true|false`, `setting KEY VALUE`, and deterministic `latency FRAMES`; `compressor` and `gate` may each declare at most one `sidechain input NAME`. Omitted bypass is exactly `false`. Durable bypass is a source-backed, automatable step Parameter at `processor/ID/bypass`; a checked edit inserts the directive when absent. It affects playback and rendering identically, switches at the exact authored step frame, preserves complete output latency through an aligned dry path, and continues running wet state silently so tails and detector state survive re-enable. Monitoring-only transient bypass uses the same stable ID and a fixed 64-frame click guard, but is not source or render state. The compressor is linked stereo and feed-forward: `peak` detects the larger absolute channel, `rms` detects the instantaneous stereo RMS, and a deterministic one-pole amplitude envelope applies the authored attack/release before the threshold/ratio/soft-knee curve. An external sidechain replaces program Audio only as the detector source; makeup applies to the compressed wet path before the exact parallel `mix`. Every declared sidechain input requires exactly one route, and every sidechain route targets exactly one declared `processor/ID/INPUT`; disconnected declarations and undeclared destinations are rejected by both validation and compilation.
+
+### Convolution reverb
+
+`convolution` is a native insert for Track, Group, Return, Master, and Instrument post-processing chains. Its required structural `ir` setting references a Project or imported module Media Asset declared with `usage impulse_response`. The asset must be a nonempty mono or stereo WAV of at most 10 seconds after Project-rate conversion. Mono applies the same response independently to both inputs. Stereo applies the left and right responses to their respective inputs. The processor preserves the authored amplitude and sample order at matching rates. Other rates use the Project sample cache's deterministic resampler.
+
+| Setting | Domain | Default | Meaning |
+| --- | --- | --- | --- |
+| `ir` | Media Asset ID | Required | Structural impulse-response reference |
+| `mix` | 0–1 | 0.25 | Linear dry/wet blend |
+| `pre_delay` | 0–1 s | 0 s | Wet-only fractional delay with 10 ms tap crossfades |
+| `level` | −96–24 dB | 0 dB | Post-mix output gain |
+| `low_cut` | 0–23.52 kHz | 0 Hz | Structural one-pole wet high-pass |
+| `high_cut` | 0–23.52 kHz | 0 Hz | Structural one-pole wet low-pass |
+| `width` | 0–1 | 1 | Wet stereo side gain |
+
+Zero disables each cut. Nonzero cut frequencies are capped at 0.49 of the Project rate. Cuts are applied while preparing the kernel and extend it by one second of filter decay. Changes to the IR bytes or cut settings replace the compiled kernel and restart its history. Mix, pre-delay, level, and width are continuous Parameters.
+
+The processor declares zero intrinsic latency. A direct 256-frame head supplies immediate output while fixed-size overlap-add FFT partitions supply the rest. Inspection reports a bounded tail covering the prepared response, FFT overlap, and maximum pre-delay. The authored Project render tail and explicit bounce tail still set the output length. See the [hall Return recipe](cookbook/recipes/convolution-hall.md).
 
 One sidechain-capable `gate` kind covers hard gating and downward expansion:
 
@@ -782,4 +810,4 @@ Arbitrary text editors and Agents may edit source directly. Such bytes remain a 
 
 ## Limits
 
-The validator enforces finite numbers, domains, unique IDs, references, portable asset identities and exact hashes, exact mono wavetable shape and its 32…8,192-sample power-of-two frame / 1…256-frame / 2,097,152-sample interpretation ceilings, at most 256 sample slices or multisample zones with exact asset-frame bounds, at most 64 preallocated grains per granular source, at most two spectral sources per voice with 1–128 peaks each and ordered frequency domains, graph compatibility/reachability, acyclic legal channel routing, Send/sidechain destinations, panner modes, processor schemas and latency, supported sample rate, maximum render tail, maximum Nodes, at most 1,024 media assets within the declared byte ceilings, at most 512 graph voices across actual runtime Track instances, at most 128 Automation lanes, at most 1,024 points per lane, at most 8,192 Automation points per Project, at most 8,192 materialized Parameter-lock points, and at most 1,024 dense callback-time Parameter targets. It also rejects duplicate targets, non-automatable or allocation-changing targets, non-step boolean Automation, ambiguous same-frame points, conflicting lock-bearing Clips, out-of-domain physical values, and Projects exceeding named compiled runtime work/memory budgets before allocation. These are safety and product-scope limits, not invitations to generate at the ceiling. Use `crump check` for the narrower Reference Musical Sketch structural checks.
+The validator enforces finite numbers, domains, unique IDs, references, portable asset identities and exact hashes, exact mono wavetable shape and its 32…8,192-sample power-of-two frame / 1…256-frame / 2,097,152-sample interpretation ceilings, at most 256 sample slices or multisample zones with exact asset-frame bounds, at most 64 preallocated grains per granular source, at most two spectral sources per voice with 1–128 peaks each and ordered frequency domains, graph compatibility/reachability, acyclic legal channel routing, Send/sidechain destinations, panner modes, processor schemas and latency, supported sample rate, maximum render tail, maximum Nodes, at most 1,024 media assets within the declared byte ceilings, at most 512 graph voices across actual runtime Track instances, at most 128 Automation lanes, at most 1,024 points per lane, at most 8,192 Automation points per Project, at most 8,192 materialized Parameter-lock points, and at most 1,024 dense callback-time Parameter targets. It also rejects duplicate targets, non-automatable or allocation-changing targets, non-step boolean Automation, ambiguous same-frame points, conflicting lock-bearing Clips, out-of-domain physical values, and Projects exceeding structural or single-runtime memory limits before allocation (CRV092). A Project that exceeds only Live admission remains valid for publication and offline rendering and produces warning CRV093. These are safety and product-scope limits, not invitations to generate at the ceiling. Use `crump check` for the narrower Reference Musical Sketch structural checks.

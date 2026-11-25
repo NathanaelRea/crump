@@ -103,9 +103,10 @@ pub(super) const fn processor_color(kind: ProcessorKind) -> Color32 {
     match kind {
         ProcessorKind::Eq => ACCENT_CYAN,
         ProcessorKind::Compressor | ProcessorKind::Gate | ProcessorKind::Limiter => ACCENT_AMBER,
-        ProcessorKind::Delay | ProcessorKind::Reverb | ProcessorKind::ModulationDelay => {
-            ACCENT_VIOLET
-        }
+        ProcessorKind::Delay
+        | ProcessorKind::Convolution
+        | ProcessorKind::Reverb
+        | ProcessorKind::ModulationDelay => ACCENT_VIOLET,
         ProcessorKind::Saturation | ProcessorKind::Crusher | ProcessorKind::Stutter => {
             Color32::from_rgb(236, 122, 160)
         }
@@ -122,6 +123,7 @@ pub(super) const fn processor_title(kind: ProcessorKind) -> &'static str {
         ProcessorKind::Gate => "Gate",
         ProcessorKind::Delay => "Delay",
         ProcessorKind::Reverb => "Reverb",
+        ProcessorKind::Convolution => "Convolution",
         ProcessorKind::Saturation => "Saturator",
         ProcessorKind::ModulationDelay => "Mod Delay",
         ProcessorKind::Crusher => "Bit Crusher",

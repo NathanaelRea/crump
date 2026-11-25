@@ -27,6 +27,7 @@ use patterns::validate_patterns;
 use routing::validate_mix_graph;
 use tracks::validate_tracks;
 
+use crate::engine::mix_graph::{AdmissionFailure, AdmissionProfile, describe_admission_failures};
 use crate::routing::AuthoredTopology;
 
 /// Maximum authored graph nodes in one voice.
@@ -87,11 +88,14 @@ pub const MAX_MODULATION_OPERATORS: usize = 2_048;
 /// Validates a complete Project candidate for publication.
 #[must_use]
 pub fn validate_project(project: &Project) -> Diagnostics {
-    validate_project_with_topology(project).0
+    validate_project_with_topology(project, None).0
 }
 
 /// Validates while retaining the one canonical authored topology for runtime lowering.
-pub(crate) fn validate_project_with_topology(project: &Project) -> (Diagnostics, AuthoredTopology) {
+pub(crate) fn validate_project_with_topology(
+    project: &Project,
+    inventory: Option<&AssetInventory>,
+) -> (Diagnostics, AuthoredTopology) {
     let mut diagnostics = Diagnostics::new();
     validate_project_header(project, &mut diagnostics);
     validate_acoustic_profiles(project, &mut diagnostics);
@@ -117,55 +121,180 @@ pub(crate) fn validate_project_with_topology(project: &Project) -> (Diagnostics,
             .with_help("reduce Tracks, dense simultaneous Events, or loop-expanded Clip length"),
         );
     }
+    if let Some(inventory) = inventory {
+        diagnostics.extend(validate_asset_contents(project, inventory));
+    }
     if !diagnostics.has_errors() {
-        match crate::engine::mix_graph::CompiledMixGraph::resource_estimate_for_validation(
-            project,
-            &topology,
-        ) {
-            Ok(estimate) if !estimate.admitted => diagnostics.push(
-                Diagnostic::error(
-                    "CRV092",
-                    format!(
-                        "compiled mix runtime exceeds a named budget: {} processors (fixed telemetry capacity {}), {} bytes at publication (budget {}), {} work units/frame (budget {})",
-                        estimate.processors,
-                        crate::engine::mix_graph::MAX_PROCESSOR_INSTANCES,
-                        estimate.publication_peak_bytes,
-                        estimate.publication_budget_bytes,
-                        estimate.work_units_per_frame,
-                        estimate.work_budget_per_frame
-                    ),
-                )
-                .with_help(
-                    "reduce processor state, channel count, graph voices, or callback-time work",
-                ),
-            ),
-            Err(error) => diagnostics.push(
-                Diagnostic::error("CRV092", format!("compiled mix graph rejected candidate: {error}"))
-                    .with_help("inspect routing, processor contracts, and runtime resource bounds"),
-            ),
-            Ok(_) => {}
-        }
+        validate_admission(project, &topology, inventory, &mut diagnostics);
     }
     (diagnostics, topology)
 }
 
+fn validate_admission(
+    project: &Project,
+    topology: &AuthoredTopology,
+    inventory: Option<&AssetInventory>,
+    diagnostics: &mut Diagnostics,
+) {
+    let estimate = |profile| {
+        let processor_assets = inventory.map_or(
+            crate::engine::ProcessorAssets::Unloaded,
+            crate::engine::ProcessorAssets::Metadata,
+        );
+        let mut estimate =
+            crate::engine::mix_graph::CompiledMixGraph::resource_estimate_with_processor_assets(
+                project,
+                topology,
+                processor_assets,
+                profile,
+            )?;
+        if let Some(inventory) = inventory {
+            let sample_rate = project.sample_rate;
+            let sample_bytes =
+                crate::engine::sample::CompiledSampleLibrary::estimated_allocation_bytes_for_project(
+                    project, inventory, sample_rate,
+                )
+                .map_err(|error| crate::engine::EngineError::Compile(error.to_string()))?;
+            let spectral_bytes =
+                crate::engine::spectral::CompiledSpectralLibrary::estimated_allocation_bytes_for_project(
+                    project, inventory, sample_rate,
+                )
+                .map_err(|error| crate::engine::EngineError::Compile(error.to_string()))?;
+            estimate.include_additional_instrument_program_bytes(
+                sample_bytes.saturating_add(spectral_bytes),
+            );
+        }
+        Ok::<_, crate::engine::EngineError>(estimate)
+    };
+    let live_estimate = || {
+        estimate(AdmissionProfile::Live)
+            .map(|estimate| estimate.admission_failures(AdmissionProfile::Live))
+    };
+    match estimate(AdmissionProfile::Offline) {
+        Ok(estimate) => {
+            let offline = estimate.admission_failures(AdmissionProfile::Offline);
+            if !offline.is_empty() {
+                diagnostics.push(admission_diagnostic(AdmissionProfile::Offline, &offline));
+            } else {
+                let live = if project.song.tracks.iter().any(|track| track.frozen) {
+                    match live_estimate() {
+                        Ok(limits) => limits,
+                        Err(error) => {
+                            diagnostics.push(Diagnostic::warning("CRV093", error.to_string()));
+                            return;
+                        }
+                    }
+                } else {
+                    estimate.admission_failures(AdmissionProfile::Live)
+                };
+                if !live.is_empty() {
+                    diagnostics.push(admission_diagnostic(AdmissionProfile::Live, &live));
+                }
+            }
+        }
+        Err(error) => diagnostics.push(
+            Diagnostic::error(
+                "CRV092",
+                format!("compiled runtime rejected candidate: {error}"),
+            )
+            .with_help("inspect routing, processor contracts, and runtime resource bounds"),
+        ),
+    }
+}
+
+/// Builds the diagnostic for a Project that exceeds `profile`, naming every failed limit.
+pub(crate) fn admission_diagnostic(
+    profile: AdmissionProfile,
+    failures: &[AdmissionFailure],
+) -> Diagnostic {
+    let detail = describe_admission_failures(failures);
+    let help = failures
+        .iter()
+        .map(|failure| failure.limit.help())
+        .collect::<Vec<_>>()
+        .join("; ");
+    match profile {
+        AdmissionProfile::Offline => Diagnostic::error(
+            "CRV092",
+            format!("Project exceeds the offline render budget: {detail}"),
+        )
+        .with_help(help),
+        AdmissionProfile::Live => Diagnostic::warning(
+            "CRV093",
+            format!(
+                "Project exceeds the live playback budget: {detail}; it publishes and renders, but cannot play live"
+            ),
+        )
+        .with_help(format!("{help}. Try freezing Tracks with costly Instruments or inserts.")),
+    }
+}
+
 pub(crate) fn validate_acoustic_profiles(project: &Project, diagnostics: &mut Diagnostics) {
-    let mut profiles = BTreeMap::new();
+    let format_location = |location: &SourceLocation| {
+        format!(
+            "{}:{}:{}",
+            location.file.display(),
+            location.line,
+            location.column
+        )
+    };
+    let mut profiles = BTreeMap::<&str, &crate::model::AcousticProfile>::new();
     for profile in &project.acoustic_profiles {
-        if !valid_id(&profile.id) || profiles.insert(profile.id.as_str(), profile).is_some() {
+        if !valid_id(&profile.id) {
             diagnostics.push(
                 Diagnostic::error(
                     "CRV210",
-                    "acoustic profile identities must be valid and unique",
+                    format!(
+                        "acoustic profile identity `{}` is invalid; IDs must start with an ASCII letter and contain only ASCII letters, digits, `-`, or `_`",
+                        profile.id
+                    ),
                 )
                 .at(profile.location.clone()),
             );
+        } else if let Some(first) = profiles.get(profile.id.as_str()).copied() {
+            if first.body != profile.body {
+                diagnostics.push(
+                    Diagnostic::error(
+                        "CRV210",
+                        format!(
+                            "conflicting acoustic profile `{}`: definitions at {} and {} have different bodies",
+                            profile.id,
+                            format_location(&first.location),
+                            format_location(&profile.location),
+                        ),
+                    )
+                    .at(profile.location.clone())
+                    .with_help(format!(
+                        "rename one of the `{}` profiles (and its `modal_bank` references) or align their bodies",
+                        profile.id
+                    )),
+                );
+            } else if first.location.file == profile.location.file {
+                diagnostics.push(
+                    Diagnostic::error(
+                        "CRV210",
+                        format!(
+                            "duplicate acoustic profile `{}` in the same file at {} and {}",
+                            profile.id,
+                            format_location(&first.location),
+                            format_location(&profile.location),
+                        ),
+                    )
+                    .at(profile.location.clone())
+                    .with_help(format!(
+                        "remove the duplicate `{}` declaration or rename one of the profiles",
+                        profile.id
+                    )),
+                );
+            }
+        } else {
+            profiles.insert(profile.id.as_str(), profile);
         }
         if let Err(error) = profile.body.validate() {
             diagnostics.push(Diagnostic::error("CRV210", error).at(profile.location.clone()));
         }
     }
-    if project.acoustic_profiles.len() > 256 {
+    if profiles.len() > 256 {
         diagnostics.push(Diagnostic::error(
             "CRV210",
             "at most 256 acoustic profiles are admitted",
@@ -210,8 +339,37 @@ pub(crate) fn validate_acoustic_profiles(project: &Project, diagnostics: &mut Di
 /// Validates sample source regions against verified exact-byte WAV metadata.
 #[must_use]
 pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) -> Diagnostics {
+    let mut diagnostics = validate_asset_contents(project, inventory);
+    if !diagnostics.has_errors() && !project.assets.is_empty() {
+        let topology = AuthoredTopology::compile(project);
+        validate_admission(project, &topology, Some(inventory), &mut diagnostics);
+    }
+    diagnostics
+}
+
+fn validate_asset_contents(project: &Project, inventory: &AssetInventory) -> Diagnostics {
     let mut diagnostics = Diagnostics::new();
     for declaration in &project.assets {
+        if declaration
+            .usages
+            .contains(&MediaAssetUsage::ImpulseResponse)
+        {
+            let result = inventory
+                .get(&declaration.id)
+                .ok_or_else(|| {
+                    "impulse response WAV is missing from the loaded inventory".to_owned()
+                })
+                .and_then(|asset| crate::engine::ir_frames(&asset.metadata(), project.sample_rate));
+            if let Err(message) = result {
+                located_error(
+                    &mut diagnostics,
+                    "CRV199",
+                    format!("asset `{}`: {message}", declaration.id),
+                    &declaration.location,
+                );
+            }
+        }
+
         if let Some(asset) = inventory.get(&declaration.id)
             && let Err(message) = crate::media::validate_finite_wav_samples(asset)
         {
@@ -452,35 +610,6 @@ pub fn validate_project_assets(project: &Project, inventory: &AssetInventory) ->
                         event.site(),
                     );
                 }
-            }
-        }
-    }
-    if !diagnostics.has_errors() {
-        let topology = AuthoredTopology::compile(project);
-        if let (Ok(sample_bytes), Ok(mut estimate)) = (
-            crate::engine::sample::CompiledSampleLibrary::estimated_allocation_bytes_for_project(
-                project,
-                inventory,
-                project.sample_rate,
-            ),
-            crate::engine::mix_graph::CompiledMixGraph::resource_estimate_for_validation(
-                project, &topology,
-            ),
-        ) {
-            estimate.include_additional_instrument_program_bytes(sample_bytes);
-            if !estimate.admitted {
-                diagnostics.push(
-                    Diagnostic::error(
-                        "CRV092",
-                        format!(
-                            "compiled exact-asset runtime exceeds a named budget: {} bytes at publication (budget {})",
-                            estimate.publication_peak_bytes, estimate.publication_budget_bytes
-                        ),
-                    )
-                    .with_help(
-                        "reduce referenced sample duration, graph voices, processor state, or Track count",
-                    ),
-                );
             }
         }
     }
@@ -981,7 +1110,7 @@ fn validate_media_assets(project: &Project, diagnostics: &mut Diagnostics) {
     }
 }
 
-fn valid_id(value: &str) -> bool {
+pub(crate) fn valid_id(value: &str) -> bool {
     let mut characters = value.chars();
     characters
         .next()

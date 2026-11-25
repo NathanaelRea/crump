@@ -88,6 +88,7 @@ pub(super) enum ProcessorConfig {
         mode: DelayMode,
         maximum_frames: usize,
     },
+    Convolution(ConvolutionProgram),
     Reverb {
         pre_delay: Scalar,
         diffusion: Scalar,
@@ -263,12 +264,21 @@ pub(super) fn limiter_work_units(lookahead_frames: usize) -> u64 {
         .saturating_add(24)
 }
 
+#[derive(Clone, Copy, Default)]
+pub(crate) enum ProcessorAssets<'a> {
+    #[default]
+    Unloaded,
+    Metadata(&'a crate::media::AssetInventory),
+    Samples(&'a crate::engine::sample::CompiledSampleLibrary),
+}
+
 impl ProcessorProgram {
     pub(crate) fn compile(
         processor: &Processor,
         controls: &CompiledControlProgram,
         sample_rate: u32,
         tempo_bpm: f64,
+        assets: ProcessorAssets<'_>,
     ) -> Result<Self, EngineError> {
         let settings = resolve_settings(processor, tempo_bpm)
             .map_err(|error| EngineError::Compile(error.compile_message(processor)))?;
@@ -404,6 +414,43 @@ impl ProcessorProgram {
                 },
                 maximum_frames: delay_maximum_frames(&settings, sample_rate) as usize,
             },
+            ProcessorKind::Convolution => {
+                let id = settings.choice("ir").expect("required IR setting");
+                let cuts = [
+                    settings.numeric("low_cut").unwrap_or_default(),
+                    settings.numeric("high_cut").unwrap_or_default(),
+                ];
+                let (kernel, frames) = if let ProcessorAssets::Samples(samples) = assets {
+                    let source = samples.get(id).ok_or_else(|| {
+                        EngineError::Compile(format!(
+                            "convolution `{}` has no loaded impulse response `{id}`",
+                            processor.id
+                        ))
+                    })?;
+                    let (kernel, frames) = Kernel::compile(source, sample_rate, cuts)?;
+                    (Some(kernel), frames)
+                } else {
+                    let frames = if let ProcessorAssets::Metadata(inventory) = assets {
+                        let asset = inventory.get(id).ok_or_else(|| {
+                            EngineError::Compile(format!("missing impulse response `{id}`"))
+                        })?;
+                        ir_frames(&asset.metadata(), sample_rate).map_err(EngineError::Compile)?
+                    } else {
+                        // Source-only validation has no WAV metadata. Exact admission
+                        // runs again with the inventory before preparing kernels.
+                        1
+                    };
+                    (None, frames + filter_padding(cuts, sample_rate))
+                };
+                ProcessorConfig::Convolution(ConvolutionProgram {
+                    mix: scalar("mix")?,
+                    pre_delay: scalar("pre_delay")?,
+                    level: scalar("level")?,
+                    width: scalar("width")?,
+                    frames,
+                    kernel,
+                })
+            }
             ProcessorKind::Reverb => ProcessorConfig::Reverb {
                 pre_delay: scalar("pre_delay")?,
                 diffusion: scalar("diffusion")?,
@@ -576,6 +623,9 @@ impl ProcessorProgram {
 
     pub(crate) fn tail_frames_upper_bound(&self) -> Option<u32> {
         match self.config {
+            ProcessorConfig::Convolution(ref program) => {
+                Some(tail_frames(program.frames, self.sample_rate))
+            }
             ProcessorConfig::Crusher { .. } => Some(
                 self.sample_rate
                     .saturating_add(99)
@@ -618,6 +668,7 @@ impl ProcessorProgram {
             ProcessorConfig::Delay { maximum_frames, .. } => {
                 (*maximum_frames as u64).saturating_mul(std::mem::size_of::<[f32; 2]>() as u64)
             }
+            ProcessorConfig::Convolution(program) => estimate(program.frames, self.sample_rate).0,
             ProcessorConfig::Reverb { .. } => reverb_heap_bytes(self.sample_rate),
             ProcessorConfig::ModulationDelay { maximum_frames, .. } => {
                 (*maximum_frames as u64).saturating_mul(std::mem::size_of::<[f32; 2]>() as u64)
@@ -653,6 +704,7 @@ impl ProcessorProgram {
             ProcessorConfig::Compressor { .. } => 28,
             ProcessorConfig::Gate { .. } => 32,
             ProcessorConfig::Delay { .. } => 32,
+            ProcessorConfig::Convolution(program) => estimate(program.frames, self.sample_rate).1,
             ProcessorConfig::Reverb { .. } => 160,
             ProcessorConfig::Saturation { .. } => saturation_work_units(),
             ProcessorConfig::ModulationDelay { .. } => 48,
@@ -764,6 +816,18 @@ pub(crate) fn authored_processor_estimate(
                 .saturating_mul(std::mem::size_of::<[f32; 2]>() as u64),
             32,
         ),
+        ProcessorKind::Convolution => {
+            let cuts = ["low_cut", "high_cut"].map(|key| {
+                settings
+                    .as_ref()
+                    .and_then(|settings| settings.numeric(key))
+                    .unwrap_or_default()
+            });
+            estimate(
+                sample_rate as usize * MAX_IR_SECONDS as usize + filter_padding(cuts, sample_rate),
+                sample_rate,
+            )
+        }
         ProcessorKind::Reverb => (reverb_heap_bytes(sample_rate), 160),
         ProcessorKind::ModulationDelay => (
             (modulation_delay_maximum_frames(sample_rate) as u64)

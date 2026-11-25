@@ -15,7 +15,8 @@ use serde_json::{Value, json};
 
 use crate::{
     edit::{
-        ArrangementAutomation, ClipPlacement, EditError, GroovePlacement, ParameterLockPlacement,
+        ArrangementAutomation, ClipPlacement, EditError, GroovePlacement, LevelToError,
+        LevelToRequest, LoudnessMeasure, MixLevelOwner, ParameterLockPlacement,
         PatternVariationPlacement, SamplePlacement, SampleSliceMapPlacement,
         WavetableImportOptions, apply_structured_edit, collect_media_assets,
         create_automation_lane, create_automation_point, create_clip, create_groove,
@@ -23,15 +24,16 @@ use crate::{
         delete_arrangement_time, delete_automation_lane, delete_automation_point, delete_clip,
         delete_groove, delete_locator, delete_parameter_lock, delete_pattern_variation,
         duplicate_arrangement_time, duplicate_clip, duplicate_sample_occurrence,
-        import_media_asset, import_wavetable_asset, insert_arrangement_time, move_clip,
-        move_locator, move_sample_occurrence, place_sample_occurrence, publish_bounce_asset,
-        publish_sample_transform_asset, resize_clip, set_clip_fades, set_clip_gain,
-        set_clip_groove, set_clip_source_offset, set_clip_transpose, slip_sample_occurrence,
-        split_clip, split_sample_occurrence, update_groove, update_parameter_lock,
-        update_pattern_variation,
+        import_media_asset, import_wavetable_asset, insert_arrangement_time, level_to, move_clip,
+        move_locator, move_sample_occurrence, parse_level_target_db, place_sample_occurrence,
+        publish_bounce_asset, publish_sample_transform_asset, resize_clip, set_clip_fades,
+        set_clip_gain, set_clip_groove, set_clip_source_offset, set_clip_transpose,
+        slip_sample_occurrence, split_clip, split_sample_occurrence, update_groove,
+        update_parameter_lock, update_pattern_variation,
     },
     engine::{
-        CompiledProject, QualificationOptions, RenderOptions, RenderStemRequest,
+        CompiledProject, EngineError, OfflineThreads, QualificationOptions, RenderOptions,
+        RenderStemRequest,
         audition::{
             AuditionPath, AuditionPlan, AuditionRange, AuditionTarget, inspection_from_parts,
         },
@@ -50,9 +52,10 @@ use crate::{
     instrument_module::{
         catalog_entry, catalog_matches, render_module_preview, validate_module_source,
     },
+    interrupt::Interrupt,
     model::{
-        AutomationInterpolation, ChannelRef, ClipMode, ParameterTarget, TapPoint, WavetableMorph,
-        WavetableNormalization, parse_pitch,
+        AutomationInterpolation, ChannelRef, ClipMode, ParameterTarget, RenderTailPolicy, TapPoint,
+        WavetableMorph, WavetableNormalization, parse_pitch,
     },
     production_view::{
         ExecuteError as ProductionViewError, MoveDirection, Operation as ProductionViewOperation,
@@ -195,6 +198,21 @@ impl Failure {
             message: message.into(),
             exit_code: 2,
             diagnostics,
+        }
+    }
+
+    /// A termination signal stopped the command; the exit status is the shell's `128 + signal`.
+    fn interrupted(
+        command: &'static str,
+        signal: crate::interrupt::Signal,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            command,
+            code: "interrupted",
+            message: message.into(),
+            exit_code: signal.exit_code(),
+            diagnostics: json!([]),
         }
     }
 

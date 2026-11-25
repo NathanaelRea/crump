@@ -402,3 +402,313 @@ fn exported_module_carries_profiles_and_previews_without_original_project() {
     );
     assert!(wav.exists());
 }
+
+fn acoustic_module(instrument_id: &str, instrument_name: &str, profile_block: &str) -> String {
+    format!(
+        r#"crump-module 2
+instrument {instrument_id} "{instrument_name}" graph {{
+  polyphony 2
+  parameter hardness "Hardness" ratio 0 1 0.35 0.35
+  parameter contact "Contact" seconds 0.00002s 0.003s 0.0001s 0.0001s
+  parameter decay "Ring" ratio 0.1 4 1 1
+  parameter brightness "Brightness" ratio -2 2 0 0
+  faceplate {{
+    control hardness "Hardness" "Concentrate the contact force" maps hardness
+    control contact "Contact" "Duration of the strike" maps contact
+    control decay "Ring" "Scale the body's damping times" maps decay
+    control brightness "Brightness" "Tilt the body resonances" maps brightness
+  }}
+  graph voice 4 {{
+    node contact exciter kind impact contact $contact hardness $hardness
+    node body modal_bank profile wood-body max_modes 3 key_track 0 decay_scale $decay brightness $brightness level 0.5
+    node stereo mono_to_stereo
+    node out output
+    bus hit note.gate -> contact.gate
+    bus touch note.velocity -> contact.velocity
+    bus ring note.gate -> body.gate
+    bus pitch note.pitch -> body.pitch
+    bus force contact.audio -> body.audio
+    bus body body.audio -> stereo.audio
+    bus output stereo.audio -> out.audio
+  }}
+}}
+{profile_block}
+"#
+    )
+}
+
+const WOOD_PROFILE_BLOCK: &str = r#"profile wood-body {
+  root 261.625565hz
+  mode body frequency 1329hz decay 0.018s gain 0.8 after_decay 0.04s after_gain 0.08
+  mode upper frequency 2870hz decay 0.009s gain 0.22 after_decay 0.018s after_gain 0.02
+  mode contact frequency 5340hz decay 0.003s gain 0.08 after_decay 0.006s after_gain 0.01
+}"#;
+
+const TWO_MODULE_PROJECT: &str = r#"crump 2
+import "instruments/wood-a.crump"
+import "instruments/wood-b.crump"
+project "Shared acoustic profile" {
+  id shared-acoustic-profile
+  seed 47191
+  sample_rate 48000
+  render_tail 1s
+  song {
+    tempo 120bpm
+    meter 4/4
+    end 1bar
+    pattern strike 1bar {
+      note 0beat C4 1/4beat 0.8
+    }
+    track wood-a "Wood A" instrument wood-a level -6db pan 0 {
+      clip strike-a pattern strike start 0bar duration 1bar mode once
+    }
+    track wood-b "Wood B" instrument wood-b level -6db pan 0 {
+      clip strike-b pattern strike start 0bar duration 1bar mode once
+    }
+  }
+}
+"#;
+
+#[test]
+fn two_modules_embedding_identical_profile_dedupe_compile_and_render() {
+    let module_a = acoustic_module("wood-a", "Wood A", WOOD_PROFILE_BLOCK);
+    let module_b = acoustic_module("wood-b", "Wood B", WOOD_PROFILE_BLOCK);
+    let bundle = load_project_sources(
+        PathBuf::from("/shared-acoustic-test"),
+        BTreeMap::from([
+            (PathBuf::from("project.crump"), TWO_MODULE_PROJECT.into()),
+            (PathBuf::from("instruments/wood-a.crump"), module_a.clone()),
+            (PathBuf::from("instruments/wood-b.crump"), module_b.clone()),
+        ]),
+    );
+    assert!(!bundle.diagnostics.has_errors(), "{:?}", bundle.diagnostics);
+    let project = bundle.project.expect("deduplicated Project");
+    assert_eq!(project.acoustic_profiles.len(), 1);
+    assert_eq!(project.acoustic_profiles[0].id, "wood-body");
+    assert_eq!(
+        project.acoustic_profiles[0].location.file,
+        PathBuf::from("instruments/wood-a.crump")
+    );
+
+    let compiled = CompiledProject::compile(&project).expect("compile shared-profile Project");
+    let rendered = render(&compiled, 17);
+    assert_eq!(rendered, render(&compiled, 256));
+    let energy: f64 = rendered
+        .iter()
+        .map(|frame| f64::from(frame[0]).powi(2))
+        .sum();
+    assert!(
+        energy > 1e-4,
+        "expected audible render, got energy {energy}"
+    );
+
+    // Exporting one instrument from a deduplicated Project emits the profile once.
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("project");
+    std::fs::create_dir_all(root.join("instruments")).unwrap();
+    std::fs::write(root.join("project.crump"), TWO_MODULE_PROJECT).unwrap();
+    std::fs::write(root.join("instruments/wood-a.crump"), &module_a).unwrap();
+    std::fs::write(root.join("instruments/wood-b.crump"), &module_b).unwrap();
+    let data = temp.path().join("data");
+    let output = assert_cmd::cargo::cargo_bin_cmd!("crump")
+        .env("XDG_DATA_HOME", &data)
+        .args([
+            "--project",
+            root.to_str().unwrap(),
+            "--json",
+            "module",
+            "export",
+            "wood-b",
+            "--name",
+            "wood-b-exported",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let exported_path = result["data"]["path"].as_str().unwrap();
+    let exported_source = std::fs::read_to_string(exported_path).unwrap();
+    assert_eq!(exported_source.matches("profile wood-body {").count(), 1);
+}
+
+#[test]
+fn formatting_comment_and_mode_label_differences_still_dedupe() {
+    // Reformat with comments, extra blank lines, renamed mode labels (as `module export`
+    // emits), and equivalent numeric spellings that parse to the exact same floats.
+    let reformatted_profile = r#"# Re-exported body with comments and different mode labels
+profile wood-body {
+
+  # Reference pitch
+  root 261.625565hz
+
+  mode m0   frequency 1.329khz  decay 0.018s  gain 0.80  after_decay 40ms   after_gain 0.080
+  mode m1   frequency 2870.0hz  decay 0.009s  gain 0.22  after_decay 0.018s after_gain 0.02
+  mode m2   frequency 5340hz    decay 0.003s  gain 0.08  after_decay 0.006s after_gain 0.01
+}"#;
+    let project_with_root_profile = format!(
+        "crump 2\nimport \"wood-body.crump\"\n{}",
+        TWO_MODULE_PROJECT
+            .strip_prefix("crump 2\n")
+            .expect("crump 2 header")
+    );
+    let bundle = load_project_sources(
+        PathBuf::from("/reformatted-acoustic-test"),
+        BTreeMap::from([
+            (PathBuf::from("project.crump"), project_with_root_profile),
+            (PathBuf::from("wood-body.crump"), PROFILE.into()),
+            (
+                PathBuf::from("instruments/wood-a.crump"),
+                acoustic_module("wood-a", "Wood A", WOOD_PROFILE_BLOCK),
+            ),
+            (
+                PathBuf::from("instruments/wood-b.crump"),
+                acoustic_module("wood-b", "Wood B", reformatted_profile),
+            ),
+        ]),
+    );
+    assert!(!bundle.diagnostics.has_errors(), "{:?}", bundle.diagnostics);
+    let project = bundle.project.expect("deduplicated Project");
+    assert_eq!(project.acoustic_profiles.len(), 1);
+    assert_eq!(
+        project.acoustic_profiles[0].location.file,
+        PathBuf::from("wood-body.crump")
+    );
+    let compiled = CompiledProject::compile(&project).expect("compile reformatted shared profile");
+    let rendered = render(&compiled, 256);
+    assert!(
+        rendered
+            .iter()
+            .map(|frame| f64::from(frame[0]).powi(2))
+            .sum::<f64>()
+            > 1e-4
+    );
+}
+
+#[test]
+fn conflicting_acoustic_profile_bodies_report_crv210_with_both_locations() {
+    let differing_profile = WOOD_PROFILE_BLOCK.replace("1329hz", "1430hz");
+    let bundle = load_project_sources(
+        PathBuf::from("/conflicting-acoustic-test"),
+        BTreeMap::from([
+            (PathBuf::from("project.crump"), TWO_MODULE_PROJECT.into()),
+            (
+                PathBuf::from("instruments/wood-a.crump"),
+                acoustic_module("wood-a", "Wood A", WOOD_PROFILE_BLOCK),
+            ),
+            (
+                PathBuf::from("instruments/wood-b.crump"),
+                acoustic_module("wood-b", "Wood B", &differing_profile),
+            ),
+        ]),
+    );
+    assert!(bundle.diagnostics.has_errors());
+    let conflict = bundle
+        .diagnostics
+        .as_slice()
+        .iter()
+        .find(|diagnostic| diagnostic.code == "CRV210")
+        .expect("expected CRV210 conflict diagnostic");
+    assert!(
+        conflict.message.contains("wood-body"),
+        "expected profile id in message: {}",
+        conflict.message
+    );
+    assert!(
+        conflict.message.contains("instruments/wood-a.crump:"),
+        "expected first location in message: {}",
+        conflict.message
+    );
+    assert!(
+        conflict.message.contains("instruments/wood-b.crump:"),
+        "expected second location in message: {}",
+        conflict.message
+    );
+    assert_eq!(
+        conflict
+            .location
+            .as_ref()
+            .map(|location| location.file.as_path()),
+        Some(std::path::Path::new("instruments/wood-b.crump"))
+    );
+    assert!(
+        conflict
+            .help
+            .as_deref()
+            .is_some_and(|help| help.contains("rename")),
+        "expected rename suggestion in help: {:?}",
+        conflict.help
+    );
+
+    // Reordered modes are semantically different and also fail with CRV210 naming both files.
+    let reordered_profile = r#"profile wood-body {
+  root 261.625565hz
+  mode upper frequency 2870hz decay 0.009s gain 0.22 after_decay 0.018s after_gain 0.02
+  mode body frequency 1329hz decay 0.018s gain 0.8 after_decay 0.04s after_gain 0.08
+  mode contact frequency 5340hz decay 0.003s gain 0.08 after_decay 0.006s after_gain 0.01
+}"#;
+    let reordered = load_project_sources(
+        PathBuf::from("/reordered-acoustic-test"),
+        BTreeMap::from([
+            (PathBuf::from("project.crump"), TWO_MODULE_PROJECT.into()),
+            (
+                PathBuf::from("instruments/wood-a.crump"),
+                acoustic_module("wood-a", "Wood A", WOOD_PROFILE_BLOCK),
+            ),
+            (
+                PathBuf::from("instruments/wood-b.crump"),
+                acoustic_module("wood-b", "Wood B", reordered_profile),
+            ),
+        ]),
+    );
+    let reordered_conflict = reordered
+        .diagnostics
+        .as_slice()
+        .iter()
+        .find(|diagnostic| diagnostic.code == "CRV210")
+        .expect("expected CRV210 for reordered modes");
+    assert!(
+        reordered_conflict
+            .message
+            .contains("instruments/wood-a.crump:")
+            && reordered_conflict
+                .message
+                .contains("instruments/wood-b.crump:"),
+        "expected both locations: {}",
+        reordered_conflict.message
+    );
+
+    // Repeating an identical profile inside one single module file still fails validation.
+    let duplicated_in_one_file = format!(
+        "{}\n{WOOD_PROFILE_BLOCK}\n",
+        acoustic_module("wood-a", "Wood A", WOOD_PROFILE_BLOCK)
+    );
+    let same_file = load_project_sources(
+        PathBuf::from("/same-file-acoustic-test"),
+        BTreeMap::from([
+            (PathBuf::from("project.crump"), TWO_MODULE_PROJECT.into()),
+            (
+                PathBuf::from("instruments/wood-a.crump"),
+                duplicated_in_one_file,
+            ),
+            (
+                PathBuf::from("instruments/wood-b.crump"),
+                acoustic_module("wood-b", "Wood B", WOOD_PROFILE_BLOCK),
+            ),
+        ]),
+    );
+    let duplicate = same_file
+        .diagnostics
+        .as_slice()
+        .iter()
+        .find(|diagnostic| diagnostic.code == "CRV210")
+        .expect("expected CRV210 for same-file duplicate profile");
+    assert!(
+        duplicate.message.contains("instruments/wood-a.crump:"),
+        "expected same-file location: {}",
+        duplicate.message
+    );
+}

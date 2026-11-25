@@ -29,6 +29,7 @@ use crate::{
 
 mod automation;
 mod media;
+mod mix;
 mod timeline;
 
 #[cfg(test)]
@@ -59,6 +60,7 @@ fn with_injected_source_write_failure<T>(operation: impl FnOnce() -> T) -> T {
 pub use automation::*;
 pub use media::*;
 use media::{quote_source_string, valid_source_id};
+pub use mix::*;
 pub use timeline::*;
 
 /// The smallest checked replacement unit used by a Structured Source Edit.
@@ -813,6 +815,34 @@ pub fn set_track_level(
         &track.channel.level_site,
         Unit::Decibels.format_value(level_db),
     ))
+}
+
+/// Sets the source-backed live freeze directive for one Track.
+pub fn set_track_freeze(
+    bundle: &ProjectBundle,
+    track_id: &str,
+    frozen: bool,
+) -> Result<CheckedReplacement, EditError> {
+    let track = bundle
+        .project
+        .as_ref()
+        .ok_or(EditError::InvalidBase)?
+        .song
+        .tracks
+        .iter()
+        .find(|track| track.id == track_id)
+        .ok_or_else(|| EditError::UnknownTarget(format!("Track `{track_id}`")))?;
+    if let Some(site) = &track.freeze_site {
+        return Ok(CheckedReplacement::at(site, frozen.to_string()));
+    }
+    let (file, start, indentation) = block_insertion(bundle, &track.location, "Track")?;
+    Ok(CheckedReplacement {
+        file,
+        start,
+        end: start,
+        expected: String::new(),
+        replacement: format!("{indentation}freeze {frozen}\n"),
+    })
 }
 
 /// Builds a checked Track pan replacement.

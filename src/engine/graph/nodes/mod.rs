@@ -28,6 +28,10 @@ use super::super::{
     wavetable::{CompiledWavetable, CompiledWavetableLibrary},
 };
 
+pub(super) use super::runtime::NodeInputs;
+#[cfg(test)]
+use super::runtime::{PortSources, SignalSource, VoiceNodeContext};
+
 mod acoustic;
 mod effects;
 mod envelope;
@@ -681,36 +685,6 @@ enum NodeStateKind {
     OnePole(OnePoleState),
     BiquadChain(Box<BiquadChainState>),
     Stateless,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(super) struct NodeInputs {
-    pub(super) song_frame: u64,
-    pub(super) pitch: Signal,
-    pub(super) key: Signal,
-    pub(super) gate: Signal,
-    pub(super) velocity: Signal,
-    pub(super) audio: Signal,
-    pub(super) gain: Signal,
-    pub(super) modulation: Signal,
-    pub(super) frequency_modulation: Signal,
-    pub(super) phase_modulation: Signal,
-    pub(super) sync: Signal,
-    pub(super) amplitude_modulation: Signal,
-    pub(super) input_a: Signal,
-    pub(super) input_b: Signal,
-    pub(super) time_modulation: Signal,
-    pub(super) control: Signal,
-    pub(super) summed_audio: Signal,
-    pub(super) has_key: bool,
-    pub(super) has_velocity: bool,
-    pub(super) has_gain: bool,
-    pub(super) has_modulation: bool,
-    pub(super) has_frequency_modulation: bool,
-    pub(super) has_phase_modulation: bool,
-    pub(super) has_sync: bool,
-    pub(super) has_amplitude_modulation: bool,
-    pub(super) has_time_modulation: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1819,7 +1793,7 @@ impl NodeProgram {
     pub(super) fn process(
         &self,
         state: &mut NodeState,
-        inputs: NodeInputs,
+        inputs: NodeInputs<'_>,
         controls: &[f64],
         sample_rate: f64,
     ) -> Signal {
@@ -1831,18 +1805,18 @@ impl NodeProgram {
                 Signal::Mono(config.process(state, inputs, controls))
             }
             (NodeProgramKind::Oscillator(config), NodeStateKind::Oscillator(state)) => {
-                Signal::Mono(config.process(state, inputs.pitch.control(), controls, sample_rate))
+                Signal::Mono(config.process(state, inputs.pitch().control(), controls, sample_rate))
             }
             (NodeProgramKind::Unison(config), NodeStateKind::Unison(state)) => {
                 Signal::Stereo(config.process(
                     state,
-                    inputs.pitch.control(),
-                    inputs.modulation.control(),
-                    inputs.gain.control(),
-                    inputs.velocity.control(),
-                    inputs.has_modulation,
-                    inputs.has_gain,
-                    inputs.has_velocity,
+                    inputs.pitch().control(),
+                    inputs.modulation().control(),
+                    inputs.gain().control(),
+                    inputs.velocity().control(),
+                    inputs.has_modulation(),
+                    inputs.has_gain(),
+                    inputs.has_velocity(),
                     controls,
                     sample_rate,
                 ))
@@ -1850,19 +1824,19 @@ impl NodeProgram {
             (NodeProgramKind::AnalogOscillator(config), NodeStateKind::AnalogOscillator(state)) => {
                 Signal::Stereo(config.process(
                     state,
-                    inputs.pitch.control(),
-                    inputs.frequency_modulation.mono(),
-                    inputs.phase_modulation.mono(),
-                    inputs.sync.mono(),
-                    inputs.amplitude_modulation.mono(),
-                    inputs.gain.control(),
-                    inputs.velocity.control(),
-                    inputs.has_frequency_modulation,
-                    inputs.has_phase_modulation,
-                    inputs.has_sync,
-                    inputs.has_amplitude_modulation,
-                    inputs.has_gain,
-                    inputs.has_velocity,
+                    inputs.pitch().control(),
+                    inputs.frequency_modulation().mono(),
+                    inputs.phase_modulation().mono(),
+                    inputs.sync().mono(),
+                    inputs.amplitude_modulation().mono(),
+                    inputs.gain().control(),
+                    inputs.velocity().control(),
+                    inputs.has_frequency_modulation(),
+                    inputs.has_phase_modulation(),
+                    inputs.has_sync(),
+                    inputs.has_amplitude_modulation(),
+                    inputs.has_gain(),
+                    inputs.has_velocity(),
                     controls,
                     sample_rate,
                 ))
@@ -1870,17 +1844,17 @@ impl NodeProgram {
             (NodeProgramKind::Wavetable(config), NodeStateKind::Wavetable(state)) => {
                 Signal::Stereo(config.process(
                     state,
-                    inputs.pitch.control(),
-                    inputs.frequency_modulation.mono(),
-                    inputs.phase_modulation.mono(),
-                    inputs.sync.mono(),
-                    inputs.gain.control(),
-                    inputs.velocity.control(),
-                    inputs.has_frequency_modulation,
-                    inputs.has_phase_modulation,
-                    inputs.has_sync,
-                    inputs.has_gain,
-                    inputs.has_velocity,
+                    inputs.pitch().control(),
+                    inputs.frequency_modulation().mono(),
+                    inputs.phase_modulation().mono(),
+                    inputs.sync().mono(),
+                    inputs.gain().control(),
+                    inputs.velocity().control(),
+                    inputs.has_frequency_modulation(),
+                    inputs.has_phase_modulation(),
+                    inputs.has_sync(),
+                    inputs.has_gain(),
+                    inputs.has_velocity(),
                     controls,
                     sample_rate,
                 ))
@@ -1888,59 +1862,59 @@ impl NodeProgram {
             (NodeProgramKind::SampleSource(config), NodeStateKind::SampleSource(state)) => {
                 Signal::Stereo(config.process(
                     state,
-                    inputs.pitch.control(),
-                    inputs.gate.control(),
-                    inputs.gain.control(),
-                    inputs.velocity.control(),
-                    inputs.has_gain,
-                    inputs.has_velocity,
+                    inputs.pitch().control(),
+                    inputs.gate().control(),
+                    inputs.gain().control(),
+                    inputs.velocity().control(),
+                    inputs.has_gain(),
+                    inputs.has_velocity(),
                     controls,
                 ))
             }
             (NodeProgramKind::Multisample(config), NodeStateKind::Multisample(state)) => {
                 Signal::Stereo(config.process(
                     state,
-                    inputs.pitch.control(),
-                    inputs.gate.control(),
-                    inputs.gain.control(),
-                    inputs.velocity.control(),
-                    inputs.has_gain,
+                    inputs.pitch().control(),
+                    inputs.gate().control(),
+                    inputs.gain().control(),
+                    inputs.velocity().control(),
+                    inputs.has_gain(),
                     controls,
                 ))
             }
             (NodeProgramKind::Granular(config), NodeStateKind::Granular(state)) => {
                 Signal::Stereo(config.process(
                     state,
-                    inputs.pitch.control(),
-                    inputs.gate.control(),
+                    inputs.pitch().control(),
+                    inputs.gate().control(),
                     controls,
                     sample_rate,
                 ))
             }
-            (NodeProgramKind::Spectral(config), NodeStateKind::Spectral(state)) => {
-                Signal::Stereo(config.process(state, inputs.pitch.control(), controls, sample_rate))
-            }
+            (NodeProgramKind::Spectral(config), NodeStateKind::Spectral(state)) => Signal::Stereo(
+                config.process(state, inputs.pitch().control(), controls, sample_rate),
+            ),
             (NodeProgramKind::Noise(config), NodeStateKind::Noise(state)) => {
                 Signal::Mono(config.process(state, controls))
             }
-            (NodeProgramKind::Envelope(config), NodeStateKind::Envelope(state)) => {
-                Signal::Control(config.process(state, inputs.gate.control(), controls, sample_rate))
-            }
+            (NodeProgramKind::Envelope(config), NodeStateKind::Envelope(state)) => Signal::Control(
+                config.process(state, inputs.gate().control(), controls, sample_rate),
+            ),
             (NodeProgramKind::Mixer(config), NodeStateKind::Stateless) => Signal::Mono(
-                inputs.input_a.mono() * config.a_level.value(controls) as f32
-                    + inputs.input_b.mono() * config.b_level.value(controls) as f32,
+                inputs.input_a().mono() * config.a_level.value(controls) as f32
+                    + inputs.input_b().mono() * config.b_level.value(controls) as f32,
             ),
             (NodeProgramKind::MonoToStereo, NodeStateKind::Stateless) => {
-                let input = inputs.audio.mono();
+                let input = inputs.audio().mono();
                 Signal::Stereo([input, input])
             }
             (NodeProgramKind::StereoToMono, NodeStateKind::Stateless) => {
-                let input = inputs.audio.stereo();
+                let input = inputs.audio().stereo();
                 Signal::Mono((input[0] + input[1]) * 0.5)
             }
             (NodeProgramKind::StereoMixer(config), NodeStateKind::Stateless) => {
-                let a = inputs.input_a.stereo();
-                let b = inputs.input_b.stereo();
+                let a = inputs.input_a().stereo();
+                let b = inputs.input_b().stereo();
                 let a_level = config.a_level.value(controls) as f32;
                 let b_level = config.b_level.value(controls) as f32;
                 Signal::Stereo([
@@ -1949,21 +1923,21 @@ impl NodeProgram {
                 ])
             }
             (NodeProgramKind::StereoSum, NodeStateKind::Stateless) => {
-                Signal::Stereo(inputs.summed_audio.stereo())
+                Signal::Stereo(inputs.summed_audio().stereo())
             }
             (NodeProgramKind::Sum, NodeStateKind::Stateless) => {
-                Signal::Mono(inputs.summed_audio.mono())
+                Signal::Mono(inputs.summed_audio().mono())
             }
             (NodeProgramKind::Filter(config), NodeStateKind::Filter(state)) => {
                 Signal::Mono(config.process(
                     state,
-                    inputs.audio.mono(),
-                    inputs.key.control(),
-                    inputs.modulation.control(),
-                    inputs.velocity.control(),
-                    inputs.has_key,
-                    inputs.has_modulation,
-                    inputs.has_velocity,
+                    inputs.audio().mono(),
+                    inputs.key().control(),
+                    inputs.modulation().control(),
+                    inputs.velocity().control(),
+                    inputs.has_key(),
+                    inputs.has_modulation(),
+                    inputs.has_velocity(),
                     controls,
                     sample_rate,
                 ))
@@ -1971,22 +1945,24 @@ impl NodeProgram {
             (NodeProgramKind::StereoFilter(config), NodeStateKind::StereoFilter(state)) => {
                 Signal::Stereo(config.process(
                     state,
-                    inputs.audio.stereo(),
-                    inputs.key.control(),
-                    inputs.modulation.control(),
-                    inputs.velocity.control(),
-                    inputs.has_key,
-                    inputs.has_modulation,
-                    inputs.has_velocity,
+                    inputs.audio().stereo(),
+                    inputs.key().control(),
+                    inputs.modulation().control(),
+                    inputs.velocity().control(),
+                    inputs.has_key(),
+                    inputs.has_modulation(),
+                    inputs.has_velocity(),
                     controls,
                     sample_rate,
                 ))
             }
             (NodeProgramKind::Amplifier(config), NodeStateKind::Stateless) => Signal::Mono(
-                inputs.audio.mono() * inputs.gain.control() * config.level.value(controls) as f32,
+                inputs.audio().mono()
+                    * inputs.gain().control()
+                    * config.level.value(controls) as f32,
             ),
             (NodeProgramKind::Saturation(config), NodeStateKind::Stateless) => {
-                let input = inputs.audio.mono();
+                let input = inputs.audio().mono();
                 let drive = config.drive.value(controls).clamp(0.0, 8.0) as f32;
                 if drive == 0.0 {
                     Signal::Mono(input)
@@ -1996,7 +1972,7 @@ impl NodeProgram {
                 }
             }
             (NodeProgramKind::Pan(config), NodeStateKind::Stateless) => {
-                let input = inputs.audio.mono();
+                let input = inputs.audio().mono();
                 let angle = (config.position.value(controls).clamp(-1.0, 1.0) + 1.0) * PI * 0.25;
                 Signal::Stereo([
                     (input as f64 * angle.cos()) as f32,
@@ -2004,42 +1980,46 @@ impl NodeProgram {
                 ])
             }
             (NodeProgramKind::Delay(config), NodeStateKind::Delay(state)) => {
-                Signal::Stereo(config.process(state, inputs.audio.stereo(), controls))
+                Signal::Stereo(config.process(state, inputs.audio().stereo(), controls))
             }
             (NodeProgramKind::Reverb(config), NodeStateKind::Reverb(state)) => {
-                Signal::Stereo(config.process(state, inputs.audio.stereo(), controls))
+                Signal::Stereo(config.process(state, inputs.audio().stereo(), controls))
             }
             (NodeProgramKind::Output, NodeStateKind::Stateless) => {
-                Signal::Stereo(inputs.audio.stereo())
+                Signal::Stereo(inputs.audio().stereo())
             }
             (NodeProgramKind::Lfo(config), NodeStateKind::Lfo(state)) => {
-                Signal::Control(config.process(state, controls, sample_rate, inputs.song_frame))
+                Signal::Control(config.process(state, controls, sample_rate, inputs.song_frame()))
             }
             (NodeProgramKind::DelayLine(config), NodeStateKind::DelayLine(state)) => {
                 Signal::Mono(config.process(
                     state,
-                    inputs.audio.mono(),
-                    inputs.pitch.control(),
-                    inputs.time_modulation.mono(),
-                    inputs.has_time_modulation,
+                    inputs.audio().mono(),
+                    inputs.pitch().control(),
+                    inputs.time_modulation().mono(),
+                    inputs.has_time_modulation(),
                     controls,
                     sample_rate,
                 ))
             }
             (NodeProgramKind::Math(config), NodeStateKind::Stateless) => Signal::Mono(
-                config.process_mono(inputs.input_a.mono(), inputs.input_b.mono(), controls),
+                config.process_mono(inputs.input_a().mono(), inputs.input_b().mono(), controls),
             ),
-            (NodeProgramKind::StereoMath(config), NodeStateKind::Stateless) => Signal::Stereo(
-                config.process_stereo(inputs.input_a.stereo(), inputs.input_b.stereo(), controls),
-            ),
+            (NodeProgramKind::StereoMath(config), NodeStateKind::Stateless) => {
+                Signal::Stereo(config.process_stereo(
+                    inputs.input_a().stereo(),
+                    inputs.input_b().stereo(),
+                    controls,
+                ))
+            }
             (NodeProgramKind::Shaper(config), NodeStateKind::Stateless) => {
-                Signal::Mono(config.process(inputs.audio.mono(), controls))
+                Signal::Mono(config.process(inputs.audio().mono(), controls))
             }
             (NodeProgramKind::ToAudio, NodeStateKind::Stateless) => {
-                Signal::Mono(inputs.control.control())
+                Signal::Mono(inputs.control().control())
             }
             (NodeProgramKind::ToControl, NodeStateKind::Stateless) => {
-                let value = inputs.audio.mono();
+                let value = inputs.audio().mono();
                 Signal::Control(if value.is_finite() {
                     value.clamp(-1.0, 1.0)
                 } else {
@@ -2047,26 +2027,26 @@ impl NodeProgram {
                 })
             }
             (NodeProgramKind::DcBlock(config), NodeStateKind::DcBlock(state)) => {
-                Signal::Mono(config.process(state, inputs.audio.mono(), controls, sample_rate))
+                Signal::Mono(config.process(state, inputs.audio().mono(), controls, sample_rate))
             }
             (NodeProgramKind::Biquad(config), NodeStateKind::Biquad(state)) => {
                 Signal::Mono(config.process(
                     state,
-                    inputs.audio.mono(),
-                    inputs.key.control(),
-                    inputs.has_key,
+                    inputs.audio().mono(),
+                    inputs.key().control(),
+                    inputs.has_key(),
                     controls,
                     sample_rate,
                 ))
             }
             (NodeProgramKind::OnePole(config), NodeStateKind::OnePole(state)) => {
-                Signal::Mono(config.process(state, inputs.audio.mono(), controls, sample_rate))
+                Signal::Mono(config.process(state, inputs.audio().mono(), controls, sample_rate))
             }
             (NodeProgramKind::BiquadChain(config), NodeStateKind::BiquadChain(state)) => {
                 Signal::Mono(config.process(
                     state,
-                    inputs.audio.mono(),
-                    inputs.key.control(),
+                    inputs.audio().mono(),
+                    inputs.key().control(),
                     controls,
                     sample_rate,
                 ))
@@ -2077,7 +2057,7 @@ impl NodeProgram {
             (
                 NodeProgramKind::LinearPhaseLowpass(config),
                 NodeStateKind::LinearPhaseLowpass(state),
-            ) => Signal::Mono(config.process(state, inputs.audio.mono(), controls)),
+            ) => Signal::Mono(config.process(state, inputs.audio().mono(), controls)),
             // Preserve callback-safe legacy behavior if an internal caller violates
             // the program/state pairing invariant.
             _ => Signal::None,
@@ -2756,38 +2736,27 @@ fn resolve_integer(
 mod tests {
     use super::*;
 
-    fn inputs(audio: Signal, a: Signal, b: Signal, summed_audio: Signal) -> NodeInputs {
-        NodeInputs {
-            song_frame: 0,
-            pitch: Signal::None,
-            key: Signal::None,
-            gate: Signal::None,
-            velocity: Signal::None,
-            audio,
-            gain: Signal::None,
-            modulation: Signal::None,
-            frequency_modulation: Signal::None,
-            phase_modulation: Signal::None,
-            sync: Signal::None,
-            amplitude_modulation: Signal::None,
-            input_a: a,
-            input_b: b,
-            time_modulation: Signal::None,
-            control: Signal::None,
-            summed_audio,
-            has_key: false,
-            has_velocity: false,
-            has_gain: false,
-            has_modulation: false,
-            has_frequency_modulation: false,
-            has_phase_modulation: false,
-            has_sync: false,
-            has_amplitude_modulation: false,
-            has_time_modulation: false,
+    /// Owned storage behind a [`NodeInputs`] view for one test evaluation.
+    struct TestInputs {
+        ports: PortSources,
+        signals: [Signal; 4],
+    }
+
+    fn inputs(audio: Signal, a: Signal, b: Signal, summed_audio: Signal) -> TestInputs {
+        let signals = [audio, a, b, summed_audio];
+        let mut connections = BTreeMap::new();
+        for (index, port) in ["audio", "a", "b", "inputs"].into_iter().enumerate() {
+            if !matches!(signals[index], Signal::None) {
+                connections.insert(port.to_owned(), vec![SignalSource::Node(index)]);
+            }
+        }
+        TestInputs {
+            ports: PortSources::resolve(&connections),
+            signals,
         }
     }
 
-    fn process(program: NodeProgram, inputs: NodeInputs) -> Signal {
+    fn process(program: NodeProgram, inputs: TestInputs) -> Signal {
         let mut state = NodeState(
             NodeStateKind::Stateless,
             NodeSeedIdentity {
@@ -2795,7 +2764,19 @@ mod tests {
                 semantic_identity: None,
             },
         );
-        program.process(&mut state, inputs, &[], 48_000.0)
+        let context = VoiceNodeContext {
+            song_frame: 0,
+            pitch_hz: 0.0,
+            gate: false,
+            velocity: 0.0,
+            voice_sum: [0.0, 0.0],
+        };
+        program.process(
+            &mut state,
+            NodeInputs::new(&inputs.ports, &inputs.signals, context),
+            &[],
+            48_000.0,
+        )
     }
 
     #[test]

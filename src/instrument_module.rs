@@ -7,12 +7,13 @@ use serde::Serialize;
 use crate::{
     diagnostic::{Diagnostic, Diagnostics},
     dsl::{parse_module, parse_project},
-    engine::{CompiledProject, ProcessingMode},
+    engine::{AdmissionProfile, CompiledProject, ProcessingMode},
     media::AssetInventory,
     model::{
         Instrument, InstrumentKind, MediaAsset, MediaAssetUsage, NodeKind, PatternEvent,
-        PresentationItemKind, Project, SettingValue,
+        PresentationItemKind, ProcessorKind, Project, SettingValue,
     },
+    processor_semantics::setting_literal,
     time::MusicalTime,
     validate::validate_instrument_module,
 };
@@ -22,7 +23,7 @@ use crate::{
 pub(crate) struct ModuleAssetDependency {
     /// Durable Project asset ID required by the Instrument.
     pub(crate) asset_id: String,
-    /// Source-v2 usage declarations required by graph Nodes; empty for ordinary sampler/metadata use.
+    /// Source-v2 usage declarations required by Nodes or processors; empty for ordinary sampler/metadata use.
     pub(crate) usages: Vec<MediaAssetUsage>,
     /// Stable readable Instrument declarations that reference the asset.
     pub(crate) references: Vec<String>,
@@ -203,6 +204,17 @@ pub(crate) fn module_asset_dependencies(instrument: &Instrument) -> Vec<ModuleAs
             }
         }
     }
+    for processor in &instrument.post_processors {
+        if processor.kind == ProcessorKind::Convolution
+            && let Some(asset_id) = setting_literal(processor, "ir")
+        {
+            include(
+                asset_id,
+                Some(MediaAssetUsage::ImpulseResponse),
+                format!("processor {}", processor.id),
+            );
+        }
+    }
     for section in &instrument.presentation.sections {
         for item in &section.items {
             if item.kind == PresentationItemKind::Asset {
@@ -250,7 +262,7 @@ pub(crate) fn render_module_preview(
     let mut project = preview_project(&module.instrument)?;
     project.assets = project_assets.to_vec();
     project.acoustic_profiles = module.acoustic_profiles.clone();
-    let compiled = CompiledProject::compile_with_assets(&project, inventory)
+    let compiled = CompiledProject::compile_for(&project, inventory, AdmissionProfile::Offline)
         .map_err(|error| error.to_string())?;
     let frame_count = usize::try_from(compiled.total_frames())
         .map_err(|_| "Module preview frame count exceeds addressable memory".to_owned())?;

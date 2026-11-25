@@ -162,6 +162,20 @@ fn runtime_sample_asset_ids(project: &Project) -> BTreeSet<&str> {
         .map(|track| track.instrument.as_str())
         .collect::<BTreeSet<_>>();
     let mut assets = BTreeSet::new();
+    let channel_processors = super::mix_graph::channel_and_master_processors(project);
+    let post_processors = project
+        .song
+        .instruments
+        .iter()
+        .filter(|instrument| runtime_instruments.contains(instrument.id.as_str()))
+        .flat_map(|instrument| &instrument.post_processors);
+    assets.extend(
+        channel_processors
+            .chain(post_processors)
+            .filter(|processor| processor.kind == crate::model::ProcessorKind::Convolution)
+            .filter_map(|processor| crate::processor_semantics::setting_literal(processor, "ir")),
+    );
+
     for instrument in &project.song.instruments {
         if !runtime_instruments.contains(instrument.id.as_str()) {
             continue;

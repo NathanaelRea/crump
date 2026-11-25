@@ -63,10 +63,10 @@ impl ExciterConfig {
     pub(super) fn process(
         &self,
         state: &mut ExciterState,
-        inputs: NodeInputs,
+        inputs: NodeInputs<'_>,
         controls: &[f64],
     ) -> f32 {
-        let gate = inputs.gate.control() >= 0.5;
+        let gate = inputs.gate().control() >= 0.5;
         if gate && !state.gate {
             let setting = Excitation {
                 kind: self.kind,
@@ -78,8 +78,8 @@ impl ExciterConfig {
             };
             state.dsp.trigger(
                 setting,
-                if inputs.has_velocity {
-                    f64::from(inputs.velocity.control())
+                if inputs.has_velocity() {
+                    f64::from(inputs.velocity().control())
                 } else {
                     1.0
                 },
@@ -156,12 +156,12 @@ impl BankConfig {
     pub(super) fn process(
         &self,
         state: &mut BankState,
-        inputs: NodeInputs,
+        inputs: NodeInputs<'_>,
         controls: &[f64],
     ) -> f32 {
-        let gate = inputs.gate.control() >= 0.5;
+        let gate = inputs.gate().control() >= 0.5;
         if gate && !state.gate {
-            let ratio = (f64::from(inputs.pitch.control()).max(1.0) / self.profile.root_hz)
+            let ratio = (f64::from(inputs.pitch().control()).max(1.0) / self.profile.root_hz)
                 .powf(self.key_track.value(controls).clamp(0.0, 1.0));
             state.dsp.trigger_with_rise(
                 &self.profile,
@@ -172,7 +172,7 @@ impl BankConfig {
             );
         }
         state.gate = gate;
-        (state.dsp.process(f64::from(inputs.audio.mono()))
+        (state.dsp.process(f64::from(inputs.audio().mono()))
             * self.level.value(controls).clamp(0.0, 4.0)) as f32
     }
 }
