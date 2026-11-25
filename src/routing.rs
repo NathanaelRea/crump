@@ -77,7 +77,7 @@ impl ChannelIdentity {
         }
     }
 
-    fn from_output(output: &OutputTarget) -> Self {
+    pub(crate) fn from_output(output: &OutputTarget) -> Self {
         match output {
             OutputTarget::Master => Self::Master,
             OutputTarget::Group(id) => Self::Group(id.clone()),

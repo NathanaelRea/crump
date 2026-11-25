@@ -33,7 +33,7 @@ pub(crate) fn range_offset(frame: u64, start: u64, end: u64, looping: bool) -> u
 }
 
 use super::{
-    CompiledProject, EngineError, ProcessorMeter, RuntimeTelemetry, SongRuntime,
+    CompiledProject, EngineError, FreezeJob, ProcessorMeter, RuntimeTelemetry, SongRuntime,
     control::CompiledControlProgram,
     mix_graph::{CompiledProcessorInspection, MixGraphInspection},
     sample::{CompiledSampleLibrary, CompiledSampleSource},
@@ -181,6 +181,12 @@ pub struct AuditionPrepareOptions {
     /// state, as a DAW locate does: notes and effect tails begun before the start are not heard.
     /// Interactive playback uses this; offline render, bounce and qualification keep preroll.
     pub cleared_seek: bool,
+    /// Start without rendering missing Track Freeze captures.
+    ///
+    /// The capture is returned by [`PreparedAudition::take_pending_freeze`]. Its Tracks run live,
+    /// or play their previous capture (or silence) when running live would exceed the Live
+    /// budget; see [`crate::engine::FreezeStandIn`].
+    pub defer_freeze: bool,
 }
 
 /// Resolved state shown by CLI and workspace inspection.
@@ -244,9 +250,16 @@ pub struct PreparedAudition {
     mix_graph: MixGraphInspection,
     control_program: CompiledControlProgram,
     transient_bypass: BTreeMap<String, bool>,
+    pending_freeze: Option<FreezeJob>,
 }
 
 impl PreparedAudition {
+    /// Track Freeze capture deferred by [`AuditionPrepareOptions::defer_freeze`]. Run it so
+    /// later preparations play its Tracks from cache.
+    pub fn take_pending_freeze(&mut self) -> Option<FreezeJob> {
+        self.pending_freeze.take()
+    }
+
     /// Runtime ready for PipeWire or direct monitoring.
     #[must_use]
     pub fn into_runtime(self) -> SongRuntime {
@@ -387,12 +400,18 @@ impl AuditionPlan {
                 directory.join("audition")
             }
         });
-        let compiled = CompiledProject::compile_with_cache(
+        let mut compiled = CompiledProject::compile_with_cache(
             &selection.project,
             inventory,
             super::AdmissionProfile::Live,
             cache_directory.as_deref(),
+            if options.defer_freeze {
+                super::FreezePolicy::Defer
+            } else {
+                super::FreezePolicy::Wait
+            },
         )?;
+        let pending_freeze = compiled.take_pending_freeze();
         let default_start = selection
             .default_start
             .to_frames(project.song.tempo_bpm, project.sample_rate)?;
@@ -563,6 +582,7 @@ impl AuditionPlan {
             mix_graph: compiled.mix_graph_inspection().clone(),
             control_program: compiled.control_program().clone(),
             transient_bypass: self.transient_bypass.clone(),
+            pending_freeze,
         })
     }
 }

@@ -81,8 +81,10 @@ See [ADR 0030](adr/0030-live-and-offline-runtime-admission.md).
 ## Track Freeze cache
 
 Track Freeze is a source edit and follows the normal History publication and
-Restore workflow. Live preparation can rebuild disposable pre-fader audio
-under `.crump/freeze/`. The cache is safe to delete between preparations and
+Restore workflow. The workspace captures disposable pre-fader audio under
+`.crump/freeze/` in the background, and `crump play` waits for a missing capture.
+A capture is keyed by the frozen Track's captured inputs and an engine
+fingerprint, so edits elsewhere and client-only rebuilds keep it valid. The cache is safe to delete between preparations and
 is excluded from source snapshots, Media Assets, and Revision identity.
 Offline render and bounce ignore Track Freeze. Comparing delivery WAVs across
 a freeze-only edit yields identical bytes. The manifest's Revision ID reflects

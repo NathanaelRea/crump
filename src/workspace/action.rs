@@ -601,7 +601,7 @@ impl Workspace {
 
     /// Whether background work is in flight, so the client should tick again soon.
     pub fn has_pending_work(&self) -> bool {
-        self.background_work_pending()
+        self.background_work_pending() || self.freeze_builder.busy()
     }
 
     /// Whether visible state advances without input, so the client should redraw continuously.

@@ -18,6 +18,9 @@ exceeds the Live budget publishes with CRV093. Live compilation still checks
 admission before allocating the runtime. The workspace reports that playback
 of the published revision is unavailable and retains any prior audible runtime.
 
+[ADR 0032](0032-track-freeze-never-delays-playback.md) supersedes the capture
+timing and cache key described below.
+
 Track Freeze is an authored Track option. Live preparation captures the
 Track's stereo pre-fader tap through Offline admission from Song zero through
 Song end and the render tail. The cache stores absolute Song frames,

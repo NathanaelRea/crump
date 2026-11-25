@@ -24,7 +24,10 @@ use crate::{
     engine::audition::{
         AuditionCue, AuditionPath, AuditionPlan, AuditionRange, AuditionStatus, AuditionTarget,
     },
-    engine::{CompiledProject, control::ControlInspector, mix_graph::MixGraphInspection},
+    engine::{
+        CompiledProject, FreezeJob, FreezeStandIn, control::ControlInspector,
+        mix_graph::MixGraphInspection,
+    },
     history::{HistoryEntry, HistoryStore},
     model::{
         AutomationLane, AutomationPoint, DrumVoice, Graph, InstrumentKind, ParameterSpec,
@@ -59,6 +62,7 @@ const VIEWS: [View; 13] = [
 mod action;
 mod active;
 mod background;
+mod freeze;
 #[cfg(feature = "gui")]
 mod gui;
 mod input;
@@ -231,6 +235,10 @@ pub struct Workspace {
     bundle: ProjectBundle,
     watch: WorkspaceWatch,
     worker: BackgroundWorker<WorkspaceWorkResult>,
+    /// Background Track Freeze capture for frozen Tracks that play live meanwhile.
+    freeze_builder: freeze::FreezeBuilder,
+    /// Status suffix for a capture the latest preparation started.
+    freeze_note: Option<String>,
     retire_queue: RetireQueue,
     watch_probe_requested: bool,
     candidate_reload_requested: bool,
@@ -549,11 +557,14 @@ impl Workspace {
         };
         let worker = BackgroundWorker::spawn("crump-workspace-builder")?;
         let retire_queue = RetireQueue::spawn("crump-workspace-reclaimer")?;
+        let freeze_builder = freeze::FreezeBuilder::spawn("crump-track-freeze")?;
         let mut workspace = Self {
             root,
             bundle,
             watch,
             worker,
+            freeze_builder,
+            freeze_note: None,
             retire_queue,
             watch_probe_requested: false,
             candidate_reload_requested: false,
@@ -870,9 +881,6 @@ impl Workspace {
         };
         let explicit_seek = self.active_prepare_explicit_seek;
         let initial_frame = self.active_prepare_initial_frame;
-        let has_frozen_tracks = active
-            .publishable()
-            .is_some_and(|project| project.song.tracks.iter().any(|track| track.frozen));
         let request = ActiveRequest {
             key: key.clone(),
             active,
@@ -906,9 +914,6 @@ impl Workspace {
                 self.active_prepare_explicit_seek = false;
                 self.active_prepare_initial_frame = None;
                 self.active_build_in_flight = true;
-                if has_frozen_tracks {
-                    self.status = "Preparing Track Freeze audio in the background".to_owned();
-                }
                 self.work_in_flight = Some(WorkspaceWorkKind::Active {
                     key,
                     explicit_seek,
@@ -923,7 +928,66 @@ impl Workspace {
         }
     }
 
+    /// Runs a deferred Track Freeze capture, superseding any capture for older state.
+    fn start_freeze(&mut self, job: Option<FreezeJob>) {
+        let Some(job) = job else {
+            // Everything this preparation needs is cached; a running capture is for older state.
+            self.freeze_builder.cancel();
+            return;
+        };
+        let tracks = job.tracks().collect::<Vec<_>>().join(", ");
+        let meanwhile = match job.stand_in() {
+            FreezeStandIn::Live => "playing them live meanwhile",
+            FreezeStandIn::PreviousCapture => {
+                "too heavy to play live, so their previous capture plays until it is ready"
+            }
+        };
+        if self.freeze_builder.submit(job) || self.freeze_builder.busy() {
+            self.freeze_note = Some(format!(
+                "Track Freeze capturing {tracks} in the background; {meanwhile}"
+            ));
+        }
+    }
+
+    fn poll_freeze(&mut self) -> bool {
+        let Some(outcome) = self.freeze_builder.poll() else {
+            return false;
+        };
+        let tracks = outcome.tracks.join(", ");
+        match outcome.result {
+            Ok(true) => {
+                let elapsed = outcome.elapsed.as_secs_f64();
+                // A previous capture is out of date, so swap the new one in now. Live Tracks
+                // already sound right and switch to the cache at the next start.
+                if outcome.stand_in == FreezeStandIn::PreviousCapture
+                    && (self.player.is_some() || self.playback_requested)
+                {
+                    self.queue_active_preparation(false);
+                    self.status = format!(
+                        "Track Freeze audio ready for {tracks} ({elapsed:.1}s) · swapping it in"
+                    );
+                } else {
+                    self.status = format!(
+                        "Track Freeze audio ready for {tracks} ({elapsed:.1}s) · the next start plays it from cache"
+                    );
+                }
+                true
+            }
+            Ok(false) => false,
+            Err(error) => {
+                self.status =
+                    format!("Track Freeze capture failed; {tracks} keep playing live: {error}");
+                true
+            }
+        }
+    }
+
     fn poll_background_work(&mut self) -> bool {
+        let freeze_changed = self.poll_freeze();
+        freeze_changed | self.poll_background_work_queue()
+    }
+
+    fn poll_background_work_queue(&mut self) -> bool {
         self.dispatch_work();
         match self.worker.poll() {
             BackgroundPoll::Pending => false,
@@ -951,7 +1015,11 @@ impl Workspace {
                     WorkspaceWorkResult::Active(result, elapsed) => {
                         self.performance.observe_active_preparation(elapsed);
                         self.active_build_in_flight = false;
-                        self.finish_active_preparation(result)
+                        let changed = self.finish_active_preparation(result);
+                        if let Some(note) = self.freeze_note.take() {
+                            self.status = format!("{} · {note}", self.status);
+                        }
+                        changed
                     }
                     WorkspaceWorkResult::Mutation(result, elapsed) => {
                         self.performance.observe_mutation(elapsed);
@@ -1148,7 +1216,8 @@ impl Workspace {
                     self.retire_queue.retire((mode, inspection));
                     return true;
                 }
-                let inspection = *inspection;
+                let mut inspection = *inspection;
+                self.start_freeze(inspection.pending_freeze.take());
                 match *mode {
                     PreparedActiveMode::Armed => {
                         if self.player.is_none() && !self.playback_requested {

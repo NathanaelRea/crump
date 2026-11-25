@@ -57,8 +57,12 @@ The selected-Track inspector retains assigned Instrument, source-backed level/pa
 Arrange has a transient two-dimensional cursor: `↑` / `↓` changes Track, while the commands below move exact musical time. A time motion seeks the current Active audition while stopped, paused, or playing; while stopped it also arms that position as the next `Space` start. If the cursor falls outside the armed target's half-open range, Crump reports the exclusion instead of silently clamping to another frame; select a containing range before playback. The cursor, navigation grid, ranges, marks, search state, jump history, follow mode, and viewport never edit Project source or History.
 
 Use **F** on an Arrange Track header to publish a Track Freeze edit. The
-workspace prepares cached audio in the background and reports preparation
-failures in the status line. Playback uses the cache at the absolute Song
+workspace captures the audio in the background and never delays playback for
+it. Until the capture is ready, the Track runs live. If running it live would
+exceed the Live budget, its previous capture (or silence) plays and the new
+capture replaces it when ready. The status line names the stand-in and reports
+capture failures. An edit recaptures only the frozen Tracks whose captured
+inputs changed. Playback uses the cache at the absolute Song
 frame, including after a cleared seek or loop wrap. Fader, pan, Mute, and
 Sends stay live. Instrument and insert edits are allowed and invalidate the
 cache when they affect the captured tap. Direct note triggering on a frozen

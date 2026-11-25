@@ -68,6 +68,7 @@ use self::{
 };
 
 pub use analysis::FinalizedAudioAnalysis;
+pub use freeze::{FreezeJob, FreezeStandIn};
 pub(crate) use generated_audio::GeneratedAudioArtifact;
 pub use mix_graph::AdmissionProfile;
 pub use offline::OfflineThreads;
@@ -98,6 +99,17 @@ pub struct CompiledProject {
     samples: Vec<SampleSourceInspection>,
     spectral: Vec<SpectralAnalysisInspection>,
     wavetables: Vec<WavetableInspection>,
+    pending_freeze: Option<FreezeJob>,
+}
+
+/// Whether Live compilation waits for missing Track Freeze captures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FreezePolicy {
+    /// Render missing captures before returning.
+    Wait,
+    /// Return missing captures as pending work. Their Tracks run live, or play their previous
+    /// capture when running live does not fit the Live budget.
+    Defer,
 }
 
 impl CompiledProject {
@@ -126,7 +138,13 @@ impl CompiledProject {
         inventory: &AssetInventory,
         profile: AdmissionProfile,
     ) -> Result<Self, EngineError> {
-        Self::compile_with_cache(project, inventory, profile, None)
+        Self::compile_with_cache(project, inventory, profile, None, FreezePolicy::Wait)
+    }
+
+    /// Track Freeze capture that would let more Tracks play from cache, when preparation
+    /// deferred it. Its Tracks run live in this program.
+    pub(crate) fn take_pending_freeze(&mut self) -> Option<FreezeJob> {
+        self.pending_freeze.take()
     }
 
     fn compile_with_cache(
@@ -134,24 +152,70 @@ impl CompiledProject {
         inventory: &AssetInventory,
         profile: AdmissionProfile,
         cache_directory: Option<&std::path::Path>,
+        freeze: FreezePolicy,
     ) -> Result<Self, EngineError> {
         let (diagnostics, topology) = validate_project_with_topology(project, Some(inventory));
         if diagnostics.has_errors() {
             return Err(EngineError::Validation(diagnostics.into_vec()));
         }
-        if profile == AdmissionProfile::Live
-            && let Some(diagnostic) = diagnostics
-                .as_slice()
-                .iter()
-                .find(|diagnostic| diagnostic.code == "CRV093")
+        if profile != AdmissionProfile::Live {
+            return Self::compile_validated(
+                project,
+                inventory,
+                profile,
+                &topology,
+                BTreeMap::new(),
+            );
+        }
+        if let Some(diagnostic) = diagnostics
+            .as_slice()
+            .iter()
+            .find(|diagnostic| diagnostic.code == "CRV093")
         {
             return Err(EngineError::Compile(diagnostic.message.clone()));
         }
-        let mut frozen = if profile == AdmissionProfile::Live {
-            freeze::prepare(project, inventory, &topology, cache_directory)?
-        } else {
-            BTreeMap::new()
+        let freeze::Lookup { ready, job } =
+            freeze::lookup(project, inventory, &topology, cache_directory)?;
+        let Some(mut job) = job else {
+            return Self::compile_validated(project, inventory, profile, &topology, ready);
         };
+        if freeze == FreezePolicy::Defer {
+            // Missing captures play live until their audio is ready.
+            let mut live = project.clone();
+            for track in &mut live.song.tracks {
+                track.frozen &= ready.contains_key(&track.id);
+            }
+            if let Ok(mut compiled) =
+                Self::compile_validated(&live, inventory, profile, &topology, ready.clone())
+            {
+                compiled.pending_freeze = Some(job);
+                return Ok(compiled);
+            }
+            // Too heavy to run live: play the previous captures until the new ones are ready.
+            let mut frozen = ready;
+            frozen.extend(job.previous_captures());
+            let mut compiled =
+                Self::compile_validated(project, inventory, profile, &topology, frozen)?;
+            job.set_stand_in(FreezeStandIn::PreviousCapture);
+            compiled.pending_freeze = Some(job);
+            return Ok(compiled);
+        }
+        let threads = std::thread::available_parallelism().map_or(1, usize::from);
+        let mut frozen = ready;
+        frozen.extend(
+            job.run(threads, &std::sync::atomic::AtomicBool::new(false))?
+                .expect("an uncancelled capture finishes"),
+        );
+        Self::compile_validated(project, inventory, profile, &topology, frozen)
+    }
+
+    fn compile_validated(
+        project: &Project,
+        inventory: &AssetInventory,
+        profile: AdmissionProfile,
+        topology: &crate::routing::AuthoredTopology,
+        mut frozen: freeze::FrozenTracks,
+    ) -> Result<Self, EngineError> {
         let schedules = compile_schedules(project)?;
         let controls = CompiledControlProgram::compile(project)?;
         let sample_library =
@@ -241,7 +305,7 @@ impl CompiledProject {
         let mut mix_graph = CompiledMixGraph::compile_with_topology(
             project,
             &controls,
-            &topology,
+            topology,
             Some(profile),
             processors::ProcessorAssets::Samples(&sample_library),
         )?;
@@ -334,6 +398,7 @@ impl CompiledProject {
             samples: sample_inspection,
             spectral: spectral_inspection,
             wavetables: wavetable_inspection,
+            pending_freeze: None,
         })
     }
 
