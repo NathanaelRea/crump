@@ -41,9 +41,9 @@ fn deep_house_reference_is_portable_complete_track_content() {
     let project = bundle.project.as_ref().expect("parsed Project");
     let duration_seconds = project.song.end.as_f64() * 60.0 / project.song.tempo_bpm;
     assert!((180.0..=300.0).contains(&duration_seconds));
-    assert!((duration_seconds - 220.327_868_852_459).abs() < 1.0e-9);
-    assert_eq!(bundle.assets.iter().count(), 4);
-    assert_eq!(project.song.instruments.len(), 9);
+    assert!((duration_seconds - 228.196_721_311_475_4).abs() < 1.0e-9);
+    assert_eq!(bundle.assets.iter().count(), 5);
+    assert_eq!(project.song.instruments.len(), 14);
     assert_eq!(project.song.tracks.len(), 10);
 
     let source = std::fs::read_to_string(root.join("project.crump")).expect("project source");
@@ -54,10 +54,11 @@ fn deep_house_reference_is_portable_complete_track_content() {
         "node source multisample",
         "node source granular",
         "node source spectral",
-        "lock dark",
-        "lock texture-front",
+        "sampler {",
         "modulation pad-width-drift lfo global",
-        "modulation lead-color lfo instrument/dh-lead",
+        "modulation bass-grit-wobble lfo instrument/dh-bass",
+        "automation ostinato-cutoff",
+        "sidechain music-pump-key",
         "modulation bass-touch lfo per_voice/dh-bass",
         "follower kick-motion",
         "sidechain kick-detector",
@@ -99,16 +100,21 @@ fn starter_library_has_exact_assets_readable_modules_and_authored_audition_phras
     let reference = fixture_root();
     let manifest = json(&starter.join("manifest.json"));
     let modules = manifest["modules"].as_array().expect("starter modules");
-    assert_eq!(modules.len(), 9);
+    assert_eq!(modules.len(), 14);
 
     let expected_ids = BTreeSet::from([
         "dh-bass",
+        "dh-brass",
         "dh-evolving-texture",
         "dh-granular-texture",
         "dh-keys",
+        "dh-kick",
         "dh-lead",
+        "dh-octave-lead",
+        "dh-open-hat",
         "dh-pad",
         "dh-percussion",
+        "dh-pluck",
         "dh-spectral-transform",
         "dh-transition",
     ]);
@@ -149,7 +155,7 @@ fn starter_library_has_exact_assets_readable_modules_and_authored_audition_phras
     assert_eq!(actual_ids, expected_ids);
 
     let assets = manifest["assets"].as_array().expect("starter assets");
-    assert_eq!(assets.len(), 4);
+    assert_eq!(assets.len(), 5);
     assert_eq!(
         assets,
         json(&reference.join("media/manifest.json"))["assets"]
@@ -182,10 +188,10 @@ fn starter_library_has_exact_assets_readable_modules_and_authored_audition_phras
     let bundle = load_project(&audition_path).expect("load audition Project");
     assert!(!bundle.diagnostics.has_errors(), "{:?}", bundle.diagnostics);
     let project = bundle.publishable().expect("valid audition Project");
-    assert_eq!(project.song.instruments.len(), 9);
-    assert_eq!(project.song.patterns.len(), 9);
-    assert_eq!(project.song.tracks.len(), 9);
-    assert_eq!(bundle.assets.iter().count(), 4);
+    assert_eq!(project.song.instruments.len(), 14);
+    assert_eq!(project.song.patterns.len(), 14);
+    assert_eq!(project.song.tracks.len(), 14);
+    assert_eq!(bundle.assets.iter().count(), 5);
 
     let declared_patterns = audition["patterns"]
         .as_array()
@@ -193,7 +199,7 @@ fn starter_library_has_exact_assets_readable_modules_and_authored_audition_phras
         .iter()
         .map(|id| id.as_str().expect("pattern ID"))
         .collect::<BTreeSet<_>>();
-    assert_eq!(declared_patterns.len(), 9);
+    assert_eq!(declared_patterns.len(), 14);
     for pattern in &project.song.patterns {
         assert!(declared_patterns.contains(pattern.id.as_str()));
         assert!(pattern.events.len() >= 3);

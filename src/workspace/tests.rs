@@ -1274,8 +1274,8 @@ fn back_to_back_edits_queue_instead_of_being_dropped() {
     // first is in flight, and the last two write the same value so only the final one replays.
     for (target, value) in [
         ("track/bass/level", -9.0),
-        ("track/keys/level", -12.0),
-        ("track/keys/level", -13.0),
+        ("track/pad/level", -12.0),
+        ("track/pad/level", -13.0),
     ] {
         workspace.dispatch(Action::SetParameterTargetValue {
             target: target.to_owned(),
@@ -1301,7 +1301,7 @@ fn back_to_back_edits_queue_instead_of_being_dropped() {
             .level_db
     };
     assert!((level("bass") - -9.0).abs() < 1e-9);
-    assert!((level("keys") - -13.0).abs() < 1e-9);
+    assert!((level("pad") - -13.0).abs() < 1e-9);
 }
 
 #[test]

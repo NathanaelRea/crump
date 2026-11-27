@@ -1,0 +1,103 @@
+crump-module 2
+instrument dh-pluck "Deep House Felt Pluck" graph {
+  polyphony 8
+  parameter cutoff "Cutoff" hz 80hz 8000hz 1480hz 1480hz automatable modulatable
+  parameter tone "Tone" hz 0hz 4000hz 70hz 70hz automatable modulatable
+  faceplate {
+    control cutoff "Felt" "Sets how far the soft filter opens" maps cutoff
+    control tone "Pluck" "Sets how far each note's attack opens the filter" maps tone
+  }
+  presentation {
+    tags pluck arp analog polyphonic
+    preview A3 A5 velocity 40% 90% duration 1/4beat
+    section source-panel sources "Triangle Ensemble, Fifth and Breath" {
+      node source
+      node fifth
+      node breath
+    }
+    section filter-panel filters "Soft Felt Filter" {
+      node filter
+      node filter-envelope
+      parameter cutoff
+      parameter tone
+    }
+  }
+  # Found by a perceptual search toward the isolated opening pluck of an
+  # Anjunadeep track (see docs/research/anjunadeep-measured.md): six triangles
+  # spread unevenly with a touch of tanh, a quiet sine a fifth above, a breath of
+  # noise, a fast attack that decays over a second to a soft sustain, and a gently
+  # key-tracked low-pass with light drive. The release is lengthened from the
+  # match so short arpeggio notes ring instead of stopping.
+  modulation {
+    source velocity note_velocity per_voice unipolar
+    source sway lfo instrument bipolar sine sync 8bar phase 0
+    route velocity-tone source velocity target tone depth 400hz map unipolar curve smoothstep order 0 bypass false
+    route sway-cutoff source sway target cutoff depth 120hz map bipolar curve smoothstep order 10 bypass false
+  }
+  graph voice 12 {
+    node source analog_oscillator {
+      waveform triangle
+      unison 6
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 0.5
+      detune 0.33st
+      blend 0.62
+      width 0.76
+      spread natural
+      drift_shape wander
+      drift 0.035st
+      glide 0s
+      velocity_amount 0.3
+      level 0.2
+      pan 0
+      distortion edge tanh amount 0.15
+    }
+    node fifth analog_oscillator {
+      waveform sine
+      unison 1
+      coarse 7st
+      fine 0.05st
+      phase 0
+      random_phase 0.5
+      detune 0st
+      blend 1
+      width 0
+      drift 0.01st
+      glide 0s
+      velocity_amount 0.3
+      level 0.05
+      pan 0
+    }
+    node breath noise level 0.046
+    node breath-amp amplifier level 1
+    node breath-stereo mono_to_stereo
+    node tones stereo_mixer a_level 1 b_level 1
+    node layers stereo_mixer a_level 1 b_level 1
+    node envelope envelope mode ahdsr attack 4ms hold 0ms decay 1030ms sustain 0.63 release 600ms attack_curve 0 decay_curve -0.3 release_curve 0 retrigger always
+    node filter-envelope envelope mode ahdsr attack 6ms hold 0ms decay 140ms sustain 0.27 release 300ms attack_curve 0 decay_curve -0.3 release_curve 0 retrigger always
+    node filter stereo_filter model svf_clean mode lowpass cutoff $cutoff resonance 0.05 drive 0.28 mix 1 pan 0 mod_depth $tone velocity_depth 0hz key_track 0.6 key_reference 261.625565hz
+    node voice-out output
+    bus source-pitch note.pitch -> source.pitch
+    bus source-gain envelope.control -> source.gain
+    bus source-velocity note.velocity -> source.velocity
+    bus fifth-pitch note.pitch -> fifth.pitch
+    bus fifth-gain envelope.control -> fifth.gain
+    bus fifth-velocity note.velocity -> fifth.velocity
+    bus breath-audio breath.audio -> breath-amp.audio
+    bus breath-gain envelope.control -> breath-amp.gain
+    bus breath-wide breath-amp.audio -> breath-stereo.audio
+    bus envelope-gate note.gate -> envelope.gate
+    bus filter-envelope-gate note.gate -> filter-envelope.gate
+    bus tone-a source.audio -> tones.a
+    bus tone-b fifth.audio -> tones.b
+    bus layer-a tones.audio -> layers.a
+    bus layer-b breath-stereo.audio -> layers.b
+    bus filter-audio layers.audio -> filter.audio
+    bus filter-key note.pitch -> filter.key
+    bus filter-velocity note.velocity -> filter.velocity
+    bus filter-sweep filter-envelope.control -> filter.mod
+    bus output-audio filter.audio -> voice-out.audio
+  }
+}

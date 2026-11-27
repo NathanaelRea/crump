@@ -1,0 +1,23 @@
+crump-module 2
+instrument dh-kick "Deep House Sample Kick" sampler {
+  polyphony 4
+  parameter gain "Gain" db -96db 24db 0db 0db automatable
+  parameter tune "Tune" semitones -24st 24st 0st 0st automatable
+  faceplate {
+    control gain "Gain" "Trims the sampled kick" maps gain
+    control tune "Tune" "Repitches the kick body away from A1" maps tune
+  }
+  presentation {
+    tags drums kick tom sample deep-house
+    preview G1 C4 velocity 45% 100% duration 1beat
+  }
+  # Notes above A1 repitch the same body into tuned tribal toms.
+  mapping body asset kick-a keys G1 C4 root A1 {
+    region 0 20160
+    playback one_shot
+    gain 0db
+    pan 0
+    envelope 0ms 30ms
+    fade 0 480
+  }
+}

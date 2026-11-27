@@ -2037,7 +2037,7 @@ pub(super) mod tests {
         );
         assert_eq!(
             set("track/bass/level"),
-            ["Sub and Analog Bass · Level to -9.0 dB"]
+            ["Sub and Analog Bass · Level to -10.0 dB"]
         );
         app.shutdown();
     }

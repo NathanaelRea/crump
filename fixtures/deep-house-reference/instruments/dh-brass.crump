@@ -1,0 +1,60 @@
+crump-module 2
+instrument dh-brass "Deep House Horn" graph {
+  polyphony 4
+  parameter cutoff "Cutoff" hz 300hz 12000hz 3180hz 3180hz automatable modulatable
+  parameter swell "Swell" seconds 50ms 2000ms 700ms 700ms automatable
+  faceplate {
+    control cutoff "Brightness" "Sets where the horn filter rests after each swell" maps cutoff
+    control swell "Swell" "How slowly each note's filter opens" maps swell
+  }
+  presentation {
+    tags brass lead analog sustained
+    preview A4 A5 velocity 40% 90% duration 2beat
+    section source-panel sources "Clean Saw" {
+      node source
+    }
+    section filter-panel filters "Swelling Filter" {
+      node filter
+      node filter-envelope
+      parameter cutoff
+      parameter swell
+    }
+  }
+  # Found by matching the bright, drawn-out top line of an isolated Anjunadeep
+  # breakdown (see docs/research/anjunadeep-measured.md), then shaped by ear: one
+  # clean saw whose filter swells open over 0.7 s and rests at half, a 0.6 s fade-in
+  # and a 3.5 s tail so overlapping notes crossfade instead of sliding.
+  graph voice 8 {
+    node source analog_oscillator {
+      waveform saw
+      unison 1
+      coarse 0st
+      fine 0st
+      phase 0
+      random_phase 0.3
+      detune 0st
+      blend 1
+      width 0
+      drift_shape wander
+      drift 0.01st
+      glide 0s
+      velocity_amount 0.3
+      level 0.2
+      pan 0
+    }
+    node envelope envelope mode ahdsr attack 600ms hold 0ms decay 1500ms sustain 0.85 release 3500ms attack_curve 0.3 decay_curve -0.2 release_curve 0.2 retrigger always
+    node filter-envelope envelope mode ahdsr attack $swell hold 0ms decay 3580ms sustain 0.51 release 3500ms attack_curve 0.2 decay_curve -0.2 release_curve 0 retrigger always
+    node filter stereo_filter model svf_clean mode lowpass cutoff $cutoff resonance 0.16 drive 0 mix 1 pan 0 mod_depth 2430hz velocity_depth 0hz key_track 0.32 key_reference 261.625565hz
+    node voice-out output
+    bus source-pitch note.pitch -> source.pitch
+    bus source-gain envelope.control -> source.gain
+    bus source-velocity note.velocity -> source.velocity
+    bus envelope-gate note.gate -> envelope.gate
+    bus filter-envelope-gate note.gate -> filter-envelope.gate
+    bus filter-audio source.audio -> filter.audio
+    bus filter-key note.pitch -> filter.key
+    bus filter-velocity note.velocity -> filter.velocity
+    bus filter-sweep filter-envelope.control -> filter.mod
+    bus output-audio filter.audio -> voice-out.audio
+  }
+}

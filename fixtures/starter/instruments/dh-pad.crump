@@ -1,60 +1,100 @@
 crump-module 2
 instrument dh-pad "Deep House Analog Pad" graph {
   polyphony 8
-  parameter cutoff "Cutoff" hz 180hz 14000hz 1800hz 2400hz automatable modulatable
-  parameter width "Width" ratio 0 1 0.65 0.78 automatable modulatable
+  voicing poly retrigger always glide 56ms glide_mode always note_priority last steal_priority release_oldest seed 41
+  parameter cutoff "Cutoff" hz 180hz 14000hz 1940hz 1940hz automatable modulatable
+  parameter width "Width" ratio 0 1 0.81 0.81 automatable modulatable
   faceplate {
-    control cutoff "Glow" "Opens the shared pad filter" maps cutoff
-    control width "Width" "Controls mono-compatible analog spread" maps width
+    control cutoff "Glow" "Opens the soft pad filter" maps cutoff
+    control width "Width" "Spreads the six saws across the stereo field" maps width
   }
   presentation {
     tags pad analog polyphonic
     preview C3 C5 velocity 35% 85% duration 2beat
-    section source-panel sources "Analog Ensemble" {
+    section source-panel sources "Saw Ensemble and Fifth" {
       node source
+      node fifth
+      node air
     }
-    section effect-panel effects "Shared Chorus-like Echo" {
+    section effect-panel effects "Soft Filter" {
       node filter
-      node chorus
+      node filter-envelope
     }
   }
+  # Found by blind listening rounds, then refined toward an isolated Anjunadeep
+  # breakdown pad (see docs/research/anjunadeep-measured.md): six barely detuned
+  # saws spread unevenly so held chords shimmer instead of pulsing, a soft triangle
+  # a fifth up, a 1.9 s swell in, a short glide between chord voices, and an open,
+  # resonance-free filter that drifts slowly with the bar.
   modulation {
-    source velocity note_velocity per_voice unipolar
-    source breath lfo instrument bipolar triangle sync 4bar phase 0
-    route velocity-cutoff source velocity target cutoff depth 900hz map unipolar curve smoothstep order 0 bypass false
-    route breath-cutoff source breath target cutoff depth 420hz map bipolar curve smoothstep order 10 bypass false
+    source sweep lfo instrument bipolar sine sync 1bar phase 0
+    source wander random_hold instrument bipolar rate sync 2bar seed 71
+    route sweep-cutoff source sweep target cutoff depth 70hz map bipolar curve smoothstep order 0 bypass false
+    route wander-cutoff source wander target cutoff depth 8hz map bipolar curve smoothstep order 10 bypass false
   }
-  graph voice 6 {
+  graph voice 12 {
     node source analog_oscillator {
       waveform saw
-      unison 4
+      unison 6
       coarse 0st
       fine 0st
       phase 0
-      random_phase 0.25
-      detune 0.14st
-      blend 0.8
+      random_phase 0.6
+      detune 0.039st
+      blend 0.4
       width $width
-      drift 0.025st
-      glide 20ms
-      velocity_amount 0.22
-      level 0.17
+      spread natural
+      drift_shape wander
+      drift 0.055st
+      glide 0s
+      velocity_amount 0.2
+      level 0.2
       pan 0
     }
-    node envelope envelope mode ahdsr attack 180ms hold 0ms decay 900ms sustain 0.76 release 1800ms attack_curve 0.15 decay_curve 0 release_curve 0.1 retrigger legato
+    node fifth analog_oscillator {
+      waveform triangle
+      unison 1
+      coarse 7st
+      fine 0st
+      phase 0
+      random_phase 0.6
+      detune 0st
+      blend 1
+      width 0
+      drift 0.055st
+      glide 0s
+      velocity_amount 0.2
+      level 0.05
+      pan 0
+    }
+    node air noise level 0.0145
+    node air-amp amplifier level 1
+    node air-stereo mono_to_stereo
+    node tones stereo_mixer a_level 1 b_level 1
+    node layers stereo_mixer a_level 1 b_level 1
+    node envelope envelope mode ahdsr attack 1884ms hold 0ms decay 2269ms sustain 0.7 release 847ms attack_curve 0.3 decay_curve -0.2 release_curve 0.2 retrigger legato
+    node filter-envelope envelope mode ahdsr attack 99ms hold 0ms decay 2000ms sustain 0.6 release 847ms attack_curve 0.3 decay_curve 0 release_curve 0 retrigger legato
+    node filter stereo_filter model svf_clean mode lowpass cutoff $cutoff resonance 0.01 drive 0 mix 1 pan 0 mod_depth 29hz velocity_depth 0hz key_track 0.34 key_reference 261.625565hz
     node voice-out output
     bus source-pitch note.pitch -> source.pitch
     bus source-gain envelope.control -> source.gain
     bus source-velocity note.velocity -> source.velocity
+    bus fifth-pitch note.pitch -> fifth.pitch
+    bus fifth-gain envelope.control -> fifth.gain
+    bus fifth-velocity note.velocity -> fifth.velocity
+    bus air-audio air.audio -> air-amp.audio
+    bus air-gain envelope.control -> air-amp.gain
+    bus air-wide air-amp.audio -> air-stereo.audio
     bus envelope-gate note.gate -> envelope.gate
-    bus output-audio source.audio -> voice-out.audio
-  }
-  graph shared 4 {
-    node filter stereo_filter model svf_clean mode lowpass cutoff $cutoff resonance 0.18 drive 0.08 mix 1 pan 0 mod_depth 0hz velocity_depth 0hz key_track 0 key_reference 261.625565hz
-    node chorus delay time 18ms feedback 0.12 mix 0.16
-    node shared-out output
-    bus voice-sum voice_sum.audio -> filter.audio
-    bus filtered filter.audio -> chorus.audio
-    bus shared-output chorus.audio -> shared-out.audio
+    bus filter-envelope-gate note.gate -> filter-envelope.gate
+    bus tone-a source.audio -> tones.a
+    bus tone-b fifth.audio -> tones.b
+    bus layer-a tones.audio -> layers.a
+    bus layer-b air-stereo.audio -> layers.b
+    bus filter-audio layers.audio -> filter.audio
+    bus filter-key note.pitch -> filter.key
+    bus filter-velocity note.velocity -> filter.velocity
+    bus filter-sweep filter-envelope.control -> filter.mod
+    bus output-audio filter.audio -> voice-out.audio
   }
 }

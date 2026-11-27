@@ -8,6 +8,11 @@ import "instruments/dh-transition.crump"
 import "instruments/dh-evolving-texture.crump"
 import "instruments/dh-granular-texture.crump"
 import "instruments/dh-spectral-transform.crump"
+import "instruments/dh-kick.crump"
+import "instruments/dh-pluck.crump"
+import "instruments/dh-brass.crump"
+import "instruments/dh-octave-lead.crump"
+import "instruments/dh-open-hat.crump"
 project "Deep House Starter Audition Phrases" {
   id deep-house-starter-auditions
   seed 6173
@@ -29,11 +34,39 @@ project "Deep House Starter Audition Phrases" {
   asset zone-high "Procedural high multisample zone" wav "media/multisample-high.wav" sha256 "1e3309e6b805299f66308bd603d304387cba4e7affadf63f57d6835e82d5345d" {
     usage multisample
   }
+  asset kick-a "Procedural tight house kick" wav "media/kick.wav" sha256 "591e0d32c3e4ffa90c784b263badc37b29d6933e35c770609fe637933db8c5d7"
   song {
     tempo 122bpm
     meter 4/4
-    end 18bar
+    end 28bar
 
+    pattern audition-octave-lead 2bar {
+      note 0beat A3 1/4beat 0.42
+      note 1/4beat E4 1/4beat 0.5
+      note 1/2beat C4 1/4beat 0.55
+      note 3/4beat B4 1/4beat 0.6
+      note 1beat A4 1/4beat 0.7
+      note 2beat E5 1/2beat 0.8
+      note 4beat A4 1beat 0.9
+    }
+    pattern audition-open-hat 2bar {
+      note 1/2beat C4 1/4beat 0.4
+      note 3/2beat C4 1/4beat 0.55
+      note 5/2beat C4 1/4beat 0.7
+      note 7/2beat C4 1/4beat 0.85
+    }
+    pattern audition-brass 2bar {
+      note 0beat E4 3beat 0.45
+      note 3beat A4 2beat 0.65
+      note 5beat E5 3beat 0.85
+    }
+    pattern audition-pluck 2bar {
+      note 0beat A3 1/4beat 0.42
+      note 1beat E4 1/4beat 0.55
+      note 2beat A4 1/4beat 0.68
+      note 3beat C5 1/4beat 0.8
+      note 4beat A5 1/2beat 0.9
+    }
     pattern audition-bass 2bar {
       note 0beat C1 1beat 0.45
       note 2beat G1 1beat 0.62
@@ -95,6 +128,12 @@ project "Deep House Starter Audition Phrases" {
       note 4beat C4 2beat 0.68
       note 6beat C5 2beat 0.85
     }
+    pattern audition-kick 2bar {
+      note 0beat A1 1beat 0.45
+      note 2beat A1 1beat 0.62
+      note 4beat G1 1beat 0.78
+      note 6beat B1 1beat 0.95
+    }
 
     track audition-bass "Bass Audition" instrument dh-bass level -18db pan 0 {
       clip audition-bass-clip pattern audition-bass start 0bar duration 2bar mode loop
@@ -122,6 +161,21 @@ project "Deep House Starter Audition Phrases" {
     }
     track audition-spectral "Spectral Transform Audition" instrument dh-spectral-transform level -18db pan 0 {
       clip audition-spectral-clip pattern audition-spectral start 16bar duration 2bar mode loop
+    }
+    track audition-kick "Kick Audition" instrument dh-kick level -18db pan 0 {
+      clip audition-kick-clip pattern audition-kick start 18bar duration 2bar mode loop
+    }
+    track audition-pluck "Felt Pluck Audition" instrument dh-pluck level -18db pan 0 {
+      clip audition-pluck-clip pattern audition-pluck start 20bar duration 2bar mode loop
+    }
+    track audition-brass "Swelling Horn Audition" instrument dh-brass level -18db pan 0 {
+      clip audition-brass-clip pattern audition-brass start 22bar duration 2bar mode loop
+    }
+    track audition-octave-lead "Octave Saw Lead Audition" instrument dh-octave-lead level -18db pan 0 {
+      clip audition-octave-lead-clip pattern audition-octave-lead start 24bar duration 2bar mode loop
+    }
+    track audition-open-hat "Open Hat Audition" instrument dh-open-hat level -18db pan 0 {
+      clip audition-open-hat-clip pattern audition-open-hat start 26bar duration 2bar mode loop
     }
   }
 }

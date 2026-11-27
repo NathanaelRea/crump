@@ -1,0 +1,99 @@
+crump-module 2
+instrument dh-octave-lead "Deep House Octave Saw Lead" graph {
+  polyphony 8
+  parameter cutoff "Cutoff" hz 80hz 12000hz 1500hz 1500hz automatable modulatable
+  faceplate {
+    control cutoff "Cutoff" "Opens the bright octave saw lead" maps cutoff
+  }
+  presentation {
+    tags lead pluck saw ostinato deep-house
+    preview A3 A5 velocity 40% 90% duration 1/4beat
+  }
+  # Chosen blind over five other top-line synths for the track's ostinato: four
+  # unevenly detuned saws, two more an octave up, and a quiet sine an octave and
+  # a fifth up. A decaying low-pass opens each note, and the Song automates
+  # `cutoff` as the track's long arc.
+  graph voice 11 {
+    node saw analog_oscillator {
+      waveform saw
+      unison 4
+      coarse 0st
+      fine 0.0st
+      phase 0
+      random_phase 0.5
+      detune 0.12st
+      blend 0.7
+      width 0.7
+      spread natural
+      drift_shape wander
+      drift 0.02st
+      glide 0s
+      velocity_amount 0.4
+      level 0.14
+      pan 0
+    }
+    node up analog_oscillator {
+      waveform saw
+      unison 2
+      coarse 12st
+      fine 0.0st
+      phase 0
+      random_phase 0.5
+      detune 0.08st
+      blend 0.6
+      width 0.9
+      spread natural
+      drift_shape wander
+      drift 0.02st
+      glide 0s
+      velocity_amount 0.4
+      level 0.07
+      pan 0
+    }
+    node fifth analog_oscillator {
+      waveform sine
+      unison 1
+      coarse 19st
+      fine 0.0st
+      phase 0
+      random_phase 0.5
+      detune 0.0st
+      blend 1.0
+      width 0.0
+      drift_shape wander
+      drift 0.02st
+      glide 0s
+      velocity_amount 0.4
+      level 0.04
+      pan 0
+    }
+    node mix0 stereo_mixer a_level 1 b_level 1
+    node mix1 stereo_mixer a_level 1 b_level 1
+    node amp-env envelope mode ahdsr attack 4ms hold 0ms decay 700ms sustain 0.35 release 500ms attack_curve 0 decay_curve -0.4 release_curve 0 retrigger always
+    node filt-env envelope mode ahdsr attack 3ms hold 0ms decay 400ms sustain 0.25 release 400ms attack_curve 0 decay_curve -0.4 release_curve 0 retrigger always
+    node filter stereo_filter model svf_clean mode lowpass resonance 0.1 drive 0.15 mod_depth 3500hz key_track 0.5 cutoff $cutoff mix 1 pan 0 velocity_depth 0hz key_reference 261.625565hz
+
+    node voice-out output
+    bus saw-pitch note.pitch -> saw.pitch
+    bus saw-gain amp-env.control -> saw.gain
+    bus saw-vel note.velocity -> saw.velocity
+    bus up-pitch note.pitch -> up.pitch
+    bus up-gain amp-env.control -> up.gain
+    bus up-vel note.velocity -> up.velocity
+    bus fifth-pitch note.pitch -> fifth.pitch
+    bus fifth-gain amp-env.control -> fifth.gain
+    bus fifth-vel note.velocity -> fifth.velocity
+    bus mix0-a saw.audio -> mix0.a
+    bus mix0-b up.audio -> mix0.b
+    bus mix1-a mix0.audio -> mix1.a
+    bus mix1-b fifth.audio -> mix1.b
+    bus amp-gate note.gate -> amp-env.gate
+    bus filt-gate note.gate -> filt-env.gate
+    bus filter-audio mix1.audio -> filter.audio
+    bus filter-key note.pitch -> filter.key
+    bus filter-vel note.velocity -> filter.velocity
+    bus filter-sweep filt-env.control -> filter.mod
+
+    bus out filter.audio -> voice-out.audio
+  }
+}

@@ -878,6 +878,24 @@ impl NodeProgram {
                     blend: number("blend", Unit::Ratio, 1.0)?,
                     width: number("width", Unit::Ratio, 0.75)?,
                     drift: number("drift", Unit::Semitones, 0.02)?,
+                    spread: match text(node, "spread", "even") {
+                        "even" => oscillator::UnisonSpread::Even,
+                        "natural" => oscillator::UnisonSpread::Natural,
+                        value => {
+                            return Err(EngineError::Compile(format!(
+                                "unsupported unison spread `{value}`"
+                            )));
+                        }
+                    },
+                    drift_shape: match text(node, "drift_shape", "sine") {
+                        "sine" => oscillator::DriftShape::Sine,
+                        "wander" => oscillator::DriftShape::Wander,
+                        value => {
+                            return Err(EngineError::Compile(format!(
+                                "unsupported drift shape `{value}`"
+                            )));
+                        }
+                    },
                     glide: number("glide", Unit::Seconds, 0.0)?,
                     fm_depth: number("fm_depth", Unit::Semitones, 0.0)?,
                     pm_depth: number("pm_depth", Unit::Ratio, 0.0)?,
@@ -998,6 +1016,24 @@ impl NodeProgram {
                     blend: number("blend", Unit::Ratio, 1.0)?,
                     width: number("width", Unit::Ratio, 0.75)?,
                     drift: number("drift", Unit::Semitones, 0.02)?,
+                    spread: match text(node, "spread", "even") {
+                        "even" => oscillator::UnisonSpread::Even,
+                        "natural" => oscillator::UnisonSpread::Natural,
+                        value => {
+                            return Err(EngineError::Compile(format!(
+                                "unsupported unison spread `{value}`"
+                            )));
+                        }
+                    },
+                    drift_shape: match text(node, "drift_shape", "sine") {
+                        "sine" => oscillator::DriftShape::Sine,
+                        "wander" => oscillator::DriftShape::Wander,
+                        value => {
+                            return Err(EngineError::Compile(format!(
+                                "unsupported drift shape `{value}`"
+                            )));
+                        }
+                    },
                     glide: number("glide", Unit::Seconds, 0.0)?,
                     fm_depth: number("fm_depth", Unit::Semitones, 0.0)?,
                     pm_depth: number("pm_depth", Unit::Ratio, 0.0)?,

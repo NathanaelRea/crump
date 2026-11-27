@@ -68,7 +68,8 @@ fn maximum_profile_is_admitted_deterministic_grouping_independent_and_rebuildabl
         57_458
     );
     // Publication state is compiled into every build, so the size no longer depends on PipeWire.
-    let expected_runtime_bytes = 1_736_104;
+    // Includes 192 bytes per analog or wavetable oscillator for wander drift state.
+    let expected_runtime_bytes = 1_741_488;
     assert_eq!(resources.runtime_bytes, expected_runtime_bytes);
     assert_eq!(
         resources.publication_peak_bytes,

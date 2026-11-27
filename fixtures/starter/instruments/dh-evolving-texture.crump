@@ -1,8 +1,8 @@
 crump-module 2
 instrument dh-evolving-texture "Deep House Evolving Wavetable Texture" graph {
   polyphony 6
-  parameter position "Scan" ratio 0 1 0.15 0.25 automatable modulatable
-  parameter width "Width" ratio 0 1 0.55 0.82 automatable modulatable
+  parameter position "Scan" ratio 0 1 0.15 0.12 automatable modulatable
+  parameter width "Width" ratio 0 1 0.55 0.8 automatable modulatable
   faceplate {
     control position "Scan" "Moves across the exact wavetable frames" maps position
     control width "Width" "Spreads the evolving unison layer" maps width
@@ -14,34 +14,40 @@ instrument dh-evolving-texture "Deep House Evolving Wavetable Texture" graph {
       node source
       asset wt-basic
     }
+    section filter-panel filters "Warmth" {
+      node warmth
+    }
   }
   modulation {
-    source scan-lfo lfo instrument bipolar triangle sync 4bar phase 0
+    source scan-lfo lfo instrument bipolar triangle sync 8bar phase 0
     source velocity note_velocity per_voice unipolar
-    route table-motion source scan-lfo target position depth 38% map bipolar curve smoothstep order 0 bypass false
-    route touch-width source velocity target width depth 12% map unipolar curve linear order 10 bypass false
+    route table-motion source scan-lfo target position depth 12% map bipolar curve smoothstep order 0 bypass false
+    route touch-width source velocity target width depth 10% map unipolar curve linear order 10 bypass false
   }
-  graph voice 7 {
+  graph voice 8 {
     node source wavetable {
       asset wt-basic
       unison 4
       phase 0
-      random_phase 0.35
+      random_phase 0.4
       table_position $position
-      detune 0.11st
+      detune 0.09st
       blend 0.8
       width $width
       drift 0.02st
-      velocity_amount 0.15
-      level 0.16
+      velocity_amount 0.1
+      level 0.4
       pan 0
     }
-    node envelope envelope mode ahdsr attack 320ms hold 0ms decay 1200ms sustain 0.78 release 1800ms attack_curve 0.1 decay_curve 0 release_curve 0.1 retrigger legato
+    node envelope envelope mode ahdsr attack 1bar hold 0ms decay 2s sustain 0.85 release 1bar attack_curve 0.1 decay_curve 0 release_curve 0.1 retrigger legato
+    node warmth stereo_filter model svf_clean mode lowpass cutoff 1300hz resonance 0.1 drive 0 mix 1 pan 0 mod_depth 0hz velocity_depth 0hz key_track 0.2 key_reference 261.625565hz
     node voice-out output
     bus source-pitch note.pitch -> source.pitch
     bus source-gain envelope.control -> source.gain
     bus source-velocity note.velocity -> source.velocity
     bus envelope-gate note.gate -> envelope.gate
-    bus output-audio source.audio -> voice-out.audio
+    bus warmth-audio source.audio -> warmth.audio
+    bus warmth-key note.pitch -> warmth.key
+    bus output-audio warmth.audio -> voice-out.audio
   }
 }
