@@ -982,7 +982,7 @@ pub(super) fn seed_real_history(fixture: &std::path::Path) -> (tempfile::TempDir
                 value: "1.4".into(),
             },
         ),
-        (25, target("track/bass/level", -9.0)),
+        (25, target("track/bass/level", -10.0)),
         (12, target("track/bass/pan", -0.2)),
         (6, inst("dh-bass", "cutoff", 640.0)),
     ];

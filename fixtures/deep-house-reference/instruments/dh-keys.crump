@@ -1,39 +1,48 @@
 crump-module 2
 instrument dh-keys "Deep House Multisample Keys" graph {
-  polyphony 10
-  parameter tone "Tone" ratio 0.15 1 0.58 0.62 automatable modulatable
-  parameter start "Texture Start" ratio 0 0.7 0.08 0.12 automatable modulatable
-  parameter decay "Decay" seconds 40ms 800ms 220ms 260ms automatable
+  polyphony 12
+  parameter tone "Tone" ratio 0.15 1 0.58 0.6 automatable modulatable
+  parameter start "Texture Start" ratio 0 0.7 0.08 0.05 automatable modulatable
+  parameter decay "Decay" seconds 40ms 800ms 220ms 240ms automatable
   faceplate {
     control tone "Tone" "Scales the two exact multisample zones" maps tone
     control start "Texture" "Moves the exact sample-source attack region" maps start
-    control decay "Decay" "Shapes the hybrid pluck envelope" maps decay
+    control decay "Decay" "Shapes the stab envelope" maps decay
   }
   presentation {
-    tags keys pluck multisample sample
-    preview C2 C6 velocity 35% 95% duration 1beat
-    section source-panel sources "Multisample and Texture Sources" {
+    tags keys stab multisample sample
+    preview C3 C6 velocity 35% 95% duration 1/2beat
+    section source-panel sources "Multisample and Attack Texture" {
       node source
       node texture
       asset zone-low
       asset zone-high
       asset source-texture
     }
+    section envelope-panel envelopes_lfos "Stab and Attack Envelopes" {
+      node envelope
+      node click
+      node tone-envelope
+      node tone-filter
+      parameter decay
+    }
   }
   modulation {
     source velocity note_velocity per_voice unipolar
+    source humanize random_hold per_voice bipolar rate free 2hz seed 1111
     route velocity-tone source velocity target tone depth 20% map unipolar curve smoothstep order 0 bypass false
+    route humanize-tone source humanize target tone depth 8% map bipolar curve linear order 10 bypass false
   }
-  graph voice 10 {
+  graph voice 13 {
     node source multisample {
-      playback gated
+      playback one_shot
       tune 0st
       rate 1
-      velocity_amount 0.22
+      velocity_amount 0.3
       level $tone
       pan 0
-      zone low asset zone-low keys C1 B3 velocity 0 1 root C3 layer body articulation default round_robin low-rr 0 region 0 24000 gain -4db pan -0.18
-      zone high asset zone-high keys C4 C7 velocity 0 1 root C5 layer body articulation default round_robin high-rr 0 region 0 24000 gain -4db pan 0.18
+      zone low asset zone-low keys C1 B3 velocity 0 1 root C3 layer body articulation default round_robin low-rr 0 region 0 24000 gain -3db pan -0.15
+      zone high asset zone-high keys C4 C7 velocity 0 1 root C5 layer body articulation default round_robin high-rr 0 region 0 24000 gain -4db pan 0.15
     }
     node texture sample_source {
       asset source-texture
@@ -49,13 +58,16 @@ instrument dh-keys "Deep House Multisample Keys" graph {
       root C4
       tune 0st
       rate 1
-      velocity_amount 0.2
-      level 0.2
+      velocity_amount 0.4
+      level 0.18
       pan 0
       slice whole 0 48000
     }
-    node sources stereo_mixer a_level 0.86 b_level 0.36
-    node envelope envelope mode ahdsr attack 3ms hold 0ms decay $decay sustain 0.28 release 320ms attack_curve 0 decay_curve -0.15 release_curve 0 retrigger always
+    node sources stereo_mixer a_level 0.9 b_level 0.3
+    node envelope envelope mode ahdsr attack 2ms hold 10ms decay $decay sustain 0.28 release 140ms attack_curve 0 decay_curve -0.25 release_curve 0 retrigger always
+    node click envelope mode ahdsr attack 0ms hold 0ms decay 18ms sustain 0 release 10ms attack_curve 0 decay_curve -0.5 release_curve 0 retrigger always
+    node tone-envelope envelope mode ahdsr attack 1ms hold 0ms decay 170ms sustain 0.18 release 140ms attack_curve 0 decay_curve -0.4 release_curve 0 retrigger always
+    node tone-filter stereo_filter model svf_clean mode lowpass cutoff 850hz resonance 0.28 drive 0.35 mix 1 pan 0 mod_depth 3600hz velocity_depth 1200hz key_track 0.4 key_reference 261.625565hz
     node voice-out output
     bus source-pitch note.pitch -> source.pitch
     bus source-gate note.gate -> source.gate
@@ -64,10 +76,16 @@ instrument dh-keys "Deep House Multisample Keys" graph {
     bus texture-gate note.gate -> texture.gate
     bus texture-velocity note.velocity -> texture.velocity
     bus envelope-gate note.gate -> envelope.gate
+    bus click-gate note.gate -> click.gate
     bus source-gain envelope.control -> source.gain
-    bus texture-gain envelope.control -> texture.gain
+    bus texture-gain click.control -> texture.gain
     bus multisample-audio source.audio -> sources.a
     bus texture-audio texture.audio -> sources.b
-    bus output-audio sources.audio -> voice-out.audio
+    bus tone-envelope-gate note.gate -> tone-envelope.gate
+    bus tone-audio sources.audio -> tone-filter.audio
+    bus tone-sweep tone-envelope.control -> tone-filter.mod
+    bus tone-key note.pitch -> tone-filter.key
+    bus tone-velocity note.velocity -> tone-filter.velocity
+    bus output-audio tone-filter.audio -> voice-out.audio
   }
 }

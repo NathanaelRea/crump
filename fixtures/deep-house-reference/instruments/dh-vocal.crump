@@ -1,0 +1,33 @@
+crump-module 2
+instrument dh-vocal "Deep House Vocal Chops" sampler {
+  polyphony 10
+  parameter gain "Gain" db -96db 24db 0db 0db automatable
+  parameter tune "Tune" semitones -24st 24st 0st 0st automatable
+  faceplate {
+    control gain "Gain" "Trims the vocal phrases and choir" maps gain
+    control tune "Tune" "Repitches every vocal mapping" maps tune
+  }
+  presentation {
+    tags vocal chops choir sample
+    preview C3 C6 velocity 35% 95% duration 1beat
+  }
+  # One-shot phrase and chop regions are chosen per sample occurrence.
+  mapping phrase asset vocal keys C2 C2 root C2 {
+    region 0 729064
+    playback one_shot
+    gain 0db
+    pan 0
+    envelope 4ms 60ms
+    fade 96 480
+  }
+  # A sustained "ah" sung on A4, looped for held choir notes.
+  mapping choir asset vocal keys C3 C7 root A4 {
+    region 438664 582664
+    playback gated
+    loop 462664 558664 crossfade 12000
+    gain -4db
+    pan 0
+    envelope 180ms 900ms
+    fade 480 960
+  }
+}

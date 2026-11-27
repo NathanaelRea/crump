@@ -52,6 +52,8 @@ fn analog_config(voices: usize) -> AnalogOscillatorConfig {
         blend: Scalar::constant(1.0),
         width: Scalar::constant(0.8),
         drift: Scalar::constant(0.0),
+        spread: UnisonSpread::Even,
+        drift_shape: DriftShape::Sine,
         glide: Scalar::constant(0.0),
         fm_depth: Scalar::constant(12.0),
         pm_depth: Scalar::constant(0.2),
@@ -457,4 +459,146 @@ fn graph_custom_lfo_transport_clock_and_swing_are_exact() {
     let mut swung = config;
     swung.swing = Scalar::constant(1.0);
     assert!(swung.process(&mut state, &[], 4.0, 2) < 1.0);
+}
+
+/// Largest normalised autocorrelation of the 20 ms loudness envelope for lags of
+/// 0.25 to 3 s. Near 1 means the level rises and falls at one regular rate.
+fn envelope_periodicity(samples: &[[f32; 2]], sample_rate: f64) -> f64 {
+    let hop = (sample_rate * 0.02) as usize;
+    let envelope: Vec<f64> = samples
+        .chunks(hop)
+        .skip(5)
+        .map(|chunk| {
+            let power = chunk
+                .iter()
+                .map(|s| (f64::from(s[0]) + f64::from(s[1])).powi(2))
+                .sum::<f64>()
+                / chunk.len() as f64;
+            10.0 * (power + 1e-12).log10()
+        })
+        .collect();
+    let mean = envelope.iter().sum::<f64>() / envelope.len() as f64;
+    let centred: Vec<f64> = envelope.iter().map(|v| v - mean).collect();
+    let energy: f64 = centred.iter().map(|v| v * v).sum();
+    (12..=150)
+        .map(|lag| {
+            centred
+                .iter()
+                .zip(&centred[lag..])
+                .map(|(a, b)| a * b)
+                .sum::<f64>()
+                / energy
+        })
+        .fold(f64::MIN, f64::max)
+}
+
+fn held_unison(
+    voices: usize,
+    spread: UnisonSpread,
+    shape: DriftShape,
+    drift: f64,
+) -> Vec<[f32; 2]> {
+    let config = AnalogOscillatorConfig {
+        detune: Scalar::constant(0.14),
+        drift: Scalar::constant(drift),
+        spread,
+        drift_shape: shape,
+        fm_depth: Scalar::constant(0.0),
+        pm_depth: Scalar::constant(0.0),
+        width: Scalar::constant(0.0),
+        ..analog_config(voices)
+    };
+    render(config, 7, 48_000 * 8)
+}
+
+#[test]
+fn unison_positions_keep_even_law_and_natural_rows_are_uneven() {
+    for voices in 2..=MAX_UNISON_VOICES {
+        let mut gaps = Vec::new();
+        for subvoice in 0..voices {
+            let even = unison_position(UnisonSpread::Even, subvoice, voices);
+            assert_eq!(even, subvoice as f64 * 2.0 / (voices - 1) as f64 - 1.0);
+            let natural = unison_position(UnisonSpread::Natural, subvoice, voices);
+            assert!((-1.0..=1.0).contains(&natural));
+            if subvoice > 0 {
+                let gap = natural - unison_position(UnisonSpread::Natural, subvoice - 1, voices);
+                assert!(gap > 0.0, "{voices} voices must stay ordered");
+                gaps.push(gap);
+            }
+        }
+        if voices > 2 {
+            let widest = gaps.iter().copied().fold(f64::MIN, f64::max);
+            let narrowest = gaps.iter().copied().fold(f64::MAX, f64::min);
+            assert!(
+                widest / narrowest > 1.2,
+                "{voices} voices must not be evenly spaced"
+            );
+        }
+        assert_eq!(unison_position(UnisonSpread::Natural, 0, 1), 0.0);
+    }
+}
+
+#[test]
+fn sine_drift_matches_the_original_law_and_wander_stays_bounded() {
+    let seed = xorshift(nonzero_seed(99));
+    let mut bank = DriftBank::new();
+    bank.retrigger(0, seed);
+    let mut phase = seed_phase(xorshift(seed));
+    let rate = 0.05 + seed_phase(xorshift(xorshift(seed))) * 0.1;
+    for _ in 0..200_000 {
+        assert_eq!(bank.value(0, DriftShape::Sine), (phase * TAU).sin());
+        bank.advance(0, DriftShape::Sine, 48_000.0);
+        phase = (phase + rate / 48_000.0).fract();
+    }
+    let mut wander = DriftBank::new();
+    wander.retrigger(0, seed);
+    let mut values = Vec::new();
+    for _ in 0..48_000 * 20 {
+        let value = wander.value(0, DriftShape::Wander);
+        assert!((-1.0..=1.0).contains(&value));
+        values.push(value);
+        wander.advance(0, DriftShape::Wander, 48_000.0);
+    }
+    let steps = values
+        .windows(2)
+        .map(|w| (w[1] - w[0]).abs())
+        .fold(0.0, f64::max);
+    assert!(
+        steps < 1e-3,
+        "wander must move smoothly, largest step {steps}"
+    );
+    let span = values.iter().copied().fold(f64::MIN, f64::max)
+        - values.iter().copied().fold(f64::MAX, f64::min);
+    assert!(span > 0.5, "wander must actually move, span {span}");
+}
+
+#[test]
+fn natural_spread_and_wander_smear_regular_unison_beating() {
+    for voices in [3, 5, 7] {
+        let even = envelope_periodicity(
+            &held_unison(voices, UnisonSpread::Even, DriftShape::Sine, 0.0),
+            48_000.0,
+        );
+        let natural = envelope_periodicity(
+            &held_unison(voices, UnisonSpread::Natural, DriftShape::Wander, 0.02),
+            48_000.0,
+        );
+        // Measured: 3 voices 0.93 -> 0.68, 5 voices 0.86 -> 0.28, 7 voices 0.77 -> 0.25.
+        assert!(
+            natural < even,
+            "{voices} voices: natural {natural} even {even}"
+        );
+        if voices >= 5 {
+            assert!(
+                natural < 0.45,
+                "{voices} voices still beat regularly: {natural}"
+            );
+        }
+    }
+    let natural = held_unison(5, UnisonSpread::Natural, DriftShape::Wander, 0.02);
+    assert_eq!(
+        natural,
+        held_unison(5, UnisonSpread::Natural, DriftShape::Wander, 0.02)
+    );
+    assert!(natural.iter().flatten().all(|s| s.is_finite()));
 }

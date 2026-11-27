@@ -1,48 +1,66 @@
 crump-module 2
 instrument dh-lead "Deep House Wavetable Lead" graph {
-  polyphony 8
-  parameter position "Table Position" ratio 0 1 0.2 0.3 automatable modulatable
+  polyphony 6
+  parameter position "Table Position" ratio 0 1 0.2 0.22 automatable modulatable
   parameter level "Level" ratio 0 1 0.32 0.32 modulatable
+  parameter bend "Bend" ratio 0 1 0.12 0.12 automatable modulatable
   faceplate {
     control position "Color" "Scans the exact four-frame wavetable" maps position
     control level "Level" "Sets the source layer level" maps level
+    control bend "Bend" "Warps the wavetable phase for a reedier edge" maps bend
   }
   presentation {
-    tags lead wavetable bright
-    preview C4 C6 velocity 45% 95% duration 1/2beat
+    tags lead wavetable pluck
+    preview A4 A6 velocity 45% 95% duration 1/2beat
     section source-panel sources "Wavetable Source" {
       node source
       asset wt-basic
+    }
+    section filter-panel filters "Pluck Filter" {
+      node tone
+      node pluck
     }
   }
   modulation {
     source velocity note_velocity per_voice unipolar
     source motion lfo instrument bipolar sine sync 2bar phase 0.25
-    route velocity-position source velocity target position depth 18% map unipolar curve smoothstep order 0 bypass false
-    route motion-position source motion target position depth 12% map bipolar curve linear order 10 bypass false
+    source flicker random_hold per_voice bipolar rate free 3hz seed 9091
+    route velocity-position source velocity target position depth 14% map unipolar curve smoothstep order 0 bypass false
+    route motion-position source motion target position depth 8% map bipolar curve linear order 10 bypass false
     route velocity-level source velocity target level depth 18% map unipolar curve linear order 20 bypass false
+    route flicker-position source flicker target position depth 10% map bipolar curve linear order 30 bypass false
+    route flicker-bend source flicker target bend depth 10% map bipolar curve smoothstep order 40 bypass false
+    route motion-bend source motion target bend depth 8% map bipolar curve linear order 50 bypass false
   }
-  graph voice 7 {
+  graph voice 9 {
     node source wavetable {
       asset wt-basic
       unison 2
       phase 0
       random_phase 0.1
       table_position $position
-      detune 0.06st
-      blend 0.9
-      width 0.6
-      drift 0.01st
+      detune 0.05st
+      blend 0.85
+      width 0.9
+      drift 0.008st
       velocity_amount 0.2
       level $level
       pan 0
+      warp lead-bend bend amount $bend
     }
-    node envelope envelope mode ahdsr attack 2ms hold 2ms decay 160ms sustain 0.08 release 260ms attack_curve 0 decay_curve -0.2 release_curve 0 retrigger always
+    node envelope envelope mode ahdsr attack 2ms hold 0ms decay 240ms sustain 0.12 release 220ms attack_curve 0 decay_curve -0.3 release_curve 0 retrigger always
+    node pluck envelope mode ahdsr attack 1ms hold 0ms decay 140ms sustain 0 release 120ms attack_curve 0 decay_curve -0.4 release_curve 0 retrigger always
+    node tone stereo_filter model svf_clean mode lowpass cutoff 1400hz resonance 0.3 drive 0.25 mix 1 pan 0 mod_depth 3200hz velocity_depth 900hz key_track 0.5 key_reference 880hz
     node voice-out output
     bus source-pitch note.pitch -> source.pitch
     bus source-gain envelope.control -> source.gain
     bus source-velocity note.velocity -> source.velocity
     bus envelope-gate note.gate -> envelope.gate
-    bus output-audio source.audio -> voice-out.audio
+    bus pluck-gate note.gate -> pluck.gate
+    bus tone-audio source.audio -> tone.audio
+    bus tone-mod pluck.control -> tone.mod
+    bus tone-key note.pitch -> tone.key
+    bus tone-velocity note.velocity -> tone.velocity
+    bus output-audio tone.audio -> voice-out.audio
   }
 }

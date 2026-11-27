@@ -204,6 +204,114 @@ pub(super) enum AnalogAmplitudeMode {
     Ring,
 }
 
+/// How unison subvoices are placed across the detune range.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum UnisonSpread {
+    /// Evenly spaced positions. Every pairwise detune is a multiple of one step, so
+    /// a held chord beats at one regular rate.
+    Even,
+    /// Fixed, asymmetric, unevenly spaced positions. Pairwise detunes are not
+    /// multiples of each other, so the beating smears instead of pulsing.
+    Natural,
+}
+
+/// The shape of each subvoice's slow pitch drift.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum DriftShape {
+    /// A slow sine per subvoice (0.05 to 0.15 Hz).
+    Sine,
+    /// A smoothed random walk per subvoice: a new seeded target every 0.8 to 2.5 s,
+    /// reached with a smoothstep.
+    Wander,
+}
+
+/// Natural positions per subvoice count, in -1..=1. The seven-voice row follows the
+/// classic supersaw offsets; the others keep the same uneven, asymmetric character.
+const NATURAL_POSITIONS: [[f64; MAX_UNISON_VOICES]; MAX_UNISON_VOICES - 1] = [
+    [-1.0, 0.83, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    [-1.0, 0.07, 0.91, 0.0, 0.0, 0.0, 0.0, 0.0],
+    [-1.0, -0.29, 0.38, 0.95, 0.0, 0.0, 0.0, 0.0],
+    [-1.0, -0.47, 0.05, 0.56, 0.97, 0.0, 0.0, 0.0],
+    [-1.0, -0.58, -0.17, 0.21, 0.63, 0.94, 0.0, 0.0],
+    [-1.0, -0.5716, -0.1774, 0.0, 0.181, 0.565, 0.9766, 0.0],
+    [-1.0, -0.68, -0.37, -0.12, 0.1, 0.41, 0.7, 0.96],
+];
+
+/// Detune and stereo position of `subvoice` among `voices`, in -1..=1.
+pub(super) fn unison_position(spread: UnisonSpread, subvoice: usize, voices: usize) -> f64 {
+    if voices <= 1 {
+        return 0.0;
+    }
+    match spread {
+        UnisonSpread::Even => subvoice as f64 * 2.0 / (voices - 1) as f64 - 1.0,
+        UnisonSpread::Natural => NATURAL_POSITIONS[voices - 2][subvoice],
+    }
+}
+
+/// Per-subvoice drift state shared by the analog oscillator and the wavetable.
+#[derive(Debug, Clone)]
+pub(super) struct DriftBank {
+    phases: [f64; MAX_UNISON_VOICES],
+    rates: [f64; MAX_UNISON_VOICES],
+    from: [f64; MAX_UNISON_VOICES],
+    to: [f64; MAX_UNISON_VOICES],
+    random: [u64; MAX_UNISON_VOICES],
+}
+
+impl DriftBank {
+    pub(super) const fn new() -> Self {
+        Self {
+            phases: [0.0; MAX_UNISON_VOICES],
+            rates: [0.0; MAX_UNISON_VOICES],
+            from: [0.0; MAX_UNISON_VOICES],
+            to: [0.0; MAX_UNISON_VOICES],
+            random: [1; MAX_UNISON_VOICES],
+        }
+    }
+
+    /// Reseeds one subvoice. The sine phase and rate derive exactly as before, so
+    /// `drift_shape sine` output is unchanged.
+    pub(super) fn retrigger(&mut self, index: usize, voice_seed: u64) {
+        self.phases[index] = seed_phase(xorshift(voice_seed));
+        self.rates[index] = 0.05 + seed_phase(xorshift(xorshift(voice_seed))) * 0.1;
+        let random = xorshift(xorshift(xorshift(voice_seed)) ^ 0x5bd1_e995_d1b5_4a32);
+        let next = xorshift(random);
+        self.from[index] = seed_phase(random) * 2.0 - 1.0;
+        self.to[index] = seed_phase(next) * 2.0 - 1.0;
+        self.random[index] = next;
+    }
+
+    /// The current drift of one subvoice, in -1..=1.
+    pub(super) fn value(&self, index: usize, shape: DriftShape) -> f64 {
+        match shape {
+            DriftShape::Sine => (self.phases[index] * TAU).sin(),
+            DriftShape::Wander => {
+                let t = self.phases[index];
+                let eased = t * t * (3.0 - 2.0 * t);
+                self.from[index] + (self.to[index] - self.from[index]) * eased
+            }
+        }
+    }
+
+    pub(super) fn advance(&mut self, index: usize, shape: DriftShape, sample_rate: f64) {
+        match shape {
+            DriftShape::Sine => {
+                self.phases[index] = (self.phases[index] + self.rates[index] / sample_rate).fract();
+            }
+            DriftShape::Wander => {
+                // 0.4 to 1.2 segments per second: one new target every 0.8 to 2.5 s.
+                self.phases[index] += self.rates[index] * 8.0 / sample_rate;
+                if self.phases[index] >= 1.0 {
+                    self.phases[index] -= 1.0;
+                    self.from[index] = self.to[index];
+                    self.random[index] = xorshift(self.random[index]);
+                    self.to[index] = seed_phase(self.random[index]) * 2.0 - 1.0;
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(super) struct AnalogOscillatorConfig {
     pub(super) waveform: OscillatorWaveform,
@@ -214,6 +322,8 @@ pub(super) struct AnalogOscillatorConfig {
     pub(super) blend: Scalar,
     pub(super) width: Scalar,
     pub(super) drift: Scalar,
+    pub(super) spread: UnisonSpread,
+    pub(super) drift_shape: DriftShape,
     pub(super) glide: Scalar,
     pub(super) fm_depth: Scalar,
     pub(super) pm_depth: Scalar,
@@ -234,8 +344,7 @@ pub(super) struct AnalogOscillatorConfig {
 pub(super) struct AnalogOscillatorState {
     phases: [f64; MAX_UNISON_VOICES],
     phase_seeds: [f64; MAX_UNISON_VOICES],
-    drift_phases: [f64; MAX_UNISON_VOICES],
-    drift_rates: [f64; MAX_UNISON_VOICES],
+    drift: DriftBank,
     frequency: f64,
     last_sync: f64,
     needs_phase_reset: bool,
@@ -247,8 +356,7 @@ impl AnalogOscillatorState {
         let mut state = Self {
             phases: [0.0; MAX_UNISON_VOICES],
             phase_seeds: [0.0; MAX_UNISON_VOICES],
-            drift_phases: [0.0; MAX_UNISON_VOICES],
-            drift_rates: [0.0; MAX_UNISON_VOICES],
+            drift: DriftBank::new(),
             frequency: 0.0,
             last_sync: 0.0,
             needs_phase_reset: true,
@@ -263,8 +371,7 @@ impl AnalogOscillatorState {
         for index in 0..MAX_UNISON_VOICES {
             let voice_seed = xorshift(nonzero_seed(seed ^ index as u64));
             self.phase_seeds[index] = seed_phase(voice_seed);
-            self.drift_phases[index] = seed_phase(xorshift(voice_seed));
-            self.drift_rates[index] = 0.05 + seed_phase(xorshift(xorshift(voice_seed))) * 0.1;
+            self.drift.retrigger(index, voice_seed);
         }
         self.last_sync = 0.0;
         self.needs_phase_reset = true;
@@ -368,12 +475,8 @@ impl AnalogOscillatorConfig {
         let mut output = [0.0_f64, 0.0_f64];
         let mut base_sample = 0.0_f64;
         for subvoice in 0..self.voices {
-            let position = if self.voices == 1 {
-                0.0
-            } else {
-                subvoice as f64 * 2.0 / (self.voices - 1) as f64 - 1.0
-            };
-            let drift_value = (state.drift_phases[subvoice] * TAU).sin() * drift;
+            let position = unison_position(self.spread, subvoice, self.voices);
+            let drift_value = state.drift.value(subvoice, self.drift_shape) * drift;
             let frequency = (state.frequency
                 * 2.0_f64.powf((position * detune + drift_value) / 12.0))
             .clamp(1.0, sample_rate * 0.45);
@@ -400,8 +503,7 @@ impl AnalogOscillatorConfig {
             }
             let sample = amplified * normalization;
             state.phases[subvoice] = (state.phases[subvoice] + increment).fract();
-            state.drift_phases[subvoice] =
-                (state.drift_phases[subvoice] + state.drift_rates[subvoice] / sample_rate).fract();
+            state.drift.advance(subvoice, self.drift_shape, sample_rate);
             let angle = (position * width + 1.0) * PI * 0.25;
             output[0] += sample * angle.cos();
             output[1] += sample * angle.sin();

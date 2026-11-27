@@ -1,5 +1,5 @@
 use std::{
-    f64::consts::{FRAC_1_SQRT_2, PI, TAU},
+    f64::consts::{FRAC_1_SQRT_2, PI},
     sync::Arc,
 };
 
@@ -8,8 +8,8 @@ use crate::engine::{control::mix_modulation_identity, wavetable::CompiledWavetab
 use super::{
     Scalar,
     oscillator::{
-        AnalogWarpStage, MAX_UNISON_VOICES, nonzero_seed, seed_phase, slew_frequency, warp_phase,
-        xorshift,
+        AnalogWarpStage, DriftBank, DriftShape, MAX_UNISON_VOICES, UnisonSpread, nonzero_seed,
+        seed_phase, slew_frequency, unison_position, warp_phase, xorshift,
     },
 };
 
@@ -24,6 +24,8 @@ pub(super) struct WavetableConfig {
     pub(super) blend: Scalar,
     pub(super) width: Scalar,
     pub(super) drift: Scalar,
+    pub(super) spread: UnisonSpread,
+    pub(super) drift_shape: DriftShape,
     pub(super) glide: Scalar,
     pub(super) fm_depth: Scalar,
     pub(super) pm_depth: Scalar,
@@ -40,8 +42,7 @@ pub(super) struct WavetableConfig {
 pub(super) struct WavetableState {
     phases: [f64; MAX_UNISON_VOICES],
     phase_seeds: [f64; MAX_UNISON_VOICES],
-    drift_phases: [f64; MAX_UNISON_VOICES],
-    drift_rates: [f64; MAX_UNISON_VOICES],
+    drift: DriftBank,
     frequency: f64,
     last_sync: f64,
     needs_phase_reset: bool,
@@ -53,8 +54,7 @@ impl WavetableState {
         let mut state = Self {
             phases: [0.0; MAX_UNISON_VOICES],
             phase_seeds: [0.0; MAX_UNISON_VOICES],
-            drift_phases: [0.0; MAX_UNISON_VOICES],
-            drift_rates: [0.0; MAX_UNISON_VOICES],
+            drift: DriftBank::new(),
             frequency: 0.0,
             last_sync: 0.0,
             needs_phase_reset: true,
@@ -69,8 +69,7 @@ impl WavetableState {
         for index in 0..MAX_UNISON_VOICES {
             let voice_seed = xorshift(nonzero_seed(seed ^ index as u64));
             self.phase_seeds[index] = seed_phase(voice_seed);
-            self.drift_phases[index] = seed_phase(xorshift(voice_seed));
-            self.drift_rates[index] = 0.05 + seed_phase(xorshift(xorshift(voice_seed))) * 0.1;
+            self.drift.retrigger(index, voice_seed);
         }
         self.last_sync = 0.0;
         self.needs_phase_reset = true;
@@ -154,12 +153,8 @@ impl WavetableConfig {
         let mut output = [0.0_f64; 2];
         let mut base_sample = 0.0;
         for subvoice in 0..self.voices {
-            let spread = if self.voices == 1 {
-                0.0
-            } else {
-                subvoice as f64 * 2.0 / (self.voices - 1) as f64 - 1.0
-            };
-            let drift_value = (state.drift_phases[subvoice] * TAU).sin() * drift;
+            let spread = unison_position(self.spread, subvoice, self.voices);
+            let drift_value = state.drift.value(subvoice, self.drift_shape) * drift;
             let frequency = (state.frequency
                 * 2.0_f64.powf((spread * detune + drift_value) / 12.0))
             .clamp(1.0, sample_rate * 0.45);
@@ -180,8 +175,7 @@ impl WavetableConfig {
                 base_sample = sample;
             }
             state.phases[subvoice] = (state.phases[subvoice] + increment).fract();
-            state.drift_phases[subvoice] =
-                (state.drift_phases[subvoice] + state.drift_rates[subvoice] / sample_rate).fract();
+            state.drift.advance(subvoice, self.drift_shape, sample_rate);
             let angle = (spread * width + 1.0) * PI * 0.25;
             output[0] += sample * power * angle.cos();
             output[1] += sample * power * angle.sin();

@@ -2,10 +2,10 @@
   "schema_version": 1,
   "library": "crump-deep-house-starter",
   "authority": "source-readable-instrument-modules-and-exact-assets",
-  "license_policy": "Modules are original repository content; copied procedural WAV assets retain MIT provenance.",
+  "license_policy": "Modules are original repository content; procedural WAV assets retain MIT provenance.",
   "audition_project": {
     "path": "auditions.crump",
-    "sha256": "6de25d4c6eafdf82a721623826fb466ba3f61596041efb8ad5ee6d39b45eb682",
+    "sha256": "0f0f9ca3e18d404c7852d581e85e54dbda91e78e8419b4bf909367f7c5f3efb5",
     "source_version": 2,
     "policy": "Each patch owns one readable two-bar Pattern and one looping Clip spanning its useful pitch/velocity or drum-voice range.",
     "patterns": [
@@ -17,14 +17,20 @@
       "audition-transition",
       "audition-evolving",
       "audition-granular",
-      "audition-spectral"
+      "audition-spectral",
+      "audition-kick",
+      "audition-vocal",
+      "audition-pluck",
+      "audition-brass",
+      "audition-octave-lead",
+      "audition-open-hat"
     ]
   },
   "modules": [
     {
       "id": "dh-bass",
       "path": "instruments/dh-bass.crump",
-      "sha256": "82f196c9fcb435b584238c7cdb37821344554626dff8acde314bd6edeb3f81c3",
+      "sha256": "4b4de9f072c45c5eeb6790a9a1bc6ecf20a2c07a2b4357546ab5790264652bb9",
       "tags": [
         "bass",
         "deep-house",
@@ -37,11 +43,11 @@
     {
       "id": "dh-lead",
       "path": "instruments/dh-lead.crump",
-      "sha256": "721678ea5fc087e85cd670a37c582b0f5832751e1e18b58df0ed4bc575576005",
+      "sha256": "0f620949a0b29cf09fd2747dac2fe1a36ef0991188b34d49ea58c52031c17ccb",
       "tags": [
         "lead",
         "wavetable",
-        "bright"
+        "pluck"
       ],
       "dependencies": [
         "wt-basic"
@@ -51,7 +57,7 @@
     {
       "id": "dh-pad",
       "path": "instruments/dh-pad.crump",
-      "sha256": "9b5bc69e6e897f8783733671279ccb1c06e02aa4b6df2da6751470ca9b8fb4f5",
+      "sha256": "9745742ee7b690b236f3fbdd430c3e3a99811feaf0f5854f0043244c54540eac",
       "tags": [
         "pad",
         "analog",
@@ -63,10 +69,10 @@
     {
       "id": "dh-keys",
       "path": "instruments/dh-keys.crump",
-      "sha256": "bc8a95c70c0e93b8038880a6721249ebdfcf77cb4f87fbc6442bb39e4413ebd0",
+      "sha256": "d0cb24f52c12a34a00ebe5d4192ab65f938f287b4710622c9af2cdf8a1e74423",
       "tags": [
         "keys",
-        "pluck",
+        "stab",
         "multisample",
         "sample"
       ],
@@ -80,7 +86,7 @@
     {
       "id": "dh-percussion",
       "path": "instruments/dh-percussion.crump",
-      "sha256": "998a62f60209e15016e59ba55160d11e0947745b47816913a8b8d275871e6333",
+      "sha256": "7b02dd83a5c89b13ec97767ad9dae786078333421e8654fe9b51e84727e7f6f6",
       "tags": [
         "drums",
         "percussion",
@@ -92,7 +98,7 @@
     {
       "id": "dh-transition",
       "path": "instruments/dh-transition.crump",
-      "sha256": "37331ed7a97c1e899d3f03bf4f222cda588e712f0789e3eabc96ab2ec6804a9b",
+      "sha256": "dc7fdcfd74e91229c90c1de55734a6c4b83d540103c9192bcce569e4a7730aab",
       "tags": [
         "transition",
         "riser",
@@ -104,7 +110,7 @@
     {
       "id": "dh-evolving-texture",
       "path": "instruments/dh-evolving-texture.crump",
-      "sha256": "1669991fc99824f4d885d08adc5bfa478a63223f43b35af5afb9c8ec8040c14c",
+      "sha256": "e48cdf92fda839a8af5a32f42383c3df714f685b61f9a83553f28fa5241e15e8",
       "tags": [
         "texture",
         "evolving",
@@ -118,29 +124,116 @@
     {
       "id": "dh-granular-texture",
       "path": "instruments/dh-granular-texture.crump",
-      "sha256": "d07bf38a516a1b1ff327ed4980260107accfb18dad905b6b2b4bd22955e9b74a",
+      "sha256": "4e1362657eeb414f518a738e48bffd120068fa498cf08613c94c1dcf47dba544",
       "tags": [
         "texture",
         "granular",
+        "vocal",
         "evolving"
       ],
       "dependencies": [
-        "source-texture"
+        "vocal"
       ],
       "preview_source": "presentation.preview"
     },
     {
       "id": "dh-spectral-transform",
       "path": "instruments/dh-spectral-transform.crump",
-      "sha256": "60165fbdac898efd4cc944aa66e73af52d7d6e110c594dfd23df9bc9e651ba67",
+      "sha256": "2f87127a751a385d0b9ad5b1145443e67809e756ad44d77cfebe8915b9aa79b6",
       "tags": [
         "spectral",
         "transformation",
-        "texture"
+        "texture",
+        "vocal"
       ],
       "dependencies": [
-        "source-texture"
+        "vocal"
       ],
+      "preview_source": "presentation.preview"
+    },
+    {
+      "id": "dh-kick",
+      "path": "instruments/dh-kick.crump",
+      "sha256": "0909a359ff0de4fc3361189621e970fc8571ea1e9ec8f7d3e091c29e25bd9f10",
+      "tags": [
+        "drums",
+        "kick",
+        "tom",
+        "sample",
+        "deep-house"
+      ],
+      "dependencies": [
+        "kick-a"
+      ],
+      "preview_source": "presentation.preview"
+    },
+    {
+      "id": "dh-vocal",
+      "path": "instruments/dh-vocal.crump",
+      "sha256": "48903dee4f5c6d1b379a9e2601e7eb59630f32bd8558d513d938b20e056e4b67",
+      "tags": [
+        "vocal",
+        "chops",
+        "choir",
+        "sample"
+      ],
+      "dependencies": [
+        "vocal"
+      ],
+      "preview_source": "presentation.preview"
+    },
+    {
+      "id": "dh-pluck",
+      "path": "instruments/dh-pluck.crump",
+      "sha256": "37a341c70d033e8e63e46dc797cb5d8c5442b6fd2a63078bc42bfe49c9a1e978",
+      "tags": [
+        "pluck",
+        "arp",
+        "analog",
+        "polyphonic"
+      ],
+      "dependencies": [],
+      "preview_source": "presentation.preview"
+    },
+    {
+      "id": "dh-brass",
+      "path": "instruments/dh-brass.crump",
+      "sha256": "9a4e7400deca83bf778d199e4cf1e6069bc553ffd4f6e1dbc5e8d3ca4b9b6724",
+      "tags": [
+        "brass",
+        "lead",
+        "analog",
+        "sustained"
+      ],
+      "dependencies": [],
+      "preview_source": "presentation.preview"
+    },
+    {
+      "id": "dh-octave-lead",
+      "path": "instruments/dh-octave-lead.crump",
+      "sha256": "b82ba3533ea7815b50c7003d29f3aa5d091dc6382db3204295385c7bc6d0ac21",
+      "tags": [
+        "lead",
+        "pluck",
+        "saw",
+        "ostinato",
+        "deep-house"
+      ],
+      "dependencies": [],
+      "preview_source": "presentation.preview"
+    },
+    {
+      "id": "dh-open-hat",
+      "path": "instruments/dh-open-hat.crump",
+      "sha256": "646b8172e2e51d14317fc99ea855d53b36f86379d16847f36072fdc9a5058f3c",
+      "tags": [
+        "drums",
+        "hat",
+        "percussion",
+        "noise",
+        "deep-house"
+      ],
+      "dependencies": [],
       "preview_source": "presentation.preview"
     }
   ],
@@ -202,6 +295,37 @@
       "origin": "procedurally generated by fixtures/synth-alpha/generate_assets.py",
       "license": "MIT",
       "provenance_source": "fixtures/synth-alpha/manifest.json"
+    },
+    {
+      "id": "kick-a",
+      "path": "media/kick.wav",
+      "sha256": "591e0d32c3e4ffa90c784b263badc37b29d6933e35c770609fe637933db8c5d7",
+      "frames": 20160,
+      "channels": 1,
+      "sample_rate": 48000,
+      "uses": [
+        "sampler"
+      ],
+      "origin": "procedurally generated by fixtures/deep-house-reference/generate_assets.py",
+      "license": "MIT",
+      "provenance_source": "fixtures/deep-house-reference/generate_assets.py"
+    },
+    {
+      "id": "vocal",
+      "path": "media/vocal-phrases.wav",
+      "sha256": "2504dac87b42d9e74085a89a916ec0b9ed9393c38a00bfe6f51000030759ba22",
+      "frames": 731464,
+      "channels": 1,
+      "sample_rate": 48000,
+      "uses": [
+        "sampler",
+        "sample",
+        "granular",
+        "spectral"
+      ],
+      "origin": "procedurally generated by fixtures/deep-house-reference/generate_assets.py",
+      "license": "MIT",
+      "provenance_source": "fixtures/deep-house-reference/generate_assets.py"
     }
   ]
 }

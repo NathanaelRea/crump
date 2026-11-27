@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "evidence_scope": "deterministic offline delivery render; not a listening qualification",
-  "project_revision": "019a57896e0c82b795132b3c7ea4fc4c4966b721404314e8f844c3e9d2bb5999",
+  "project_revision": "361d4a2bbc5a850fb32a4bcee58ba2f7df7b0a15f64bc70213120e870a1ba708",
   "request": {
     "range": "0bar..112bar plus 4s tail",
     "sample_rate": 48000,
-    "frame_count": 10767738,
+    "frame_count": 11145443,
     "sample_format": "ieee_float_32_le",
     "stems": [
       "group/music:post_fader",
@@ -17,10 +17,10 @@
   "runs": [
     {
       "output": "render/delivery-final",
-      "elapsed_seconds": 536,
-      "rendered_active_revision": "019a57896e0c82b795132b3c7ea4fc4c4966b721404314e8f844c3e9d2bb5999",
-      "executable_sha256": "edd5c06155db8c2daefcbb6a204f4bd34a786e3f78d6bb5e4f9f9ab3c8e63ea4",
-      "master_sha256": "367310a2d468855e718d37bc2147ae1151c692d2f18b099eb6915ac5a6ec6e6c",
+      "elapsed_seconds": 133,
+      "rendered_active_revision": "361d4a2bbc5a850fb32a4bcee58ba2f7df7b0a15f64bc70213120e870a1ba708",
+      "executable_sha256": "faf7de850d60f73274d62e2ccb31e350ba6175672197764e9da1a5694a279256",
+      "master_sha256": "4d951fc9344f58c637f04de195bb3d31e1e846639cc83fa145a69b40c82529d6",
       "stems": [
         {
           "owner": {
@@ -28,17 +28,17 @@
             "role": "track"
           },
           "tap": "post_fader",
-          "alignment_delay_frames": 288,
-          "sha256": "051061cdddf638bfc5256c3c90db49004c888aeae774d5638f3a2899376601d6"
+          "alignment_delay_frames": 224,
+          "sha256": "319124ccdb2fff4350ef3882eb17d370636522224ca4b92ff17d3f6ad1066dd6"
         },
         {
           "owner": {
-            "id": "lead",
+            "id": "ostinato",
             "role": "track"
           },
           "tap": "post_fader",
-          "alignment_delay_frames": 320,
-          "sha256": "c5e9067ce4b2075d5961e2229658a85e6876eca19b662f5f00feb04a164ea1f6"
+          "alignment_delay_frames": 288,
+          "sha256": "520b593640549f5daf65ee53abf301fe5682fe35330f91b5e4cf22ef967704c9"
         },
         {
           "owner": {
@@ -46,8 +46,8 @@
             "role": "group"
           },
           "tap": "post_fader",
-          "alignment_delay_frames": 288,
-          "sha256": "59ad049f0d368a59213a72fed62c356ba142a75d9c0e99830a0770e439e8c1ac"
+          "alignment_delay_frames": 224,
+          "sha256": "8e50cb8fd433cfe18e0085ea6c466fe72f2e0afa14247060ad9b19f353713b06"
         },
         {
           "owner": {
@@ -55,17 +55,17 @@
             "role": "group"
           },
           "tap": "post_fader",
-          "alignment_delay_frames": 256,
-          "sha256": "52956c7247faa5586623f8fb173dbdf31fd79623afb54bbb345aaa067b850164"
+          "alignment_delay_frames": 192,
+          "sha256": "415725c5a8ca4fc4d6d5a775b4b267d6c6cd0bb51e77663a9d49e32c7c6ae0ae"
         }
       ]
     },
     {
       "output": "render/delivery-final-repeat",
-      "elapsed_seconds": 562,
-      "rendered_active_revision": "019a57896e0c82b795132b3c7ea4fc4c4966b721404314e8f844c3e9d2bb5999",
-      "executable_sha256": "edd5c06155db8c2daefcbb6a204f4bd34a786e3f78d6bb5e4f9f9ab3c8e63ea4",
-      "master_sha256": "367310a2d468855e718d37bc2147ae1151c692d2f18b099eb6915ac5a6ec6e6c",
+      "elapsed_seconds": 130,
+      "rendered_active_revision": "361d4a2bbc5a850fb32a4bcee58ba2f7df7b0a15f64bc70213120e870a1ba708",
+      "executable_sha256": "faf7de850d60f73274d62e2ccb31e350ba6175672197764e9da1a5694a279256",
+      "master_sha256": "4d951fc9344f58c637f04de195bb3d31e1e846639cc83fa145a69b40c82529d6",
       "stems": [
         {
           "owner": {
@@ -73,17 +73,17 @@
             "role": "track"
           },
           "tap": "post_fader",
-          "alignment_delay_frames": 288,
-          "sha256": "051061cdddf638bfc5256c3c90db49004c888aeae774d5638f3a2899376601d6"
+          "alignment_delay_frames": 224,
+          "sha256": "319124ccdb2fff4350ef3882eb17d370636522224ca4b92ff17d3f6ad1066dd6"
         },
         {
           "owner": {
-            "id": "lead",
+            "id": "ostinato",
             "role": "track"
           },
           "tap": "post_fader",
-          "alignment_delay_frames": 320,
-          "sha256": "c5e9067ce4b2075d5961e2229658a85e6876eca19b662f5f00feb04a164ea1f6"
+          "alignment_delay_frames": 288,
+          "sha256": "520b593640549f5daf65ee53abf301fe5682fe35330f91b5e4cf22ef967704c9"
         },
         {
           "owner": {
@@ -91,8 +91,8 @@
             "role": "group"
           },
           "tap": "post_fader",
-          "alignment_delay_frames": 288,
-          "sha256": "59ad049f0d368a59213a72fed62c356ba142a75d9c0e99830a0770e439e8c1ac"
+          "alignment_delay_frames": 224,
+          "sha256": "8e50cb8fd433cfe18e0085ea6c466fe72f2e0afa14247060ad9b19f353713b06"
         },
         {
           "owner": {
@@ -100,32 +100,36 @@
             "role": "group"
           },
           "tap": "post_fader",
-          "alignment_delay_frames": 256,
-          "sha256": "52956c7247faa5586623f8fb173dbdf31fd79623afb54bbb345aaa067b850164"
+          "alignment_delay_frames": 192,
+          "sha256": "415725c5a8ca4fc4d6d5a775b4b267d6c6cd0bb51e77663a9d49e32c7c6ae0ae"
         }
       ]
     }
   ],
   "hashes_identical": true,
   "master_analysis": {
-    "analyzed_frames": 10767738,
+    "active_rms_dbfs": -15.83540931238415,
+    "active_rms_gate_dbfs": -60.0,
+    "active_rms_method": "crump-rms-400ms-100ms-gate-60dbfs-v1",
+    "analyzed_frames": 11145443,
     "clipped_frame_count": 0,
     "clipped_sample_count": 0,
     "dc_offset": [
-      1.1178276694227855e-05,
-      1.0725189132882564e-05
+      8.291765660044675e-06,
+      8.16949511831391e-06
     ],
     "first_non_finite_frame": null,
-    "integrated_lufs": -28.78694374775179,
+    "integrated_lufs": -13.886730197359187,
     "loudness_method": "crump-k-weighted-400ms-gated-3s-100ms-lra-v2",
-    "loudness_range_lu": 5.1527903018075705,
-    "maximum_short_term_lufs": -27.335963706074754,
+    "loudness_range_lu": 4.160542814164559,
+    "maximum_short_term_lufs": -11.988822695132678,
     "non_finite_sample_count": 0,
-    "sample_peak": 0.20252926647663116,
-    "sample_peak_dbfs": -13.87024420445162,
-    "schema_version": 2,
-    "true_peak": 0.20419660210609436,
-    "true_peak_dbtp": -13.799029779639485,
+    "rms_dbfs": -15.91773469355169,
+    "sample_peak": 0.881056547164917,
+    "sample_peak_dbfs": -1.0999243440498383,
+    "schema_version": 3,
+    "true_peak": 0.8810652494430542,
+    "true_peak_dbtp": -1.0998385531270476,
     "true_peak_kernel": "crump-linear-phase-fir-4x-129tap-v1",
     "true_peak_oversampling_factor": 4
   },
