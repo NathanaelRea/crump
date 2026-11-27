@@ -42,8 +42,8 @@ fn deep_house_reference_is_portable_complete_track_content() {
     let duration_seconds = project.song.end.as_f64() * 60.0 / project.song.tempo_bpm;
     assert!((180.0..=300.0).contains(&duration_seconds));
     assert!((duration_seconds - 228.196_721_311_475_4).abs() < 1.0e-9);
-    assert_eq!(bundle.assets.iter().count(), 6);
-    assert_eq!(project.song.instruments.len(), 15);
+    assert_eq!(bundle.assets.iter().count(), 5);
+    assert_eq!(project.song.instruments.len(), 14);
     assert_eq!(project.song.tracks.len(), 10);
 
     let source = std::fs::read_to_string(root.join("project.crump")).expect("project source");
@@ -55,7 +55,6 @@ fn deep_house_reference_is_portable_complete_track_content() {
         "node source granular",
         "node source spectral",
         "sampler {",
-        "mapping phrase asset vocal",
         "modulation pad-width-drift lfo global",
         "modulation bass-grit-wobble lfo instrument/dh-bass",
         "automation ostinato-cutoff",
@@ -101,7 +100,7 @@ fn starter_library_has_exact_assets_readable_modules_and_authored_audition_phras
     let reference = fixture_root();
     let manifest = json(&starter.join("manifest.json"));
     let modules = manifest["modules"].as_array().expect("starter modules");
-    assert_eq!(modules.len(), 15);
+    assert_eq!(modules.len(), 14);
 
     let expected_ids = BTreeSet::from([
         "dh-bass",
@@ -118,7 +117,6 @@ fn starter_library_has_exact_assets_readable_modules_and_authored_audition_phras
         "dh-pluck",
         "dh-spectral-transform",
         "dh-transition",
-        "dh-vocal",
     ]);
     let mut actual_ids = BTreeSet::new();
     for entry in modules {
@@ -157,7 +155,7 @@ fn starter_library_has_exact_assets_readable_modules_and_authored_audition_phras
     assert_eq!(actual_ids, expected_ids);
 
     let assets = manifest["assets"].as_array().expect("starter assets");
-    assert_eq!(assets.len(), 6);
+    assert_eq!(assets.len(), 5);
     assert_eq!(
         assets,
         json(&reference.join("media/manifest.json"))["assets"]
@@ -190,10 +188,10 @@ fn starter_library_has_exact_assets_readable_modules_and_authored_audition_phras
     let bundle = load_project(&audition_path).expect("load audition Project");
     assert!(!bundle.diagnostics.has_errors(), "{:?}", bundle.diagnostics);
     let project = bundle.publishable().expect("valid audition Project");
-    assert_eq!(project.song.instruments.len(), 15);
-    assert_eq!(project.song.patterns.len(), 15);
-    assert_eq!(project.song.tracks.len(), 15);
-    assert_eq!(bundle.assets.iter().count(), 6);
+    assert_eq!(project.song.instruments.len(), 14);
+    assert_eq!(project.song.patterns.len(), 14);
+    assert_eq!(project.song.tracks.len(), 14);
+    assert_eq!(bundle.assets.iter().count(), 5);
 
     let declared_patterns = audition["patterns"]
         .as_array()
@@ -201,7 +199,7 @@ fn starter_library_has_exact_assets_readable_modules_and_authored_audition_phras
         .iter()
         .map(|id| id.as_str().expect("pattern ID"))
         .collect::<BTreeSet<_>>();
-    assert_eq!(declared_patterns.len(), 15);
+    assert_eq!(declared_patterns.len(), 14);
     for pattern in &project.song.patterns {
         assert!(declared_patterns.contains(pattern.id.as_str()));
         assert!(pattern.events.len() >= 3);

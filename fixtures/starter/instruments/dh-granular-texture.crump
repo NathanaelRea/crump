@@ -1,53 +1,48 @@
 crump-module 2
 instrument dh-granular-texture "Deep House Granular Texture" graph {
   polyphony 4
-  parameter position "Position" ratio 0 1 0.898 0.898 automatable modulatable
-  parameter density "Density" hz 2hz 40hz 28hz 28hz automatable modulatable
+  parameter position "Position" ratio 0 1 0.1 0.3 automatable modulatable
+  parameter density "Density" hz 2hz 80hz 14hz 16hz automatable modulatable
   faceplate {
-    control position "Position" "Selects the region of the sung vocal" maps position
+    control position "Position" "Selects the exact source-texture region" maps position
     control density "Density" "Controls the bounded grain cloud" maps density
   }
   presentation {
-    tags texture granular vocal evolving
-    preview C3 C6 velocity 35% 85% duration 2beat
-    section source-panel sources "Granular Vocal" {
+    tags texture granular evolving
+    preview C2 C5 velocity 35% 85% duration 2beat
+    section source-panel sources "Granular Source" {
       node source
-      asset vocal
-    }
-    section filter-panel filters "Air Band" {
-      node air
+      asset source-texture
     }
   }
   modulation {
-    source motion lfo per_voice bipolar triangle sync 4bar phase 0 retrigger note loop forward
+    source motion lfo per_voice bipolar triangle sync 2bar phase 0 retrigger note loop forward
     source velocity note_velocity per_voice unipolar
-    route scan source motion target position depth 2% map bipolar curve smoothstep order 0 bypass false
-    route touch-density source velocity target density depth 4hz map unipolar curve linear order 10 bypass false
+    route scan source motion target position depth 26% map bipolar curve smoothstep order 0 bypass false
+    route touch-density source velocity target density depth 8hz map unipolar curve linear order 10 bypass false
   }
-  graph voice 6 {
+  graph voice 5 {
     node source granular {
-      asset vocal
-      max_grains 32
+      asset source-texture
+      max_grains 16
       position $position
-      scan 0
-      size 160ms
+      scan 0.08
+      size 120ms
       density $density
-      root A4
+      root C4
       tune 0st
-      spray 0.02
+      spray 0.08
       window hann
       edge reflect
-      direction_probability 0.15
-      stereo_spread 0.9
+      direction_probability 0.12
+      stereo_spread 0.72
       freeze false
       seed 7301
-      level 0.5
+      level 0.28
     }
-    node air stereo_filter model svf_clean mode highpass cutoff 280hz resonance 0.1 drive 0 mix 1 pan 0 mod_depth 0hz velocity_depth 0hz key_track 0 key_reference 261.625565hz
     node voice-out output
     bus source-pitch note.pitch -> source.pitch
     bus source-gate note.gate -> source.gate
-    bus air-audio source.audio -> air.audio
-    bus output-audio air.audio -> voice-out.audio
+    bus output-audio source.audio -> voice-out.audio
   }
 }

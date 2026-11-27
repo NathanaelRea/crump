@@ -474,7 +474,7 @@ instrument tagged "Tagged Lead" graph {
             .map(|entry| entry.expect("starter Instrument entry").path())
             .collect::<Vec<_>>();
         module_paths.sort();
-        assert_eq!(module_paths.len(), 15);
+        assert_eq!(module_paths.len(), 14);
 
         for path in module_paths {
             let source = std::fs::read_to_string(&path).expect("read starter Module");

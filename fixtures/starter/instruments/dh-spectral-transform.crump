@@ -1,56 +1,41 @@
 crump-module 2
 instrument dh-spectral-transform "Deep House Spectral Transform" graph {
   polyphony 3
-  parameter scan "Scan" ratio 0 1 0.698 0.698 automatable modulatable
+  parameter scan "Scan" ratio 0 1 0.05 0.18 automatable modulatable
   faceplate {
-    control scan "Scan" "Chooses the frozen moment of the sung vowel" maps scan
+    control scan "Scan" "Scans the bounded deterministic spectral analysis" maps scan
   }
   presentation {
-    tags spectral transformation texture vocal
-    preview C3 C6 velocity 35% 85% duration 2beat
+    tags spectral transformation texture
+    preview C2 C5 velocity 35% 85% duration 2beat
     section source-panel sources "Spectral Source" {
       node source
-      asset vocal
-    }
-    section filter-panel filters "Shimmer Band" {
-      node envelope
-      node shimmer
+      asset source-texture
     }
   }
   modulation {
-    source motion lfo per_voice unipolar sine sync 4bar phase 0 retrigger note one_shot forward
-    route scan-motion source motion target scan depth 1% map unipolar curve smoothstep order 0 bypass true
+    source motion lfo per_voice unipolar sine sync 2bar phase 0 retrigger note one_shot forward
+    route scan-motion source motion target scan depth 62% map unipolar curve smoothstep order 0 bypass false
   }
-  graph voice 9 {
+  graph voice 5 {
     node source spectral {
-      asset vocal
+      asset source-texture
       algorithm crump-spectral-peaks-v1
-      max_peaks 24
+      max_peaks 96
       scan $scan
-      rate 0
-      root A4
+      rate 0.22
+      root C4
       tune 0st
-      low 200hz
-      high 7khz
+      low 90hz
+      high 16khz
       transients suppress
-      phase_randomization 0.3
-      freeze true
+      phase_randomization 0.1
+      freeze false
       seed 7901
-      level 0.5
+      level 0.26
     }
-    node envelope envelope mode ahdsr attack 1bar hold 0ms decay 1s sustain 0.8 release 1beat attack_curve 0.1 decay_curve 0 release_curve 0.1 retrigger always
-    node gate-audio to_audio
-    node gate-stereo mono_to_stereo
-    node gated stereo_math operation multiply
-    node shimmer stereo_filter model svf_clean mode highpass cutoff 500hz resonance 0.1 drive 0 mix 1 pan 0 mod_depth 0hz velocity_depth 0hz key_track 0 key_reference 261.625565hz
     node voice-out output
     bus source-pitch note.pitch -> source.pitch
-    bus envelope-gate note.gate -> envelope.gate
-    bus gate-control envelope.control -> gate-audio.control
-    bus gate-mono gate-audio.audio -> gate-stereo.audio
-    bus gated-source source.audio -> gated.a
-    bus gated-envelope gate-stereo.audio -> gated.b
-    bus shimmer-audio gated.audio -> shimmer.audio
-    bus output-audio shimmer.audio -> voice-out.audio
+    bus output-audio source.audio -> voice-out.audio
   }
 }

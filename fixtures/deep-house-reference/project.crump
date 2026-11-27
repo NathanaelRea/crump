@@ -13,7 +13,6 @@ import "instruments/dh-spectral-transform.crump"
 import "instruments/dh-kick.crump"
 import "instruments/dh-open-hat.crump"
 import "instruments/dh-octave-lead.crump"
-import "instruments/dh-vocal.crump"
 project "Deep House Reference" {
   id deep-house-reference
   seed 122112
@@ -36,9 +35,6 @@ project "Deep House Reference" {
     usage multisample
   }
   asset kick-a "Procedural tight house kick" wav "media/kick.wav" sha256 "591e0d32c3e4ffa90c784b263badc37b29d6933e35c770609fe637933db8c5d7"
-  asset vocal "Procedural sung vocal phrases" wav "media/vocal-phrases.wav" sha256 "2504dac87b42d9e74085a89a916ec0b9ed9393c38a00bfe6f51000030759ba22" {
-    usage sample granular spectral
-  }
   song {
     tempo 122bpm
     meter 4/4

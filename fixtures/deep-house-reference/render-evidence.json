@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "evidence_scope": "deterministic offline delivery render; not a listening qualification",
-  "project_revision": "361d4a2bbc5a850fb32a4bcee58ba2f7df7b0a15f64bc70213120e870a1ba708",
+  "project_revision": "638a163e7a1d3ecbb91a0b7f7b7652ce5c96fffdcac25facff2d14fd02cf683c",
   "request": {
     "range": "0bar..112bar plus 4s tail",
     "sample_rate": 48000,
@@ -17,9 +17,9 @@
   "runs": [
     {
       "output": "render/delivery-final",
-      "elapsed_seconds": 133,
-      "rendered_active_revision": "361d4a2bbc5a850fb32a4bcee58ba2f7df7b0a15f64bc70213120e870a1ba708",
-      "executable_sha256": "faf7de850d60f73274d62e2ccb31e350ba6175672197764e9da1a5694a279256",
+      "elapsed_seconds": 127,
+      "rendered_active_revision": "638a163e7a1d3ecbb91a0b7f7b7652ce5c96fffdcac25facff2d14fd02cf683c",
+      "executable_sha256": "ee8efcce73409467df113c2511fbb0a12153e5bbc38dc6ad2cff915ffb7f1963",
       "master_sha256": "4d951fc9344f58c637f04de195bb3d31e1e846639cc83fa145a69b40c82529d6",
       "stems": [
         {
@@ -62,9 +62,9 @@
     },
     {
       "output": "render/delivery-final-repeat",
-      "elapsed_seconds": 130,
-      "rendered_active_revision": "361d4a2bbc5a850fb32a4bcee58ba2f7df7b0a15f64bc70213120e870a1ba708",
-      "executable_sha256": "faf7de850d60f73274d62e2ccb31e350ba6175672197764e9da1a5694a279256",
+      "elapsed_seconds": 144,
+      "rendered_active_revision": "638a163e7a1d3ecbb91a0b7f7b7652ce5c96fffdcac25facff2d14fd02cf683c",
+      "executable_sha256": "ee8efcce73409467df113c2511fbb0a12153e5bbc38dc6ad2cff915ffb7f1963",
       "master_sha256": "4d951fc9344f58c637f04de195bb3d31e1e846639cc83fa145a69b40c82529d6",
       "stems": [
         {

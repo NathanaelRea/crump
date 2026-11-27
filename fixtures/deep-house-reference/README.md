@@ -43,7 +43,7 @@ The arranged Tracks use these source families:
 | Sampler | `kick-drums`, `toms` |
 | Stock synthesis | `percussion` |
 
-The Project also imports the starter library's wavetable (`dh-lead`, `dh-evolving-texture`), `sample_source` plus multisample (`dh-keys`), granular, spectral and vocal sampler Instruments. They compile with the Project, but no Track plays them: they did not survive the listening rounds. `fixtures/starter/auditions.crump` still plays every one of them.
+The Project also imports the starter library's wavetable (`dh-lead`, `dh-evolving-texture`), `sample_source` plus multisample (`dh-keys`), granular and spectral Instruments. They compile with the Project, but no Track plays them: they did not survive the listening rounds. `fixtures/starter/auditions.crump` still plays every one of them.
 
 The section table above is authored metadata for verification; all musical events remain reusable Patterns and Clips.
 
@@ -85,7 +85,7 @@ Song modulation moves the effects themselves:
 
 ## Media
 
-`generate_assets.py` regenerates `media/kick.wav` and `media/vocal-phrases.wav` deterministically with the Python standard library. The kick is synthesized to the measurements above. The vocal is additive formant synthesis, not a recording. It holds two sung two-bar phrases (`hook`, `answer`), three short chops on A4, C5, and E5, and sustained "ah" and "oo" vowels on A4, all in A minor pentatonic. The script prints each region's exact source frames, which the `dh-vocal` mappings and the granular and spectral positions use. The other four assets are copied from `fixtures/synth-alpha/media`.
+`generate_assets.py` regenerates `media/kick.wav` deterministically with the Python standard library, synthesized to the measurements above. The other four assets are copied from `fixtures/synth-alpha/media`. Every asset is committed because a Project declares each one by exact SHA-256 and will not load without the matching bytes.
 
 ## Verification workflow
 

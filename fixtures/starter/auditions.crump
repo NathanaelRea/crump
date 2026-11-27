@@ -9,7 +9,6 @@ import "instruments/dh-evolving-texture.crump"
 import "instruments/dh-granular-texture.crump"
 import "instruments/dh-spectral-transform.crump"
 import "instruments/dh-kick.crump"
-import "instruments/dh-vocal.crump"
 import "instruments/dh-pluck.crump"
 import "instruments/dh-brass.crump"
 import "instruments/dh-octave-lead.crump"
@@ -36,13 +35,10 @@ project "Deep House Starter Audition Phrases" {
     usage multisample
   }
   asset kick-a "Procedural tight house kick" wav "media/kick.wav" sha256 "591e0d32c3e4ffa90c784b263badc37b29d6933e35c770609fe637933db8c5d7"
-  asset vocal "Procedural sung vocal phrases" wav "media/vocal-phrases.wav" sha256 "2504dac87b42d9e74085a89a916ec0b9ed9393c38a00bfe6f51000030759ba22" {
-    usage sample granular spectral
-  }
   song {
     tempo 122bpm
     meter 4/4
-    end 30bar
+    end 28bar
 
     pattern audition-octave-lead 2bar {
       note 0beat A3 1/4beat 0.42
@@ -138,12 +134,6 @@ project "Deep House Starter Audition Phrases" {
       note 4beat G1 1beat 0.78
       note 6beat B1 1beat 0.95
     }
-    pattern audition-vocal 2bar {
-      note 0beat C3 2beat 0.35
-      note 2beat A3 2beat 0.52
-      note 4beat A4 2beat 0.68
-      note 6beat E5 2beat 0.85
-    }
 
     track audition-bass "Bass Audition" instrument dh-bass level -18db pan 0 {
       clip audition-bass-clip pattern audition-bass start 0bar duration 2bar mode loop
@@ -175,20 +165,17 @@ project "Deep House Starter Audition Phrases" {
     track audition-kick "Kick Audition" instrument dh-kick level -18db pan 0 {
       clip audition-kick-clip pattern audition-kick start 18bar duration 2bar mode loop
     }
-    track audition-vocal "Vocal Choir Audition" instrument dh-vocal level -18db pan 0 {
-      clip audition-vocal-clip pattern audition-vocal start 20bar duration 2bar mode loop
-    }
     track audition-pluck "Felt Pluck Audition" instrument dh-pluck level -18db pan 0 {
-      clip audition-pluck-clip pattern audition-pluck start 22bar duration 2bar mode loop
+      clip audition-pluck-clip pattern audition-pluck start 20bar duration 2bar mode loop
     }
     track audition-brass "Swelling Horn Audition" instrument dh-brass level -18db pan 0 {
-      clip audition-brass-clip pattern audition-brass start 24bar duration 2bar mode loop
+      clip audition-brass-clip pattern audition-brass start 22bar duration 2bar mode loop
     }
     track audition-octave-lead "Octave Saw Lead Audition" instrument dh-octave-lead level -18db pan 0 {
-      clip audition-octave-lead-clip pattern audition-octave-lead start 26bar duration 2bar mode loop
+      clip audition-octave-lead-clip pattern audition-octave-lead start 24bar duration 2bar mode loop
     }
     track audition-open-hat "Open Hat Audition" instrument dh-open-hat level -18db pan 0 {
-      clip audition-open-hat-clip pattern audition-open-hat start 28bar duration 2bar mode loop
+      clip audition-open-hat-clip pattern audition-open-hat start 26bar duration 2bar mode loop
     }
   }
 }

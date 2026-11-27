@@ -1,8 +1,8 @@
 # Deep-house starter Instrument Modules
 
-This source-readable library contains fifteen stable `crump-module 2` Instruments. Every module has tags and bounded `presentation.preview` metadata; audition sequencing therefore remains outside patch state. `auditions.crump` supplies one readable two-bar Audition Phrase and looping Clip per patch across a useful pitch/velocity range (or the four stock drum voices). `dh-keys` deliberately combines the exact multisample zones with one exact `sample_source` layer so the chord-stab role demonstrates both source families.
+This source-readable library contains fourteen stable `crump-module 2` Instruments. Every module has tags and bounded `presentation.preview` metadata; audition sequencing therefore remains outside patch state. `auditions.crump` supplies one readable two-bar Audition Phrase and looping Clip per patch across a useful pitch/velocity range (or the four stock drum voices). `dh-keys` deliberately combines the exact multisample zones with one exact `sample_source` layer so the chord-stab role demonstrates both source families.
 
-`manifest.json` records exact module and Audition Project hashes, dependencies, tags, and the provenance of all copied WAV bytes. Four media files are byte-identical copies of the procedural MIT assets in `fixtures/synth-alpha/media`. The kick and vocal come from `fixtures/deep-house-reference/generate_assets.py`. The vocal is synthesized, so no external paths or third-party recordings are used.
+`manifest.json` records exact module and Audition Project hashes, dependencies, tags, and the provenance of all copied WAV bytes. Four media files are byte-identical copies of the procedural MIT assets in `fixtures/synth-alpha/media`. The kick comes from `fixtures/deep-house-reference/generate_assets.py`. It is synthesized, so no external paths or third-party recordings are used.
 
 Install or inspect a module with:
 
